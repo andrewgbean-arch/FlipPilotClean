@@ -1,15 +1,10 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import Purchases from "react-native-purchases";
 
 export default function ManageSubscription() {
-const openPortal = async () => {
-  try {
-    await Purchases.showManageSubscriptions();
-  } catch (err) {
-    console.log("Manage subscription error:", err);
-  }
-};
-
+  // Placeholder until backend is copied over
+  const openPortal = () => {
+    console.log("openPortal called — backend not connected yet");
+  };
 
   return (
     <View style={styles.container}>

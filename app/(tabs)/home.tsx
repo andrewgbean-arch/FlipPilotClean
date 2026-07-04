@@ -153,13 +153,27 @@ const AIBubble: React.FC<AIBubbleProps> = ({ onPress, theme }) => {
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.loop(
+    const animation = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 1800, useNativeDriver: false }),
-        Animated.timing(pulse, { toValue: 0, duration: 1800, useNativeDriver: false }),
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 1800,
+          useNativeDriver: true, // animate opacity instead
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 1800,
+          useNativeDriver: true,
+        }),
       ])
-    ).start();
-  }, []);
+    );
+
+    animation.start();
+
+    return () => {
+      animation.stop();
+    };
+  }, [pulse]);
 
   const glow = pulse.interpolate({
     inputRange: [0, 1],
@@ -180,7 +194,9 @@ const AIBubble: React.FC<AIBubbleProps> = ({ onPress, theme }) => {
         justifyContent: "center",
         alignItems: "center",
         shadowColor: theme.goldDeep,
-        shadowOpacity: glow,
+        // use opacity via Animated.View wrapper if you want,
+        // or keep this as a static value and drive something else with `glow`
+        shadowOpacity: 0.7,
         shadowRadius: 20,
         elevation: 10,
       }}
@@ -191,6 +207,7 @@ const AIBubble: React.FC<AIBubbleProps> = ({ onPress, theme }) => {
     </AnimatedPressable>
   );
 };
+
 
 // ------------------------------------------------------
 // Best Flip Carousel

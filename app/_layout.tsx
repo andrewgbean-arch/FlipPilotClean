@@ -1,12 +1,12 @@
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
+import { View } from "react-native";
 
 import ProBadge from "../src/components/ProBadge";
 import { FlipHistoryProvider } from "../src/context/FlipHistoryContext";
 import { SubscriptionProvider } from "../src/context/SubscriptionContext";
 import { ThemeProvider, useTheme } from "../src/context/ThemeContext";
-
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -54,7 +54,7 @@ function ThemedStack() {
 
 function ProBadgeOverlay() {
   return (
-    <div
+    <View
       style={{
         position: "absolute",
         top: 50,
@@ -64,7 +64,6 @@ function ProBadgeOverlay() {
       }}
     >
       <ProBadge />
-    </div>
+    </View>
   );
 }
-

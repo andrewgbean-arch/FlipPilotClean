@@ -6,14 +6,10 @@ import {
   useEffect,
   useState,
 } from "react";
-import Purchases, {
-  CustomerInfo,
-  PurchasesOfferings,
-} from "react-native-purchases";
 
 type SubscriptionContextType = {
   isPro: boolean;
-  offerings: PurchasesOfferings | null;
+  offerings: any | null;
   purchase: (pkg: any) => Promise<void>;
   restore: () => Promise<void>;
 };
@@ -21,64 +17,35 @@ type SubscriptionContextType = {
 const SubscriptionContext = createContext<SubscriptionContextType | null>(null);
 
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
-  const [offerings, setOfferings] = useState<PurchasesOfferings | null>(null);
+  const [offerings, setOfferings] = useState<any | null>(null);
   const [isPro, setIsPro] = useState(false);
 
-  // ⭐ Initialize RevenueCat
+  // ⭐ Placeholder until backend is copied over
   useEffect(() => {
-    async function init() {
-      try {
-        Purchases.setDebugLogsEnabled(true);
-
-        await Purchases.configure({
-          apiKey: process.env.EXPO_PUBLIC_REVENUECAT_KEY!,
-        });
-
-        // Load customer info
-        const customerInfo = await Purchases.getCustomerInfo();
-        updateProStatus(customerInfo);
-
-        // Load offerings
-        const offs = await Purchases.getOfferings();
-        setOfferings(offs);
-      } catch (err) {
-        console.log("RevenueCat init error:", err);
-      }
-    }
-
-    init();
+    console.log("SubscriptionContext: backend not connected yet");
   }, []);
 
-  // ⭐ Update Pro status
-  const updateProStatus = (info: CustomerInfo) => {
-    const active = info.entitlements.active;
-    setIsPro(!!active["pro"]);
+  // ⭐ Update Pro status (backend will provide real data later)
+  const updateProStatus = (info: any) => {
+    setIsPro(!!info?.isPro);
   };
 
-  // ⭐ Purchase handler
+  // ⭐ Purchase handler (placeholder)
   const purchase = async (pkg: any) => {
-    try {
-      const { customerInfo } = await Purchases.purchasePackage(pkg);
-      updateProStatus(customerInfo);
+    console.log("purchase() called — backend not connected yet");
 
-      // ⭐ Redirect to success animation
-      router.push("/pro-success");
+    // Simulate success for now
+    updateProStatus({ isPro: true });
 
-    } catch (err: any) {
-      if (!err.userCancelled) {
-        console.log("Purchase error:", err);
-      }
-    }
+    router.push("/pro-success");
   };
 
-  // ⭐ Restore purchases
+  // ⭐ Restore purchases (placeholder)
   const restore = async () => {
-    try {
-      const info = await Purchases.restorePurchases();
-      updateProStatus(info);
-    } catch (err) {
-      console.log("Restore error:", err);
-    }
+    console.log("restore() called — backend not connected yet");
+
+    // Simulate restore
+    updateProStatus({ isPro: true });
   };
 
   return (
