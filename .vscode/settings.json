@@ -1,0 +1,8 @@
+{
+  "json.schemas": [
+    {
+      "fileMatch": ["app.json"],
+      "url": "https://docs.expo.dev/schemas/app.json"
+    }
+  ]
+}

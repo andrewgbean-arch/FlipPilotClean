@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "flippilot-new",
+    "slug": "flippilot-new",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#208AEF"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": false
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundColor": "#E6F4FE"
+      },
+      "package": "com.anonymous.flippilotnew"
+    },
+    "web": {
+      "favicon": "./assets/images/favicon.png"
+    },
+    "jsEngine": "hermes",
+    "plugins": [
+      "expo-image",
+      "expo-sharing",
+      "expo-web-browser",
+      "expo-status-bar",
+      "expo-router",
+      "expo-font",
+      "expo-splash-screen"
+    ]
+  }
+}
