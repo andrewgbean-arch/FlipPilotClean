@@ -85,7 +85,9 @@ interface ParallaxProps {
   headerHeight?: number;
   header: React.ReactNode;
   children: React.ReactNode;
+  contentContainerStyle?: any; // ← THIS LINE FIXES EVERYTHING
 }
+
 
 const ParallaxScrollView: React.FC<ParallaxProps> = ({
   headerHeight = 300,
@@ -133,7 +135,7 @@ const ParallaxScrollView: React.FC<ParallaxProps> = ({
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
           { useNativeDriver: false }
         )}
-        contentContainerStyle={{ paddingTop: headerHeight - 40, paddingBottom: 40 }}
+        contentContainerStyle={styles.content}
       >
         {children}
       </Animated.ScrollView>
@@ -158,7 +160,7 @@ const AIBubble: React.FC<AIBubbleProps> = ({ onPress, theme }) => {
         Animated.timing(pulse, {
           toValue: 1,
           duration: 1800,
-          useNativeDriver: true, // animate opacity instead
+          useNativeDriver: true,
         }),
         Animated.timing(pulse, {
           toValue: 0,
@@ -169,16 +171,8 @@ const AIBubble: React.FC<AIBubbleProps> = ({ onPress, theme }) => {
     );
 
     animation.start();
-
-    return () => {
-      animation.stop();
-    };
-  }, [pulse]);
-
-  const glow = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.4, 0.9],
-  });
+    return () => animation.stop();
+  }, []);
 
   return (
     <AnimatedPressable
@@ -194,8 +188,6 @@ const AIBubble: React.FC<AIBubbleProps> = ({ onPress, theme }) => {
         justifyContent: "center",
         alignItems: "center",
         shadowColor: theme.goldDeep,
-        // use opacity via Animated.View wrapper if you want,
-        // or keep this as a static value and drive something else with `glow`
         shadowOpacity: 0.7,
         shadowRadius: 20,
         elevation: 10,
@@ -207,7 +199,6 @@ const AIBubble: React.FC<AIBubbleProps> = ({ onPress, theme }) => {
     </AnimatedPressable>
   );
 };
-
 
 // ------------------------------------------------------
 // Best Flip Carousel
@@ -333,9 +324,21 @@ export default function HomeScreen() {
   };
 
   return (
-    <ThemedView style={{ flex: 1, backgroundColor: theme.background }}>
+    <ThemedView style={styles.screen}>
       <GoldParticles theme={theme} />
-      <LiveProfitCounter totalProfit={totalProfit} theme={theme} />
+     <View
+
+  style={{
+    position: "absolute",
+    top: insets.top + 10,
+    right: 20,
+    zIndex: 999,
+  }}
+>
+  <LiveProfitCounter totalProfit={totalProfit} theme={theme} />
+</View>
+
+
 
       <ParallaxScrollView
         headerHeight={300}
@@ -353,6 +356,7 @@ export default function HomeScreen() {
             />
           </View>
         }
+        contentContainerStyle={styles.content}
       >
         {/* Stats */}
         <ThemedView
@@ -478,6 +482,20 @@ export default function HomeScreen() {
 // Styles
 // ------------------------------------------------------
 const styles = StyleSheet.create({
+ screen: {
+  flex: 1,
+  backgroundColor: "#0A1128",
+  position: "relative",   // ⭐ REQUIRED — FIXES ALL LAYOUT SHIFTING
+},
+
+  content: {
+    flexGrow: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingBottom: 60,
+    paddingHorizontal: 20,
+  },
+
   statsCard: {
     borderRadius: 26,
     paddingVertical: 32,
@@ -514,3 +532,4 @@ const styles = StyleSheet.create({
     color: "white",
   },
 });
+

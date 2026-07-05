@@ -1,5 +1,7 @@
 import { useFlipHistory } from "../../src/context/FlipHistoryContext";
-import { Audio } from "expo-av";
+
+
+
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as FileSystem from "expo-file-system";
 import * as Haptics from "expo-haptics";
@@ -123,16 +125,7 @@ export default function ScanScreen() {
   };
 
   // Tactical beep sound
-  const playBeep = async () => {
-    try {
-      const { sound } = await Audio.Sound.createAsync(
-        require("@/assets/sounds/beep.mp3")
-      );
-      await sound.playAsync();
-    } catch (e) {
-      console.log("Beep error:", e);
-    }
-  };
+
 
   // Laser animation
   const laserY = useRef(new Animated.Value(0)).current;
@@ -217,9 +210,7 @@ export default function ScanScreen() {
     setBarcodeLocked(true);
 
     // Ultra mode effects
-    triggerFlash("white");
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    playBeep();
+  
 
     try {
       setLoading(true);
@@ -254,9 +245,8 @@ export default function ScanScreen() {
     try {
       if (!cameraRef.current || loading || !cameraReady) return;
 
-      triggerFlash("white");
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-      playBeep();
+     
+      
 
       const photo = await cameraRef.current.takePictureAsync();
 

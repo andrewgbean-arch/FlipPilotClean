@@ -11,7 +11,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#208AEF"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false
     },
@@ -36,7 +38,9 @@
       "expo-splash-screen"
     ],
     "autolinking": {
-      "exclude": ["react-native-view-shot"]
+      "exclude": [
+        "react-native-view-shot"
+      ]
     }
   }
 }
