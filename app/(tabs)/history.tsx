@@ -3,6 +3,7 @@ import * as Haptics from "expo-haptics";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
+  View,
   Animated,
   FlatList,
   Image,
@@ -13,7 +14,7 @@ import {
   StyleSheet,
   TextInput,
 } from "react-native";
-import ViewShot from "react-native-view-shot";
+
 
 type ViewShotRef = {
   capture?: () => Promise<string>;
@@ -454,276 +455,238 @@ const exportToCSV = async () => {
   }
 };
 
-  const renderItem = ({
-    item,
-    index,
-  }: {
-    item: FlipRecord;
-    index: number;
-  }) => {
-    const trend = getTrendIcon(index);
+ const renderItem = ({
+  item,
+  index,
+}: {
+  item: FlipRecord;
+  index: number;
+}) => {
+  const trend = getTrendIcon(index);
 
-    const safeBuy = Number(item.pricing?.recommendedBuyPrice || 0);
-    const safeSell = Number(item.pricing?.recommendedSellPrice || 0);
-    const safeProfit = Number(item.pricing?.predictedProfit || 0);
-    const roi = safeBuy > 0 ? (safeProfit / safeBuy) * 100 : 0;
+  const safeBuy = Number(item.pricing?.recommendedBuyPrice || 0);
+  const safeSell = Number(item.pricing?.recommendedSellPrice || 0);
+  const safeProfit = Number(item.pricing?.predictedProfit || 0);
+  const roi = safeBuy > 0 ? (safeProfit / safeBuy) * 100 : 0;
 
-    const roiColor = getRoiColor(roi);
+  const roiColor = getRoiColor(roi);
 
-    return (
-      <ViewShot
-        ref={(ref) => {
-          shareCardRefs.current[item.id] = ref;
-        }}
-        options={{ format: "png", quality: 1 }}
-      >
-        <AnimatedPressable
-          style={[
-            styles.card,
-            {
-              backgroundColor: theme.card,
-              borderColor: theme.goldDeep,
-              borderWidth: 3,
-            },
-          ]}
-          onPress={() => openDetails(item)}
-        >
-          {/* IMAGE */}
-          {typeof item.image === "string" &&
-            item.image.trim().length > 0 && (
-              <ThemedView style={styles.imageWrapper}>
-                <Image
-                  source={{ uri: item.image }}
-                  style={styles.image}
-                />
-              </ThemedView>
-            )}
-
-          {/* HEADER */}
-          <ThemedView style={styles.cardHeaderRow}>
-            <ThemedText style={[textVariants.body, styles.name]}>
-              📦 {item.title}
-            </ThemedText>
-
-            <ThemedText
-              style={[textVariants.body, styles.trendBadge]}
-            >
-              {trend}
-            </ThemedText>
-          </ThemedView>
-
-         {/* BUY / SELL */}
-<ThemedView style={styles.row}>
-  <ThemedText style={[textVariants.body, styles.text]}>
-    Buy: £{safeBuy.toFixed(2)}
-  </ThemedText>
-  <ThemedText style={[textVariants.body, styles.text]}>
-    Sell: £{safeSell.toFixed(2)}
-  </ThemedText>
-</ThemedView>
-
-{/* PROFIT */}
-<ThemedText
-  style={[
-    textVariants.h3,
-    styles.profit,
-    { color: safeProfit >= 0 ? theme.success : theme.danger },
-  ]}
->
-  £{safeProfit.toFixed(2)}
-</ThemedText>
-
-{/* BADGES */}
-<ThemedView style={styles.badgeRow}>
-  <ThemedText
-    style={[
-      textVariants.body,
-      styles.roiBadge,
-      { color: roiColor },
-    ]}
-  >
-    ROI {roi.toFixed(0)}%
-  </ThemedText>
-
-  {item.aiPriceConfidence != null && (
-    <ThemedText style={[textVariants.body, styles.confBadge]}>
-      Conf {item.aiPriceConfidence.toFixed(0)}%
-    </ThemedText>
-  )}
-
-  {item.flipScore != null && (
-    <ThemedText style={[textVariants.body, styles.favBadge]}>
-      🔥 Score {item.flipScore}
-    </ThemedText>
-  )}
-
-  {item.rarity != null && (
-    <ThemedText style={[textVariants.body, styles.favBadge]}>
-      🎲 Rarity {item.rarity}
-    </ThemedText>
-  )}
-
-  {item.sellSpeed != null && (
-    <ThemedText style={[textVariants.body, styles.favBadge]}>
-      ⚡ Speed {item.sellSpeed}
-    </ThemedText>
-  )}
-
-  {item.market?.demandScore != null && (
-    <ThemedText style={[textVariants.body, styles.favBadge]}>
-      📈 Demand {item.market.demandScore}
-    </ThemedText>
-  )}
-
-  {item.favourite && (
-    <ThemedText style={[textVariants.body, styles.favBadge]}>
-      ⭐ Favourite
-    </ThemedText>
-  )}
-</ThemedView>
-
-{/* CONDITION */}
-{item.ai?.condition && (
-  <ThemedText
-    style={[textVariants.body, styles.conditionText]}
-  >
-    Condition: {item.ai.condition}
-  </ThemedText>
-)}
-
-{/* AI SUMMARY */}
-{(item.ai?.condition ||
-  item.market?.demandScore ||
-  item.sellSpeed) && (
-  <ThemedText
-    style={[textVariants.small, styles.conditionText]}
-  >
-    AI:{" "}
-    {item.ai?.condition ? `${item.ai.condition} • ` : ""}
-    {item.market?.demandScore
-      ? `Demand ${item.market.demandScore} • `
-      : ""}
-    {item.sellSpeed ? `Speed ${item.sellSpeed}` : ""}
-  </ThemedText>
-)}
-
-{/* BUTTON ROW */}
-<ThemedView style={styles.buttonRow}>
-
-  {/* SHARE IMAGE */}
-  <AnimatedPressable
-    onPress={async () => {
-      try {
-        const ref = shareCardRefs.current[item.id];
-        if (!ref) return;
-
-        const uri = await ref.capture?.();
-        if (uri) {
-          await Share.share({
-            url: uri,
-            message: "FlipPilot – Flip Card",
-            title: "FlipPilot",
-          });
-        }
-      } catch (e) {
-        console.log("Share card failed", e);
-      }
-    }}
-    style={[
-      styles.fav,
-      {
-        backgroundColor: theme.accent,
-        borderColor: theme.goldDeep,
-        borderWidth: 3,
-      },
-    ]}
-  >
-    <ThemedText style={[textVariants.h3, { color: theme.black }]}>
-      🖼️
-    </ThemedText>
-  </AnimatedPressable>
-
-  {/* SHARE TEXT */}
-  <AnimatedPressable
-    onPress={() =>
-      shareFlip({
-        title: item.title,
-        buyPrice: safeBuy,
-        sellPrice: safeSell,
-        roi,
-        profit: safeProfit,
-        confidence: item.aiPriceConfidence || 0,
-        origin: item.ai?.condition || "Unknown",
-        description: item.ai?.description || "",
-        image: item.image,
-      })
-    }
-    style={[
-      styles.fav,
-      {
-        backgroundColor: theme.accent,
-        borderColor: theme.goldDeep,
-        borderWidth: 3,
-      },
-    ]}
-  >
-    <ThemedText style={[textVariants.h3, { color: theme.black }]}>
-      ✈️
-    </ThemedText>
-  </AnimatedPressable>
-
-  {/* FAVOURITE */}
-  <AnimatedPressable
-    onPress={() => toggleFavourite(item.id)}
-    style={[
-      styles.fav,
-      item.favourite
-        ? {
-            backgroundColor: theme.accent,
+  return (
+    <View>
+      <AnimatedPressable
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.card,
             borderColor: theme.goldDeep,
             borderWidth: 3,
-          }
-        : {
-            borderWidth: 3,
-            borderColor: theme.goldDeep,
           },
-    ]}
-  >
-    <ThemedText
-      style={[
-        textVariants.h3,
-        {
-          color: item.favourite ? theme.black : theme.accent,
-        },
-      ]}
-    >
-      ⭐
-    </ThemedText>
-  </AnimatedPressable>
+        ]}
+        onPress={() => openDetails(item)}
+      >
+        {/* IMAGE */}
+        {typeof item.image === "string" &&
+          item.image.trim().length > 0 && (
+            <ThemedView style={styles.imageWrapper}>
+              <Image
+                source={{ uri: item.image }}
+                style={styles.image}
+              />
+            </ThemedView>
+          )}
 
-  {/* DELETE */}
-  <AnimatedPressable
-    onPress={() => deleteFlip(item.id)}
-    style={[
-      styles.fav,
-      {
-        backgroundColor: theme.danger,
-        borderColor: theme.goldDeep,
-        borderWidth: 3,
-      },
-    ]}
-  >
-    <ThemedText style={[textVariants.h3, { color: theme.white }]}>
-      🗑️
-    </ThemedText>
-  </AnimatedPressable>
+        {/* HEADER */}
+        <ThemedView style={styles.cardHeaderRow}>
+          <ThemedText style={[textVariants.body, styles.name]}>
+            📦 {item.title}
+          </ThemedText>
 
-</ThemedView>
+          <ThemedText
+            style={[textVariants.body, styles.trendBadge]}
+          >
+            {trend}
+          </ThemedText>
+        </ThemedView>
 
-</AnimatedPressable>
-</ViewShot>
-    );
-  };
+        {/* BUY / SELL */}
+        <ThemedView style={styles.row}>
+          <ThemedText style={[textVariants.body, styles.text]}>
+            Buy: £{safeBuy.toFixed(2)}
+          </ThemedText>
+          <ThemedText style={[textVariants.body, styles.text]}>
+            Sell: £{safeSell.toFixed(2)}
+          </ThemedText>
+        </ThemedView>
+
+        {/* PROFIT */}
+        <ThemedText
+          style={[
+            textVariants.h3,
+            styles.profit,
+            { color: safeProfit >= 0 ? theme.success : theme.danger },
+          ]}
+        >
+          £{safeProfit.toFixed(2)}
+        </ThemedText>
+
+        {/* BADGES */}
+        <ThemedView style={styles.badgeRow}>
+          <ThemedText
+            style={[
+              textVariants.body,
+              styles.roiBadge,
+              { color: roiColor },
+            ]}
+          >
+            ROI {roi.toFixed(0)}%
+          </ThemedText>
+
+          {item.aiPriceConfidence != null && (
+            <ThemedText style={[textVariants.body, styles.confBadge]}>
+              Conf {item.aiPriceConfidence.toFixed(0)}%
+            </ThemedText>
+          )}
+
+          {item.flipScore != null && (
+            <ThemedText style={[textVariants.body, styles.favBadge]}>
+              🔥 Score {item.flipScore}
+            </ThemedText>
+          )}
+
+          {item.rarity != null && (
+            <ThemedText style={[textVariants.body, styles.favBadge]}>
+              🎲 Rarity {item.rarity}
+            </ThemedText>
+          )}
+
+          {item.sellSpeed != null && (
+            <ThemedText style={[textVariants.body, styles.favBadge]}>
+              ⚡ Speed {item.sellSpeed}
+            </ThemedText>
+          )}
+
+          {item.market?.demandScore != null && (
+            <ThemedText style={[textVariants.body, styles.favBadge]}>
+              📈 Demand {item.market.demandScore}
+            </ThemedText>
+          )}
+
+          {item.favourite && (
+            <ThemedText style={[textVariants.body, styles.favBadge]}>
+              ⭐ Favourite
+            </ThemedText>
+          )}
+        </ThemedView>
+
+        {/* CONDITION */}
+        {item.ai?.condition && (
+          <ThemedText
+            style={[textVariants.body, styles.conditionText]}
+          >
+            Condition: {item.ai.condition}
+          </ThemedText>
+        )}
+
+        {/* AI SUMMARY */}
+        {(item.ai?.condition ||
+          item.market?.demandScore ||
+          item.sellSpeed) && (
+          <ThemedText
+            style={[textVariants.small, styles.conditionText]}
+          >
+            AI:{" "}
+            {item.ai?.condition ? `${item.ai.condition} • ` : ""}
+            {item.market?.demandScore
+              ? `Demand ${item.market.demandScore} • `
+              : ""}
+            {item.sellSpeed ? `Speed ${item.sellSpeed}` : ""}
+          </ThemedText>
+        )}
+
+        {/* BUTTON ROW */}
+        <ThemedView style={styles.buttonRow}>
+
+          {/* SHARE TEXT */}
+          <AnimatedPressable
+            onPress={() =>
+              shareFlip({
+                title: item.title,
+                buyPrice: safeBuy,
+                sellPrice: safeSell,
+                roi,
+                profit: safeProfit,
+                confidence: item.aiPriceConfidence || 0,
+                origin: item.ai?.condition || "Unknown",
+                description: item.ai?.description || "",
+                image: item.image,
+              })
+            }
+            style={[
+              styles.fav,
+              {
+                backgroundColor: theme.accent,
+                borderColor: theme.goldDeep,
+                borderWidth: 3,
+              },
+            ]}
+          >
+            <ThemedText style={[textVariants.h3, { color: theme.black }]}>
+              ✈️
+            </ThemedText>
+          </AnimatedPressable>
+
+          {/* FAVOURITE */}
+          <AnimatedPressable
+            onPress={() => toggleFavourite(item.id)}
+            style={[
+              styles.fav,
+              item.favourite
+                ? {
+                    backgroundColor: theme.accent,
+                    borderColor: theme.goldDeep,
+                    borderWidth: 3,
+                  }
+                : {
+                    borderWidth: 3,
+                    borderColor: theme.goldDeep,
+                  },
+            ]}
+          >
+            <ThemedText
+              style={[
+                textVariants.h3,
+                {
+                  color: item.favourite ? theme.black : theme.accent,
+                },
+              ]}
+            >
+              ⭐
+            </ThemedText>
+          </AnimatedPressable>
+
+          {/* DELETE */}
+          <AnimatedPressable
+            onPress={() => deleteFlip(item.id)}
+            style={[
+              styles.fav,
+              {
+                backgroundColor: theme.danger,
+                borderColor: theme.goldDeep,
+                borderWidth: 3,
+              },
+            ]}
+          >
+            <ThemedText style={[textVariants.h3, { color: theme.white }]}>
+              🗑️
+            </ThemedText>
+          </AnimatedPressable>
+
+        </ThemedView>
+      </AnimatedPressable>
+    </View>
+  );
+};
+
 
 
    return (

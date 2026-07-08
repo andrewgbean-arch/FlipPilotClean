@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   text: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "900",
   },
 });

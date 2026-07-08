@@ -36,11 +36,6 @@
       "expo-router",
       "expo-font",
       "expo-splash-screen"
-    ],
-    "autolinking": {
-      "exclude": [
-        "react-native-view-shot"
-      ]
-    }
+    ]
   }
 }

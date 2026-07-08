@@ -1,7 +1,5 @@
 import { useFlipHistory } from "../../src/context/FlipHistoryContext";
 
-
-
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as FileSystem from "expo-file-system";
 import * as Haptics from "expo-haptics";
@@ -124,8 +122,6 @@ export default function ScanScreen() {
     }).start(() => framePulse.setValue(0));
   };
 
-  // Tactical beep sound
-
 
   // Laser animation
   const laserY = useRef(new Animated.Value(0)).current;
@@ -209,9 +205,7 @@ export default function ScanScreen() {
 
     setBarcodeLocked(true);
 
-    // Ultra mode effects
-  
-
+   
     try {
       setLoading(true);
 
@@ -245,8 +239,6 @@ export default function ScanScreen() {
     try {
       if (!cameraRef.current || loading || !cameraReady) return;
 
-     
-      
 
       const photo = await cameraRef.current.takePictureAsync();
 

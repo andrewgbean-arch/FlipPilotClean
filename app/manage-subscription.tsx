@@ -1,9 +1,22 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import Purchases from "react-native-purchases";
+import * as Linking from "expo-linking";
 
 export default function ManageSubscription() {
-  // Placeholder until backend is copied over
-  const openPortal = () => {
-    console.log("openPortal called — backend not connected yet");
+
+  const openPortal = async () => {
+    try {
+      const url = await Purchases.getManageSubscriptionURL();
+
+      if (url) {
+        Linking.openURL(url);
+      } else {
+        console.log("No subscription URL returned");
+      }
+
+    } catch (err) {
+      console.log("Manage subscription error:", err);
+    }
   };
 
   return (
@@ -73,3 +86,4 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
 });
+

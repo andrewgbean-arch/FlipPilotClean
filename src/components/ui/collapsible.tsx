@@ -1,3 +1,4 @@
+import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
 import { PropsWithChildren, useRef, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
@@ -12,10 +13,10 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
-import ThemedText from "../ThemedText";
-import ThemedView from "../ThemedView";
-import { useTheme } from "../../hooks/use-theme";
-
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { useTheme } from "@/hooks/use-theme";
+import { Radius, Spacing } from "@/styles/theme";
 
 export function Collapsible({
   children,
@@ -45,6 +46,13 @@ export function Collapsible({
 
   const contentRef = useRef<View>(null);
 
+  const playClick = async () => {
+    const sound = new Audio.Sound();
+    await sound.loadAsync(require("@/assets/sounds/click.mp3"));
+    await sound.playAsync();
+    setTimeout(() => sound.unloadAsync(), 500);
+  };
+
   const toggle = (manual = true) => {
     const next = !isOpen;
     setIsOpen(next);
@@ -54,6 +62,7 @@ export function Collapsible({
 
     if (manual) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      playClick();
     }
 
     glow.value = withTiming(next ? 1 : 0, { duration: 300 });
@@ -77,13 +86,16 @@ export function Collapsible({
   const onGesture = (event: any) => {
     drag.value = event.translationY;
 
+    // Elastic adaptive rotation curve
     const speed = Math.abs(event.velocityY) / 300;
     const elastic = speed * 120;
     rotation.value = withTiming(elastic, { duration: 80 });
 
+    // Particle direction
     particleX.value = withTiming(event.translationX / 10, { duration: 80 });
     particleY.value = withTiming(event.translationY / 10, { duration: 80 });
 
+    // Smooth fade
     particleOpacity.value = withTiming(1, { duration: 120 });
 
     if (drag.value > 40 && isOpen) {
@@ -100,6 +112,7 @@ export function Collapsible({
     rotation.value = withTiming(0, { duration: 300 });
   };
 
+  // Animated styles
   const reactorStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${rotation.value}deg` }],
   }));
@@ -150,6 +163,7 @@ export function Collapsible({
         onPress={() => toggle(true)}
       >
         <Animated.View style={[styles.button, glowStyle, tiltStyle]}>
+          {/* Dual-Core Reactor */}
           <Animated.View style={[styles.reactorOuter, reactorStyle]}>
             <View style={styles.reactorInner} />
           </Animated.View>
@@ -177,31 +191,32 @@ export function Collapsible({
 
 const styles = StyleSheet.create({
   wrapper: {
-    marginBottom: 12,
+    marginBottom: Spacing.md,
   },
   heading: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingVertical: 8,
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
   },
   pressedHeading: {
     opacity: 0.7,
   },
   button: {
-    width: 16,
-    height: 16,
-    borderRadius: 10,
+    width: Spacing.lg,
+    height: Spacing.lg,
+    borderRadius: Radius.md,
     justifyContent: "center",
     alignItems: "center",
   },
 
+  // Dual-Core Reactor
   reactorOuter: {
     width: 22,
     height: 22,
     borderRadius: 22,
     borderWidth: 2,
-    borderColor: "#FFD700",
+    borderColor: "#FFD700", // gold outer ring
     justifyContent: "center",
     alignItems: "center",
   },
@@ -209,7 +224,7 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 10,
-    backgroundColor: "#00A8FF",
+    backgroundColor: "#00A8FF", // blue inner core
   },
 
   titleText: {
@@ -217,8 +232,8 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   content: {
-    borderRadius: 10,
-    padding: 16,
+    borderRadius: Radius.md,
+    padding: Spacing.lg,
     position: "relative",
     overflow: "hidden",
   },

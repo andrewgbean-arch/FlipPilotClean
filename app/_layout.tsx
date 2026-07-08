@@ -1,12 +1,12 @@
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
-import { View } from "react-native";
 
 import ProBadge from "../src/components/ProBadge";
 import { FlipHistoryProvider } from "../src/context/FlipHistoryContext";
 import { SubscriptionProvider } from "../src/context/SubscriptionContext";
 import { ThemeProvider, useTheme } from "../src/context/ThemeContext";
+
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -40,7 +40,7 @@ function ThemedStack() {
         contentStyle: { backgroundColor: theme.background },
       }}
     >
-      <Stack.Screen name="intro" options={{ headerShown: false }} />
+   
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="(market)" options={{ headerShown: false }} />
@@ -51,6 +51,8 @@ function ThemedStack() {
     </Stack>
   );
 }
+
+import { View } from "react-native";
 
 function ProBadgeOverlay() {
   return (
@@ -67,3 +69,4 @@ function ProBadgeOverlay() {
     </View>
   );
 }
+

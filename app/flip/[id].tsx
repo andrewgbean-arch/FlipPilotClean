@@ -16,8 +16,6 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import ViewShot from "react-native-view-shot";
-
 
 import { shareFlip } from "@/utils/share/shareFlip";
 
@@ -48,9 +46,6 @@ export default function FlipDetails() {
   const { id } = params as { id?: string };
 
   const flip: FlipRecord | undefined = flips.find((f) => f.id === id);
-
-  const viewShotRef = useRef<ViewShot>(null);
-
 
   const [saving, setSaving] = useState(false);
   const savedAnim = useRef(new Animated.Value(0)).current;
@@ -178,21 +173,6 @@ export default function FlipDetails() {
     setTimeout(() => setSaving(false), 400);
   };
 
-  const shareImage = async () => {
-    try {
-      const uri = await viewShotRef.current?.capture?.();
-      if (!uri) return;
-
-      await Share.share({
-        url: uri,
-        message: "FlipPilot – Flip Card",
-        title: "FlipPilot",
-      });
-    } catch (e) {
-      console.log("Share image failed", e);
-    }
-  };
-
   const shareText = () => {
     shareFlip({
       title,
@@ -296,7 +276,7 @@ export default function FlipDetails() {
           </View>
         </View>
 
-        {/* FLIP SCORE METER */}
+        {/* FLIP SCORE */}
         {(flipScore != null || flipPotential || sellSpeed || rarity) && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Flip Score</Text>
@@ -331,7 +311,7 @@ export default function FlipDetails() {
           </View>
         )}
 
-        {/* MARKET TREND GRAPH */}
+        {/* MARKET TREND */}
         {(lowest != null || highest != null || average != null) && (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Market Trend</Text>
@@ -495,12 +475,8 @@ export default function FlipDetails() {
           )}
         </View>
 
-        {/* SHARE CARD */}
-        <ViewShot
-          ref={viewShotRef}
-          options={{ format: "png", quality: 1, width: 600, height: 900 }}
-          style={styles.shareCard as any}
-        >
+        {/* SHARE CARD — CLEAN VERSION */}
+        <View style={styles.shareCard}>
           <View style={styles.shareInner}>
             <View style={styles.sharePlaceholder}>
               {image ? (
@@ -526,7 +502,7 @@ export default function FlipDetails() {
             )}
             <Text style={styles.logo}>FlipPilot</Text>
           </View>
-        </ViewShot>
+        </View>
       </ScrollView>
 
       {/* ACTION BAR */}
@@ -537,74 +513,73 @@ export default function FlipDetails() {
           </Text>
         </Pressable>
 
-        <Pressable style={styles.actionButton} onPress={shareImage}>
-                     </Pressable>
+        {/* Removed shareImage button (ViewShot removed) */}
 
-            <Pressable style={styles.actionButton} onPress={shareText}>
-              <Text style={styles.actionText}>Share Text</Text>
-            </Pressable>
+        <Pressable style={styles.actionButton} onPress={shareText}>
+          <Text style={styles.actionText}>Share Text</Text>
+        </Pressable>
 
-            <Pressable
-              style={[styles.actionButton, { backgroundColor: "#333" }]}
-              onPress={() => router.replace("/history")}
-            >
-              <Text style={styles.actionText}>Back</Text>
-            </Pressable>
-          </View>
+        <Pressable
+          style={[styles.actionButton, { backgroundColor: "#333" }]}
+          onPress={() => router.replace("/history")}
+        >
+          <Text style={styles.actionText}>Back</Text>
+        </Pressable>
+      </View>
 
-          {/* IMAGE MODAL */}
-          <Modal
-            visible={imageModalVisible}
-            transparent
-            animationType="fade"
-            onRequestClose={() => setImageModalVisible(false)}
+      {/* IMAGE MODAL */}
+      <Modal
+        visible={imageModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setImageModalVisible(false)}
+      >
+        <View style={styles.imageModalBackdrop}>
+          <Pressable
+            style={styles.imageModalBackdrop}
+            onPress={() => setImageModalVisible(false)}
           >
-            <View style={styles.imageModalBackdrop}>
-              <Pressable
-                style={styles.imageModalBackdrop}
-                onPress={() => setImageModalVisible(false)}
-              >
-                <View style={styles.imageModalContent}>
-                  {image ? (
-                    <Image
-                      source={{ uri: image }}
-                      style={styles.imageModalImage}
-                      resizeMode="contain"
-                    />
-                  ) : (
-                    <Text style={styles.noImageText}>No Image</Text>
-                  )}
-                </View>
-              </Pressable>
+            <View style={styles.imageModalContent}>
+              {image ? (
+                <Image
+                  source={{ uri: image }}
+                  style={styles.imageModalImage}
+                  resizeMode="contain"
+                />
+              ) : (
+                <Text style={styles.noImageText}>No Image</Text>
+              )}
             </View>
-          </Modal>
-
-          {/* TOAST */}
-          {savedVisible && (
-            <Animated.View
-              style={[
-                styles.toast,
-                {
-                  opacity: savedAnim,
-                  transform: [
-                    {
-                      translateY: savedAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [40, 0],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            >
-              <Text style={styles.toastText}>✓ Flip already saved</Text>
-            </Animated.View>
-          )}
+          </Pressable>
         </View>
-      );
-    }
+      </Modal>
 
-    const styles = StyleSheet.create({
+      {/* TOAST */}
+      {savedVisible && (
+        <Animated.View
+          style={[
+            styles.toast,
+            {
+              opacity: savedAnim,
+              transform: [
+                {
+                  translateY: savedAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [40, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+                  <Text style={styles.toastText}>✓ Flip already saved</Text>
+        </Animated.View>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: NAVY },
 
   center: {
