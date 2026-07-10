@@ -1,5 +1,5 @@
 import React from "react";
-import { Animated, Platform, StyleSheet } from "react-native";
+import { Animated, Platform, StyleSheet, Pressable } from "react-native";
 import { useTheme } from "@/context/ThemeContext";
 import ThemedView from "@/styles/theme/ThemedView";
 import ThemedText from "@/styles/theme/ThemedText";
@@ -7,16 +7,22 @@ import ThemedText from "@/styles/theme/ThemedText";
 interface FlipPilotAssistantSheetProps {
   translateY: Animated.AnimatedInterpolation<string | number>;
   closeSheet: () => void;
+  isOpen: boolean;
 }
 
 const FlipPilotAssistantSheet: React.FC<FlipPilotAssistantSheetProps> = ({
   translateY,
   closeSheet,
+  isOpen,
 }) => {
   const theme = useTheme();
 
+  if (!isOpen) return null; // ⭐ FIX: overlay unmounts completely
+
   return (
     <ThemedView style={styles.sheetOverlay}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={closeSheet} />
+
       <Animated.View
         style={[
           styles.sheetContainer,
@@ -51,10 +57,7 @@ const FlipPilotAssistantSheet: React.FC<FlipPilotAssistantSheetProps> = ({
               },
             ]}
           >
-            <ThemedText
-              style={styles.cancelButtonText}
-              onPress={closeSheet}
-            >
+            <ThemedText style={styles.cancelButtonText} onPress={closeSheet}>
               Close
             </ThemedText>
           </ThemedView>
@@ -75,7 +78,7 @@ const styles = StyleSheet.create({
     width: "100%",
     paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: Platform.OS === "ios" ? 110 : 100,
+    paddingBottom: Platform.OS === "ios" ? 60 : 50, // ⭐ FIX: reduced
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     shadowColor: "#000",
