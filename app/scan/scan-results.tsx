@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Image,
-  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -17,10 +16,6 @@ import { useFlipHistory } from "../../src/context/FlipHistoryContext";
 import { usePro, useTheme } from "../../src/context/ThemeContext";
 import { ThemedText } from "../../src/styles/theme/ThemedText";
 import ThemedView from "../../src/styles/theme/ThemedView";
-
-
-
-
 
 export default function ScanResultsScreen() {
   const params = useLocalSearchParams();
@@ -43,8 +38,10 @@ export default function ScanResultsScreen() {
       if (params?.data) {
         const parsed = JSON.parse(params.data as string);
         setData(parsed);
-        setBuyPrice(parsed.pricing?.recommendedBuyPrice ?? null);
-        setSellPrice(parsed.pricing?.recommendedSellPrice ?? null);
+
+        // backend fields
+        setBuyPrice(parsed.ai?.suggested_buy ?? null);
+        setSellPrice(parsed.ai?.suggested_sell ?? null);
       }
     } catch (e) {
       console.log("Failed to parse scan result:", e);
@@ -64,22 +61,8 @@ export default function ScanResultsScreen() {
   }, [buyPrice, sellPrice]);
 
   const flipScore = useMemo(() => {
-    if (!data?.flipScore && profit == null) return data?.flipScore ?? 0;
-    let base = data?.flipScore ?? 50;
-
-    if (profit != null) {
-      if (profit > 20) base += 20;
-      else if (profit > 10) base += 10;
-      else if (profit < 0) base -= 15;
-    }
-
-    if (roi != null) {
-      if (roi > 100) base += 10;
-      else if (roi > 50) base += 5;
-    }
-
-    return Math.max(0, Math.min(100, Math.round(base)));
-  }, [data?.flipScore, profit, roi]);
+    return data?.ai?.flip_score ?? 0;
+  }, [data]);
 
   const openCalculator = (mode: "buy" | "sell") => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -121,13 +104,11 @@ export default function ScanResultsScreen() {
     addToHistory({
       ...data,
       pricing: {
-        recommendedBuyPrice:
-          buyPrice ?? data.pricing?.recommendedBuyPrice ?? null,
-        recommendedSellPrice:
-          sellPrice ?? data.pricing?.recommendedSellPrice ?? null,
-        predictedProfit: profit ?? data.pricing?.predictedProfit ?? null,
+        recommendedBuyPrice: buyPrice,
+        recommendedSellPrice: sellPrice,
+        predictedProfit: profit,
       },
-      flipScore: flipScore ?? data.flipScore ?? 0,
+      flipScore,
     });
   };
 
@@ -142,17 +123,7 @@ export default function ScanResultsScreen() {
     );
   }
 
-  const title = data.title ?? data.ai?.title ?? "Unknown Item";
-  const conditionScore = data.ai?.conditionScore ?? 0;
-
-  const aiMin = data.aiPriceMin ?? data.market?.aiPriceMin;
-  const aiMax = data.aiPriceMax ?? data.market?.aiPriceMax;
-  const aiConf = data.aiPriceConfidence ?? data.market?.aiPriceConfidence;
-
-  // ⭐ PREMIUM METER LOGIC
-  const meterGood = isPro ? theme.gold : theme.success;
-  const meterMid = isPro ? theme.goldDeep : theme.gold;
-  const meterBad = theme.danger;
+  const title = data.product?.title ?? "Unknown Item";
 
   return (
     <ThemedView style={[styles.container, { backgroundColor: theme.background }]}>
@@ -164,21 +135,8 @@ export default function ScanResultsScreen() {
             {title}
           </ThemedText>
           <ThemedText style={[styles.subtitle, { color: theme.muted }]}>
-            {data.ai?.category ?? "Uncategorised"}
+            Barcode: {data.product?.barcode ?? "N/A"}
           </ThemedText>
-
-          {aiMin && (
-            <View
-              style={[
-                styles.aiBadge,
-                { backgroundColor: theme.secondary, borderColor: theme.gold },
-              ]}
-            >
-              <ThemedText style={[styles.aiBadgeText, { color: theme.gold }]}>
-                AI‑powered estimate
-              </ThemedText>
-            </View>
-          )}
         </View>
 
         {/* IMAGE */}
@@ -193,7 +151,7 @@ export default function ScanResultsScreen() {
           </View>
         )}
 
-        {/* SCORE + CONDITION */}
+        {/* FLIP SCORE */}
         <View style={styles.row}>
           <View
             style={[
@@ -215,81 +173,11 @@ export default function ScanResultsScreen() {
                   {
                     width: `${flipScore}%`,
                     backgroundColor:
-                      flipScore >= 70 ? meterGood : flipScore >= 40 ? meterMid : meterBad,
+                      flipScore >= 70 ? theme.success : flipScore >= 40 ? theme.gold : theme.danger,
                   },
                 ]}
               />
             </View>
-
-            <ThemedText style={[styles.meterHint, { color: theme.muted }]}>
-              {data.flipPotential ?? "Medium potential"}
-            </ThemedText>
-          </View>
-
-          <View
-            style={[
-              styles.card,
-              { backgroundColor: theme.card, borderColor: theme.goldSoftGlow },
-            ]}
-          >
-            <ThemedText style={[styles.cardLabel, { color: theme.gold }]}>
-              Condition
-            </ThemedText>
-            <ThemedText style={[styles.cardValue, { color: theme.text }]}>
-              {data.ai?.condition ?? "Unknown"}
-            </ThemedText>
-
-            <View style={[styles.meterBackground, { backgroundColor: theme.secondary }]}>
-              <View
-                style={[
-                  styles.meterFill,
-                  {
-                    width: `${conditionScore}%`,
-                    backgroundColor:
-                      conditionScore >= 70
-                        ? meterGood
-                        : conditionScore >= 40
-                        ? meterMid
-                        : meterBad,
-                  },
-                ]}
-              />
-            </View>
-
-            <ThemedText style={[styles.meterHint, { color: theme.muted }]}>
-              {conditionScore || "No score"}
-            </ThemedText>
-          </View>
-        </View>
-
-        {/* RARITY + SELL SPEED */}
-        <View style={styles.row}>
-          <View
-            style={[
-              styles.badgeCard,
-              { backgroundColor: theme.card, borderColor: theme.goldSoftGlow },
-            ]}
-          >
-            <ThemedText style={[styles.badgeLabel, { color: theme.muted }]}>
-              Rarity
-            </ThemedText>
-            <ThemedText style={[styles.badgeValue, { color: theme.gold }]}>
-              {data.rarity ?? "Unknown"}
-            </ThemedText>
-          </View>
-
-          <View
-            style={[
-              styles.badgeCard,
-              { backgroundColor: theme.card, borderColor: theme.goldSoftGlow },
-            ]}
-          >
-            <ThemedText style={[styles.badgeLabel, { color: theme.muted }]}>
-              Sell speed
-            </ThemedText>
-            <ThemedText style={[styles.badgeValue, { color: theme.gold }]}>
-              {data.sellSpeed ?? "Unknown"}
-            </ThemedText>
           </View>
         </View>
 
@@ -304,14 +192,10 @@ export default function ScanResultsScreen() {
             Pricing
           </ThemedText>
 
-          {aiMin && aiMax && (
-            <ThemedText style={[styles.marketLine, { color: theme.text }]}>
-              AI Estimate: £{aiMin.toFixed(2)} – £{aiMax.toFixed(2)}{" "}
-              <ThemedText style={{ color: theme.muted }}>
-                ({Math.round(aiConf * 100)}% confidence)
-              </ThemedText>
-            </ThemedText>
-          )}
+          {/* FAIR PRICE */}
+          <ThemedText style={[styles.marketLine, { color: theme.text }]}>
+            Fair Price: £{data.ai?.fair_price?.toFixed(2)}
+          </ThemedText>
 
           {/* BUY PRICE */}
           <View style={styles.priceRow}>
@@ -382,84 +266,8 @@ export default function ScanResultsScreen() {
           </View>
         </View>
 
-        {/* MARKET SNAPSHOT */}
-        <View
-          style={[
-            styles.cardWide,
-            { backgroundColor: theme.card, borderColor: theme.goldSoftGlow },
-          ]}
-        >
-          <ThemedText style={[styles.cardLabel, { color: theme.gold }]}>
-            Market snapshot
-          </ThemedText>
-
-          <ThemedText style={[styles.marketLine, { color: theme.text }]}>
-            Retail:{" "}
-            {data.market?.googlePriceMin
-              ? `£${data.market.googlePriceMin.toFixed(2)} – £${data.market.googlePriceMax.toFixed(2)}`
-              : "No data"}
-          </ThemedText>
-
-          <ThemedText style={[styles.marketLine, { color: theme.text }]}>
-            Used:{" "}
-            {data.market?.lowest
-              ? `£${data.market.lowest.toFixed(2)} – £${data.market.highest.toFixed(2)}`
-              : "No data"}
-          </ThemedText>
-        </View>
-
-        {/* INSIGHTS */}
-        {data.insights && (
-          <View
-            style={[
-              styles.cardWide,
-              { backgroundColor: theme.card, borderColor: theme.goldSoftGlow },
-            ]}
-          >
-            <ThemedText style={[styles.cardLabel, { color: theme.gold }]}>
-              Insights
-            </ThemedText>
-            <ThemedText style={[styles.insightsText, { color: theme.text }]}>
-              {data.insights}
-            </ThemedText>
-          </View>
-        )}
-
         {/* ACTION BUTTONS */}
         <View style={{ gap: 12, marginTop: 16 }}>
-          <Pressable
-            style={[
-              styles.actionButton,
-              { backgroundColor: theme.secondary, borderColor: theme.goldSoftGlow },
-            ]}
-            onPress={() =>
-              Linking.openURL(
-                `https://www.ebay.co.uk/sch/i.html?_nkw=${encodeURIComponent(title)}`
-              )
-            }
-          >
-            <ThemedText style={[styles.actionButtonText, { color: theme.text }]}>
-              View on eBay
-            </ThemedText>
-          </Pressable>
-
-          <Pressable
-            style={[
-              styles.actionButton,
-              { backgroundColor: theme.secondary, borderColor: theme.goldSoftGlow },
-            ]}
-            onPress={() =>
-              Share.share({
-                message: `${title} — FlipPilot scan result`,
-                url: data.image,
-              })
-            }
-          >
-            <ThemedText style={[styles.actionButtonText, { color: theme.text }]}>
-              Share
-            </ThemedText>
-          </Pressable>
-
           <Pressable
             style={[
               styles.actionButton,
@@ -505,10 +313,9 @@ export default function ScanResultsScreen() {
             ]}
           >
             <ThemedText style={[styles.calcTitle, { color: theme.gold }]}>
-                          {calcMode === "buy" ? "Set buy price" : "Set sell price"}
+              {calcMode === "buy" ? "Set buy price" : "Set sell price"}
             </ThemedText>
 
-            {/* CALCULATOR DISPLAY */}
             <View
               style={[
                 styles.calcDisplay,
@@ -525,7 +332,6 @@ export default function ScanResultsScreen() {
               </ThemedText>
             </View>
 
-            {/* CALCULATOR GRID */}
             <View style={styles.calcGrid}>
               {["7","8","9","4","5","6","1","2","3","0",".","DEL"].map((key) => (
                 <Pressable
@@ -548,7 +354,6 @@ export default function ScanResultsScreen() {
               ))}
             </View>
 
-            {/* CALCULATOR BOTTOM */}
             <View style={styles.calcBottomRow}>
               <Pressable
                 style={[
@@ -590,11 +395,9 @@ export default function ScanResultsScreen() {
     </ThemedView>
   );
 }
- 
 
 /* ================================
-   ⭐ STYLES (UNCHANGED STRUCTURE)
-   — All colours now theme‑controlled
+   ⭐ STYLES
 ================================ */
 const styles = StyleSheet.create({
   container: { flex: 1 },
@@ -613,19 +416,6 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     marginTop: 4,
-  },
-
-  aiBadge: {
-    marginTop: 6,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    alignSelf: "flex-start",
-    borderWidth: 1,
-  },
-  aiBadgeText: {
-    fontSize: 12,
-    fontWeight: "800",
   },
 
   imageWrapper: {
@@ -661,10 +451,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginBottom: 6,
   },
-  cardValue: {
-    fontWeight: "700",
-    marginBottom: 6,
-  },
   flipScoreValue: {
     fontSize: 24,
     fontWeight: "900",
@@ -680,23 +466,6 @@ const styles = StyleSheet.create({
   meterFill: {
     height: "100%",
     borderRadius: 999,
-  },
-  meterHint: {
-    fontSize: 12,
-  },
-
-  badgeCard: {
-    flex: 1,
-    borderRadius: 14,
-    padding: 10,
-    borderWidth: 1,
-  },
-  badgeLabel: {
-    fontSize: 12,
-    marginBottom: 4,
-  },
-  badgeValue: {
-    fontWeight: "800",
   },
 
   priceRow: {
@@ -725,11 +494,6 @@ const styles = StyleSheet.create({
   marketLine: {
     fontSize: 14,
     marginTop: 4,
-  },
-
-  insightsText: {
-    fontSize: 14,
-    lineHeight: 20,
   },
 
   actionButton: {

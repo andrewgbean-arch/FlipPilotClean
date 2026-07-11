@@ -1,3 +1,4 @@
+import 'react-native-get-random-values';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   createContext,
@@ -7,18 +8,19 @@ import {
   useMemo,
   useState,
 } from "react";
+import { FlipRecord } from "../models/FlipRecord"
+import "react-native-get-random-values";
+import { v4 as uuidv4 } from "uuid/dist/v4";
 
-import { FlipRecord } from "../models/FlipRecord";
+/* ============================================
+   STORAGE + VERSIONING
+============================================ */
+const STORAGE_KEY = "@flippilot_history_v2";
+const HISTORY_VERSION = 2;
 
-// ⭐ UUID polyfill for React Native
-
-import { v4 as uuidv4 } from "uuid";
-
-const STORAGE_KEY = "@flippilot_history";
-
-/* ================================
-   ⭐ DUPLICATE DETECTION
-================================ */
+/* ============================================
+   DUPLICATE DETECTION (FAST)
+============================================ */
 function findDuplicate(
   existing: FlipRecord[],
   incoming: { title: string; barcode?: string | null }
@@ -44,70 +46,74 @@ function findDuplicate(
   return null;
 }
 
-/* ================================
-   ⭐ SCAN DATA TYPE
-================================ */
+/* ============================================
+   SCAN DATA TYPE
+============================================ */
 export type ScanData = {
   ai?: any;
   market?: any;
   pricing?: any;
-
   ebayItems?: any[];
-
   flipScore?: number;
   flipPotential?: string;
   sellSpeed?: string;
   rarity?: string;
   insights?: string;
-
   image?: string | null;
   title?: string;
   barcode?: string | null;
-
   aiPriceMin?: number | null;
   aiPriceMax?: number | null;
   aiPriceConfidence?: number | null;
 };
 
-/* ================================
-   ⭐ CONTEXT TYPE
-================================ */
+/* ============================================
+   CONTEXT TYPE
+============================================ */
 type FlipHistoryContextType = {
   flips: FlipRecord[];
   addFlip: (flip: Omit<FlipRecord, "id" | "timestamp">) => Promise<FlipRecord>;
-
   deleteFlip: (id: string) => void;
   toggleFavourite: (id: string) => void;
   clearAll: () => Promise<void>;
-
   tempScanData: ScanData | null;
   setTempScanData: (data: ScanData | null) => void;
-
   addToHistory: (scan: ScanData) => void;
 };
 
 const FlipHistoryContext = createContext<FlipHistoryContextType | null>(null);
 
-/* ================================
-   ⭐ PROVIDER
-================================ */
+/* ============================================
+   PROVIDER
+============================================ */
 type ProviderProps = { children: ReactNode };
 
 export const FlipHistoryProvider = ({ children }: ProviderProps) => {
   const [flips, setFlips] = useState<FlipRecord[]>([]);
   const [tempScanData, setTempScanData] = useState<ScanData | null>(null);
 
-  /* ================================
-     ⭐ LOAD ON START
-  ================================= */
+  /* ============================================
+     LOAD + MIGRATE
+  ============================================ */
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await AsyncStorage.getItem(STORAGE_KEY);
-        if (!data) return;
+        const raw = await AsyncStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
 
-        const parsed: FlipRecord[] = JSON.parse(data);
-        setFlips(parsed);
+        const parsed = JSON.parse(raw);
+
+        if (parsed.version !== HISTORY_VERSION) {
+          const migrated = {
+            version: HISTORY_VERSION,
+            flips: parsed.flips ?? parsed,
+          };
+          setFlips(migrated.flips);
+          await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+          return;
+        }
+
+        setFlips(parsed.flips);
       } catch (e) {
         console.log("FlipHistory load error", e);
         setFlips([]);
@@ -117,24 +123,41 @@ export const FlipHistoryProvider = ({ children }: ProviderProps) => {
     load();
   }, []);
 
-  /* ================================
-     ⭐ SAVE ON CHANGE
-  ================================= */
+  /* ============================================
+     SAVE (ATOMIC)
+  ============================================ */
   useEffect(() => {
     const save = async () => {
       try {
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(flips));
+        const payload = JSON.stringify({
+          version: HISTORY_VERSION,
+          flips,
+        });
+        await AsyncStorage.setItem(STORAGE_KEY, payload);
       } catch (e) {
         console.log("FlipHistory save error", e);
       }
     };
 
-    if (flips) save();
+    save();
   }, [flips]);
 
-  /* ================================
-     ⭐ ADD FLIP (OLD SYSTEM)
-  ================================= */
+  /* ============================================
+     AUTO-MERGE DUPLICATES
+  ============================================ */
+  function mergeFlips(existing: FlipRecord, incoming: FlipRecord): FlipRecord {
+    return {
+      ...existing,
+      ...incoming,
+      id: existing.id,
+      timestamp: existing.timestamp,
+      favourite: existing.favourite,
+    };
+  }
+
+  /* ============================================
+     ADD FLIP (MANUAL)
+  ============================================ */
   const addFlip = async (
     flip: Omit<FlipRecord, "id" | "timestamp">
   ): Promise<FlipRecord> => {
@@ -143,7 +166,13 @@ export const FlipHistoryProvider = ({ children }: ProviderProps) => {
       barcode: flip.barcode,
     });
 
-    if (duplicate) return duplicate;
+    if (duplicate) {
+      const merged = mergeFlips(duplicate, flip as any);
+      setFlips((prev) =>
+        prev.map((f) => (f.id === duplicate.id ? merged : f))
+      );
+      return merged;
+    }
 
     const newFlip: FlipRecord = {
       ...flip,
@@ -155,9 +184,9 @@ export const FlipHistoryProvider = ({ children }: ProviderProps) => {
     return newFlip;
   };
 
-  /* ================================
-     ⭐ ADD TO HISTORY (SCAN RESULTS)
-  ================================= */
+  /* ============================================
+     ADD TO HISTORY (SCAN RESULTS)
+  ============================================ */
   const addToHistory = (scan: ScanData) => {
     const record: FlipRecord = {
       id: uuidv4(),
@@ -166,36 +195,46 @@ export const FlipHistoryProvider = ({ children }: ProviderProps) => {
       image: scan.image ?? null,
       favourite: false,
       timestamp: new Date().toISOString(),
-
       ai: scan.ai ?? null,
       market: scan.market ?? null,
       pricing: scan.pricing ?? null,
-
       flipScore: scan.flipScore ?? null,
       flipPotential: scan.flipPotential ?? null,
       sellSpeed: scan.sellSpeed ?? null,
       rarity: scan.rarity ?? null,
       insights: scan.insights ?? null,
-
       aiPriceMin: scan.aiPriceMin ?? null,
       aiPriceMax: scan.aiPriceMax ?? null,
       aiPriceConfidence: scan.aiPriceConfidence ?? null,
     };
 
+    const duplicate = findDuplicate(flips, {
+      title: record.title,
+      barcode: record.barcode,
+    });
+
+    if (duplicate) {
+      const merged = mergeFlips(duplicate, record);
+      setFlips((prev) =>
+        prev.map((f) => (f.id === duplicate.id ? merged : f))
+      );
+      return;
+    }
+
     setTempScanData(scan);
     setFlips((prev) => [record, ...prev]);
   };
 
-  /* ================================
-     ⭐ DELETE
-  ================================= */
+  /* ============================================
+     DELETE
+  ============================================ */
   const deleteFlip = (id: string) => {
     setFlips((prev) => prev.filter((f) => f.id !== id));
   };
 
-  /* ================================
-     ⭐ TOGGLE FAVOURITE
-  ================================= */
+  /* ============================================
+     TOGGLE FAVOURITE
+  ============================================ */
   const toggleFavourite = (id: string) => {
     setFlips((prev) =>
       prev.map((f) =>
@@ -204,9 +243,9 @@ export const FlipHistoryProvider = ({ children }: ProviderProps) => {
     );
   };
 
-  /* ================================
-     ⭐ CLEAR ALL
-  ================================= */
+  /* ============================================
+     CLEAR ALL
+  ============================================ */
   const clearAll = async () => {
     try {
       await AsyncStorage.removeItem(STORAGE_KEY);
@@ -216,9 +255,9 @@ export const FlipHistoryProvider = ({ children }: ProviderProps) => {
     setFlips([]);
   };
 
-  /* ================================
-     ⭐ PROVIDER VALUE
-  ================================= */
+  /* ============================================
+     PROVIDER VALUE
+  ============================================ */
   const value = useMemo<FlipHistoryContextType>(
     () => ({
       flips,
@@ -240,9 +279,9 @@ export const FlipHistoryProvider = ({ children }: ProviderProps) => {
   );
 };
 
-/* ================================
-   ⭐ HOOK
-================================ */
+/* ============================================
+   HOOK
+============================================ */
 export const useFlipHistory = () => {
   const context = useContext(FlipHistoryContext);
   if (!context) throw new Error("Wrap app in FlipHistoryProvider");

@@ -3,15 +3,18 @@
   "compilerOptions": {
     "strict": true,
     "ignoreDeprecations": "6.0",
-    "baseUrl": ".",
+
+    // 👇 THIS is the fix
+    "baseUrl": "src",
+
+    // 👇 THIS makes @/* map to src/*
     "paths": {
-      "@/*": [
-        "src/*"
-      ]
+      "@/*": ["*"]
     }
   },
   "include": [
     "**/*.ts",
-    "**/*.tsx"
+    "**/*.tsx",
+    "declarations.d.ts"
   ]
 }

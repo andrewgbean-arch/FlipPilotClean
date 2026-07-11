@@ -25,7 +25,7 @@ export interface FlipRecord {
     fullDescription?: string;
     condition?: string;
     conditionScore?: number | null;
-    category?: string | null;   // still allowed here
+    category?: string | null;
     keywords?: string[] | null;
     origin?: string | null;
   } | null;
@@ -70,8 +70,14 @@ export interface FlipRecord {
 
   /* ================================
      ⭐ TOP‑LEVEL FALLBACK FIELDS
+     (used when market block is missing)
   ================================= */
   aiPriceMin?: number | null;
   aiPriceMax?: number | null;
   aiPriceConfidence?: number | null;
+
+  /* ================================
+     ⭐ AI PRO TIPS (generated locally)
+  ================================= */
+  proTips?: string[] | null;
 }

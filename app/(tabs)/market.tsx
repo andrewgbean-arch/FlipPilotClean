@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   LayoutAnimation,
   Platform,
@@ -6,13 +6,15 @@ import {
   ScrollView,
   StyleSheet,
   UIManager,
+  ActivityIndicator,
 } from "react-native";
+
+import axios from "axios";
+import { useRouter } from "expo-router";
 
 import { useTheme } from "../../src/context/ThemeContext";
 import { ThemedText } from "../../src/styles/theme/ThemedText";
 import ThemedView from "../../src/styles/theme/ThemedView";
-
-
 
 // ⭐ NEW TEXT VARIANTS
 const textVariants = StyleSheet.create({
@@ -46,6 +48,10 @@ export default function MarketTab() {
 
       <Section title="📦 Barcode History">
         <BarcodeHistory />
+      </Section>
+
+      <Section title="🚐 Van Jobs">
+        <VanJobs />
       </Section>
 
       <Section title="🤖 AI Insights">
@@ -91,6 +97,9 @@ function Section({ title, children }: any) {
   );
 }
 
+/* -------------------------------------------------------
+   ⭐ TRENDING FLIPS
+------------------------------------------------------- */
 function TrendingFlips() {
   const theme = useTheme();
 
@@ -108,8 +117,7 @@ function TrendingFlips() {
           style={[
             styles.trendingCard,
             {
-              backgroundColor: theme.card
-,
+              backgroundColor: theme.card,
               borderColor: theme.goldDeep,
             },
           ]}
@@ -137,6 +145,9 @@ function TrendingFlips() {
   );
 }
 
+/* -------------------------------------------------------
+   ⭐ CATEGORIES
+------------------------------------------------------- */
 function Categories() {
   const theme = useTheme();
 
@@ -177,6 +188,9 @@ function Categories() {
   );
 }
 
+/* -------------------------------------------------------
+   ⭐ SAVED FLIPS
+------------------------------------------------------- */
 function SavedFlips() {
   const theme = useTheme();
   return (
@@ -191,6 +205,9 @@ function SavedFlips() {
   );
 }
 
+/* -------------------------------------------------------
+   ⭐ BARCODE HISTORY
+------------------------------------------------------- */
 function BarcodeHistory() {
   const theme = useTheme();
   return (
@@ -205,6 +222,94 @@ function BarcodeHistory() {
   );
 }
 
+/* -------------------------------------------------------
+   ⭐ VAN JOBS (NEW)
+------------------------------------------------------- */
+function VanJobs() {
+  const theme = useTheme();
+  const router = useRouter();
+
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadJobs = async () => {
+      try {
+        const res = await axios.get("http://localhost:4000/jobs");
+        setJobs(res.data.jobs);
+      } catch (err) {
+        console.log("VAN JOBS ERROR:", err);
+      }
+      setLoading(false);
+    };
+
+    loadJobs();
+  }, []);
+
+  if (loading)
+    return <ActivityIndicator size="large" color={theme.gold} />;
+
+  return (
+    <ThemedView>
+      {jobs.map((job) => (
+        <Pressable
+          key={job.id}
+          onPress={() => router.push(`/job/${job.id}`)}
+        >
+          <ThemedView
+            style={[
+              styles.aiCard,
+              {
+                backgroundColor: theme.card,
+                borderColor: theme.goldDeep,
+              },
+            ]}
+          >
+            <ThemedText
+              style={[
+                textVariants.body,
+                { color: theme.accent, fontWeight: "900" },
+              ]}
+            >
+              🚐 {job.title}
+            </ThemedText>
+
+            <ThemedText
+              style={[
+                textVariants.body,
+                { color: theme.muted, marginTop: 4 },
+              ]}
+            >
+              Pay: £{job.pay}
+            </ThemedText>
+
+            <ThemedText
+              style={[
+                textVariants.body,
+                { color: theme.muted },
+              ]}
+            >
+              Distance: {job.distance_km} km
+            </ThemedText>
+
+            <ThemedText
+              style={[
+                textVariants.body,
+                { color: theme.muted },
+              ]}
+            >
+              Time: {job.time_window}
+            </ThemedText>
+          </ThemedView>
+        </Pressable>
+      ))}
+    </ThemedView>
+  );
+}
+
+/* -------------------------------------------------------
+   ⭐ AI INSIGHTS
+------------------------------------------------------- */
 function AIInsights() {
   const theme = useTheme();
 
@@ -242,6 +347,9 @@ function AIInsights() {
   );
 }
 
+/* -------------------------------------------------------
+   ⭐ STYLES
+------------------------------------------------------- */
 const styles = StyleSheet.create({
   container: {
     flex: 1,

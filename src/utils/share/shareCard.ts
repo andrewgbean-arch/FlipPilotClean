@@ -1,8 +1,11 @@
 export async function captureShareCard(ref: any) {
-  if (!ref) return null;
+  if (!ref || !ref.capture) return null;
+
   try {
-    return await ref.capture?.();
-  } catch {
+    const uri = await ref.capture();
+    return uri ?? null;
+  } catch (e) {
+    console.log("captureShareCard failed:", e);
     return null;
   }
 }

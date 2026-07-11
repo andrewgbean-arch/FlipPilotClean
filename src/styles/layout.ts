@@ -7,7 +7,7 @@ export const layout = {
     md: 14,
     lg: 20,
     xl: 28,
-    full: 999, // for pills, circles, buttons
+    full: 999,
   },
 
   spacing: {
@@ -47,13 +47,13 @@ export const layout = {
     },
   },
 
-  // Useful for consistent padding/margins in screens
+  // ⭐ FIXED — padding added
   screen: {
+    padding: 20,        // <— REQUIRED for VehicleDetails
     horizontal: 20,
     vertical: 16,
   },
 
-  // Useful for consistent button sizing
   button: {
     height: 52,
     radius: 50,

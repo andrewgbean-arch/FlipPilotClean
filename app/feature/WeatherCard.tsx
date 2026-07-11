@@ -56,6 +56,10 @@ export default function WeatherCard() {
     );
   }
 
+  // Convert values
+  const tempF = (weather.temperature * 9) / 5 + 32;
+  const windMph = weather.windspeed * 0.621371;
+
   return (
     <ThemedView
       style={[
@@ -72,11 +76,11 @@ export default function WeatherCard() {
       </ThemedText>
 
       <ThemedText style={[styles.value, { color: theme.accent }]}>
-        {weather.temperature}°C — {weather.weathercode}
+        {tempF.toFixed(1)}°F
       </ThemedText>
 
       <ThemedText style={[styles.sub, { color: theme.accent }]}>
-        Wind: {weather.windspeed} km/h
+        Wind: {windMph.toFixed(1)} mph
       </ThemedText>
     </ThemedView>
   );

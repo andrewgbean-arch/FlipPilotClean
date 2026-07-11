@@ -15,19 +15,11 @@ import {
   TextInput,
 } from "react-native";
 
-
-type ViewShotRef = {
-  capture?: () => Promise<string>;
-};
-
-
 import { ThemedText } from "../../src/styles/theme/ThemedText";
 import ThemedView from "../../src/styles/theme/ThemedView";
-
 import { useTheme } from "../../src/context/ThemeContext";
 import { FlipRecord } from "../../src/models/FlipRecord";
 import { shareFlip } from "../../src/utils/share/shareFlip";
-
 
 const STORAGE_KEY = "@flippilot_history";
 
@@ -49,7 +41,6 @@ const AnimatedPressable = ({
   style?: any;
   onPress?: () => void;
 }) => {
-  const theme = useTheme();
   const scale = useRef(new Animated.Value(1)).current;
 
   const pressIn = () => {
@@ -70,12 +61,7 @@ const AnimatedPressable = ({
 
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
-      <Pressable
-        onPressIn={pressIn}
-        onPressOut={pressOut}
-        onPress={onPress}
-        style={style}
-      >
+      <Pressable onPressIn={pressIn} onPressOut={pressOut} onPress={onPress} style={style}>
         {children}
       </Pressable>
     </Animated.View>
@@ -89,8 +75,6 @@ export default function HistoryScreen() {
   const [bestFlip, setBestFlip] = useState<FlipRecord | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
- const shareCardRefs = useRef<Record<string, ViewShotRef | null>>({});
-
 
   const [overlayText, setOverlayText] = useState("");
   const [showOverlay, setShowOverlay] = useState(false);
@@ -142,16 +126,12 @@ export default function HistoryScreen() {
       const data = await AsyncStorage.getItem(STORAGE_KEY);
       const parsed: FlipRecord[] = data ? JSON.parse(data) : [];
 
-      const sortedByTime = [...parsed].sort(
-        (a, b) => Number(b.id || 0) - Number(a.id || 0)
-      );
+      const sortedByTime = [...parsed].sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
       setFlips(sortedByTime);
 
       if (parsed.length > 0) {
         const best = [...parsed].sort(
-          (a, b) =>
-            (b.pricing?.predictedProfit || 0) -
-            (a.pricing?.predictedProfit || 0)
+          (a, b) => (b.pricing?.predictedProfit || 0) - (a.pricing?.predictedProfit || 0)
         )[0];
         setBestFlip(best);
       } else {
@@ -183,18 +163,14 @@ export default function HistoryScreen() {
     const updated = parsed.filter((f) => f.id !== id);
 
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    setFlips(
-      [...updated].sort((a, b) => Number(b.id || 0) - Number(a.id || 0))
-    );
+    setFlips([...updated].sort((a, b) => Number(b.id || 0) - Number(a.id || 0)));
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showOverlayMessage("Deleted ❌");
 
     if (updated.length > 0) {
       const best = [...updated].sort(
-        (a, b) =>
-          (b.pricing?.predictedProfit || 0) -
-          (a.pricing?.predictedProfit || 0)
+        (a, b) => (b.pricing?.predictedProfit || 0) - (a.pricing?.predictedProfit || 0)
       )[0];
       setBestFlip(best);
     } else {
@@ -223,9 +199,7 @@ export default function HistoryScreen() {
     );
 
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    const sorted = [...updated].sort(
-      (a, b) => Number(b.id || 0) - Number(a.id || 0)
-    );
+    const sorted = [...updated].sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
     setFlips(sorted);
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -235,9 +209,7 @@ export default function HistoryScreen() {
 
     if (updated.length > 0) {
       const best = [...updated].sort(
-        (a, b) =>
-          (b.pricing?.predictedProfit || 0) -
-          (a.pricing?.predictedProfit || 0)
+        (a, b) => (b.pricing?.predictedProfit || 0) - (a.pricing?.predictedProfit || 0)
       )[0];
       setBestFlip(best);
     } else {
@@ -257,9 +229,7 @@ export default function HistoryScreen() {
 
     if (search.trim().length > 0) {
       const q = search.trim().toLowerCase();
-      list = list.filter((f) =>
-        (f.title || "").toLowerCase().includes(q)
-      );
+      list = list.filter((f) => (f.title || "").toLowerCase().includes(q));
     }
 
     if (showFavesOnly) list = list.filter((f) => f.favourite);
@@ -267,9 +237,7 @@ export default function HistoryScreen() {
     switch (sortMode) {
       case "profit":
         list.sort(
-          (a, b) =>
-            (b.pricing?.predictedProfit || 0) -
-            (a.pricing?.predictedProfit || 0)
+          (a, b) => (b.pricing?.predictedProfit || 0) - (a.pricing?.predictedProfit || 0)
         );
         break;
 
@@ -288,68 +256,45 @@ export default function HistoryScreen() {
         break;
 
       case "confidence":
-        list.sort(
-          (a, b) =>
-            (b.aiPriceConfidence || 0) -
-            (a.aiPriceConfidence || 0)
-        );
+        list.sort((a, b) => (b.aiPriceConfidence || 0) - (a.aiPriceConfidence || 0));
         break;
 
       case "aiPrice":
-        list.sort(
-          (a, b) =>
-            (b.aiPriceMax || 0) - (a.aiPriceMax || 0)
-        );
+        list.sort((a, b) => (b.aiPriceMax || 0) - (a.aiPriceMax || 0));
         break;
 
       case "flipScore":
-        list.sort(
-          (a, b) => (b.flipScore || 0) - (a.flipScore || 0)
-        );
+        list.sort((a, b) => (b.flipScore || 0) - (a.flipScore || 0));
         break;
 
       case "demand":
         list.sort(
-          (a, b) =>
-            (b.market?.demandScore || 0) -
-            (a.market?.demandScore || 0)
+          (a, b) => (b.market?.demandScore || 0) - (a.market?.demandScore || 0)
         );
         break;
 
       case "rarity":
-        list.sort(
-          (a, b) =>
-            Number(b.rarity || 0) - Number(a.rarity || 0)
-        );
+        list.sort((a, b) => Number(b.rarity || 0) - Number(a.rarity || 0));
         break;
 
       case "sellSpeed":
-        list.sort(
-          (a, b) =>
-            Number(b.sellSpeed || 0) - Number(a.sellSpeed || 0)
-        );
+        list.sort((a, b) => Number(b.sellSpeed || 0) - Number(a.sellSpeed || 0));
         break;
 
       case "smartPrice":
         list.sort(
-          (a, b) =>
-            (b.market?.smartPrice || 0) -
-            (a.market?.smartPrice || 0)
+          (a, b) => (b.market?.smartPrice || 0) - (a.market?.smartPrice || 0)
         );
         break;
 
       case "googlePrice":
         list.sort(
-          (a, b) =>
-            (b.market?.googlePriceMax || 0) -
-            (a.market?.googlePriceMax || 0)
+          (a, b) => (b.market?.googlePriceMax || 0) - (a.market?.googlePriceMax || 0)
         );
         break;
 
       case "az":
-        list.sort((a, b) =>
-          (a.title || "").localeCompare(b.title || "")
-        );
+        list.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
         break;
 
       case "faves":
@@ -362,9 +307,7 @@ export default function HistoryScreen() {
 
       case "newest":
       default:
-        list.sort(
-          (a, b) => Number(b.id || 0) - Number(a.id || 0)
-        );
+        list.sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
         break;
     }
 
@@ -389,8 +332,8 @@ export default function HistoryScreen() {
 
   const openDetails = (item: FlipRecord) => {
     router.push({
-      pathname: "/flip/[id]",
-      params: { id: item.id },
+      pathname: "/scan/scan-results",
+      params: { data: JSON.stringify(item) },
     });
   };
 
@@ -400,296 +343,282 @@ export default function HistoryScreen() {
     if (roi > 0) return theme.accent;
     return theme.danger;
   };
-const exportToCSV = async () => {
-  if (flips.length === 0) {
-    showOverlayMessage("Nothing to export");
-    return;
-  }
 
-  const header =
-    "Title,Buy,Sell,Profit,ROI,Confidence,AI Price Min,AI Price Max,AI Price Confidence,FlipScore,Rarity,SellSpeed,Google Min,Google Max,SmartPrice,DemandScore,Condition,ConditionScore,Description,FullDescription\n";
+  const exportToCSV = async () => {
+    if (flips.length === 0) {
+      showOverlayMessage("Nothing to export");
+      return;
+    }
 
-  const rows = flips
-    .map((f) => {
-      const safeBuy = Number(f.pricing?.recommendedBuyPrice || 0);
-      const safeSell = Number(f.pricing?.recommendedSellPrice || 0);
-      const safeProfit = Number(f.pricing?.predictedProfit || 0);
-      const roi = safeBuy > 0 ? (safeProfit / safeBuy) * 100 : 0;
+    const header =
+      "Title,Buy,Sell,Profit,ROI,Confidence,AI Price Min,AI Price Max,AI Price Confidence,FlipScore,Rarity,SellSpeed,Google Min,Google Max,SmartPrice,DemandScore,Condition,ConditionScore,Description,FullDescription\n";
 
-      return [
-        `"${(f.title || "").replace(/"/g, '""')}"`,
-        safeBuy.toFixed(2),
-        safeSell.toFixed(2),
-        safeProfit.toFixed(2),
-        roi.toFixed(0),
+    const rows = flips
+      .map((f) => {
+        const safeBuy = Number(f.pricing?.recommendedBuyPrice || 0);
+        const safeSell = Number(f.pricing?.recommendedSellPrice || 0);
+        const safeProfit = Number(f.pricing?.predictedProfit || 0);
+        const roi = safeBuy > 0 ? (safeProfit / safeBuy) * 100 : 0;
 
-        Number(f.aiPriceConfidence ?? 0),
-        Number(f.aiPriceMin ?? 0),
-        Number(f.aiPriceMax ?? 0),
-        Number(f.aiPriceConfidence ?? 0),
+        return [
+          `"${(f.title || "").replace(/"/g, '""')}"`,
+          safeBuy.toFixed(2),
+          safeSell.toFixed(2),
+          safeProfit.toFixed(2),
+          roi.toFixed(0),
 
-        Number(f.flipScore ?? 0),
-        Number(f.rarity ?? 0),
-        Number(f.sellSpeed ?? 0),
+          Number(f.aiPriceConfidence ?? 0),
+          Number(f.aiPriceMin ?? 0),
+          Number(f.aiPriceMax ?? 0),
+          Number(f.aiPriceConfidence ?? 0),
 
-        Number(f.market?.googlePriceMin ?? 0),
-        Number(f.market?.googlePriceMax ?? 0),
-        Number(f.market?.smartPrice ?? 0),
-        Number(f.market?.demandScore ?? 0),
+          Number(f.flipScore ?? 0),
+          Number(f.rarity ?? 0),
+          Number(f.sellSpeed ?? 0),
 
-        `"${(f.ai?.condition || "").replace(/"/g, '""')}"`,
-        Number(f.ai?.conditionScore ?? 0),
-        `"${(f.ai?.description || "").replace(/"/g, '""')}"`,
-        `"${(f.ai?.fullDescription || "").replace(/"/g, '""')}"`,
-      ].join(",");
-    })
-    .join("\n");
+          Number(f.market?.googlePriceMin ?? 0),
+          Number(f.market?.googlePriceMax ?? 0),
+          Number(f.market?.smartPrice ?? 0),
+          Number(f.market?.demandScore ?? 0),
 
-  try {
-    await Share.share({
-      message: header + rows,
-      title: "FlipPilot Export",
-    });
-  } catch {
-    showOverlayMessage("Export failed");
-  }
-};
+          `"${(f.ai?.condition || "").replace(/"/g, '""')}"`,
+          Number(f.ai?.conditionScore ?? 0),
+          `"${(f.ai?.description || "").replace(/"/g, '""')}"`,
+          `"${(f.ai?.fullDescription || "").replace(/"/g, '""')}"`,
+        ].join(",");
+      })
+      .join("\n");
 
- const renderItem = ({
-  item,
-  index,
-}: {
-  item: FlipRecord;
-  index: number;
-}) => {
-  const trend = getTrendIcon(index);
+    try {
+      await Share.share({
+        message: header + rows,
+        title: "FlipPilot Export",
+      });
+    } catch {
+      showOverlayMessage("Export failed");
+    }
+  };
 
-  const safeBuy = Number(item.pricing?.recommendedBuyPrice || 0);
-  const safeSell = Number(item.pricing?.recommendedSellPrice || 0);
-  const safeProfit = Number(item.pricing?.predictedProfit || 0);
-  const roi = safeBuy > 0 ? (safeProfit / safeBuy) * 100 : 0;
+  const renderItem = ({ item, index }: { item: FlipRecord; index: number }) => {
+    const trend = getTrendIcon(index);
 
-  const roiColor = getRoiColor(roi);
+    const safeBuy = Number(item.pricing?.recommendedBuyPrice || 0);
+    const safeSell = Number(item.pricing?.recommendedSellPrice || 0);
+    const safeProfit = Number(item.pricing?.predictedProfit || 0);
+    const roi = safeBuy > 0 ? (safeProfit / safeBuy) * 100 : 0;
 
-  return (
-    <View>
-      <AnimatedPressable
-        style={[
-          styles.card,
-          {
-            backgroundColor: theme.card,
-            borderColor: theme.goldDeep,
-            borderWidth: 3,
-          },
-        ]}
-        onPress={() => openDetails(item)}
-      >
-        {/* IMAGE */}
-        {typeof item.image === "string" &&
-          item.image.trim().length > 0 && (
+    const roiColor = getRoiColor(roi);
+
+    return (
+      <View>
+        <AnimatedPressable
+          style={[
+            styles.card,
+            {
+              backgroundColor: theme.card,
+              borderColor: theme.goldDeep,
+              borderWidth: 3,
+            },
+          ]}
+          onPress={() => openDetails(item)}
+        >
+          {/* IMAGE */}
+          {typeof item.image === "string" && item.image.trim().length > 0 && (
             <ThemedView style={styles.imageWrapper}>
-              <Image
-                source={{ uri: item.image }}
-                style={styles.image}
-              />
+              <Image source={{ uri: item.image }} style={styles.image} />
             </ThemedView>
           )}
 
-        {/* HEADER */}
-        <ThemedView style={styles.cardHeaderRow}>
-          <ThemedText style={[textVariants.body, styles.name]}>
-            📦 {item.title}
-          </ThemedText>
+          {/* HEADER */}
+          <ThemedView style={styles.cardHeaderRow}>
+            <ThemedText style={[textVariants.body, styles.name]}>
+              📦 {item.title}
+            </ThemedText>
 
-          <ThemedText
-            style={[textVariants.body, styles.trendBadge]}
-          >
-            {trend}
-          </ThemedText>
-        </ThemedView>
+            <ThemedText style={[textVariants.body, styles.trendBadge]}>
+              {trend}
+            </ThemedText>
+          </ThemedView>
 
-        {/* BUY / SELL */}
-        <ThemedView style={styles.row}>
-          <ThemedText style={[textVariants.body, styles.text]}>
-            Buy: £{safeBuy.toFixed(2)}
-          </ThemedText>
-          <ThemedText style={[textVariants.body, styles.text]}>
-            Sell: £{safeSell.toFixed(2)}
-          </ThemedText>
-        </ThemedView>
+          {/* BUY / SELL */}
+          <ThemedView style={styles.row}>
+            <ThemedText style={[textVariants.body, styles.text]}>
+              Buy: £{safeBuy.toFixed(2)}
+            </ThemedText>
+            <ThemedText style={[textVariants.body, styles.text]}>
+              Sell: £{safeSell.toFixed(2)}
+            </ThemedText>
+          </ThemedView>
 
-        {/* PROFIT */}
-        <ThemedText
-          style={[
-            textVariants.h3,
-            styles.profit,
-            { color: safeProfit >= 0 ? theme.success : theme.danger },
-          ]}
-        >
-          £{safeProfit.toFixed(2)}
-        </ThemedText>
-
-        {/* BADGES */}
-        <ThemedView style={styles.badgeRow}>
+          {/* PROFIT */}
           <ThemedText
             style={[
-              textVariants.body,
-              styles.roiBadge,
-              { color: roiColor },
+              textVariants.h3,
+              styles.profit,
+              { color: safeProfit >= 0 ? theme.success : theme.danger },
             ]}
           >
-            ROI {roi.toFixed(0)}%
+            £{safeProfit.toFixed(2)}
           </ThemedText>
 
-          {item.aiPriceConfidence != null && (
-            <ThemedText style={[textVariants.body, styles.confBadge]}>
-              Conf {item.aiPriceConfidence.toFixed(0)}%
-            </ThemedText>
-          )}
-
-          {item.flipScore != null && (
-            <ThemedText style={[textVariants.body, styles.favBadge]}>
-              🔥 Score {item.flipScore}
-            </ThemedText>
-          )}
-
-          {item.rarity != null && (
-            <ThemedText style={[textVariants.body, styles.favBadge]}>
-              🎲 Rarity {item.rarity}
-            </ThemedText>
-          )}
-
-          {item.sellSpeed != null && (
-            <ThemedText style={[textVariants.body, styles.favBadge]}>
-              ⚡ Speed {item.sellSpeed}
-            </ThemedText>
-          )}
-
-          {item.market?.demandScore != null && (
-            <ThemedText style={[textVariants.body, styles.favBadge]}>
-              📈 Demand {item.market.demandScore}
-            </ThemedText>
-          )}
-
-          {item.favourite && (
-            <ThemedText style={[textVariants.body, styles.favBadge]}>
-              ⭐ Favourite
-            </ThemedText>
-          )}
-        </ThemedView>
-
-        {/* CONDITION */}
-        {item.ai?.condition && (
-          <ThemedText
-            style={[textVariants.body, styles.conditionText]}
-          >
-            Condition: {item.ai.condition}
-          </ThemedText>
-        )}
-
-        {/* AI SUMMARY */}
-        {(item.ai?.condition ||
-          item.market?.demandScore ||
-          item.sellSpeed) && (
-          <ThemedText
-            style={[textVariants.small, styles.conditionText]}
-          >
-            AI:{" "}
-            {item.ai?.condition ? `${item.ai.condition} • ` : ""}
-            {item.market?.demandScore
-              ? `Demand ${item.market.demandScore} • `
-              : ""}
-            {item.sellSpeed ? `Speed ${item.sellSpeed}` : ""}
-          </ThemedText>
-        )}
-
-        {/* BUTTON ROW */}
-        <ThemedView style={styles.buttonRow}>
-
-          {/* SHARE TEXT */}
-          <AnimatedPressable
-            onPress={() =>
-              shareFlip({
-                title: item.title,
-                buyPrice: safeBuy,
-                sellPrice: safeSell,
-                roi,
-                profit: safeProfit,
-                confidence: item.aiPriceConfidence || 0,
-                origin: item.ai?.condition || "Unknown",
-                description: item.ai?.description || "",
-                image: item.image,
-              })
-            }
-            style={[
-              styles.fav,
-              {
-                backgroundColor: theme.accent,
-                borderColor: theme.goldDeep,
-                borderWidth: 3,
-              },
-            ]}
-          >
-            <ThemedText style={[textVariants.h3, { color: theme.black }]}>
-              ✈️
-            </ThemedText>
-          </AnimatedPressable>
-
-          {/* FAVOURITE */}
-          <AnimatedPressable
-            onPress={() => toggleFavourite(item.id)}
-            style={[
-              styles.fav,
-              item.favourite
-                ? {
-                    backgroundColor: theme.accent,
-                    borderColor: theme.goldDeep,
-                    borderWidth: 3,
-                  }
-                : {
-                    borderWidth: 3,
-                    borderColor: theme.goldDeep,
-                  },
-            ]}
-          >
+          {/* BADGES */}
+          <ThemedView style={styles.badgeRow}>
             <ThemedText
               style={[
-                textVariants.h3,
+                textVariants.body,
+                styles.roiBadge,
+                { color: roiColor },
+              ]}
+            >
+              ROI {roi.toFixed(0)}%
+            </ThemedText>
+
+            {item.aiPriceConfidence != null && (
+              <ThemedText style={[textVariants.body, styles.confBadge]}>
+                Conf {item.aiPriceConfidence.toFixed(0)}%
+              </ThemedText>
+            )}
+
+            {item.flipScore != null && (
+              <ThemedText style={[textVariants.body, styles.favBadge]}>
+                🔥 Score {item.flipScore}
+              </ThemedText>
+            )}
+
+            {item.rarity != null && (
+              <ThemedText style={[textVariants.body, styles.favBadge]}>
+                🎲 Rarity {item.rarity}
+              </ThemedText>
+            )}
+
+            {item.sellSpeed != null && (
+              <ThemedText style={[textVariants.body, styles.favBadge]}>
+                ⚡ Speed {item.sellSpeed}
+              </ThemedText>
+            )}
+
+            {item.market?.demandScore != null && (
+              <ThemedText style={[textVariants.body, styles.favBadge]}>
+                📈 Demand {item.market.demandScore}
+              </ThemedText>
+            )}
+
+           {item.favourite && (
+  <ThemedText style={[textVariants.body, styles.favBadge]}>
+    ⭐ Favourite
+  </ThemedText>
+)}
+          {/* CONDITION */}
+          {item.ai?.condition && (
+            <ThemedText
+              style={[textVariants.body, styles.conditionText]}
+            >
+              Condition: {item.ai.condition}
+            </ThemedText>
+          )}
+
+{/* AI SUMMARY */}
+{(item.ai?.condition ||
+  item.market?.demandScore ||
+  item.sellSpeed) && (
+  <ThemedText
+    style={[textVariants.small, styles.conditionText]}
+  >
+    AI:{" "}
+    {item.ai?.condition ? `${item.ai.condition} • ` : ""}
+    {item.market?.demandScore
+      ? `Demand ${item.market.demandScore} • `
+      : ""}
+    {item.sellSpeed ? `Speed ${item.sellSpeed}` : ""}
+  </ThemedText>
+)}
+
+{/* BUTTON ROW */}
+<ThemedView style={styles.buttonRow}>
+</ThemedView> 
+  {/* SHARE */}
+  <AnimatedPressable
+    onPress={() =>
+      shareFlip({
+        title: item.title,
+        buyPrice: safeBuy,
+        sellPrice: safeSell,
+        roi,
+        profit: safeProfit,
+        confidence: item.aiPriceConfidence || 0,
+        origin: item.ai?.condition || "Unknown",
+        description: item.ai?.description || "",
+        image: item.image,
+      })
+    }
+    style={[
+      styles.fav,
+      {
+        backgroundColor: theme.accent,
+        borderColor: theme.goldDeep,
+        borderWidth: 3,
+      },
+    ]}
+  >
+    <ThemedText style={[textVariants.h3, { color: theme.black }]}>
+      ✈️
+    </ThemedText>
+  </AnimatedPressable>
+
+
+            {/* FAVOURITE */}
+            <AnimatedPressable
+              onPress={() => toggleFavourite(item.id)}
+              style={[
+                styles.fav,
+                item.favourite
+                  ? {
+                      backgroundColor: theme.accent,
+                      borderColor: theme.goldDeep,
+                      borderWidth: 3,
+                    }
+                  : {
+                      borderWidth: 3,
+                      borderColor: theme.goldDeep,
+                    },
+              ]}
+            >
+              <ThemedText
+                style={[
+                  textVariants.h3,
+                  {
+                    color: item.favourite ? theme.black : theme.accent,
+                  },
+                ]}
+              >
+                ⭐
+              </ThemedText>
+            </AnimatedPressable>
+
+            {/* DELETE */}
+            <AnimatedPressable
+              onPress={() => deleteFlip(item.id)}
+              style={[
+                styles.fav,
                 {
-                  color: item.favourite ? theme.black : theme.accent,
+                  backgroundColor: theme.danger,
+                  borderColor: theme.goldDeep,
+                  borderWidth: 3,
                 },
               ]}
             >
-              ⭐
-            </ThemedText>
-          </AnimatedPressable>
+              <ThemedText style={[textVariants.h3, { color: theme.white }]}>
+                🗑️
+              </ThemedText>
+            </AnimatedPressable>
 
-          {/* DELETE */}
-          <AnimatedPressable
-            onPress={() => deleteFlip(item.id)}
-            style={[
-              styles.fav,
-              {
-                backgroundColor: theme.danger,
-                borderColor: theme.goldDeep,
-                borderWidth: 3,
-              },
-            ]}
-          >
-            <ThemedText style={[textVariants.h3, { color: theme.white }]}>
-              🗑️
-            </ThemedText>
-          </AnimatedPressable>
+          </ThemedView>
+        </AnimatedPressable>
+      </View>
+    );
+  };
 
-        </ThemedView>
-      </AnimatedPressable>
-    </View>
-  );
-};
-
-
-
-   return (
+  return (
     <ThemedView
       style={[
         styles.container,
@@ -748,7 +677,7 @@ const exportToCSV = async () => {
         </ThemedView>
       </ThemedView>
 
-      {/* GOLD DIVIDER (H2 CHOICE) */}
+      {/* DIVIDER */}
       <ThemedView
         style={{
           height: 2,
@@ -758,7 +687,7 @@ const exportToCSV = async () => {
         }}
       />
 
-      {/* STATS ROW */}
+      {/* STATS */}
       <ThemedView style={styles.statsRow}>
         <ThemedView
           style={[
@@ -839,10 +768,7 @@ const exportToCSV = async () => {
 
           {bestFlip.image && (
             <ThemedView style={styles.bestImageWrapper}>
-              <Image
-                source={{ uri: bestFlip.image }}
-                style={styles.bestImage}
-              />
+              <Image source={{ uri: bestFlip.image }} style={styles.bestImage} />
             </ThemedView>
           )}
 
@@ -863,7 +789,7 @@ const exportToCSV = async () => {
         </AnimatedPressable>
       )}
 
-      {/* SEARCH BAR */}
+      {/* SEARCH */}
       <ThemedView style={styles.searchRow}>
         <TextInput
           placeholder="Search flips..."
@@ -938,7 +864,12 @@ const exportToCSV = async () => {
               Delete flip?
             </ThemedText>
 
-            <ThemedText style={[textVariants.body, { color: theme.muted, textAlign: "center", marginTop: 8 }]}>
+            <ThemedText
+              style={[
+                textVariants.body,
+                { color: theme.muted, textAlign: "center", marginTop: 8 },
+              ]}
+            >
               This cannot be undone.
             </ThemedText>
 
@@ -997,7 +928,12 @@ const exportToCSV = async () => {
               Clear all history?
             </ThemedText>
 
-            <ThemedText style={[textVariants.body, { color: theme.muted, textAlign: "center", marginTop: 8 }]}>
+            <ThemedText
+              style={[
+                textVariants.body,
+                { color: theme.muted, textAlign: "center", marginTop: 8 },
+              ]}
+            >
               This will remove all flips from your device.
             </ThemedText>
 
@@ -1036,8 +972,6 @@ const exportToCSV = async () => {
     </ThemedView>
   );
 }
-
-
 /* ============================
    STYLES (THEME-READY)
    ============================ */
@@ -1242,3 +1176,4 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 });
+

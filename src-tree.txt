@@ -1,0 +1,145 @@
+Folder PATH listing for volume Windows
+Volume serial number is 0000027D D2B6:1F37
+C:\FLIPPILOTCLEAN\SRC
+|   global.css
+|   
++---assets
+|   \---expo.icon
+|       |   icon.json
+|       |   
+|       \---Assets
+|               expo-symbol 2.svg
+|               grid.png
+|               
++---components
+|   |   AchievementsCard.tsx
+|   |   AIBubble.tsx
+|   |   AIChatWindow.tsx
+|   |   animated-icon.module.css
+|   |   animated-icon.tsx
+|   |   animated-icon.web.tsx
+|   |   app-tabs.styles.ts
+|   |   app-tabs.tsx
+|   |   app-tabs.web.tsx
+|   |   BootFairRadar.tsx
+|   |   CalculatorModal.tsx
+|   |   CategoryBadge.tsx
+|   |   external-link.tsx
+|   |   GoldButton.tsx
+|   |   GoldFlashOverlay.tsx
+|   |   GoldLightning.tsx
+|   |   GoldParticles.tsx
+|   |   GoldParticlesBurst.tsx
+|   |   GoldTrail.tsx
+|   |   hint-row.tsx
+|   |   LiveProfitCounter.tsx
+|   |   ProBadge.tsx
+|   |   ProGate.tsx
+|   |   RecommendationsCard.tsx
+|   |   SparklesOverlay.tsx
+|   |   SponsoredCard.tsx
+|   |   SymbolView.tsx
+|   |   ThemedText.tsx
+|   |   ThemedView.tsx
+|   |   WarningModel.tsx
+|   |   WeatherCard.tsx
+|   |   web-badge.tsx
+|   |   
+|   +---navigation
+|   |       CustomTabBar.tsx
+|   |       
+|   \---ui
+|       |   collapsible.tsx
+|       |   external-link.tsx
+|       |   haptic-tab.tsx
+|       |   icon-symbol.ios.tsx
+|       |   icon-symbol.tsx
+|       |   parallax-scroll-view.tsx
+|       |   themed-text.tsx
+|       |   themed-view.tsx
+|       |   
+|       \---tabIcons
+|               explore.png
+|               explore@2x.png
+|               explore@3x.png
+|               home.png
+|               home@2x.png
+|               home@3x.png
+|               
++---constants
+|       spacing.ts
+|       theme.ts
+|       
++---context
+|       FlipHistoryContext.tsx
+|       SubscriptionContext.tsx
+|       ThemeContext.tsx
+|       
++---features
+|   \---vehichles
+|           VehicleHistoryContext.tsx
+|           
++---hooks
+|       use-color-scheme.ts
+|       use-color-scheme.web.ts
+|       use-theme.ts
+|       useTabMemory.ts
+|       
++---lib
+|       aiLookup.ts
+|       businessAdverts.ts
+|       fairs.ts
+|       fetchMarketFromServer.ts
+|       revenuecat.ts
+|       
++---models
+|       CarRecord.ts
+|       FlipRecord.ts
+|       migrations.ts
+|       
++---screens
+|       FlipPilotAssistantSheet.tsx
+|       
++---styles
+|   |   explore.styles.ts
+|   |   layout.ts
+|   |   theme.ts
+|   |   
+|   \---theme
+|           colors.ts
+|           components.ts
+|           index.ts
+|           layout.ts
+|           radius.ts
+|           shadows.ts
+|           spacing.ts
+|           ThemedText.tsx
+|           ThemedView.tsx
+|           typography.ts
+|           useTheme.ts
+|           
++---types
+|       react-native-get-random-values.d.ts
+|       uuid.d.ts
+|       
+\---utils
+    |   achievements.ts
+    |   api.ts
+    |   category.ts
+    |   format.ts
+    |   generateRecommendations.ts
+    |   googlepricing.ts
+    |   isDuplicateFlip.ts
+    |   playsound.ts
+    |   saveFlipRecord.ts
+    |   storage.ts
+    |   
+    \---share
+            shareCard.ts
+            shareCSV.ts
+            shareFlip.ts
+            shareFormats.ts
+            shareImage.ts
+            shareText.ts
+            types.ts
+            

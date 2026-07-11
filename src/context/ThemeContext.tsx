@@ -1,58 +1,5 @@
 import { createContext, ReactNode, useContext, useState } from "react";
-
-export interface Theme {
-  background: string;
-  text: string;
-  card: string;
-
-  accent: string;
-  gold: string;
-  goldDeep: string;
-  goldSoftGlow: string;
-
-  success: string;
-  danger: string;
-  muted: string;
-  secondary: string;
-  white: string;
-  black: string;
-}
-
-const freeTheme: Theme = {
-  background: "#0A0F1F",
-  text: "#FFFFFF",
-  card: "#111A2C",
-
-  accent: "#FFD700",
-  gold: "#FFD700",
-  goldDeep: "#C9A100",
-  goldSoftGlow: "rgba(255,215,0,0.25)",
-
-  success: "#4CAF50",
-  danger: "#F44336",
-  muted: "rgba(255,255,255,0.6)",
-  secondary: "#1C2F4A",
-  white: "#FFFFFF",
-  black: "#000000",
-};
-
-const proTheme: Theme = {
-  background: "#05070D",
-  text: "#FFFFFF",
-  card: "#0D1422",
-
-  accent: "#FFD700",
-  gold: "#FFD700",
-  goldDeep: "#C9A100",
-  goldSoftGlow: "rgba(255,215,0,0.25)",
-
-  success: "#FFD700", // premium gold meters
-  danger: "#F44336",
-  muted: "rgba(255,255,255,0.6)",
-  secondary: "#1C2F4A",
-  white: "#FFFFFF",
-  black: "#000000",
-};
+import { Theme, freeTheme, proTheme } from "@/styles/theme";
 
 interface ThemeContextValue {
   theme: Theme;

@@ -24,21 +24,16 @@ const LASER_COLOR = "#FF3B3B";
 
 // AI TIP POOL (Mixed: Tactical + Flipping + Market)
 const AI_TIPS = [
-  // Tactical HUD
   "Target acquired… stabilising.",
   "Analyzing object surface…",
   "Scanning thermal signature…",
   "Hold device steady…",
   "Optimizing focus…",
-
-  // Flipping Advice
   "Check for scratches before listing.",
   "Bundles sell faster — consider grouping items.",
   "Compare SOLD prices, not active listings.",
   "Good photos increase sale speed.",
   "Check item weight — affects postage profit.",
-
-  // Market Predictions
   "High demand detected.",
   "Strong resale potential.",
   "Market volatility low.",
@@ -122,7 +117,6 @@ export default function ScanScreen() {
     }).start(() => framePulse.setValue(0));
   };
 
-
   // Laser animation
   const laserY = useRef(new Animated.Value(0)).current;
 
@@ -187,36 +181,35 @@ export default function ScanScreen() {
   // TRANSFORMER
   const transform = (input: any, imageUri?: string) => ({
     ai: input.ai ?? {},
-    market: input.market ?? {},
-    pricing: input.pricing ?? {},
-    ebayItems: input.ebayItems ?? [],
-    flipScore: input.flipScore ?? 0,
-    flipPotential: input.flipPotential ?? "Unknown",
-    sellSpeed: input.sellSpeed ?? "Unknown",
-    rarity: input.rarity ?? "Unknown",
-    insights: input.insights ?? "",
-    image: imageUri ?? input.image ?? null,
-    title: input.title ?? input.ai?.title ?? "Unknown Item",
+    title: input.product?.title ?? "Unknown Item",
+    barcode: input.product?.barcode ?? null,
+    base_price: input.product?.base_price ?? null,
+    image: imageUri ?? null,
   });
 
-  // BARCODE SCAN
+  // BARCODE SCAN → NEW BACKEND
   const handleBarcode = async ({ data }: { data: string }) => {
     if (barcodeLocked || loading) return;
 
     setBarcodeLocked(true);
 
-   
     try {
       setLoading(true);
 
-      const result = await fetch(
-        `http://192.168.0.47:3001/search?q=${data}`
-      ).then((r) => r.json());
+      const res = await fetch("http://localhost:4000/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          barcode: data,
+          store: "Lidl",
+          location: "Paignton",
+        }),
+      }).then((r) => r.json());
 
-      const finalObj = transform(result, result.image);
+      const finalObj = transform(res);
+
       setTempScanData(finalObj);
 
-      // Success effects
       triggerSuccess();
       triggerFramePulse();
       triggerFlash("green");
@@ -234,32 +227,32 @@ export default function ScanScreen() {
     }
   };
 
-  // PHOTO SCAN
+  // PHOTO SCAN → NEW BACKEND
   const takePhoto = async () => {
     try {
       if (!cameraRef.current || loading || !cameraReady) return;
 
-
       const photo = await cameraRef.current.takePictureAsync();
 
-    const base64 = await FileSystem.readAsStringAsync(photo.uri, {
-  encoding: "base64",
-});
-
+      const base64 = await FileSystem.readAsStringAsync(photo.uri, {
+        encoding: "base64",
+      });
 
       setLoading(true);
 
-      const result = await fetch("http://192.168.0.47:3001/search-image", {
+      const res = await fetch("http://localhost:4000/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          barcode: null,
           imageBase64: base64,
-          userId: "default-user",
-          deviceId: "default-device",
+          store: "Lidl",
+          location: "Paignton",
         }),
       }).then((r) => r.json());
 
-      const finalObj = transform(result, photo.uri);
+      const finalObj = transform(res, photo.uri);
+
       setTempScanData(finalObj);
 
       triggerSuccess();
@@ -401,13 +394,10 @@ export default function ScanScreen() {
             </Animated.View>
           )}
 
-          {/* BUTTONS (STACKED) */}
+          {/* BUTTONS */}
           <View style={styles.bottomButtons}>
             <Pressable
-              style={[
-                styles.scanButton,
-                { backgroundColor: theme.gold },
-              ]}
+              style={[styles.scanButton, { backgroundColor: theme.gold }]}
               onPress={() => setBarcodeLocked(false)}
             >
               <ThemedText style={{ color: theme.black, fontWeight: "900", fontSize: 18 }}>
@@ -416,10 +406,7 @@ export default function ScanScreen() {
             </Pressable>
 
             <Pressable
-              style={[
-                styles.scanButton,
-                { backgroundColor: theme.gold },
-              ]}
+              style={[styles.scanButton, { backgroundColor: theme.gold }]}
               onPress={takePhoto}
             >
               <ThemedText style={{ color: theme.black, fontWeight: "900", fontSize: 18 }}>
@@ -459,6 +446,7 @@ export default function ScanScreen() {
     </ThemedView>
   );
 }
+
 // =========================
 // ⭐ PART 2 — STYLES
 // =========================
@@ -486,7 +474,6 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
 
-  // SCAN FRAME
   frameContainer: {
     position: "absolute",
     top: "25%",
@@ -514,7 +501,6 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
 
-  // HOLOGRAM AI TIP
   holoTip: {
     position: "absolute",
     top: "60%",
@@ -525,7 +511,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.15)",
-    
   },
 
   holoText: {
@@ -537,7 +522,6 @@ const styles = StyleSheet.create({
     textShadowRadius: 6,
   },
 
-  // SUCCESS CHECKMARK
   successCheck: {
     position: "absolute",
     top: "40%",
@@ -558,7 +542,6 @@ const styles = StyleSheet.create({
     textShadowRadius: 12,
   },
 
-  // BUTTONS
   bottomButtons: {
     position: "absolute",
     bottom: 60,
@@ -584,7 +567,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
 
-  // TOAST
   toast: {
     position: "absolute",
     bottom: 120,
@@ -596,3 +578,5 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
 });
+
+

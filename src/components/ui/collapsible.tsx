@@ -15,7 +15,7 @@ import Animated, {
 
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
-import { useTheme } from "@/hooks/use-theme";
+import { useTheme } from "@/hooks/use-theme-legacy";
 import { Radius, Spacing } from "@/styles/theme";
 
 export function Collapsible({

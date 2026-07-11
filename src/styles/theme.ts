@@ -20,7 +20,7 @@ export interface Theme {
   white: string;
   black: string;
 
-  // Optional helpers
+  // Layout helpers (from layout.ts)
   radius: typeof layout.radius;
   spacing: typeof layout.spacing;
   shadow: typeof layout.shadow;
@@ -80,7 +80,6 @@ export const proTheme: Theme = {
   button: layout.button,
 };
 
-// ⭐ Export a theme map if needed
 export const themes = {
   free: freeTheme,
   pro: proTheme,
