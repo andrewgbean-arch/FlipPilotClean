@@ -3,7 +3,8 @@ export interface CarRecord {
      ⭐ CORE IDENTIFIERS
   ================================= */
   id: string;
-  timestamp: string;
+  timestamp: string;                 // ISO string
+  lastUpdated?: string | null;       // for sync + AI refresh
 
   /* ================================
      ⭐ BASIC VEHICLE INFO
@@ -11,20 +12,23 @@ export interface CarRecord {
   make: string;
   model: string;
   year: number;
-  variant?: string | null;          // e.g., “Sport”, “SE”, “LWB”
-  bodyType?: string | null;         // e.g., “Hatchback”, “Van”, “SUV”
+  variant?: string | null;           // “Sport”, “SE”, “LWB”
+  bodyType?: string | null;          // “Hatchback”, “Van”, “SUV”
+  colour?: string | null;
 
   /* ================================
      ⭐ REGISTRATION + VIN
   ================================= */
-  registration?: string | null;     // UK reg plate
+  registration?: string | null;      // UK reg plate
   vin?: string | null;
+  dvlaVerified?: boolean | null;     // DVLA lookup success flag
 
   /* ================================
      ⭐ IMAGES
   ================================= */
-  images?: string[] | null;         // array of image URLs/base64
-  mainImage?: string | null;        // primary image
+  images?: string[] | null;          // array of image URLs/base64
+  mainImage?: string | null;         // primary image
+  thumbnail?: string | null;         // small preview
 
   /* ================================
      ⭐ ENGINE + SPECS
@@ -32,10 +36,12 @@ export interface CarRecord {
   mileage?: number | null;
   fuelType?: "Petrol" | "Diesel" | "Hybrid" | "Electric" | null;
   transmission?: "Manual" | "Automatic" | null;
-  engineSize?: number | null;       // litres (e.g., 2.0)
+  engineSize?: number | null;        // litres (e.g., 2.0)
   horsepower?: number | null;
+  torque?: number | null;            // Nm
   doors?: number | null;
   seats?: number | null;
+  drivetrain?: "FWD" | "RWD" | "AWD" | null;
 
   /* ================================
      ⭐ MOT HISTORY
@@ -62,8 +68,9 @@ export interface CarRecord {
     priceAverage?: number | null;
     priceConfidence?: number | null;     // 0–1
     listingsFound?: number | null;
-    marketSpeed?: string | null;         // “Fast”, “Moderate”, “Slow”
-    rarity?: string | null;              // “Common”, “Uncommon”, “Rare”
+    marketSpeed?: "Fast" | "Moderate" | "Slow" | null;
+    rarity?: "Common" | "Uncommon" | "Rare" | "Very Rare" | null;
+    region?: string | null;              // e.g., “South West”
   } | null;
 
   /* ================================
@@ -76,6 +83,12 @@ export interface CarRecord {
     confidence?: number | null;          // 0–1
     dealScore?: number | null;           // 0–100
     proValuation?: boolean | null;       // Pro mode flag
+
+    // NEW: AI insights
+    insights?: string[] | null;          // “This model sells faster in summer”
+    riskFactors?: string[] | null;       // “High mileage”, “Short MOT”
+    recommendedBuy?: number | null;
+    recommendedSell?: number | null;
   } | null;
 
   /* ================================
@@ -87,6 +100,7 @@ export interface CarRecord {
     location?: string | null;
     listingUrl?: string | null;
     source?: string | null;              // “AutoTrader”, “eBay Motors”, etc.
+    verified?: boolean | null;           // future feature
   } | null;
 
   /* ================================
@@ -94,4 +108,11 @@ export interface CarRecord {
   ================================= */
   userNotes?: string | null;
   favourite?: boolean;
+
+  /* ================================
+     ⭐ FLIPPILOT INTERNAL
+  ================================= */
+  tags?: string[] | null;               // “ULEZ”, “Project Car”, “Quick Flip”
+  archived?: boolean | null;            // soft delete
 }
+

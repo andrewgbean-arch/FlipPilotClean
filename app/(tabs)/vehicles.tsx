@@ -23,6 +23,7 @@ export default function VehicleListScreen() {
   const theme = useTheme();
   const router = useRouter();
 
+  // Sort by flipScore (highest first)
   const sortedVehicles = [...vehicles].sort((a, b) => {
     const scoreA = a.flipScore || 0;
     const scoreB = b.flipScore || 0;
@@ -30,13 +31,7 @@ export default function VehicleListScreen() {
   });
 
   const renderRightActions = (item: FlipRecord) => (
-    <View
-      style={{
-        justifyContent: "center",
-        alignItems: "flex-end",
-        marginBottom: 16,
-      }}
-    >
+    <View style={{ justifyContent: "center", alignItems: "flex-end", marginBottom: 16 }}>
       <AnimatedPressable
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -53,13 +48,7 @@ export default function VehicleListScreen() {
   );
 
   const renderLeftActions = (item: FlipRecord) => (
-    <View
-      style={{
-        justifyContent: "center",
-        alignItems: "flex-start",
-        marginBottom: 16,
-      }}
-    >
+    <View style={{ justifyContent: "center", alignItems: "flex-start", marginBottom: 16 }}>
       <AnimatedPressable
         onPress={() => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -104,7 +93,7 @@ export default function VehicleListScreen() {
         ? "MOT OK"
         : item.mot?.motStatus === "Expired"
         ? "MOT Expired"
-        : "MOT Unknown";
+        : item.mot?.motStatus || "MOT Unknown";
 
     const fade = useSharedValue(0);
     fade.value = withTiming(1, { duration: 600 });
@@ -113,6 +102,8 @@ export default function VehicleListScreen() {
       opacity: fade.value,
       transform: [{ translateY: (1 - fade.value) * 20 }],
     }));
+
+    const hasImages = Array.isArray(item.images) && item.images.length > 0;
 
     return (
       <Animated.View style={animatedStyle}>
@@ -125,12 +116,12 @@ export default function VehicleListScreen() {
               styles.card,
               { borderColor: theme.goldDeep, backgroundColor: theme.card },
             ]}
-            onPress={() => router.push(`/VehicleDetails?id=${item.id}`)}
+            onPress={() => router.push(`/vehicle/${item.id}`)}
           >
             {/* THUMBNAIL */}
-            {item.images?.length > 0 && (
+            {hasImages && (
               <Image
-                source={{ uri: item.images[0] }}
+                source={{ uri: item.images![0] }}
                 style={{
                   width: "100%",
                   height: 160,
@@ -253,9 +244,7 @@ export default function VehicleListScreen() {
   };
 
   return (
-    <ThemedView
-      style={[styles.container, { backgroundColor: theme.background }]}
-    >
+    <ThemedView style={[styles.container, { backgroundColor: theme.background }]}>
       <FlatList
         data={sortedVehicles}
         keyExtractor={(item) => item.id}

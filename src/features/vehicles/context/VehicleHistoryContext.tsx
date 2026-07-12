@@ -10,7 +10,9 @@ import {
 } from "react";
 // @ts-ignore
 import { v4 as uuidv4 } from "uuid";
+
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
+import { calcFlipScore } from "@/features/vehicles/utils/calcFlipScore";
 
 const STORAGE_KEY = "@flippilot_vehicle_history_v1";
 
@@ -19,7 +21,7 @@ type VehicleHistoryContextType = {
   addVehicle: (data: Omit<FlipRecord, "id" | "timestamp">) => FlipRecord;
   deleteVehicle: (id: string) => void;
   toggleFavourite: (id: string) => void;
-  updateVehicle: (id: string, data: Partial<FlipRecord>) => void;   // ⭐ ADDED
+  updateVehicle: (id: string, data: Partial<FlipRecord>) => void;
   clearAll: () => Promise<void>;
   tempVehicle: FlipRecord | null;
   setTempVehicle: (v: FlipRecord | null) => void;
@@ -35,13 +37,13 @@ export const VehicleHistoryProvider = ({ children }: ProviderProps) => {
   const [vehicles, setVehicles] = useState<FlipRecord[]>([]);
   const [tempVehicle, setTempVehicle] = useState<FlipRecord | null>(null);
 
-  /* LOAD VEHICLES */
+  // LOAD VEHICLES
   useEffect(() => {
     const load = async () => {
       try {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         if (!raw) return;
-        const parsed = JSON.parse(raw);
+        const parsed: FlipRecord[] = JSON.parse(raw);
         setVehicles(parsed);
       } catch (e) {
         console.log("VehicleHistory load error", e);
@@ -51,7 +53,7 @@ export const VehicleHistoryProvider = ({ children }: ProviderProps) => {
     load();
   }, []);
 
-  /* SAVE VEHICLES */
+  // SAVE VEHICLES
   useEffect(() => {
     const save = async () => {
       try {
@@ -63,7 +65,7 @@ export const VehicleHistoryProvider = ({ children }: ProviderProps) => {
     save();
   }, [vehicles]);
 
-  /* ADD VEHICLE */
+  // ⭐ ADD VEHICLE (with FlipScore)
   const addVehicle = (
     data: Omit<FlipRecord, "id" | "timestamp">
   ): FlipRecord => {
@@ -72,17 +74,21 @@ export const VehicleHistoryProvider = ({ children }: ProviderProps) => {
       id: uuidv4(),
       timestamp: new Date().toISOString(),
     };
+
+    // ⭐ Auto-calc FlipScore
+    newVehicle.flipScore = calcFlipScore(newVehicle);
+
     setVehicles((prev) => [newVehicle, ...prev]);
     setTempVehicle(newVehicle);
     return newVehicle;
   };
 
-  /* DELETE VEHICLE */
+  // DELETE VEHICLE
   const deleteVehicle = (id: string) => {
     setVehicles((prev) => prev.filter((v) => v.id !== id));
   };
 
-  /* TOGGLE FAVOURITE */
+  // TOGGLE FAVOURITE
   const toggleFavourite = (id: string) => {
     setVehicles((prev) =>
       prev.map((v) =>
@@ -91,16 +97,23 @@ export const VehicleHistoryProvider = ({ children }: ProviderProps) => {
     );
   };
 
-  /* ⭐ UPDATE VEHICLE */
+  // ⭐ UPDATE VEHICLE (with FlipScore)
   const updateVehicle = (id: string, data: Partial<FlipRecord>) => {
     setVehicles((prev) =>
-      prev.map((v) =>
-        v.id === id ? { ...v, ...data } : v
-      )
+      prev.map((v) => {
+        if (v.id !== id) return v;
+
+        const updated = { ...v, ...data };
+
+        // ⭐ Auto-calc FlipScore
+        updated.flipScore = calcFlipScore(updated);
+
+        return updated;
+      })
     );
   };
 
-  /* CLEAR ALL */
+  // CLEAR ALL
   const clearAll = async () => {
     try {
       await AsyncStorage.removeItem(STORAGE_KEY);
@@ -116,7 +129,7 @@ export const VehicleHistoryProvider = ({ children }: ProviderProps) => {
       addVehicle,
       deleteVehicle,
       toggleFavourite,
-      updateVehicle,   // ⭐ ADDED HERE
+      updateVehicle,
       clearAll,
       tempVehicle,
       setTempVehicle,
@@ -131,7 +144,6 @@ export const VehicleHistoryProvider = ({ children }: ProviderProps) => {
   );
 };
 
-/* HOOK */
 export const useVehicleHistory = () => {
   const ctx = useContext(VehicleHistoryContext);
   if (!ctx) throw new Error("Wrap your app in VehicleHistoryProvider");

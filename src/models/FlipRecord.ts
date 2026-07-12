@@ -1,23 +1,45 @@
 export interface FlipRecord {
   id: string;
   title: string;
-  barcode: string | null;
-  image: string | null;
-
-  // ⭐ CATEGORY (top-level for recommendations)
-  category?: string | null;
-
-  // ⭐ USER PRICING (manual input)
-  buyPrice?: number | null;
-  sellPrice?: number | null;
-  profit?: number | null;
-  roi?: number | null;
-
-  favourite: boolean;
-  timestamp: string;
 
   /* ================================
-     ⭐ AI BLOCK (from backend)
+     ⭐ BASIC PRICES
+  ================================= */
+  buyPrice?: number | null;
+  sellPrice?: number | null;
+
+  /* ================================
+     ⭐ IMAGES
+  ================================= */
+  images?: string[] | null;
+
+  /* ================================
+     ⭐ FAVOURITE
+  ================================= */
+  favourite?: boolean;
+
+  /* ================================
+     ⭐ USER NOTES
+  ================================= */
+  notes?: string | null;
+
+  /* ================================
+     ⭐ AI PRICE BLOCK (simple)
+  ================================= */
+  aiPrice?: {
+    recommendedSellPrice?: number | null;
+    riskLevel?: "low" | "medium" | "high" | null;
+  } | null;
+
+  /* ================================
+     ⭐ MOT BLOCK
+  ================================= */
+  mot?: {
+    motStatus?: string | null;
+  } | null;
+
+  /* ================================
+     ⭐ AI BLOCK (backend)
   ================================= */
   ai?: {
     title?: string;
@@ -31,7 +53,7 @@ export interface FlipRecord {
   } | null;
 
   /* ================================
-     ⭐ MARKET BLOCK (real + AI fallback)
+     ⭐ MARKET BLOCK
   ================================= */
   market?: {
     googlePriceMin?: number | null;
@@ -51,7 +73,7 @@ export interface FlipRecord {
   } | null;
 
   /* ================================
-     ⭐ PRICING BLOCK (recommended)
+     ⭐ PRICING BLOCK
   ================================= */
   pricing?: {
     recommendedBuyPrice?: number | null;
@@ -69,15 +91,14 @@ export interface FlipRecord {
   insights?: string | null;
 
   /* ================================
-     ⭐ TOP‑LEVEL FALLBACK FIELDS
-     (used when market block is missing)
+     ⭐ FALLBACK FIELDS
   ================================= */
   aiPriceMin?: number | null;
   aiPriceMax?: number | null;
   aiPriceConfidence?: number | null;
 
   /* ================================
-     ⭐ AI PRO TIPS (generated locally)
+     ⭐ AI PRO TIPS
   ================================= */
   proTips?: string[] | null;
 }

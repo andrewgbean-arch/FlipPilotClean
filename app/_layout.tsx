@@ -7,6 +7,8 @@ import { FlipHistoryProvider } from "../src/context/FlipHistoryContext";
 import { SubscriptionProvider } from "../src/context/SubscriptionContext";
 import { ThemeProvider, useTheme } from "../src/context/ThemeContext";
 
+// ⭐ ADD THIS IMPORT
+import { VehicleHistoryProvider } from "../src/features/vehicles/context/VehicleHistoryContext";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -19,8 +21,15 @@ export default function RootLayout() {
     <SubscriptionProvider>
       <ThemeProvider>
         <FlipHistoryProvider>
-          <ProBadgeOverlay />
-          <ThemedStack />
+
+          {/* ⭐ WRAP THE ENTIRE APP IN VEHICLE HISTORY PROVIDER */}
+          <VehicleHistoryProvider>
+
+            <ProBadgeOverlay />
+            <ThemedStack />
+
+          </VehicleHistoryProvider>
+
         </FlipHistoryProvider>
       </ThemeProvider>
     </SubscriptionProvider>
@@ -40,7 +49,6 @@ function ThemedStack() {
         contentStyle: { backgroundColor: theme.background },
       }}
     >
-   
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="(market)" options={{ headerShown: false }} />
@@ -69,4 +77,3 @@ function ProBadgeOverlay() {
     </View>
   );
 }
-

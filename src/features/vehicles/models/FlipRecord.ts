@@ -1,80 +1,114 @@
 export interface FlipRecord {
-  /* ================================
-     ⭐ CORE IDENTIFIERS
-  ================================= */
   id: string;
-  timestamp: string;
-
-  /* ================================
-     ⭐ BASIC DISPLAY INFO
-  ================================= */
   title: string;
-  favourite: boolean;
 
   /* ================================
-     ⭐ IMAGES (Phase 1)
+     ⭐ TIMESTAMP (required by context)
   ================================= */
-  images: string[];
+  timestamp?: string | null;
 
   /* ================================
-     ⭐ PRICES
+     ⭐ BASIC PRICES
   ================================= */
-  buyPrice: number;
-  sellPrice: number;
+  buyPrice?: number | null;
+  sellPrice?: number | null;
 
   /* ================================
-     ⭐ FLIP METRICS
+     ⭐ IMAGES
   ================================= */
-  flipScore: number;
-  aiPriceConfidence: number;
-  rarity: string;
-  sellSpeed: string;
+  images?: string[] | null;
 
   /* ================================
-     ⭐ AI ANALYSIS
+     ⭐ FAVOURITE
   ================================= */
-  ai: {
-    condition: string;
-    description?: string | null;
-  };
+  favourite?: boolean;
 
   /* ================================
-     ⭐ MARKET ANALYSIS
+     ⭐ USER NOTES
   ================================= */
-  market: {
-    demandScore: number;
-  };
+  notes?: string | null;
 
   /* ================================
-     ⭐ MOT DATA (Phase 2)
-  ================================= */
-  mot?: {
-    reg?: string | null;
-    motStatus?: string | null;
-    taxStatus?: string | null;
-    mileage?: number | null;
-    motExpiry?: string | null;
-    advisories?: string[] | null;
-
-    // ⭐ Phase‑6 additions (required for AddFlip + EditFlip + VehicleDetails)
-    make?: string | null;
-    model?: string | null;
-    year?: number | null;
-  } | null;
-
-  /* ================================
-     ⭐ AI PRICE ENGINE (Phase 6)
+     ⭐ AI PRICE BLOCK (simple)
   ================================= */
   aiPrice?: {
-    recommendedSellPrice: number;          // AI suggested sell price
-    confidence: number;                    // 0–100
-    riskLevel: "low" | "medium" | "high";  // risk classification
-    notes: string;                          // explanation of the AI decision
+    recommendedSellPrice?: number | null;
+    riskLevel?: "low" | "medium" | "high" | null;
   } | null;
 
   /* ================================
-     ⭐ PRO TIPS (Phase 5+)
+   ⭐ MOT BLOCK (FULL TYPE)
+================================= */
+mot?: {
+  motStatus?: string | null;
+  expiryDate?: string | null;
+  mileageHistory?: { date: string; mileage: number }[];
+  advisories?: string[];
+  failures?: string[];
+} | null;
+
+
+  /* ================================
+     ⭐ AI BLOCK (backend)
+  ================================= */
+  ai?: {
+    title?: string;
+    description?: string;
+    fullDescription?: string;
+    condition?: string;
+    conditionScore?: number | null;
+    category?: string | null;
+    keywords?: string[] | null;
+    origin?: string | null;
+  } | null;
+
+  /* ================================
+     ⭐ MARKET BLOCK
+  ================================= */
+  market?: {
+    googlePriceMin?: number | null;
+    googlePriceMax?: number | null;
+
+    lowest?: number | null;
+    highest?: number | null;
+    average?: number | null;
+
+    smartPrice?: number | null;
+    soldCount?: number | null;
+    demandScore?: number | null;
+
+    aiPriceMin?: number | null;
+    aiPriceMax?: number | null;
+    aiPriceConfidence?: number | null;
+  } | null;
+
+  /* ================================
+     ⭐ PRICING BLOCK
+  ================================= */
+  pricing?: {
+    recommendedBuyPrice?: number | null;
+    recommendedSellPrice?: number | null;
+    predictedProfit?: number | null;
+  } | null;
+
+  /* ================================
+     ⭐ FLIP META
+  ================================= */
+  flipScore?: number | null;
+  flipPotential?: string | null;
+  sellSpeed?: string | null;
+  rarity?: string | null;
+  insights?: string | null;
+
+  /* ================================
+     ⭐ FALLBACK FIELDS
+  ================================= */
+  aiPriceMin?: number | null;
+  aiPriceMax?: number | null;
+  aiPriceConfidence?: number | null;
+
+  /* ================================
+     ⭐ AI PRO TIPS
   ================================= */
   proTips?: string[] | null;
 }
-

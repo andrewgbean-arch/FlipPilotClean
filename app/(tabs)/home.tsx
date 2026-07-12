@@ -15,11 +15,12 @@ import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 
+
 import WeatherCard from "../feature/WeatherCard";
 import { useFlipHistory } from "@/context/FlipHistoryContext";
 import { useTheme } from "@/context/ThemeContext";
 import { FlipRecord } from "@/models/FlipRecord";
-
+import { LayoutAnimation } from "react-native";
 import ThemedText from "@/styles/theme/ThemedText";
 import ThemedView from "@/styles/theme/ThemedView";
 import logoSource from "../../assets/images/logopulse.png";
@@ -34,6 +35,61 @@ import Reanimated, {
   useAnimatedStyle,
 } from "react-native-reanimated";
 
+const ReanimatedView = Reanimated.View;
+
+// ------------------------------------------------------
+// Sparkle Burst (gold particles)
+// ------------------------------------------------------
+const SparkleBurst = ({ trigger }: { trigger: number }) => {
+  const particles = Array.from({ length: 12 }).map(() => ({
+    x: useSharedValue(0),
+    y: useSharedValue(0),
+    scale: useSharedValue(0),
+    opacity: useSharedValue(0),
+  }));
+
+  useEffect(() => {
+    if (trigger === 0) return;
+
+    particles.forEach((p) => {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = 40 + Math.random() * 40;
+
+      p.opacity.value = 1;
+      p.scale.value = withTiming(1, { duration: 120 });
+
+      p.x.value = withTiming(Math.cos(angle) * distance, { duration: 420 });
+      p.y.value = withTiming(Math.sin(angle) * distance, { duration: 420 });
+
+      p.opacity.value = withTiming(0, { duration: 420 });
+      p.scale.value = withTiming(0, { duration: 420 });
+    });
+  }, [trigger]);
+
+  return (
+    <View style={{ position: "absolute", width: 120, height: 120 }}>
+      {particles.map((p, i) => (
+        <ReanimatedView
+          key={i}
+          style={{
+            position: "absolute",
+            width: 8,
+            height: 8,
+            borderRadius: 8,
+            backgroundColor: "#FFD700",
+            opacity: p.opacity,
+            transform: [
+              { translateX: p.x },
+              { translateY: p.y },
+              { scale: p.scale },
+            ],
+          }}
+        />
+      ))}
+    </View>
+  );
+};
+
 
 
 
@@ -47,6 +103,7 @@ interface AnimatedPressableProps {
   style?: any;
   onPress?: () => void;
 }
+
 
 const AnimatedPressable: React.FC<AnimatedPressableProps> = ({
   children,
@@ -539,10 +596,11 @@ export default function HomeScreen() {
     loadFeedback();
   }, [sheetOpen]);
 
-  // ------------------------------------------------------
-  // GOLD FX ENTRY
-  // ------------------------------------------------------
-  const GoldFXEntry = (
+ // ------------------------------------------------------
+// GOLD FX ENTRY
+// ------------------------------------------------------
+function GoldFXEntryComponent() {
+  return (
     <AnimatedPressable
       style={[
         styles.goldButton,
@@ -553,10 +611,12 @@ export default function HomeScreen() {
       ]}
       onPress={() => router.push("/goldfx")}
     >
-      <Text style={styles.goldTitle}>Open GoldFX Lab</Text>
-      <Text style={styles.goldSubtitle}>Cinematic Gold Engine</Text>
+      <ThemedText style={styles.goldTitle}>Open GoldFX Lab</ThemedText>
+      <ThemedText style={styles.goldSubtitle}>Cinematic Gold Engine</ThemedText>
     </AnimatedPressable>
   );
+}
+
 
   // ------------------------------------------------------
   // RENDER
@@ -624,7 +684,8 @@ export default function HomeScreen() {
     style={[
       styles.shockwave,
       {
-        backgroundColor: theme.goldDeep + "22",
+        backgroundColor: `${theme.goldDeep}22`,
+
         transform: [{ scale: supernovaScale }],
       },
     ]}
@@ -761,7 +822,7 @@ export default function HomeScreen() {
 )}
 
 
-</Animated.View>  {/* ONLY ONE HERO CLOSING TAG */}
+</Animated.View>  
 
 {/* STATS CARD */}
 <ThemedView
@@ -914,10 +975,415 @@ export default function HomeScreen() {
   )}
 </ThemedView>
 
+{/* FLIP SCORE PANEL */}
+<ThemedView
+  style={{
+    marginTop: 20,
+    marginBottom: 16,
+    padding: 18,
+    borderRadius: 18,
+    borderWidth: 3,
+    borderColor: theme.goldDeep,
+    backgroundColor: theme.card,
+  }}
+>
+  <ThemedText
+    style={{
+      fontSize: 22,
+      fontWeight: "900",
+      color: theme.accent,
+      marginBottom: 8,
+    }}
+  >
+    🔥 Flip Score
+  </ThemedText>
 
-/* ------------------------------------------------------
+  <ThemedText
+    style={{
+      fontSize: 32,
+      fontWeight: "bold",
+      color: theme.goldDeep,
+    }}
+  >
+    {(bestFlip?.flipScore ?? 0)}/100
+  </ThemedText>
+
+  <ThemedText
+    style={{
+      fontSize: 16,
+      marginTop: 6,
+      color: theme.text,
+    }}
+  >
+    {(() => {
+      const score = bestFlip?.flipScore ?? 0;
+      if (score >= 80) return "Excellent flip potential";
+      if (score >= 60) return "Strong flip";
+      if (score >= 40) return "Moderate flip";
+      return "High‑risk flip";
+    })()}
+  </ThemedText>
+</ThemedView>
+
+
+
+{/* MARKET INTELLIGENCE MEGA SECTION (ANIMATED) */}
+<ThemedView
+  style={{
+    marginTop: 20,
+    marginBottom: 20,
+    padding: 20,
+    borderRadius: 22,
+    borderWidth: 3,
+    borderColor: theme.goldDeep,
+    backgroundColor: theme.card,
+  }}
+>
+  {/* HEADER */}
+  <Animated.View
+    style={{
+      transform: [{ scale: 1.02 }],
+      marginBottom: 12,
+    }}
+  >
+    <ThemedText
+      style={{
+        fontSize: 26,
+        fontWeight: "900",
+        color: theme.accent,
+        textAlign: "center",
+      }}
+    >
+      🧠 Market Intelligence
+    </ThemedText>
+  </Animated.View>
+
+  {/* COLLAPSIBLE SECTIONS */}
+  {[
+    {
+      title: "🔥 Market Heatmap",
+      content: (
+        <>
+          {[
+            { label: "Electronics", value: 85 },
+            { label: "Toys", value: 72 },
+            { label: "Collectibles", value: 64 },
+            { label: "Books", value: 38 },
+          ].map((item, idx) => (
+            <View key={idx} style={{ marginBottom: 10 }}>
+              <ThemedText style={{ fontSize: 15, color: theme.text, marginBottom: 4 }}>
+                {item.label}
+              </ThemedText>
+              <View
+                style={{
+                  height: 10,
+                  backgroundColor: theme.goldDeep + "22",
+                  borderRadius: 10,
+                  overflow: "hidden",
+                }}
+              >
+                <View
+                  style={{
+                    height: "100%",
+                    width: `${item.value}%`,
+                    backgroundColor:
+                      item.value > 70
+                        ? theme.goldDeep
+                        : item.value > 50
+                        ? theme.accent
+                        : "#FF4D4D",
+                  }}
+                />
+              </View>
+            </View>
+          ))}
+        </>
+      ),
+    },
+
+    {
+      title: "🛰️ Market Radar",
+      content: (
+        <View style={{ height: 180, alignItems: "center", justifyContent: "center" }}>
+          {[160, 110, 60].map((size, idx) => (
+            <View
+              key={idx}
+              style={{
+                position: "absolute",
+                width: size,
+                height: size,
+                borderRadius: size,
+                borderWidth: 2,
+                borderColor: theme.goldDeep + (idx === 0 ? "55" : idx === 1 ? "40" : "30"),
+              }}
+            />
+          ))}
+
+          {[
+            { label: "Electronics", value: 85, color: theme.goldDeep },
+            { label: "Toys", value: 72, color: theme.accent },
+            { label: "Collectibles", value: 64, color: "#FF4D4D" },
+            { label: "Books", value: 38, color: theme.text },
+          ].map((item, idx) => (
+            <View
+              key={idx}
+              style={{
+                position: "absolute",
+                width: 12,
+                height: 12,
+                borderRadius: 12,
+                backgroundColor: item.color,
+                transform: [
+                  { translateX: Math.cos((idx * Math.PI) / 2) * (item.value / 2) },
+                  { translateY: Math.sin((idx * Math.PI) / 2) * (item.value / 2) },
+                ],
+              }}
+            />
+          ))}
+        </View>
+      ),
+    },
+
+    {
+      title: "📅 Weekly Trend Forecast",
+      content: (
+        <>
+          <ThemedText style={{ fontSize: 16, color: theme.text, marginBottom: 6 }}>
+            Rising This Week:
+          </ThemedText>
+          {["Electronics", "Retro Toys", "Collectibles"].map((cat, idx) => (
+            <View
+              key={idx}
+              style={{
+                paddingVertical: 6,
+                borderRadius: 10,
+                marginBottom: 6,
+                backgroundColor: theme.goldDeep + "33",
+              }}
+            >
+              <ThemedText style={{ fontSize: 15, color: theme.accent, paddingLeft: 10 }}>
+                🔥 {cat}
+              </ThemedText>
+            </View>
+          ))}
+
+          <ThemedText style={{ fontSize: 16, color: theme.text, marginBottom: 6 }}>
+            Cooling Down:
+          </ThemedText>
+          {["Books", "Home Goods"].map((cat, idx) => (
+            <View
+              key={idx}
+              style={{
+                paddingVertical: 6,
+                borderRadius: 10,
+                marginBottom: 6,
+                backgroundColor: theme.accent + "22",
+              }}
+            >
+              <ThemedText style={{ fontSize: 15, color: theme.text, paddingLeft: 10 }}>
+                ❄️ {cat}
+              </ThemedText>
+            </View>
+          ))}
+        </>
+      ),
+    },
+
+    {
+      title: "🏕️ Boot Fair Scanner",
+      content: (
+        <>
+          {[
+            { fair: "Newton Abbot", score: 82 },
+            { fair: "Torquay Racecourse", score: 74 },
+            { fair: "Exeter Market", score: 68 },
+          ].map((item, idx) => (
+            <View key={idx} style={{ marginBottom: 10 }}>
+              <ThemedText style={{ fontSize: 15, color: theme.text, marginBottom: 4 }}>
+                {item.fair}
+              </ThemedText>
+              <View
+                style={{
+                  height: 10,
+                  backgroundColor: theme.goldDeep + "22",
+                  borderRadius: 10,
+                  overflow: "hidden",
+                }}
+              >
+                <View
+                  style={{
+                    height: "100%",
+                    width: `${item.score}%`,
+                    backgroundColor: item.score > 70 ? theme.goldDeep : theme.accent,
+                  }}
+                />
+              </View>
+            </View>
+          ))}
+        </>
+      ),
+    },
+
+    {
+      title: "🤖 AI Market Predictor",
+      content: (
+        <>
+          {[
+            "Electronics expected to rise 12% next week",
+            "Retro toys predicted to spike due to collector demand",
+            "Books likely to drop due to oversupply",
+          ].map((tip, idx) => (
+            <ThemedText key={idx} style={{ fontSize: 15, color: theme.text, marginBottom: 6 }}>
+              • {tip}
+            </ThemedText>
+          ))}
+        </>
+      ),
+    },
+
+    {
+      title: "🌀 Category Strength Wheel",
+      content: (
+        <View style={{ height: 180, alignItems: "center", justifyContent: "center" }}>
+          {[140, 100, 60].map((size, idx) => (
+            <View
+              key={idx}
+              style={{
+                position: "absolute",
+                width: size,
+                height: size,
+                borderRadius: size,
+                borderWidth: 2,
+                borderColor: theme.goldDeep + (idx === 0 ? "55" : idx === 1 ? "40" : "30"),
+              }}
+            />
+          ))}
+
+          {[
+            { label: "Electronics", angle: 0, color: theme.goldDeep },
+            { label: "Toys", angle: 90, color: theme.accent },
+            { label: "Collectibles", angle: 180, color: "#FF4D4D" },
+            { label: "Books", angle: 270, color: theme.text },
+          ].map((item, idx) => (
+            <View
+              key={idx}
+              style={{
+                position: "absolute",
+                width: 14,
+                height: 14,
+                borderRadius: 14,
+                backgroundColor: item.color,
+                transform: [
+                  { translateX: Math.cos((item.angle * Math.PI) / 180) * 70 },
+                  { translateY: Math.sin((item.angle * Math.PI) / 180) * 70 },
+                ],
+              }}
+            />
+          ))}
+        </View>
+      ),
+    },
+
+    {
+      title: "🌍 FlipScore Global Meter",
+      content: (
+        <View
+          style={{
+            height: 12,
+            backgroundColor: theme.goldDeep + "22",
+            borderRadius: 12,
+            overflow: "hidden",
+          }}
+        >
+          <View
+            style={{
+              height: "100%",
+              width: `${Math.min(avgROI + avgProfit / 10, 100)}%`,
+              backgroundColor: theme.goldDeep,
+            }}
+          />
+        </View>
+      ),
+    },
+].map((section, idx) => {
+  const [open, setOpen] = React.useState(false);
+  const [sparkTrigger, setSparkTrigger] = useState<number>(0);   // ← REQUIRED
+
+  // Animation values
+  const anim = useSharedValue(0);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: anim.value,
+    transform: [{ translateY: withTiming(open ? 0 : -10, { duration: 250 }) }],
+  }));
+
+  const toggle = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setOpen(!open);
+
+    anim.value = withTiming(open ? 0 : 1, { duration: 250 });
+
+    if (!open) {
+      setSparkTrigger((v: number) => v + 1);   // ← NOW VALID
+    }
+  };
+
+
+
+
+  return (
+  <View key={idx} style={{ marginBottom: 16, position: "relative" }}>
+    <Pressable
+      onPress={toggle}
+      style={{
+        paddingVertical: 10,
+        flexDirection: "row",
+        justifyContent: "space-between",
+      }}
+    >
+      <ThemedText style={{ fontSize: 18, fontWeight: "900", color: theme.accent }}>
+        {section.title}
+      </ThemedText>
+      <ThemedText style={{ fontSize: 18, color: theme.goldDeep }}>
+        {open ? "▼" : "▲"}
+      </ThemedText>
+    </Pressable>
+
+    {open && (
+      <View style={{ position: "absolute", right: 0, top: -10 }}>
+        <SparkleBurst trigger={sparkTrigger} />
+      </View>
+    )}
+
+    {open && (
+      <ReanimatedView
+        style={[
+          {
+            marginTop: 10,
+            padding: 10,
+            borderRadius: 14,
+            backgroundColor: theme.card,
+            shadowColor: theme.goldDeep,
+            shadowOpacity: 0.18,
+            shadowRadius: 12,
+            shadowOffset: { width: 0, height: 4 },
+          },
+          animatedStyle,
+        ]}
+      >
+        {section.content}
+      </ReanimatedView>
+    )}
+  </View>
+);
+})}
+
+
+
+{/* ------------------------------------------------------
    WEATHER UNDER STATS (F + MPH)
------------------------------------------------------- */
+------------------------------------------------------ */}
+
 <View style={{ paddingHorizontal: 20, marginTop: 5, }}>
   <WeatherCard />
 </View>
@@ -1002,6 +1468,25 @@ export default function HomeScreen() {
       Discover Boot Fairs
     </ThemedText>
   </AnimatedPressable>
+{/* Car Flips */}
+<AnimatedPressable
+  style={{
+    padding: 18,
+    borderRadius: 18,
+    backgroundColor: theme.card,
+    borderColor: theme.goldDeep,
+    borderWidth: 3,
+    marginBottom: 14,
+  }}
+  onPress={() => router.push("/car/CarListScreen")}
+>
+  <ThemedText style={{ fontSize: 18, fontWeight: "900", color: theme.accent }}>
+    Car Flips
+  </ThemedText>
+  <ThemedText style={{ fontSize: 14, opacity: 0.85, color: theme.accent }}>
+    Manage your vehicle flips
+  </ThemedText>
+</AnimatedPressable>
 
   {/* Rate / Review FlipPilot */}
   <AnimatedPressable
@@ -1080,9 +1565,14 @@ export default function HomeScreen() {
           </AnimatedPressable>
         </View>
 
-        {/* GoldFX entry */}
-        <View style={{ paddingHorizontal: 20, marginTop: -9 }}>{GoldFXEntry}</View>
-      </ScrollView>
+        
+           
+      </ThemedView>
+
+      {/* GoldFX entry */}
+      <View style={{ paddingHorizontal: 20, marginTop: -9 }}>
+        <GoldFXEntryComponent />
+      </View>
 
       {/* SHEETS */}
       {profitOpen && (
@@ -1111,9 +1601,11 @@ export default function HomeScreen() {
         closeSheet={closeAssistantSheet}
         isOpen={assistantOpen}
       />
-    </ThemedView>
-  );
+    </ScrollView>
+  </ThemedView>
+);
 }
+  
 
 // ------------------------------------------------------
 // STYLES
