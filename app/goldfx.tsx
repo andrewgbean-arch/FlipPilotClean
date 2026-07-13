@@ -14,9 +14,9 @@ import { useRouter } from "expo-router";
 
 import Slider from "@react-native-community/slider";
 
-import { useTheme } from "@/context/ThemeContext";
-import ThemedView from "@/styles/theme/ThemedView";
-import ThemedText from "@/styles/theme/ThemedText";
+import { useTheme } from "@/src/context/ThemeContext";
+import ThemedView from "@/src/styles/theme/ThemedView";
+import ThemedText from "@/src/styles/theme/ThemedText";
 
 export default function GoldFXScreen() {
   const insets = useSafeAreaInsets();

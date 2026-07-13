@@ -1,12 +1,4 @@
-import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
-
-import ThemedView from "@/components/ThemedView";
-import ThemedText from "@/components/ThemedText";
-import AnimatedPressable from "@/components/AnimatedPressable";
-import { useTheme } from "@/context/ThemeContext";
-
-import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
-
+import React, { useEffect, useState } from "react";
 import { StyleSheet, FlatList, View, Image } from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
 import * as Haptics from "expo-haptics";
@@ -16,26 +8,56 @@ import Animated, {
   useAnimatedStyle,
 } from "react-native-reanimated";
 
+import ThemedView from "@/src/styles/theme/ThemedView";
+import ThemedText from "@/src/styles/theme/ThemedText";
+import AnimatedButton from "@/src/components/AnimatedButton";
+import { useTheme } from "@/src/context/ThemeContext";
+
+import { CarRecord } from "@/src/car/carTypes";
+import { getAllCars, deleteCar, toggleFavourite } from "@/src/car/carStorage";
+
 import { useRouter } from "expo-router";
 
 export default function VehicleListScreen() {
-  const { vehicles, toggleFavourite, deleteVehicle } = useVehicleHistory();
   const theme = useTheme();
   const router = useRouter();
 
+  const [vehicles, setVehicles] = useState<CarRecord[]>([]);
+
+  // Load cars on mount
+  useEffect(() => {
+    const load = async () => {
+      const cars = await getAllCars();
+      setVehicles(cars);
+    };
+    load();
+  }, []);
+
   // Sort by flipScore (highest first)
   const sortedVehicles = [...vehicles].sort((a, b) => {
-    const scoreA = a.flipScore || 0;
-    const scoreB = b.flipScore || 0;
+    const scoreA = a.analytics?.flipScore || 0;
+    const scoreB = b.analytics?.flipScore || 0;
     return scoreB - scoreA;
   });
 
-  const renderRightActions = (item: FlipRecord) => (
+  const handleDelete = async (id: string) => {
+    await deleteCar(id);
+    const cars = await getAllCars();
+    setVehicles(cars);
+  };
+
+  const handleFavourite = async (id: string) => {
+    await toggleFavourite(id);
+    const cars = await getAllCars();
+    setVehicles(cars);
+  };
+
+  const renderRightActions = (item: CarRecord) => (
     <View style={{ justifyContent: "center", alignItems: "flex-end", marginBottom: 16 }}>
-      <AnimatedPressable
+      <AnimatedButton
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          toggleFavourite(item.id);
+          handleFavourite(item.id);
         }}
         style={[
           styles.swipeAction,
@@ -43,16 +65,16 @@ export default function VehicleListScreen() {
         ]}
       >
         <ThemedText style={{ color: theme.black }}>⭐ Favourite</ThemedText>
-      </AnimatedPressable>
+      </AnimatedButton>
     </View>
   );
 
-  const renderLeftActions = (item: FlipRecord) => (
+  const renderLeftActions = (item: CarRecord) => (
     <View style={{ justifyContent: "center", alignItems: "flex-start", marginBottom: 16 }}>
-      <AnimatedPressable
+      <AnimatedButton
         onPress={() => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-          deleteVehicle(item.id);
+          handleDelete(item.id);
         }}
         style={[
           styles.swipeAction,
@@ -60,40 +82,14 @@ export default function VehicleListScreen() {
         ]}
       >
         <ThemedText style={{ color: theme.white }}>🗑️ Delete</ThemedText>
-      </AnimatedPressable>
+      </AnimatedButton>
     </View>
   );
 
-  const renderItem = ({ item }: { item: FlipRecord }) => {
-    const safeBuy = item.buyPrice || 0;
-    const safeSell = item.sellPrice || 0;
-    const profit = safeSell - safeBuy;
-    const roi = safeBuy > 0 ? ((safeSell - safeBuy) / safeBuy) * 100 : 0;
-
-    const roiColor =
-      roi > 40
-        ? theme.success
-        : roi > 20
-        ? theme.goldDeep
-        : roi > 10
-        ? theme.accent
-        : theme.text;
-
-    const riskColor =
-      item.aiPrice?.riskLevel === "low"
-        ? "#4CAF50"
-        : item.aiPrice?.riskLevel === "medium"
-        ? "#FFD966"
-        : item.aiPrice?.riskLevel === "high"
-        ? "#FF6666"
-        : theme.muted;
-
-    const motStatus =
-      item.mot?.motStatus === "Valid"
-        ? "MOT OK"
-        : item.mot?.motStatus === "Expired"
-        ? "MOT Expired"
-        : item.mot?.motStatus || "MOT Unknown";
+  const renderItem = ({ item }: { item: CarRecord }) => {
+    const profit = item.analytics?.profit ?? 0;
+    const roi = item.analytics?.roi ?? 0;
+    const flipScore = item.analytics?.flipScore ?? 0;
 
     const fade = useSharedValue(0);
     fade.value = withTiming(1, { duration: 600 });
@@ -103,25 +99,23 @@ export default function VehicleListScreen() {
       transform: [{ translateY: (1 - fade.value) * 20 }],
     }));
 
-    const hasImages = Array.isArray(item.images) && item.images.length > 0;
-
     return (
       <Animated.View style={animatedStyle}>
         <Swipeable
           renderRightActions={() => renderRightActions(item)}
           renderLeftActions={() => renderLeftActions(item)}
         >
-          <AnimatedPressable
+          <AnimatedButton
             style={[
               styles.card,
               { borderColor: theme.goldDeep, backgroundColor: theme.card },
             ]}
             onPress={() => router.push(`/vehicle/${item.id}`)}
           >
-            {/* THUMBNAIL */}
-            {hasImages && (
+            {/* IMAGE */}
+            {item.imageUri && (
               <Image
-                source={{ uri: item.images![0] }}
+                source={{ uri: item.imageUri }}
                 style={{
                   width: "100%",
                   height: 160,
@@ -135,109 +129,61 @@ export default function VehicleListScreen() {
 
             {/* TITLE */}
             <ThemedText style={[styles.title, { color: theme.accent }]}>
-              {item.title}
+              {item.year} {item.make} {item.model}
             </ThemedText>
 
             {/* BADGES */}
             <ThemedView style={styles.badgeRow}>
-              <ThemedText style={[styles.badge, { color: roiColor }]}>
+              <ThemedText style={[styles.badge, { color: theme.success }]}>
                 💰 Profit £{profit}
               </ThemedText>
 
-              <ThemedText style={[styles.badge, { color: roiColor }]}>
+              <ThemedText style={[styles.badge, { color: theme.goldDeep }]}>
                 ROI {roi.toFixed(0)}%
               </ThemedText>
 
-              {item.flipScore != null && (
-                <ThemedText style={[styles.badge, { color: theme.goldDeep }]}>
-                  🔥 Score {item.flipScore}
-                </ThemedText>
-              )}
+              <ThemedText style={[styles.badge, { color: theme.accent }]}>
+                🔥 Score {flipScore}
+              </ThemedText>
 
-              {item.aiPrice?.recommendedSellPrice && (
+              {item.aiSummary?.verdict && (
                 <ThemedText style={[styles.badge, { color: theme.white }]}>
-                  🤖 AI £{item.aiPrice.recommendedSellPrice}
+                  🤖 {item.aiSummary.verdict}
                 </ThemedText>
               )}
 
-              {item.aiPrice?.riskLevel && (
-                <ThemedText style={[styles.badge, { color: riskColor }]}>
-                  ⚠️ {item.aiPrice.riskLevel.toUpperCase()}
-                </ThemedText>
-              )}
-
-              {item.mot && (
+              {item.mot?.expiry && (
                 <ThemedText style={[styles.badge, { color: theme.white }]}>
-                  🚗 {motStatus}
-                </ThemedText>
-              )}
-
-              {item.favourite && (
-                <ThemedText style={[styles.badge]}>
-                  ⭐ Favourite
+                  🚗 MOT {item.mot.expiry}
                 </ThemedText>
               )}
             </ThemedView>
 
-            {/* AI SUMMARY */}
-            {(item.ai?.condition ||
-              item.market?.demandScore ||
-              item.sellSpeed) && (
-              <ThemedText style={[styles.aiSummary]}>
-                AI:{" "}
-                {[
-                  item.ai?.condition && item.ai.condition,
-                  item.market?.demandScore &&
-                    `Demand ${item.market.demandScore}`,
-                  item.sellSpeed && `Speed ${item.sellSpeed}`,
-                ]
-                  .filter(Boolean)
-                  .join(" • ")}
-              </ThemedText>
-            )}
-
             {/* BUTTON ROW */}
             <ThemedView style={styles.buttonRow}>
-              <AnimatedPressable
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  toggleFavourite(item.id);
-                }}
+              <AnimatedButton
+                onPress={() => handleFavourite(item.id)}
                 style={[
                   styles.actionBtn,
                   item.favourite
-                    ? {
-                        backgroundColor: theme.accent,
-                        borderColor: theme.goldDeep,
-                      }
+                    ? { backgroundColor: theme.accent, borderColor: theme.goldDeep }
                     : { borderColor: theme.goldDeep },
                 ]}
               >
-                <ThemedText
-                  style={{
-                    color: item.favourite ? theme.black : theme.accent,
-                  }}
-                >
-                  ⭐
-                </ThemedText>
-              </AnimatedPressable>
+                <ThemedText style={{ color: theme.black }}>⭐</ThemedText>
+              </AnimatedButton>
 
-              <AnimatedPressable
-                onPress={() => {
-                  Haptics.notificationAsync(
-                    Haptics.NotificationFeedbackType.Warning
-                  );
-                  deleteVehicle(item.id);
-                }}
+              <AnimatedButton
+                onPress={() => handleDelete(item.id)}
                 style={[
                   styles.actionBtn,
                   { backgroundColor: theme.danger, borderColor: theme.goldDeep },
                 ]}
               >
                 <ThemedText style={{ color: theme.white }}>🗑️</ThemedText>
-              </AnimatedPressable>
+              </AnimatedButton>
             </ThemedView>
-          </AnimatedPressable>
+          </AnimatedButton>
         </Swipeable>
       </Animated.View>
     );
@@ -279,11 +225,6 @@ const styles = StyleSheet.create({
   badge: {
     fontSize: 14,
     fontWeight: "600",
-  },
-  aiSummary: {
-    fontSize: 14,
-    opacity: 0.8,
-    marginBottom: 12,
   },
   buttonRow: {
     flexDirection: "row",

@@ -1,12 +1,15 @@
 import React, { useState } from "react";
-import { View, TextInput, ScrollView, Pressable } from "react-native";
+import { ScrollView, View, TextInput, Pressable } from "react-native";
 import { useRouter } from "expo-router";
-import { CarCondition, CarRecord } from "./carTypes";
-import { addCar } from "./carStorage";
-import ThemedText from "@/styles/theme/ThemedText";
-import ThemedView from "@/styles/theme/ThemedView";
-import { useTheme } from "@/context/ThemeContext";
-import { v4 as uuid } from "uuid";
+
+import ThemedText from "@/src/styles/theme/ThemedText";
+import ThemedView from "@/src/styles/theme/ThemedView";
+import { useTheme } from "@/src/context/ThemeContext";
+
+import { CarCondition, CarRecord } from "@/src/car/carTypes";
+import { addCar } from "@/src/car/carStorage";
+import { estimateMarketValue } from "@/src/car/carValuationService";
+import { generateAiSummary } from "@/src/car/carAiService";
 
 export default function AddCarScreen() {
   const theme = useTheme();
@@ -16,156 +19,223 @@ export default function AddCarScreen() {
   const [model, setModel] = useState("");
   const [year, setYear] = useState("");
   const [mileage, setMileage] = useState("");
-  const [reg, setReg] = useState(""); // ⭐ NEW REQUIRED FIELD
+  const [reg, setReg] = useState("");
   const [purchasePrice, setPurchasePrice] = useState("");
-  const [expectedSalePrice, setExpectedSalePrice] = useState("");
   const [condition, setCondition] = useState<CarCondition>("good");
   const [notes, setNotes] = useState("");
-  const [imageUri, setImageUri] = useState<string | undefined>(undefined);
 
-  const onSave = async () => {
-    const car: CarRecord = {
-      id: uuid(),
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!make || !model || !year || !mileage || !reg || !purchasePrice) {
+      console.log("Missing required fields");
+      return;
+    }
+
+    setIsSaving(true);
+
+    const numericYear = Number(year);
+    const numericMileage = Number(mileage);
+    const numericPurchasePrice = Number(purchasePrice);
+
+    const valuation = estimateMarketValue({
       make,
       model,
-      year: Number(year),
-      mileage: Number(mileage),
-      reg, // ⭐ REQUIRED
-      purchasePrice: Number(purchasePrice),
-      expectedSalePrice: expectedSalePrice ? Number(expectedSalePrice) : undefined,
+      year: numericYear,
+      mileage: numericMileage,
+      purchasePrice: numericPurchasePrice,
       condition,
-      notes,
-      imageUri,
+    });
 
+    const aiSummary = await generateAiSummary({
+      make,
+      model,
+      year: numericYear,
+      mileage: numericMileage,
+      purchasePrice: numericPurchasePrice,
+      valuation,
       mot: {
-        expiry: undefined,
+        make,
+        model,
+        year: numericYear,
+        expiry: "",
         mileageHistory: [],
         advisories: [],
         failures: [],
-        lastChecked: undefined, // ⭐ FIXED (was lastUpdated)
+        lastChecked: new Date().toISOString(),
       },
+    });
 
-      valuation: {
-        estimatedValue: undefined,
-        confidence: undefined,
-        status: undefined,
-        lastUpdated: undefined,
-      },
-
-      aiSummary: {
-        summary: undefined,
-        riskLevel: undefined,
-        recommendedSalePrice: undefined,
-        demandScore: undefined,
-        lastUpdated: undefined,
-      },
-
-      analytics: {
-        roi: undefined,
-        profit: undefined,
-        flipScore: undefined,
-        updatedAt: undefined,
-      },
-
+    const newCar: CarRecord = {
+      id: Date.now().toString(),
+      make,
+      model,
+      year: numericYear,
+      mileage: numericMileage,
+      reg,
+      purchasePrice: numericPurchasePrice,
+      condition,
+      notes: notes || undefined,
       createdAt: new Date().toISOString(),
+      mot: undefined,
+      valuation,
+      aiSummary,
+      analytics: undefined,
+      imageUri: undefined,
+      salePrice: undefined,
+      expectedSalePrice: undefined,
     };
 
-    await addCar(car);
+    await addCar(newCar);
+    setIsSaving(false);
     router.back();
   };
 
   return (
     <ThemedView style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ padding: 20 }}>
-        <ThemedText style={{ fontSize: 22, fontWeight: "900", color: theme.accent, marginBottom: 16 }}>
-          Add Car
+        <ThemedText
+          style={{
+            fontSize: 26,
+            fontWeight: "900",
+            color: theme.accent,
+            marginBottom: 16,
+          }}
+        >
+          Add New Flip
         </ThemedText>
 
-        {[
-          { label: "Make", value: make, setter: setMake },
-          { label: "Model", value: model, setter: setModel },
-          { label: "Year", value: year, setter: setYear, keyboardType: "numeric" as const },
-          { label: "Mileage", value: mileage, setter: setMileage, keyboardType: "numeric" as const },
-          { label: "Registration", value: reg, setter: setReg }, // ⭐ NEW INPUT FIELD
-          { label: "Purchase Price", value: purchasePrice, setter: setPurchasePrice, keyboardType: "numeric" as const },
-          { label: "Expected Sale Price", value: expectedSalePrice, setter: setExpectedSalePrice, keyboardType: "numeric" as const },
-        ].map((field, idx) => (
-          <View key={idx} style={{ marginBottom: 12 }}>
-            <ThemedText style={{ fontSize: 14, color: theme.text, marginBottom: 4 }}>
-              {field.label}
-            </ThemedText>
-            <TextInput
-              value={field.value}
-              onChangeText={field.setter}
-              keyboardType={field.keyboardType ?? "default"}
-              style={{
-                padding: 10,
-                borderRadius: 10,
-                borderWidth: 1,
-                borderColor: theme.goldDeep,
-                color: theme.text,
-                backgroundColor: theme.card,
-              }}
-            />
-          </View>
-        ))}
+        {/* Basic fields */}
+        <View style={{ marginBottom: 16 }}>
+          <ThemedText style={{ color: theme.text }}>Make</ThemedText>
+          <TextInput
+            value={make}
+            onChangeText={setMake}
+            style={{
+              borderWidth: 1,
+              borderColor: theme.goldDeep,
+              borderRadius: 8,
+              padding: 10,
+              color: theme.text,
+              marginTop: 4,
+            }}
+          />
 
-        <View style={{ marginBottom: 12 }}>
-          <ThemedText style={{ fontSize: 14, color: theme.text, marginBottom: 4 }}>
-            Condition
-          </ThemedText>
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            {(["poor", "fair", "good", "excellent"] as CarCondition[]).map(c => (
-              <Pressable
-                key={c}
-                onPress={() => setCondition(c)}
-                style={{
-                  paddingVertical: 8,
-                  paddingHorizontal: 12,
-                  borderRadius: 10,
-                  borderWidth: 1,
-                  borderColor: condition === c ? theme.goldDeep : theme.text,
-                  backgroundColor: condition === c ? theme.goldDeep + "33" : theme.card,
-                }}
-              >
-                <ThemedText style={{ color: theme.text }}>{c}</ThemedText>
-              </Pressable>
-            ))}
-          </View>
+          <ThemedText style={{ color: theme.text, marginTop: 12 }}>Model</ThemedText>
+          <TextInput
+            value={model}
+            onChangeText={setModel}
+            style={{
+              borderWidth: 1,
+              borderColor: theme.goldDeep,
+              borderRadius: 8,
+              padding: 10,
+              color: theme.text,
+              marginTop: 4,
+            }}
+          />
+
+          <ThemedText style={{ color: theme.text, marginTop: 12 }}>Year</ThemedText>
+          <TextInput
+            value={year}
+            onChangeText={setYear}
+            keyboardType="numeric"
+            style={{
+              borderWidth: 1,
+              borderColor: theme.goldDeep,
+              borderRadius: 8,
+              padding: 10,
+              color: theme.text,
+              marginTop: 4,
+            }}
+          />
+
+          <ThemedText style={{ color: theme.text, marginTop: 12 }}>Mileage</ThemedText>
+          <TextInput
+            value={mileage}
+            onChangeText={setMileage}
+            keyboardType="numeric"
+            style={{
+              borderWidth: 1,
+              borderColor: theme.goldDeep,
+              borderRadius: 8,
+              padding: 10,
+              color: theme.text,
+              marginTop: 4,
+            }}
+          />
+
+          <ThemedText style={{ color: theme.text, marginTop: 12 }}>Registration</ThemedText>
+          <TextInput
+            value={reg}
+            onChangeText={setReg}
+            autoCapitalize="characters"
+            style={{
+              borderWidth: 1,
+              borderColor: theme.goldDeep,
+              borderRadius: 8,
+              padding: 10,
+              color: theme.text,
+              marginTop: 4,
+            }}
+          />
+
+          <ThemedText style={{ color: theme.text, marginTop: 12 }}>Purchase Price (£)</ThemedText>
+          <TextInput
+            value={purchasePrice}
+            onChangeText={setPurchasePrice}
+            keyboardType="numeric"
+            style={{
+              borderWidth: 1,
+              borderColor: theme.goldDeep,
+              borderRadius: 8,
+              padding: 10,
+              color: theme.text,
+              marginTop: 4,
+            }}
+          />
         </View>
 
-        <View style={{ marginBottom: 20 }}>
-          <ThemedText style={{ fontSize: 14, color: theme.text, marginBottom: 4 }}>
-            Notes
-          </ThemedText>
+        {/* Notes */}
+        <View style={{ marginBottom: 16 }}>
+          <ThemedText style={{ color: theme.text }}>Notes</ThemedText>
           <TextInput
             value={notes}
             onChangeText={setNotes}
             multiline
             style={{
-              padding: 10,
-              borderRadius: 10,
               borderWidth: 1,
               borderColor: theme.goldDeep,
+              borderRadius: 8,
+              padding: 10,
               color: theme.text,
-              backgroundColor: theme.card,
+              marginTop: 4,
               minHeight: 80,
             }}
           />
         </View>
 
+        {/* Save button */}
         <Pressable
-          onPress={onSave}
+          onPress={handleSave}
+          disabled={isSaving}
           style={{
-            padding: 16,
-            borderRadius: 16,
+            marginTop: 12,
+            padding: 14,
+            borderRadius: 12,
             backgroundColor: theme.accent,
-            borderWidth: 3,
+            borderWidth: 2,
             borderColor: theme.goldDeep,
           }}
         >
-          <ThemedText style={{ fontSize: 18, fontWeight: "900", color: theme.black, textAlign: "center" }}>
-            Save Car
+          <ThemedText
+            style={{
+              color: theme.black,
+              fontWeight: "900",
+              textAlign: "center",
+            }}
+          >
+            {isSaving ? "Saving..." : "Save Flip"}
           </ThemedText>
         </Pressable>
       </ScrollView>

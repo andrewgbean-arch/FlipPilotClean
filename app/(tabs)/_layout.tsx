@@ -97,6 +97,19 @@ export default function TabsLayout() {
           ),
         }}
       />
+<Tabs.Screen
+  name="vehicles"
+  options={{
+    tabBarLabel: "Vehicles",
+    tabBarIcon: ({ focused }) => (
+      <CompassRose
+        size={30}
+        weight={focused ? "bold" : "regular"}
+        color={focused ? "#FFD700" : "rgba(255, 215, 0, 0.45)"}
+      />
+    ),
+  }}
+/>
 
       <Tabs.Screen
         name="explore"

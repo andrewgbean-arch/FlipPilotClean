@@ -5,8 +5,8 @@ import ThemedText from "@/styles/theme/ThemedText";
 import ThemedView from "@/styles/theme/ThemedView";
 import { useTheme } from "@/context/ThemeContext";
 
-import { CarRecord } from "../carTypes";
-import { getCarProfit, getCarROI, getCarFlipScore } from "../carUtils";
+import { CarRecord } from "../../../src/car/carTypes";
+import { getCarProfit, getCarROI, getCarFlipScore } from "../../../src/car/carUtils";
 
 interface CarCardProps {
   car: CarRecord;

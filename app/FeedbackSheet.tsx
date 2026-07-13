@@ -8,8 +8,9 @@ import {
   Platform,
 } from "react-native";
 
-import ThemedText from "@/styles/theme/ThemedText";
-import { useTheme } from "@/context/ThemeContext";
+import ThemedText from "@/src/styles/theme/ThemedText";
+
+import { useTheme } from "@/src/context/ThemeContext";
 
 interface FeedbackSheetProps {
   translateY: Animated.AnimatedInterpolation<string | number>;

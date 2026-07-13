@@ -2,19 +2,19 @@ import React, { useEffect, useState } from "react";
 import { ScrollView, View, Image, Pressable } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
-import ThemedText from "@/styles/theme/ThemedText";
-import ThemedView from "@/styles/theme/ThemedView";
-import { useTheme } from "@/context/ThemeContext";
+import ThemedText from "@/src/styles/theme/ThemedText";
+import ThemedView from "@/src/styles/theme/ThemedView";
+import { useTheme } from "@/src/context/ThemeContext";
+import FlipScoreMeter from "@/src/components/FlipScoreMeter";
+import VerdictBadge from "@/src/components/VerdictBadge";
+import { CarRecord } from "@/src/car/carTypes";
+import { getCarById, updateCar } from "@/src/car/carStorage";
+import { getCarProfit, getCarROI, getCarFlipScore } from "@/src/car/carUtils";
 
-import { CarRecord } from "./carTypes";
-import { getCarById, updateCar } from "./carStorage";
-import { getCarProfit, getCarROI, getCarFlipScore } from "./carUtils";
-
-// Services
-import { fetchMotData } from "./carMotService";
-import { estimateMarketValue } from "./carValuationService";
-import { generateAiSummary } from "./carAiService";
-import MotBadge from "./components/MotBadge";
+import { fetchMotData } from "@/src/car/carMotService";
+import { estimateMarketValue } from "@/src/car/carValuationService";
+import { generateAiSummary } from "@/src/car/carAiService";
+import MotBadge from "../../src/car/MotBadge";
 
 export default function CarDetailsScreen() {
   const theme = useTheme();
@@ -37,7 +37,6 @@ export default function CarDetailsScreen() {
     );
   }
 
-  // ⭐ MOT ACTION (now uses car.reg)
   const refreshMot = async () => {
     if (!car.reg) {
       console.log("No registration number found.");
@@ -51,16 +50,36 @@ export default function CarDetailsScreen() {
     setCar({ ...car, mot });
   };
 
-  // ⭐ VALUATION ACTION
   const refreshValuation = async () => {
-    const valuation = estimateMarketValue(car);
+    const valuation = estimateMarketValue({
+      make: car.make,
+      model: car.model,
+      year: car.year,
+      mileage: car.mileage,
+      purchasePrice: car.purchasePrice,
+      condition: car.condition,
+    });
+
     await updateCar(car.id, { valuation });
     setCar({ ...car, valuation });
   };
 
-  // ⭐ AI SUMMARY ACTION
   const refreshAiSummary = async () => {
-    const aiSummary = await generateAiSummary(car);
+    if (!car.valuation || !car.mot) {
+      console.log("AI summary requires valuation + MOT first.");
+      return;
+    }
+
+    const aiSummary = await generateAiSummary({
+      make: car.make,
+      model: car.model,
+      year: car.year,
+      mileage: car.mileage,
+      purchasePrice: car.purchasePrice,
+      valuation: car.valuation,
+      mot: car.mot,
+    });
+
     await updateCar(car.id, { aiSummary });
     setCar({ ...car, aiSummary });
   };
@@ -72,7 +91,6 @@ export default function CarDetailsScreen() {
   return (
     <ThemedView style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ padding: 20 }}>
-        
         {/* Title */}
         <ThemedText
           style={{
@@ -126,6 +144,40 @@ export default function CarDetailsScreen() {
         </View>
 
         {/* Analytics */}
+     <View
+  style={{
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: theme.goldDeep,
+    backgroundColor: theme.card,
+    marginBottom: 20,
+  }}
+>
+  <ThemedText
+    style={{
+      fontSize: 20,
+      fontWeight: "900",
+      color: theme.accent,
+      marginBottom: 8,
+    }}
+  >
+    📊 Flip Analytics
+  </ThemedText>
+
+  <ThemedText style={{ fontSize: 15, color: theme.text }}>
+    Profit: £{profit.toFixed(2)}
+  </ThemedText>
+
+  <ThemedText style={{ fontSize: 15, color: theme.text }}>
+    ROI: {roi.toFixed(1)}%
+  </ThemedText>
+
+  <FlipScoreMeter score={flipScore} />
+</View>
+
+
+        {/* MOT Section */}
         <View
           style={{
             padding: 16,
@@ -136,40 +188,18 @@ export default function CarDetailsScreen() {
             marginBottom: 20,
           }}
         >
-          <ThemedText style={{ fontSize: 20, fontWeight: "900", color: theme.accent, marginBottom: 8 }}>
-            📊 Flip Analytics
+          <MotBadge expiry={car.mot?.expiry} />
+
+          <ThemedText
+            style={{
+              fontSize: 20,
+              fontWeight: "900",
+              color: theme.accent,
+              marginBottom: 8,
+            }}
+          >
+            🔧 MOT History
           </ThemedText>
-
-          <ThemedText style={{ fontSize: 15, color: theme.text }}>
-            Profit: £{profit.toFixed(2)}
-          </ThemedText>
-
-          <ThemedText style={{ fontSize: 15, color: theme.text }}>
-            ROI: {roi.toFixed(1)}%
-          </ThemedText>
-
-          <ThemedText style={{ fontSize: 15, color: theme.text }}>
-            FlipScore: {flipScore}/100
-          </ThemedText>
-        </View>
-
-    {/* MOT Section */}
-<View
-  style={{
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: theme.goldDeep,
-    backgroundColor: theme.card,
-    marginBottom: 20,
-  }}
->
-  <MotBadge expiry={car.mot?.expiry} />
-
-  <ThemedText style={{ fontSize: 20, fontWeight: "900", color: theme.accent, marginBottom: 8 }}>
-    🔧 MOT History
-  </ThemedText>
-
 
           {car.mot?.expiry ? (
             <>
@@ -220,7 +250,13 @@ export default function CarDetailsScreen() {
               borderColor: theme.goldDeep,
             }}
           >
-            <ThemedText style={{ color: theme.black, fontWeight: "900", textAlign: "center" }}>
+            <ThemedText
+              style={{
+                color: theme.black,
+                fontWeight: "900",
+                textAlign: "center",
+              }}
+            >
               Refresh MOT Data
             </ThemedText>
           </Pressable>
@@ -237,18 +273,25 @@ export default function CarDetailsScreen() {
             marginBottom: 20,
           }}
         >
-          <ThemedText style={{ fontSize: 20, fontWeight: "900", color: theme.accent, marginBottom: 8 }}>
+          <ThemedText
+            style={{
+              fontSize: 20,
+              fontWeight: "900",
+              color: theme.accent,
+              marginBottom: 8,
+            }}
+          >
             💷 Market Valuation
           </ThemedText>
 
-          {car.valuation?.estimatedValue ? (
+          {car.valuation ? (
             <>
               <ThemedText style={{ color: theme.text }}>
                 Estimated Value: £{car.valuation.estimatedValue.toFixed(2)}
               </ThemedText>
 
               <ThemedText style={{ color: theme.text }}>
-                Confidence: {(car.valuation.confidence ?? 0) * 100}%
+                Confidence: {car.valuation.confidence * 100}%
               </ThemedText>
 
               <ThemedText style={{ color: theme.text }}>
@@ -272,32 +315,48 @@ export default function CarDetailsScreen() {
               borderColor: theme.goldDeep,
             }}
           >
-            <ThemedText style={{ color: theme.black, fontWeight: "900", textAlign: "center" }}>
+            <ThemedText
+              style={{
+                color: theme.black,
+                fontWeight: "900",
+                textAlign: "center",
+              }}
+            >
               Refresh Valuation
             </ThemedText>
           </Pressable>
         </View>
 
         {/* AI Summary */}
-        <View
-          style={{
-            padding: 16,
-            borderRadius: 16,
-            borderWidth: 2,
-            borderColor: theme.goldDeep,
-            backgroundColor: theme.card,
-            marginBottom: 20,
-          }}
-        >
-          <ThemedText style={{ fontSize: 20, fontWeight: "900", color: theme.accent, marginBottom: 8 }}>
-            🤖 AI Flip Summary
-          </ThemedText>
+     <View
+  style={{
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: theme.goldDeep,
+    backgroundColor: theme.card,
+    marginBottom: 20,
+  }}
+>
+  <ThemedText
+    style={{
+      fontSize: 20,
+      fontWeight: "900",
+      color: theme.accent,
+      marginBottom: 8,
+    }}
+  >
+    🤖 AI Flip Summary
+  </ThemedText>
 
-          {car.aiSummary?.summary ? (
-            <>
-              <ThemedText style={{ color: theme.text, marginBottom: 8 }}>
-                {car.aiSummary.summary}
-              </ThemedText>
+  <VerdictBadge verdict={car.aiSummary?.verdict} />
+
+  {car.aiSummary?.summary ? (
+    <>
+      <ThemedText style={{ color: theme.text, marginBottom: 8 }}>
+        {car.aiSummary.summary}
+      </ThemedText>
+
 
               <ThemedText style={{ color: theme.text }}>
                 Risk Level: {car.aiSummary.riskLevel}
@@ -309,7 +368,26 @@ export default function CarDetailsScreen() {
 
               {car.aiSummary.recommendedSalePrice && (
                 <ThemedText style={{ color: theme.text }}>
-                  Recommended Sale Price: £{car.aiSummary.recommendedSalePrice.toFixed(2)}
+                  Recommended Sale Price: £
+                  {car.aiSummary.recommendedSalePrice.toFixed(2)}
+                </ThemedText>
+              )}
+
+              {car.aiSummary.verdict && (
+                <ThemedText style={{ color: theme.text }}>
+                  Verdict: {car.aiSummary.verdict}
+                </ThemedText>
+              )}
+
+              {car.aiSummary.buyerProfile && (
+                <ThemedText style={{ color: theme.text }}>
+                  Buyer Profile: {car.aiSummary.buyerProfile}
+                </ThemedText>
+              )}
+
+              {car.aiSummary.saleStrategy && (
+                <ThemedText style={{ color: theme.text }}>
+                  Strategy: {car.aiSummary.saleStrategy}
                 </ThemedText>
               )}
             </>
@@ -330,7 +408,13 @@ export default function CarDetailsScreen() {
               borderColor: theme.goldDeep,
             }}
           >
-            <ThemedText style={{ color: theme.black, fontWeight: "900", textAlign: "center" }}>
+            <ThemedText
+              style={{
+                color: theme.black,
+                fontWeight: "900",
+                textAlign: "center",
+              }}
+            >
               Generate AI Summary
             </ThemedText>
           </Pressable>
@@ -339,7 +423,14 @@ export default function CarDetailsScreen() {
         {/* Notes */}
         {car.notes && (
           <View style={{ marginBottom: 20 }}>
-            <ThemedText style={{ fontSize: 20, fontWeight: "900", color: theme.accent, marginBottom: 8 }}>
+            <ThemedText
+              style={{
+                fontSize: 20,
+                fontWeight: "900",
+                color: theme.accent,
+                marginBottom: 8,
+              }}
+            >
               📝 Notes
             </ThemedText>
             <ThemedText style={{ color: theme.text }}>{car.notes}</ThemedText>

@@ -4,12 +4,11 @@
     "strict": true,
     "ignoreDeprecations": "6.0",
 
-    // 👇 THIS is the fix
-    "baseUrl": "src",
+    "baseUrl": ".",
 
-    // 👇 THIS makes @/* map to src/*
     "paths": {
-      "@/*": ["*"]
+      "@/*": ["./*"],
+      "@/src/*": ["src/*"]
     }
   },
   "include": [

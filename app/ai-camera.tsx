@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
   camera: { flex: 1 },
 
   visionGrid: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     flexDirection: "row",
     justifyContent: "space-between",
   },
@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
   },
 
   scanWave: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: GOLD,
     opacity: 0.2,
   },
@@ -343,7 +343,7 @@ const styles = StyleSheet.create({
   },
 
   loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.45)",
     justifyContent: "center",
     alignItems: "center",
