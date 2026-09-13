@@ -1,6 +1,11 @@
 import axios from "axios";
 import fetchAmazonMarket from "./amazonMarket";
 import fetchEbayMarket, { EbayMarketResult } from "./ebayMarket";
+import fetchEbayBrowseMarket from "./ebayBrowseApi";
+
+const hasEbayBrowseCreds = Boolean(
+  process.env.EBAY_CLIENT_ID && process.env.EBAY_CLIENT_SECRET
+);
 
 
 export interface UnifiedMarketResult {
@@ -213,7 +218,7 @@ export default async function fetchMarketData(
     // concurrently instead of one after another (was costing 3x the latency
     // for no benefit, since none of these depend on each other's result).
     const [ebay, amazon, google] = await Promise.all([
-      fetchEbayMarket(query),
+      hasEbayBrowseCreds ? fetchEbayBrowseMarket(query) : fetchEbayMarket(query),
       fetchAmazonMarket(query),
       fetchGoogleShopping(query),
     ]);

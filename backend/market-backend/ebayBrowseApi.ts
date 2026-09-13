@@ -1,0 +1,165 @@
+import axios from "axios";
+import { EbayMarketResult } from "./ebayMarket";
+
+/* --------------------------------------------------
+   ⭐ eBay Browse API (official, OAuth2 client-credentials)
+
+   Replaces the SerpAPI-scraped `sold_items=true` eBay lookup, which has
+   become unreliable since eBay put its "Sold Items" filter behind a
+   login wall (breaks scrapers, frequent hangs/timeouts — see
+   ebayMarket.ts). This is eBay's own supported API, so it doesn't
+   depend on scraping their search UI at all.
+
+   Trade-off to be aware of: the Browse API only searches CURRENT LIVE
+   listings — there is no free/self-serve access to actual sold prices
+   (that requires eBay's separate, approval-gated Marketplace Insights
+   API). So this gives real asking prices, not confirmed sold prices.
+   Asking prices on eBay tend to sit a bit above what things actually
+   sell for, which fetchMarketData.ts accounts for with a modest
+   markdown when treating this as the "used/resale" reference.
+-------------------------------------------------- */
+
+let tokenCache: { token: string; expiresAt: number } | null = null;
+
+async function getEbayAccessToken(): Promise<string> {
+  if (tokenCache && tokenCache.expiresAt > Date.now() + 30_000) {
+    return tokenCache.token;
+  }
+
+  const clientId = process.env.EBAY_CLIENT_ID!;
+  const clientSecret = process.env.EBAY_CLIENT_SECRET!;
+  const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+
+  const body = new URLSearchParams({
+    grant_type: "client_credentials",
+    scope: "https://api.ebay.com/oauth/api_scope",
+  });
+
+  const res = await axios.post(
+    "https://api.ebay.com/identity/v1/oauth2/token",
+    body.toString(),
+    {
+      timeout: 8000,
+      headers: {
+        Authorization: `Basic ${basicAuth}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+    }
+  );
+
+  const { access_token, expires_in } = res.data;
+  tokenCache = {
+    token: access_token,
+    expiresAt: Date.now() + Number(expires_in ?? 7200) * 1000,
+  };
+
+  return access_token;
+}
+
+function filterOutliers(prices: number[]) {
+  if (prices.length < 4) return prices;
+
+  const sorted = [...prices].sort((a, b) => a - b);
+  const q1 = sorted[Math.floor(sorted.length * 0.25)];
+  const q3 = sorted[Math.floor(sorted.length * 0.75)];
+  const iqr = q3 - q1;
+
+  const min = q1 - iqr * 1.5;
+  const max = q3 + iqr * 1.5;
+
+  return prices.filter((p) => p >= min && p <= max);
+}
+
+export default async function fetchEbayBrowseMarket(
+  query: string
+): Promise<EbayMarketResult> {
+  const empty: EbayMarketResult = {
+    average: null,
+    lowest: null,
+    highest: null,
+    smartPrice: null,
+    googlePriceMin: null,
+    googlePriceMax: null,
+    usedPrice: null,
+    retailPrice: null,
+    soldCount: 0,
+    demandScore: 0,
+    items: [],
+  };
+
+  if (!query) return empty;
+
+  try {
+    const token = await getEbayAccessToken();
+
+    const res = await axios.get(
+      "https://api.ebay.com/buy/browse/v1/item_summary/search",
+      {
+        timeout: 10000,
+        params: {
+          q: query,
+          limit: 50,
+        },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "X-EBAY-C-MARKETPLACE-ID": "EBAY_GB",
+        },
+      }
+    );
+
+    const summaries = res.data.itemSummaries ?? [];
+
+    const rawPrices: number[] = [];
+    const items: any[] = [];
+
+    for (const item of summaries) {
+      const value = parseFloat(item?.price?.value);
+      if (!isNaN(value)) rawPrices.push(value);
+
+      items.push({
+        title: item?.title ?? query,
+        price: item?.price?.value ? `£${item.price.value}` : undefined,
+        extracted_price: !isNaN(value) ? value : undefined,
+        thumbnail: item?.image?.imageUrl ?? item?.thumbnailImages?.[0]?.imageUrl ?? null,
+        link: item?.itemWebUrl ?? null,
+        condition: item?.condition ?? null,
+      });
+    }
+
+    const prices = filterOutliers(rawPrices);
+
+    if (!prices.length) {
+      return { ...empty, items };
+    }
+
+    const lowest = Math.min(...prices);
+    const highest = Math.max(...prices);
+    const askingAverage = prices.reduce((a, b) => a + b, 0) / prices.length;
+
+    // These are live asking prices, not confirmed sold prices — items sit
+    // on eBay at their asking price for a while before either selling for
+    // less (offers/haggling) or not selling at all, so treat the average
+    // as somewhat optimistic relative to real resale value.
+    const average = Number((askingAverage * 0.9).toFixed(2));
+
+    return {
+      average,
+      lowest,
+      highest,
+      smartPrice: Number((average * 0.9).toFixed(2)),
+      googlePriceMin: lowest,
+      googlePriceMax: highest,
+      usedPrice: average,
+      retailPrice: highest,
+      soldCount: prices.length,
+      demandScore: Math.min(100, prices.length * 3),
+      sellThroughRating: null,
+      ebayData: { items },
+      items,
+      confidence: 70,
+    };
+  } catch (err: any) {
+    console.log("eBay Browse API Error:", err?.response?.data ?? err?.message ?? err);
+    return empty;
+  }
+}

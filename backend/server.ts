@@ -66,15 +66,20 @@ app.use(vehiclePhotoAnalysisRoute);
 ------------------------------------------------------- */
 const motLookupEnv = ["API_KEY", "TOKEN_URL", "CLIENT_ID", "CLIENT_SECRET", "SCOPE_URL"];
 const dvlaLookupEnv = ["DVLA_API_KEY"];
+const ebayBrowseEnv = ["EBAY_CLIENT_ID", "EBAY_CLIENT_SECRET"];
 
 const missingMotEnv = motLookupEnv.filter((key) => !process.env[key]);
 const missingDvlaEnv = dvlaLookupEnv.filter((key) => !process.env[key]);
+const missingEbayBrowseEnv = ebayBrowseEnv.filter((key) => !process.env[key]);
 
 if (missingMotEnv.length > 0) {
   console.warn(`⚠️  Missing environment variable(s): ${missingMotEnv.join(", ")} — MOT lookup disabled until these are set in backend/.env`);
 }
 if (missingDvlaEnv.length > 0) {
   console.warn(`⚠️  Missing environment variable(s): ${missingDvlaEnv.join(", ")} — DVLA lookup disabled until these are set in backend/.env`);
+}
+if (missingEbayBrowseEnv.length > 0) {
+  console.warn(`⚠️  Missing environment variable(s): ${missingEbayBrowseEnv.join(", ")} — using the older SerpAPI eBay scraper (less reliable) until these are set in backend/.env. Get them free at developer.ebay.com.`);
 }
 
 /* -------------------------------------------------------
