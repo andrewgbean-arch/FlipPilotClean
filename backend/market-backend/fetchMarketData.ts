@@ -73,9 +73,14 @@ function safeNumber(n: unknown): number | null {
 -------------------------------------------------- */
 async function fetchGoogleShopping(query: string) {
   try {
+    // Without a region/currency pin, SerpAPI defaults to google.com (US) —
+    // returning US listings priced in USD, which this app was silently
+    // treating as GBP (a $3,699 US bike was being shown as £3,699+markup).
+    // Force UK Google Shopping so results are in the right country AND
+    // currency.
     const url = `https://serpapi.com/search.json?engine=google_shopping&q=${encodeURIComponent(
       query
-    )}&api_key=${process.env.SERPAPI_KEY}`;
+    )}&google_domain=google.co.uk&gl=uk&hl=en&currency=GBP&api_key=${process.env.SERPAPI_KEY}`;
 
     const res = await axios.get(url, { timeout: 12000 });
     const items = res.data.shopping_results ?? [];
@@ -271,16 +276,28 @@ export default async function fetchMarketData(
       ebay?.highest ?? googlePriceMax ?? aiPriceMax ?? null
     );
 
-    const average =
-      safeNumber(
-        (() => {
-          const values = [usedPrice, retailPrice, google?.avg]
-            .filter((v) => typeof v === "number") as number[];
-
-          if (!values.length) return null;
-          return values.reduce((a, b) => a + b, 0) / values.length;
-        })()
-      ) ?? usedPrice ?? retailPrice ?? google?.avg ?? null;
+    // eBay's `usedPrice` comes from SOLD listings — real recent transactions
+    // for this exact query. Google/Amazon's `retailPrice` comes from *new*
+    // listings/shopping ads, which skew toward premium/branded sellers who
+    // pay to advertise — for a generic or unbranded item this runs well
+    // above what it will actually resell for. Trust eBay's sold data as the
+    // primary signal whenever we have it, rather than blending it evenly
+    // with (or, as before, effectively double-counting) the ad-biased
+    // retail number.
+    //
+    // NOTE: `retailPrice` already falls back through to `google?.avg` above,
+    // so folding `google?.avg` into this blend again as a separate term
+    // would silently double-weight it — that was a real bug (Google's
+    // number counted twice vs eBay's once), which is exactly the kind of
+    // thing that pushes a blended "average" price toward the pricier,
+    // ad-driven source.
+    const average = safeNumber(
+      usedPrice
+        ? retailPrice
+          ? usedPrice * 0.7 + retailPrice * 0.3
+          : usedPrice * 1.15
+        : retailPrice ?? null
+    );
 
     // Prefer averaged/blended prices over a single raw min/max — a generic
     // search (especially from an AI-guessed title) often returns unrelated
@@ -291,12 +308,12 @@ export default async function fetchMarketData(
       safeNumber(
         (() => {
           if (usedPrice && retailPrice) {
-            return Number(((usedPrice * 0.6) + (retailPrice * 0.4)).toFixed(2));
+            return Number(((usedPrice * 0.75) + (retailPrice * 0.25)).toFixed(2));
           }
+          if (usedPrice) return Number((usedPrice * 0.85).toFixed(2));
           if (average && average > 0) {
             return Number((average * 0.85).toFixed(2));
           }
-          if (usedPrice) return Number((usedPrice * 0.9).toFixed(2));
           if (retailPrice) return Number((retailPrice * 0.7).toFixed(2));
           if (googlePriceMin && googlePriceMin > 0) {
             return Number((googlePriceMin * 0.9).toFixed(2));
