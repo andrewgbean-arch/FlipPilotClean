@@ -77,7 +77,7 @@ async function fetchGoogleShopping(query: string) {
       query
     )}&api_key=${process.env.SERPAPI_KEY}`;
 
-    const res = await axios.get(url, { timeout: 8000 });
+    const res = await axios.get(url, { timeout: 12000 });
     const items = res.data.shopping_results ?? [];
 
     const rawPrices: number[] = [];
@@ -124,10 +124,20 @@ async function fetchGoogleShopping(query: string) {
 async function fetchAiPriceEstimate(title: string) {
   if (!process.env.OPENAI_API_KEY || !title) return null;
 
+  // This only runs when real eBay/Google comparables couldn't be found, so
+  // there is nothing to sanity-check it against — ask specifically for
+  // realistic USED/resale value (not brand-new RRP) and to assume the
+  // common/budget version of the item rather than a premium tier, since
+  // this number ends up driving the buy/sell recommendation directly.
   const prompt = `
-Estimate the typical UK retail price range for this product:
+Estimate the realistic UK SECOND-HAND resale price range for this exact
+item — what it would typically actually sell for used on eBay or Facebook
+Marketplace, NOT the brand-new retail price.
 
-"${title}"
+Item: "${title}"
+
+If the title could match multiple different models or quality tiers,
+assume the common/budget version, not a premium or flagship one.
 
 Return ONLY valid JSON:
 {
@@ -146,6 +156,7 @@ Return ONLY valid JSON:
         temperature: 0.2,
       },
       {
+        timeout: 12000,
         headers: {
           Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
           "Content-Type": "application/json",
@@ -228,11 +239,20 @@ export default async function fetchMarketData(
     // max is often an unrelated premium outlier (a flagship/bundle listing
     // pulled in by a loose title match) and was dragging buy/sell prices
     // way above what the actual scanned item is worth.
+    // AI fallback only kicks in when nothing real was found, so use the
+    // midpoint of its range rather than the top of it — using aiPriceMax
+    // here meant a wide/uncertain AI guess always resolved to its most
+    // expensive end, not a representative value.
+    const aiPriceMid =
+      aiPriceMin != null && aiPriceMax != null
+        ? (aiPriceMin + aiPriceMax) / 2
+        : aiPriceMax;
+
     const retailPrice = safeNumber(
       amazon?.newPrice ??
       google?.avg ??
       ebay?.highest ??
-      aiPriceMax ??
+      aiPriceMid ??
       null
     );
 
