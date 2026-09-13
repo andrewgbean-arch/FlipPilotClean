@@ -9,10 +9,6 @@ import VehicleHeaderCard from "@/components/motors/VehicleHeaderCard";
 import VehicleSummaryCard from "@/components/motors/VehicleSummaryCard";
 import VehicleActionsRow from "@/components/motors/VehicleActionsRow";
 
-import FinanceSuiteSummaryCard from "@/components/dealer/FinanceSuiteSummaryCard";
-import AffordabilitySummaryCard from "@/components/dealer/AffordabilitySummaryCard";
-
-
 export default function VehicleOverviewScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -95,11 +91,6 @@ export default function VehicleOverviewScreen() {
         reg={mot.reg ?? ""}
         theme={theme}
       />
-
-      {/* ⭐ FINANCE SUITE SUMMARY */}
-      <FinanceSuiteSummaryCard vehicle={vehicle} buyer={{}} />
-      <AffordabilitySummaryCard vehicle={vehicle} buyer={{}} theme={theme} />
-
 
       {/* ⭐ VEHICLE SUMMARY */}
       <VehicleSummaryCard

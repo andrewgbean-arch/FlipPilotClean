@@ -18,9 +18,6 @@ import { UserSettingsProvider } from "@/features/settings/UserSettingsContext";
 // Dealer Notifications
 import { DealerNotificationsProvider } from "@/features/vehicles/context/DealerNotificationsContext";
 
-// Dealer AI
-import { DealerAIProvider } from "@/features/dealer-ai/DealerAIContext";
-
 // Gold Flash Overlay
 import GoldFlashOverlay from "@/components/ui/GoldFlashOverlay";
 
@@ -40,24 +37,22 @@ export default function RootLayout() {
   return (
     <SubscriptionProvider>
       <UserSettingsProvider>
-        <DealerAIProvider>
-          <ThemeProvider>
-            <DealerNotificationsProvider>
-              <FlipHistoryProvider>
-                <VehicleHistoryProvider>
+        <ThemeProvider>
+          <DealerNotificationsProvider>
+            <FlipHistoryProvider>
+              <VehicleHistoryProvider>
 
-                  {/* ⭐ Global UI Overlays */}
-                  <DealerBanner />
-                  <ProBadgeOverlay />
-                  <GoldFlashOverlayWrapper />
+                {/* ⭐ Global UI Overlays */}
+                <DealerBanner />
+                <ProBadgeOverlay />
+                <GoldFlashOverlayWrapper />
 
-                  <ThemedStack />
+                <ThemedStack />
 
-                </VehicleHistoryProvider>
-              </FlipHistoryProvider>
-            </DealerNotificationsProvider>
-          </ThemeProvider>
-        </DealerAIProvider>
+              </VehicleHistoryProvider>
+            </FlipHistoryProvider>
+          </DealerNotificationsProvider>
+        </ThemeProvider>
       </UserSettingsProvider>
     </SubscriptionProvider>
   );
@@ -98,9 +93,6 @@ function ThemedStack() {
       <Stack.Screen name="upgrade" options={{ title: "Upgrade" }} />
       <Stack.Screen name="manage-subscription" options={{ title: "Manage Subscription" }} />
       <Stack.Screen name="pro-success" options={{ headerShown: false }} />
-
-      {/* ❌ DO NOT manually register dealer or finance screens here */}
-      {/* Expo Router will auto-load everything inside /app/dealer and /app/dealer/finance */}
     </Stack>
   );
 }

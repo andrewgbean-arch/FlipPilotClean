@@ -6,8 +6,6 @@ import { useTheme } from "@/styles/ThemeContext";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
 
-import FinanceSuiteSummaryCard from "@/components/dealer/FinanceSuiteSummaryCard";
-
 export default function MotorsHub() {
   const theme = useTheme();
   const router = useRouter();
@@ -116,13 +114,6 @@ export default function MotorsHub() {
         <Stat label="MOT Attention" value={motAttention.length} theme={theme} />
       </Card>
 
-      {/* ⭐ FinanceSuite SummaryCard */}
-      {activeVehicle && (
-        <FinanceSuiteSummaryCard
-          vehicle={activeVehicle}
-          buyer={{}}
-        />
-      )}
 
       {/* Monthly Profit Timeline */}
       <Card title="Monthly Profit Timeline" theme={theme}>
@@ -218,38 +209,6 @@ export default function MotorsHub() {
         router={router}
       />
 
-      {/* Dealer Tools */}
-      <Card title="Dealer Tools" theme={theme}>
-        <TouchableOpacity
-          onPress={() =>
-       router.push({
-  pathname: "/dealer/DealerDashboardV11",
-  params: {
-    id: activeVehicle?.id,
-    lead: JSON.stringify({}),
-    buyer: JSON.stringify({}),
-  },
-})
-
-          }
-          style={{
-            backgroundColor: theme.goldDeep,
-            padding: 12,
-            borderRadius: theme.radius.md,
-            marginTop: 10,
-          }}
-        >
-          <Text
-            style={{
-              color: theme.black,
-              fontWeight: "700",
-              textAlign: "center",
-            }}
-          >
-            Open Dealer Tools
-          </Text>
-        </TouchableOpacity>
-      </Card>
     </ScrollView>
   );
 }

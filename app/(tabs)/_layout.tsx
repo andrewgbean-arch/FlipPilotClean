@@ -6,7 +6,6 @@ import {
   Heart,
   House,
   Scan as ScanIcon,
-  Briefcase,
 } from "phosphor-react-native";
 
 import { View, Text } from "react-native";
@@ -122,21 +121,6 @@ export default function TabsLayout() {
                 color={focused ? "#FFD700" : "rgba(255, 215, 0, 0.45)"}
               />
             </BadgeWrapper>
-          ),
-        }}
-      />
-
-      {/* ⭐ DEALER TAB */}
-      <Tabs.Screen
-        name="dealer"
-        options={{
-          tabBarLabel: "Dealer",
-          tabBarIcon: ({ focused }) => (
-            <Briefcase
-              size={30}
-              weight={focused ? "bold" : "regular"}
-              color={focused ? "#FFD700" : "rgba(255, 215, 0, 0.45)"}
-            />
           ),
         }}
       />

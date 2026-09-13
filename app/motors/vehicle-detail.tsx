@@ -82,17 +82,6 @@ function MotorsVehicleDetailContent({ vehicle, theme }: { vehicle: FlipRecord; t
           theme={theme}
           onPress={() => router.push(`/motors/edit-vehicle?id=${vehicle.id}`)}
         />
-        <ActionChip
-          icon="briefcase"
-          label="Dealer Tools"
-          theme={theme}
-          onPress={() =>
-            router.push({
-              pathname: "/dealer/DealerDashboardV11",
-              params: { id: vehicle.id },
-            })
-          }
-        />
       </View>
 
       {/* STATS */}
