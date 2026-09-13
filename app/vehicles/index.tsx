@@ -57,6 +57,18 @@ export default function VehiclesHome() {
             <MaterialCommunityIcons name="upload" size={20} /> Publish a Flip
           </GoldButton>
         </View>
+
+        <View style={styles.gridItem}>
+          <GoldButton onPress={() => router.push("/vehicles/create")}>
+            <MaterialCommunityIcons name="camera-plus-outline" size={20} /> Quick Add (AI)
+          </GoldButton>
+        </View>
+
+        <View style={styles.gridItem}>
+          <GoldButton onPress={() => router.push("/vehicles/analytics/overview")}>
+            <MaterialCommunityIcons name="chart-line" size={20} /> Analytics
+          </GoldButton>
+        </View>
       </View>
     </ScrollView>
   );

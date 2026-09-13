@@ -13,7 +13,6 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 
-import { useFlipHistory } from "@/context/FlipHistoryContext";
 import { useTheme } from "@/styles/ThemeContext";
 import { searchBarcode, aiLookup } from "@/utils/api";
 import { transformScanResult } from "@/utils/scanTransform";
@@ -42,8 +41,6 @@ export default function ScanScreen() {
   const theme = useTheme();
   const { mode } = useTheme();
   const isPro = mode === "pro";
-
-  const { setTempScanData } = useFlipHistory();
 
   // Camera
   const [permission, requestPermission] = useCameraPermissions();
@@ -212,8 +209,6 @@ export default function ScanScreen() {
 
       const finalObj = transform(res);
 
-      setTempScanData(finalObj);
-
       triggerSuccess();
       triggerFramePulse();
       triggerFlash();
@@ -254,8 +249,6 @@ export default function ScanScreen() {
       }
 
       const finalObj = transform(res, photo.uri);
-
-      setTempScanData(finalObj);
 
       triggerSuccess();
       triggerFramePulse();

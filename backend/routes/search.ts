@@ -2,6 +2,7 @@ import axios from "axios";
 import { Router } from "express";
 import fetchMarketData from "../market-backend/fetchMarketData";
 import { buildFlipMeta } from "../market-backend/buildFlipMeta";
+import { rateLimit } from "../middleware/rateLimit";
 
 
 
@@ -96,7 +97,7 @@ Return JSON with:
 /* --------------------------------------------------
    ⭐ 4. MAIN ROUTE — NOW USING UNIFIED ENGINE
 -------------------------------------------------- */
-router.get("/search", async (req, res) => {
+router.get("/search", rateLimit(10), async (req, res) => {
   try {
     const barcode = req.query.q as string;
     if (!barcode) return res.json({ error: "Missing barcode" });

@@ -6,10 +6,10 @@ import {
   ScrollView,
   Pressable,
   Animated,
+  Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from "@/styles/useTheme";
 
@@ -34,6 +34,7 @@ const TOOLS: {
   { key: "barcode", label: "Barcode Lookup", icon: "barcode", family: "mci", route: "/scan", tint: "#4FA3FF" },
   { key: "flips", label: "Your Flips", icon: "layers", family: "feather", route: "/history", tint: "#4CAF50" },
   { key: "market", label: "Marketplace", icon: "storefront-outline", family: "mci", route: "/marketplace", tint: "#FF9F43" },
+  { key: "vehicles", label: "Vehicles Hub", icon: "car-multiple", family: "mci", route: "/vehicles", tint: "#B78CFF" },
 ];
 
 const INSIGHTS: {
@@ -131,26 +132,17 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
       >
+        {/* LOGO HEADER */}
+        <View style={[styles.logoHeaderWrapper, { paddingTop: insets.top + 10 }]}>
+          <Image
+            source={require("@/assets/images/logopulse.png")}
+            style={styles.logoHeaderImage}
+            resizeMode="contain"
+          />
+        </View>
+
         {/* WEATHER */}
         <WeatherCard theme={theme} />
-
-        {/* HEADER */}
-        <View style={[styles.headerWrapper, { paddingTop: insets.top + 10 }]}>
-          <LinearGradient
-            colors={[theme.heroGradient.start, theme.heroGradient.middle, theme.heroGradient.end]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={[styles.headerCard, { borderColor: theme.goldSoftGlow }]}
-          >
-            <View style={[styles.brandMark, { backgroundColor: theme.goldSoftGlow }]}>
-              <MaterialCommunityIcons name="airplane" size={22} color={theme.gold} />
-            </View>
-            <Text style={[styles.headerTitle, { color: theme.gold }]}>FlipPilot</Text>
-            <Text style={[styles.headerSubtitle, { color: theme.muted }]}>
-              Your flipping dashboard
-            </Text>
-          </LinearGradient>
-        </View>
 
         {/* STATS */}
         <GlowPulseCard style={styles.glowCardOverride}>
@@ -311,23 +303,14 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  headerWrapper: { paddingHorizontal: 16 },
-  headerCard: {
-    borderRadius: 22,
-    padding: 22,
-    borderWidth: 1,
+  logoHeaderWrapper: {
+    paddingHorizontal: 16,
     alignItems: "center",
   },
-  brandMark: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 10,
+  logoHeaderImage: {
+    width: "100%",
+    height: 170,
   },
-  headerTitle: { fontSize: 28, fontWeight: "900", letterSpacing: 0.3 },
-  headerSubtitle: { fontSize: 14, marginTop: 4 },
 
   glowCardOverride: { marginHorizontal: 16 },
 

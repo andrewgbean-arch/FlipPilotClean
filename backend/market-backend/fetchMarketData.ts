@@ -77,7 +77,7 @@ async function fetchGoogleShopping(query: string) {
       query
     )}&api_key=${process.env.SERPAPI_KEY}`;
 
-    const res = await axios.get(url);
+    const res = await axios.get(url, { timeout: 8000 });
     const items = res.data.shopping_results ?? [];
 
     const rawPrices: number[] = [];
@@ -193,14 +193,14 @@ export default async function fetchMarketData(
   }
 
   try {
-    // 1️⃣ eBay sold (used market)
-    const ebay = await fetchEbayMarket(query);
-
-    // 2️⃣ Amazon (retail/new market)
-    const amazon = await fetchAmazonMarket(query);
-
-    // 3️⃣ Google Shopping (general market)
-    const google = await fetchGoogleShopping(query);
+    // 1️⃣-3️⃣ eBay, Amazon and Google are independent lookups — run them
+    // concurrently instead of one after another (was costing 3x the latency
+    // for no benefit, since none of these depend on each other's result).
+    const [ebay, amazon, google] = await Promise.all([
+      fetchEbayMarket(query),
+      fetchAmazonMarket(query),
+      fetchGoogleShopping(query),
+    ]);
 
     // 4️⃣ AI fallback (only if Google + eBay are weak)
     const weakGoogle = !google?.min || google.min < 1;
@@ -224,9 +224,13 @@ export default async function fetchMarketData(
       ebay?.average ?? ebay?.lowest ?? null
     );
 
+    // Use Google's blended average, not its single highest listing — the
+    // max is often an unrelated premium outlier (a flagship/bundle listing
+    // pulled in by a loose title match) and was dragging buy/sell prices
+    // way above what the actual scanned item is worth.
     const retailPrice = safeNumber(
       amazon?.newPrice ??
-      google?.max ??
+      google?.avg ??
       ebay?.highest ??
       aiPriceMax ??
       null

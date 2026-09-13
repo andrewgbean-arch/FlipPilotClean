@@ -10,7 +10,6 @@ import { SubscriptionProvider } from "../src/context/SubscriptionContext";
 import { ThemeProvider, useTheme } from "../src/styles/ThemeContext";
 
 import { VehicleHistoryProvider, useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
-import { FlipHistoryProvider } from "@/context/FlipHistoryContext";
 
 // ✔ REAL Dealer Mode Provider
 import { UserSettingsProvider } from "@/features/settings/UserSettingsContext";
@@ -39,18 +38,16 @@ export default function RootLayout() {
       <UserSettingsProvider>
         <ThemeProvider>
           <DealerNotificationsProvider>
-            <FlipHistoryProvider>
-              <VehicleHistoryProvider>
+            <VehicleHistoryProvider>
 
-                {/* ⭐ Global UI Overlays */}
-                <DealerBanner />
-                <ProBadgeOverlay />
-                <GoldFlashOverlayWrapper />
+              {/* ⭐ Global UI Overlays */}
+              <DealerBanner />
+              <ProBadgeOverlay />
+              <GoldFlashOverlayWrapper />
 
-                <ThemedStack />
+              <ThemedStack />
 
-              </VehicleHistoryProvider>
-            </FlipHistoryProvider>
+            </VehicleHistoryProvider>
           </DealerNotificationsProvider>
         </ThemeProvider>
       </UserSettingsProvider>

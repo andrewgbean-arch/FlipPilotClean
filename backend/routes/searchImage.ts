@@ -45,9 +45,17 @@ async function identifyImage(base64: string) {
             text: `
 You are a professional product recognition system.
 
+The "title" you return is used verbatim to search eBay/Amazon/Google for
+pricing comparables, so an over-confident brand/model guess directly causes
+wrong pricing (e.g. guessing "JBL" on an unbranded speaker will price it
+like a real JBL). Only name a specific brand or model in the title if it is
+clearly visible (logo, printed name) in the image. If the brand/model is
+not clearly visible, use a generic descriptive title instead (e.g.
+"Portable Bluetooth Speaker", "Wireless Over-Ear Headphones").
+
 Return ONLY valid JSON with:
 {
-  "title": "Short product title",
+  "title": "Short product title — generic unless brand/model is clearly visible",
   "description": "1–2 sentence summary",
   "fullDescription": "4–6 sentence detailed description",
   "condition": "New / Like New / Good / Fair / Poor",
@@ -75,6 +83,7 @@ Return ONLY valid JSON with:
       "https://api.openai.com/v1/responses",
       payload,
       {
+        timeout: 15000,
         headers: {
           Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
           "Content-Type": "application/json"

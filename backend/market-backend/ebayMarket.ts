@@ -69,7 +69,7 @@ export default async function fetchEbayMarket(
       query
     )}&api_key=${process.env.SERPAPI_KEY}&ebay_domain=ebay.co.uk&sort=best_match&sold_items=true`;
 
-    const res = await axios.get(url);
+    const res = await axios.get(url, { timeout: 8000 });
     const items = res.data.shopping_results ?? [];
 
     const rawPrices: number[] = [];
@@ -132,8 +132,8 @@ export default async function fetchEbayMarket(
       items,
       confidence: 80,
     };
-  } catch (err) {
-    console.error("eBay Market Error:", err);
+  } catch (err: any) {
+    console.log("eBay Market Error:", err?.message || err);
 
     return {
       average: null,
