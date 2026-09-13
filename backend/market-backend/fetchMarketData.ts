@@ -3,9 +3,15 @@ import fetchAmazonMarket from "./amazonMarket";
 import fetchEbayMarket, { EbayMarketResult } from "./ebayMarket";
 import fetchEbayBrowseMarket from "./ebayBrowseApi";
 
-const hasEbayBrowseCreds = Boolean(
-  process.env.EBAY_CLIENT_ID && process.env.EBAY_CLIENT_SECRET
-);
+// Read this at call time, not at module load — server.ts imports this
+// module (via search.ts/searchImage.ts) BEFORE it calls dotenv.config(),
+// so a module-level `const` here would freeze as false forever even once
+// the env vars are actually set (confirmed live: the function worked
+// perfectly called directly, but returned nothing through the real
+// server until this was made lazy).
+function hasEbayBrowseCreds() {
+  return Boolean(process.env.EBAY_CLIENT_ID && process.env.EBAY_CLIENT_SECRET);
+}
 
 
 export interface UnifiedMarketResult {
@@ -174,7 +180,15 @@ Return ONLY valid JSON:
       }
     );
 
-    const raw = res.data.choices?.[0]?.message?.content ?? "{}";
+    // gpt-4o-mini often wraps its JSON in ```json fences despite being
+    // asked for raw JSON — strip them before parsing (this was silently
+    // failing every call where the model added them, logged as
+    // "Unexpected token '`'", which meant this whole fallback was quietly
+    // returning null more often than it should have).
+    const raw = (res.data.choices?.[0]?.message?.content ?? "{}")
+      .replace(/```json/gi, "")
+      .replace(/```/g, "")
+      .trim();
     return JSON.parse(raw);
   } catch (err: any) {
     console.log("AI PRICE ERROR:", err?.message || err);
@@ -218,7 +232,7 @@ export default async function fetchMarketData(
     // concurrently instead of one after another (was costing 3x the latency
     // for no benefit, since none of these depend on each other's result).
     const [ebay, amazon, google] = await Promise.all([
-      hasEbayBrowseCreds ? fetchEbayBrowseMarket(query) : fetchEbayMarket(query),
+      hasEbayBrowseCreds() ? fetchEbayBrowseMarket(query) : fetchEbayMarket(query),
       fetchAmazonMarket(query),
       fetchGoogleShopping(query),
     ]);
