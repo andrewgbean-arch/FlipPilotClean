@@ -1,5 +1,6 @@
 // import { FlipRecord } from ./lib/models/FlipRecord";
-import { FlipRecord } from "../models/FlipRecord";
+import { FlipRecord } from "../features/vehicles/models/FlipRecord";
+
 export function isDuplicateFlip(
   existing: FlipRecord[],
   incoming: {

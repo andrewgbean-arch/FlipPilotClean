@@ -1,4 +1,5 @@
-import { FlipRecord } from "../models/FlipRecord";
+import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
+
 
 export function calcFlipScore(vehicle: FlipRecord): number {
   let score = 0;

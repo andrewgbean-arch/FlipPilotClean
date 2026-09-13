@@ -1,10 +1,3 @@
-import { useFlipHistory } from "../../src/context/FlipHistoryContext";
-
-import { CameraView, useCameraPermissions } from "expo-camera";
-import * as FileSystem from "expo-file-system";
-import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
-
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -15,14 +8,18 @@ import {
   View,
 } from "react-native";
 
-import { usePro, useTheme } from "../../src/context/ThemeContext";
-import { ThemedText } from "../../src/styles/theme/ThemedText";
-import ThemedView from "../../src/styles/theme/ThemedView";
+import { CameraView, useCameraPermissions } from "expo-camera";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
 
-// RED LASER
+import { useFlipHistory } from "@/context/FlipHistoryContext";
+import { useTheme } from "@/styles/ThemeContext";
+import { searchBarcode, aiLookup } from "@/utils/api";
+import { transformScanResult } from "@/utils/scanTransform";
+
+// Laser + AI Tips
 const LASER_COLOR = "#FF3B3B";
-
-// AI TIP POOL (Mixed: Tactical + Flipping + Market)
 const AI_TIPS = [
   "Target acquired… stabilising.",
   "Analyzing object surface…",
@@ -43,35 +40,55 @@ const AI_TIPS = [
 
 export default function ScanScreen() {
   const theme = useTheme();
-  const { isPro } = usePro();
-
-  const [permission, requestPermission] = useCameraPermissions();
-  const cameraRef = useRef<CameraView | null>(null);
+  const { mode } = useTheme();
+  const isPro = mode === "pro";
 
   const { setTempScanData } = useFlipHistory();
 
-  const [loading, setLoading] = useState(false);
-  const [torch, setTorch] = useState(false);
+  // Camera
+  const [permission, requestPermission] = useCameraPermissions();
+  const cameraRef = useRef<CameraView | null>(null);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraFacing, setCameraFacing] = useState<"back" | "front">("back");
+  const [torch, setTorch] = useState(false);
 
+  // Scan state
+  const [loading, setLoading] = useState(false);
   const [barcodeLocked, setBarcodeLocked] = useState(false);
-
-  // Toast
-  const [toastMessage, setToastMessage] = useState("");
-  const [toastVisible, setToastVisible] = useState(false);
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setToastVisible(true);
-    setTimeout(() => setToastVisible(false), 3000);
-  };
 
   // Flash animation
   const flashOpacity = useRef(new Animated.Value(0)).current;
   const [flashVisible, setFlashVisible] = useState(false);
 
-  const triggerFlash = (color: string = "white") => {
+  // Success animation
+  const successScale = useRef(new Animated.Value(0)).current;
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  // Frame pulse
+  const framePulse = useRef(new Animated.Value(0)).current;
+
+  // Laser animation
+  const laserY = useRef(new Animated.Value(0)).current;
+
+  // AI Tip
+  const [currentTip, setCurrentTip] = useState(AI_TIPS[0]);
+  const tipOpacity = useRef(new Animated.Value(1)).current;
+
+  // Toast
+  const [toastMessage, setToastMessage] = useState("");
+  const [toastVisible, setToastVisible] = useState(false);
+
+  // ============================
+  // Modernized Helpers
+  // ============================
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setToastVisible(true);
+    setTimeout(() => setToastVisible(false), 2500);
+  };
+
+  const triggerFlash = () => {
     setFlashVisible(true);
     flashOpacity.setValue(1);
     Animated.timing(flashOpacity, {
@@ -80,10 +97,6 @@ export default function ScanScreen() {
       useNativeDriver: false,
     }).start(() => setFlashVisible(false));
   };
-
-  // SUCCESS CHECKMARK ANIMATION
-  const successScale = useRef(new Animated.Value(0)).current;
-  const [showSuccess, setShowSuccess] = useState(false);
 
   const triggerSuccess = () => {
     setShowSuccess(true);
@@ -105,9 +118,6 @@ export default function ScanScreen() {
     });
   };
 
-  // FRAME PULSE
-  const framePulse = useRef(new Animated.Value(0)).current;
-
   const triggerFramePulse = () => {
     framePulse.setValue(0);
     Animated.timing(framePulse, {
@@ -116,9 +126,6 @@ export default function ScanScreen() {
       useNativeDriver: false,
     }).start(() => framePulse.setValue(0));
   };
-
-  // Laser animation
-  const laserY = useRef(new Animated.Value(0)).current;
 
   const startLaser = () => {
     laserY.setValue(0);
@@ -138,10 +145,6 @@ export default function ScanScreen() {
     ).start();
   };
 
-  // AI TIP ROTATION (Hologram style)
-  const [currentTip, setCurrentTip] = useState(AI_TIPS[0]);
-  const tipOpacity = useRef(new Animated.Value(1)).current;
-
   const rotateTip = () => {
     Animated.sequence([
       Animated.timing(tipOpacity, {
@@ -160,10 +163,9 @@ export default function ScanScreen() {
     setCurrentTip(next);
   };
 
-  useEffect(() => {
-    const interval = setInterval(rotateTip, 3000);
-    return () => clearInterval(interval);
-  }, []);
+  // ============================
+  // Effects
+  // ============================
 
   useEffect(() => {
     requestPermission();
@@ -178,33 +180,35 @@ export default function ScanScreen() {
     }
   }, [permission?.granted]);
 
-  // TRANSFORMER
-  const transform = (input: any, imageUri?: string) => ({
-    ai: input.ai ?? {},
-    title: input.product?.title ?? "Unknown Item",
-    barcode: input.product?.barcode ?? null,
-    base_price: input.product?.base_price ?? null,
-    image: imageUri ?? null,
-  });
+  useEffect(() => {
+    const interval = setInterval(rotateTip, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
-  // BARCODE SCAN → NEW BACKEND
+  // ============================
+  // Transform backend → UI
+  // ============================
+  // `/search` and `/search-image` return { ai, market, pricing, flipScore, image, title, barcode, ... }.
+  // scan-results.tsx expects { product: { title, barcode }, ai: { fair_price, suggested_buy, suggested_sell, flip_score }, image }.
+
+  const transform = transformScanResult;
+
+  // ============================
+  // Barcode Scan
+  // ============================
+
   const handleBarcode = async ({ data }: { data: string }) => {
     if (barcodeLocked || loading) return;
 
     setBarcodeLocked(true);
+    setLoading(true);
 
     try {
-      setLoading(true);
+      const res = await searchBarcode(data);
 
-      const res = await fetch("http://localhost:4000/scan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          barcode: data,
-          store: "Lidl",
-          location: "Paignton",
-        }),
-      }).then((r) => r.json());
+      if (!res || res.error) {
+        throw new Error(res?.error ?? "Search failed");
+      }
 
       const finalObj = transform(res);
 
@@ -212,7 +216,7 @@ export default function ScanScreen() {
 
       triggerSuccess();
       triggerFramePulse();
-      triggerFlash("green");
+      triggerFlash();
 
       router.push({
         pathname: "/scan/scan-results",
@@ -227,7 +231,10 @@ export default function ScanScreen() {
     }
   };
 
-  // PHOTO SCAN → NEW BACKEND
+  // ============================
+  // Photo Scan
+  // ============================
+
   const takePhoto = async () => {
     try {
       if (!cameraRef.current || loading || !cameraReady) return;
@@ -240,16 +247,11 @@ export default function ScanScreen() {
 
       setLoading(true);
 
-      const res = await fetch("http://localhost:4000/scan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          barcode: null,
-          imageBase64: base64,
-          store: "Lidl",
-          location: "Paignton",
-        }),
-      }).then((r) => r.json());
+      const res = await aiLookup(base64);
+
+      if (!res || res.error) {
+        throw new Error(res?.error ?? "AI lookup failed");
+      }
 
       const finalObj = transform(res, photo.uri);
 
@@ -257,7 +259,7 @@ export default function ScanScreen() {
 
       triggerSuccess();
       triggerFramePulse();
-      triggerFlash("green");
+      triggerFlash();
 
       router.push({
         pathname: "/scan/scan-results",
@@ -271,39 +273,52 @@ export default function ScanScreen() {
     }
   };
 
-  // PERMISSION SCREENS
+  // ============================
+  // Permission Screens
+  // ============================
+
   if (permission === null) {
     return (
-      <ThemedView style={styles.center}>
+      <View style={[styles.center, { backgroundColor: theme.background }]}>
         <ActivityIndicator size="large" color={theme.gold} />
-        <ThemedText style={{ marginTop: 20, color: theme.gold, fontWeight: "700" }}>
+        <Text style={{ marginTop: 20, color: theme.gold, fontWeight: "700" }}>
           Preparing camera…
-        </ThemedText>
-      </ThemedView>
+        </Text>
+      </View>
     );
   }
 
   if (!permission?.granted) {
     return (
-      <ThemedView style={styles.center}>
-        <ThemedText style={{ color: theme.text, fontSize: 22, fontWeight: "900" }}>
+      <View style={[styles.center, { backgroundColor: theme.background, paddingHorizontal: 32 }]}>
+        <View style={[styles.permissionIconBadge, { backgroundColor: theme.goldSoftGlow }]}>
+          <Text style={{ fontSize: 28 }}>📷</Text>
+        </View>
+        <Text style={{ color: theme.text, fontSize: 22, fontWeight: "900", textAlign: "center" }}>
           Camera access needed
-        </ThemedText>
+        </Text>
+        <Text style={{ color: theme.muted, fontSize: 14, textAlign: "center", marginTop: 8 }}>
+          FlipPilot uses your camera to scan barcodes and identify items for flipping.
+        </Text>
 
         <Pressable
           style={[styles.permissionButton, { backgroundColor: theme.gold }]}
           onPress={requestPermission}
         >
-          <ThemedText style={{ color: theme.black, fontWeight: "900", fontSize: 18 }}>
+          <Text style={{ color: theme.black, fontWeight: "900", fontSize: 18 }}>
             Enable Camera
-          </ThemedText>
+          </Text>
         </Pressable>
-      </ThemedView>
+      </View>
     );
   }
 
+  // ============================
+  // Main UI
+  // ============================
+
   return (
-    <ThemedView style={[styles.container, { backgroundColor: theme.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       {!loading && (
         <View style={{ flex: 1 }}>
           {cameraReady && (
@@ -325,9 +340,9 @@ export default function ScanScreen() {
               style={[styles.utilityButton, { backgroundColor: theme.card }]}
               onPress={() => setTorch((t) => !t)}
             >
-              <ThemedText style={{ color: theme.text, fontWeight: "900" }}>
+              <Text style={{ color: theme.text, fontWeight: "900" }}>
                 {torch ? "🔦" : "💡"}
-              </ThemedText>
+              </Text>
             </Pressable>
 
             <Pressable
@@ -336,9 +351,7 @@ export default function ScanScreen() {
                 setCameraFacing((f) => (f === "back" ? "front" : "back"))
               }
             >
-              <ThemedText style={{ color: theme.text, fontWeight: "900" }}>
-                🔄
-              </ThemedText>
+              <Text style={{ color: theme.text, fontWeight: "900" }}>🔄</Text>
             </Pressable>
           </View>
 
@@ -356,7 +369,7 @@ export default function ScanScreen() {
               ]}
             />
 
-            {/* RED LASER */}
+            {/* LASER */}
             <Animated.View
               style={[
                 styles.laser,
@@ -375,7 +388,7 @@ export default function ScanScreen() {
             />
           </View>
 
-          {/* HOLOGRAM AI TIP */}
+          {/* AI TIP */}
           <Animated.View style={[styles.holoTip, { opacity: tipOpacity }]}>
             <Text style={styles.holoText}>{currentTip}</Text>
           </Animated.View>
@@ -400,18 +413,18 @@ export default function ScanScreen() {
               style={[styles.scanButton, { backgroundColor: theme.gold }]}
               onPress={() => setBarcodeLocked(false)}
             >
-              <ThemedText style={{ color: theme.black, fontWeight: "900", fontSize: 18 }}>
+              <Text style={{ color: theme.black, fontWeight: "900", fontSize: 18 }}>
                 SCAN BARCODE
-              </ThemedText>
+              </Text>
             </Pressable>
 
             <Pressable
               style={[styles.scanButton, { backgroundColor: theme.gold }]}
               onPress={takePhoto}
             >
-              <ThemedText style={{ color: theme.black, fontWeight: "900", fontSize: 18 }}>
+              <Text style={{ color: theme.black, fontWeight: "900", fontSize: 18 }}>
                 SCAN PHOTO
-              </ThemedText>
+              </Text>
             </Pressable>
           </View>
 
@@ -429,32 +442,43 @@ export default function ScanScreen() {
 
       {/* LOADING */}
       {loading && (
-        <ThemedView style={styles.center}>
+        <View style={styles.center}>
           <ActivityIndicator size="large" color={theme.gold} />
-          <ThemedText style={{ marginTop: 20, color: theme.gold, fontWeight: "900" }}>
+          <Text style={{ marginTop: 20, color: theme.gold, fontWeight: "900" }}>
             Analyzing…
-          </ThemedText>
-        </ThemedView>
+          </Text>
+        </View>
       )}
 
       {/* TOAST */}
       {toastVisible && (
         <Animated.View style={[styles.toast, { borderColor: theme.gold }]}>
-          <Text style={{ color: theme.gold, fontWeight: "800" }}>{toastMessage}</Text>
+          <Text style={{ color: theme.gold, fontWeight: "800" }}>
+            {toastMessage}
+          </Text>
         </Animated.View>
       )}
-    </ThemedView>
+    </View>
   );
 }
 
 // =========================
-// ⭐ PART 2 — STYLES
+// Styles
 // =========================
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
 
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
+
+  permissionIconBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
 
   topRight: {
     position: "absolute",
@@ -513,70 +537,67 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.15)",
   },
 
-  holoText: {
-    color: "rgba(255,255,255,0.85)",
-    fontSize: 15,
-    fontWeight: "700",
-    textShadowColor: "rgba(255,0,0,0.4)",
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 6,
-  },
+holoText: {
+  color: "rgba(255,255,255,0.85)",
+  fontSize: 15,
+  fontWeight: "700",
+  textShadowColor: "rgba(255,0,0,0.4)",
+  textShadowOffset: { width: 0, height: 0 },
+  textShadowRadius: 6,
+},
+successCheck: {
+  position: "absolute",
+  top: "40%",
+  alignSelf: "center",
+  backgroundColor: "rgba(0,255,0,0.15)",
+  padding: 30,
+  borderRadius: 100,
+  borderWidth: 2,
+  borderColor: "rgba(0,255,0,0.4)",
+},
 
-  successCheck: {
-    position: "absolute",
-    top: "40%",
-    alignSelf: "center",
-    backgroundColor: "rgba(0,255,0,0.15)",
-    padding: 30,
-    borderRadius: 100,
-    borderWidth: 2,
-    borderColor: "rgba(0,255,0,0.4)",
-  },
+successText: {
+  fontSize: 60,
+  fontWeight: "900",
+  color: "lime",
+  textShadowColor: "rgba(0,255,0,0.6)",
+  textShadowOffset: { width: 0, height: 0 },
+  textShadowRadius: 12,
+},
 
-  successText: {
-    fontSize: 60,
-    fontWeight: "900",
-    color: "lime",
-    textShadowColor: "rgba(0,255,0,0.6)",
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 12,
-  },
+bottomButtons: {
+  position: "absolute",
+  bottom: 60,
+  width: "100%",
+  paddingHorizontal: 40,
+  gap: 14,
+},
 
-  bottomButtons: {
-    position: "absolute",
-    bottom: 60,
-    width: "100%",
-    paddingHorizontal: 40,
-    gap: 14,
-  },
+scanButton: {
+  paddingVertical: 16,
+  borderRadius: 14,
+  alignItems: "center",
+  shadowColor: "#FFD700",
+  shadowOpacity: 0.4,
+  shadowRadius: 10,
+  shadowOffset: { width: 0, height: 0 },
+},
 
-  scanButton: {
-    paddingVertical: 16,
-    borderRadius: 14,
-    alignItems: "center",
-    shadowColor: "#FFD700",
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 0 },
-  },
+permissionButton: {
+  marginTop: 20,
+  paddingVertical: 16,
+  paddingHorizontal: 40,
+  borderRadius: 14,
+},
 
-  permissionButton: {
-    marginTop: 20,
-    paddingVertical: 16,
-    paddingHorizontal: 40,
-    borderRadius: 14,
-  },
-
-  toast: {
-    position: "absolute",
-    bottom: 120,
-    alignSelf: "center",
-    backgroundColor: "rgba(10,17,40,0.95)",
-    paddingVertical: 12,
-    paddingHorizontal: 22,
-    borderRadius: 14,
-    borderWidth: 2,
-  },
+toast: {
+  position: "absolute",
+  bottom: 120,
+  alignSelf: "center",
+  backgroundColor: "rgba(10,17,40,0.95)",
+  paddingVertical: 12,
+  paddingHorizontal: 22,
+  borderRadius: 14,
+  borderWidth: 2,
+},
 });
-
-

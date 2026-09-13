@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { FlipRecord } from "../models/FlipRecord";
+import { FlipRecord } from "../features/vehicles/models/FlipRecord";
+
 
 const KEY = "flipAchievements";
 

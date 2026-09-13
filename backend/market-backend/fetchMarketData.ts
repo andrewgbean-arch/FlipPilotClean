@@ -2,8 +2,6 @@ import axios from "axios";
 import fetchAmazonMarket from "./amazonMarket";
 import fetchEbayMarket, { EbayMarketResult } from "./ebayMarket";
 
-const SERP_KEY = process.env.SERPAPI_KEY;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 export interface UnifiedMarketResult {
   // Core prices
@@ -77,7 +75,7 @@ async function fetchGoogleShopping(query: string) {
   try {
     const url = `https://serpapi.com/search.json?engine=google_shopping&q=${encodeURIComponent(
       query
-    )}&api_key=${SERP_KEY}`;
+    )}&api_key=${process.env.SERPAPI_KEY}`;
 
     const res = await axios.get(url);
     const items = res.data.shopping_results ?? [];
@@ -124,7 +122,7 @@ async function fetchGoogleShopping(query: string) {
    ⭐ AI Price Fallback
 -------------------------------------------------- */
 async function fetchAiPriceEstimate(title: string) {
-  if (!OPENAI_API_KEY || !title) return null;
+  if (!process.env.OPENAI_API_KEY || !title) return null;
 
   const prompt = `
 Estimate the typical UK retail price range for this product:
@@ -149,7 +147,7 @@ Return ONLY valid JSON:
       },
       {
         headers: {
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
           "Content-Type": "application/json",
         },
       }
@@ -260,17 +258,25 @@ export default async function fetchMarketData(
         })()
       ) ?? usedPrice ?? retailPrice ?? google?.avg ?? null;
 
+    // Prefer averaged/blended prices over a single raw min/max — a generic
+    // search (especially from an AI-guessed title) often returns unrelated
+    // items alongside real matches, and the cheapest/priciest single result
+    // can be a wildly wrong outlier (e.g. a £25 cable next to a £600
+    // premium unit under the same "speaker" search).
     const smartPrice =
       safeNumber(
         (() => {
-          if (googlePriceMin && googlePriceMin > 0) {
-            return Number((googlePriceMin * 0.9).toFixed(2));
-          }
           if (usedPrice && retailPrice) {
             return Number(((usedPrice * 0.6) + (retailPrice * 0.4)).toFixed(2));
           }
+          if (average && average > 0) {
+            return Number((average * 0.85).toFixed(2));
+          }
           if (usedPrice) return Number((usedPrice * 0.9).toFixed(2));
           if (retailPrice) return Number((retailPrice * 0.7).toFixed(2));
+          if (googlePriceMin && googlePriceMin > 0) {
+            return Number((googlePriceMin * 0.9).toFixed(2));
+          }
           return aiPriceMin ?? aiPriceMax ?? null;
         })()
       ) ?? null;

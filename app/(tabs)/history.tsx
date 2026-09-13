@@ -1,7 +1,6 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
-import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import { router } from "expo-router";
+import React, { useMemo, useRef, useState } from "react";
 import {
   View,
   Animated,
@@ -13,15 +12,20 @@ import {
   Share,
   StyleSheet,
   TextInput,
+  Text,
 } from "react-native";
 
-import { ThemedText } from "../../src/styles/theme/ThemedText";
-import ThemedView from "../../src/styles/theme/ThemedView";
-import { useTheme } from "../../src/context/ThemeContext";
-import { FlipRecord } from "../../src/models/FlipRecord";
-import { shareFlip } from "../../src/utils/share/shareFlip";
+import { useTheme } from "@/styles/ThemeContext";
+import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
+import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
+import { shareFlip } from "@/utils/share/shareFlip";
 
-const STORAGE_KEY = "@flippilot_history";
+// Vehicles added via the manual/scan flow only populate the top-level
+// buyPrice/sellPrice/profit fields, not the `pricing` sub-object — fall
+// back to those so real flips still show their numbers here.
+const getBuyPrice = (f: FlipRecord) => Number(f.pricing?.recommendedBuyPrice ?? f.buyPrice ?? 0);
+const getSellPrice = (f: FlipRecord) => Number(f.pricing?.recommendedSellPrice ?? f.sellPrice ?? 0);
+const getProfit = (f: FlipRecord) => Number(f.pricing?.predictedProfit ?? f.profit ?? 0);
 
 // text variants
 const textVariants = StyleSheet.create({
@@ -71,8 +75,17 @@ const AnimatedPressable = ({
 export default function HistoryScreen() {
   const theme = useTheme();
 
-  const [flips, setFlips] = useState<FlipRecord[]>([]);
-  const [bestFlip, setBestFlip] = useState<FlipRecord | null>(null);
+  const {
+    vehicles: flips,
+    deleteVehicle,
+    toggleFavourite: toggleVehicleFavourite,
+    clearAll,
+  } = useVehicleHistory();
+
+  const bestFlip = useMemo<FlipRecord | null>(() => {
+    if (flips.length === 0) return null;
+    return [...flips].sort((a, b) => getProfit(b) - getProfit(a))[0];
+  }, [flips]);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -121,61 +134,18 @@ export default function HistoryScreen() {
     ]).start(() => setShowOverlay(false));
   };
 
-  const loadFlips = async () => {
-    try {
-      const data = await AsyncStorage.getItem(STORAGE_KEY);
-      const parsed: FlipRecord[] = data ? JSON.parse(data) : [];
-
-      const sortedByTime = [...parsed].sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
-      setFlips(sortedByTime);
-
-      if (parsed.length > 0) {
-        const best = [...parsed].sort(
-          (a, b) => (b.pricing?.predictedProfit || 0) - (a.pricing?.predictedProfit || 0)
-        )[0];
-        setBestFlip(best);
-      } else {
-        setBestFlip(null);
-      }
-    } catch {
-      setFlips([]);
-      setBestFlip(null);
-    }
-  };
-
-  useFocusEffect(
-    useCallback(() => {
-      loadFlips();
-    }, [])
-  );
-
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadFlips();
-    setRefreshing(false);
+    setTimeout(() => setRefreshing(false), 300);
   };
 
-  const deleteFlipHard = async (id: string | null) => {
+  const deleteFlipHard = (id: string | null) => {
     if (!id) return;
 
-    const existing = await AsyncStorage.getItem(STORAGE_KEY);
-    const parsed: FlipRecord[] = existing ? JSON.parse(existing) : [];
-    const updated = parsed.filter((f) => f.id !== id);
-
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    setFlips([...updated].sort((a, b) => Number(b.id || 0) - Number(a.id || 0)));
+    deleteVehicle(id);
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showOverlayMessage("Deleted ❌");
-
-    if (updated.length > 0) {
-      const best = [...updated].sort(
-        (a, b) => (b.pricing?.predictedProfit || 0) - (a.pricing?.predictedProfit || 0)
-      )[0];
-      setBestFlip(best);
-    } else {
-      setBestFlip(null);
-    }
 
     setConfirmDelete(null);
   };
@@ -183,44 +153,21 @@ export default function HistoryScreen() {
   const deleteFlip = (id: string) => setConfirmDelete(id);
 
   const clearAllFlips = async () => {
-    await AsyncStorage.removeItem(STORAGE_KEY);
-    setFlips([]);
-    setBestFlip(null);
+    await clearAll();
     setConfirmClearAll(false);
     showOverlayMessage("Cleared 🧹");
   };
 
-  const toggleFavourite = async (id: string) => {
-    const existing = await AsyncStorage.getItem(STORAGE_KEY);
-    const parsed: FlipRecord[] = existing ? JSON.parse(existing) : [];
+  const toggleFavourite = (id: string) => {
+    const isFav = !flips.find((i) => i.id === id)?.favourite;
 
-    const updated = parsed.map((item) =>
-      item.id === id ? { ...item, favourite: !item.favourite } : item
-    );
-
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    const sorted = [...updated].sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
-    setFlips(sorted);
+    toggleVehicleFavourite(id);
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    const isFav = updated.find((i) => i.id === id)?.favourite;
     showOverlayMessage(isFav ? "Saved ⭐" : "Removed ❌");
-
-    if (updated.length > 0) {
-      const best = [...updated].sort(
-        (a, b) => (b.pricing?.predictedProfit || 0) - (a.pricing?.predictedProfit || 0)
-      )[0];
-      setBestFlip(best);
-    } else {
-      setBestFlip(null);
-    }
   };
 
-  const totalProfit = flips.reduce(
-    (sum, item) => sum + (item.pricing?.predictedProfit || 0),
-    0
-  );
+  const totalProfit = flips.reduce((sum, item) => sum + getProfit(item), 0);
   const totalItems = flips.length;
   const avgProfit = totalItems > 0 ? totalProfit / totalItems : 0;
 
@@ -236,17 +183,15 @@ export default function HistoryScreen() {
 
     switch (sortMode) {
       case "profit":
-        list.sort(
-          (a, b) => (b.pricing?.predictedProfit || 0) - (a.pricing?.predictedProfit || 0)
-        );
+        list.sort((a, b) => getProfit(b) - getProfit(a));
         break;
 
       case "roi":
         list.sort((a, b) => {
-          const aBuy = Number(a.pricing?.recommendedBuyPrice || 0);
-          const bBuy = Number(b.pricing?.recommendedBuyPrice || 0);
-          const aProfit = Number(a.pricing?.predictedProfit || 0);
-          const bProfit = Number(b.pricing?.predictedProfit || 0);
+          const aBuy = getBuyPrice(a);
+          const bBuy = getBuyPrice(b);
+          const aProfit = getProfit(a);
+          const bProfit = getProfit(b);
 
           const aROI = aBuy > 0 ? (aProfit / aBuy) * 100 : 0;
           const bROI = bBuy > 0 ? (bProfit / bBuy) * 100 : 0;
@@ -322,8 +267,8 @@ export default function HistoryScreen() {
 
     if (!current || !prev) return "➖";
 
-    const cProfit = current.pricing?.predictedProfit || 0;
-    const pProfit = prev.pricing?.predictedProfit || 0;
+    const cProfit = getProfit(current);
+    const pProfit = getProfit(prev);
 
     if (cProfit > pProfit) return "🔺";
     if (cProfit < pProfit) return "🔻";
@@ -355,9 +300,9 @@ export default function HistoryScreen() {
 
     const rows = flips
       .map((f) => {
-        const safeBuy = Number(f.pricing?.recommendedBuyPrice || 0);
-        const safeSell = Number(f.pricing?.recommendedSellPrice || 0);
-        const safeProfit = Number(f.pricing?.predictedProfit || 0);
+        const safeBuy = getBuyPrice(f);
+        const safeSell = getSellPrice(f);
+        const safeProfit = getProfit(f);
         const roi = safeBuy > 0 ? (safeProfit / safeBuy) * 100 : 0;
 
         return [
@@ -402,9 +347,9 @@ export default function HistoryScreen() {
   const renderItem = ({ item, index }: { item: FlipRecord; index: number }) => {
     const trend = getTrendIcon(index);
 
-    const safeBuy = Number(item.pricing?.recommendedBuyPrice || 0);
-    const safeSell = Number(item.pricing?.recommendedSellPrice || 0);
-    const safeProfit = Number(item.pricing?.predictedProfit || 0);
+    const safeBuy = getBuyPrice(item);
+    const safeSell = getSellPrice(item);
+    const safeProfit = getProfit(item);
     const roi = safeBuy > 0 ? (safeProfit / safeBuy) * 100 : 0;
 
     const roiColor = getRoiColor(roi);
@@ -422,36 +367,36 @@ export default function HistoryScreen() {
           ]}
           onPress={() => openDetails(item)}
         >
-          {/* IMAGE */}
-          {typeof item.image === "string" && item.image.trim().length > 0 && (
-            <ThemedView style={styles.imageWrapper}>
-              <Image source={{ uri: item.image }} style={styles.image} />
-            </ThemedView>
-          )}
+          {typeof item.images?.[0] === "string" &&
+            item.images?.[0].trim().length > 0 && (
+              <View style={styles.imageWrapper}>
+                <Image source={{ uri: item.images?.[0] }} style={styles.image} />
+              </View>
+            )}
 
           {/* HEADER */}
-          <ThemedView style={styles.cardHeaderRow}>
-            <ThemedText style={[textVariants.body, styles.name]}>
+          <View style={styles.cardHeaderRow}>
+            <Text style={[textVariants.body, styles.name, { color: theme.text }]}>
               📦 {item.title}
-            </ThemedText>
+            </Text>
 
-            <ThemedText style={[textVariants.body, styles.trendBadge]}>
+            <Text style={[textVariants.body, styles.trendBadge, { color: theme.text }]}>
               {trend}
-            </ThemedText>
-          </ThemedView>
+            </Text>
+          </View>
 
           {/* BUY / SELL */}
-          <ThemedView style={styles.row}>
-            <ThemedText style={[textVariants.body, styles.text]}>
+          <View style={styles.row}>
+            <Text style={[textVariants.body, styles.text, { color: theme.text }]}>
               Buy: £{safeBuy.toFixed(2)}
-            </ThemedText>
-            <ThemedText style={[textVariants.body, styles.text]}>
+            </Text>
+            <Text style={[textVariants.body, styles.text, { color: theme.text }]}>
               Sell: £{safeSell.toFixed(2)}
-            </ThemedText>
-          </ThemedView>
+            </Text>
+          </View>
 
           {/* PROFIT */}
-          <ThemedText
+          <Text
             style={[
               textVariants.h3,
               styles.profit,
@@ -459,11 +404,11 @@ export default function HistoryScreen() {
             ]}
           >
             £{safeProfit.toFixed(2)}
-          </ThemedText>
+          </Text>
 
           {/* BADGES */}
-          <ThemedView style={styles.badgeRow}>
-            <ThemedText
+          <View style={styles.badgeRow}>
+            <Text
               style={[
                 textVariants.body,
                 styles.roiBadge,
@@ -471,106 +416,112 @@ export default function HistoryScreen() {
               ]}
             >
               ROI {roi.toFixed(0)}%
-            </ThemedText>
+            </Text>
 
             {item.aiPriceConfidence != null && (
-              <ThemedText style={[textVariants.body, styles.confBadge]}>
+              <Text style={[textVariants.body, styles.confBadge, { color: theme.text }]}>
                 Conf {item.aiPriceConfidence.toFixed(0)}%
-              </ThemedText>
+              </Text>
             )}
 
             {item.flipScore != null && (
-              <ThemedText style={[textVariants.body, styles.favBadge]}>
+              <Text style={[textVariants.body, styles.favBadge, { color: theme.text }]}>
                 🔥 Score {item.flipScore}
-              </ThemedText>
+              </Text>
             )}
 
             {item.rarity != null && (
-              <ThemedText style={[textVariants.body, styles.favBadge]}>
+              <Text style={[textVariants.body, styles.favBadge, { color: theme.text }]}>
                 🎲 Rarity {item.rarity}
-              </ThemedText>
+              </Text>
             )}
 
             {item.sellSpeed != null && (
-              <ThemedText style={[textVariants.body, styles.favBadge]}>
+              <Text style={[textVariants.body, styles.favBadge, { color: theme.text }]}>
                 ⚡ Speed {item.sellSpeed}
-              </ThemedText>
+              </Text>
             )}
 
             {item.market?.demandScore != null && (
-              <ThemedText style={[textVariants.body, styles.favBadge]}>
+              <Text style={[textVariants.body, styles.favBadge, { color: theme.text }]}>
                 📈 Demand {item.market.demandScore}
-              </ThemedText>
+              </Text>
             )}
+            {item.favourite && (
+              <Text style={[textVariants.body, styles.favBadge, { color: theme.accent }]}>
+                ⭐ Favourite
+              </Text>
+            )}
+          </View>
 
-           {item.favourite && (
-  <ThemedText style={[textVariants.body, styles.favBadge]}>
-    ⭐ Favourite
-  </ThemedText>
-)}
           {/* CONDITION */}
           {item.ai?.condition && (
-            <ThemedText
-              style={[textVariants.body, styles.conditionText]}
+            <Text
+              style={[
+                textVariants.body,
+                styles.conditionText,
+                { color: theme.text },
+              ]}
             >
               Condition: {item.ai.condition}
-            </ThemedText>
+            </Text>
           )}
 
-{/* AI SUMMARY */}
-{(item.ai?.condition ||
-  item.market?.demandScore ||
-  item.sellSpeed) && (
-  <ThemedText
-    style={[textVariants.small, styles.conditionText]}
-  >
-    AI:{" "}
-    {item.ai?.condition ? `${item.ai.condition} • ` : ""}
-    {item.market?.demandScore
-      ? `Demand ${item.market.demandScore} • `
-      : ""}
-    {item.sellSpeed ? `Speed ${item.sellSpeed}` : ""}
-  </ThemedText>
-)}
+          {/* AI SUMMARY */}
+          {(item.ai?.condition ||
+            item.market?.demandScore ||
+            item.sellSpeed) && (
+            <Text
+              style={[
+                textVariants.small,
+                styles.conditionText,
+                { color: theme.muted },
+              ]}
+            >
+              AI:{" "}
+              {item.ai?.condition ? `${item.ai.condition} • ` : ""}
+              {item.market?.demandScore
+                ? `Demand ${item.market.demandScore} • `
+                : ""}
+              {item.sellSpeed ? `Speed ${item.sellSpeed}` : ""}
+            </Text>
+          )}
 
-{/* BUTTON ROW */}
-<ThemedView style={styles.buttonRow}>
-</ThemedView> 
-  {/* SHARE */}
-  <AnimatedPressable
-    onPress={() =>
-      shareFlip({
-        title: item.title,
-        buyPrice: safeBuy,
-        sellPrice: safeSell,
-        roi,
-        profit: safeProfit,
-        confidence: item.aiPriceConfidence || 0,
-        origin: item.ai?.condition || "Unknown",
-        description: item.ai?.description || "",
-        image: item.image,
-      })
-    }
-    style={[
-      styles.fav,
-      {
-        backgroundColor: theme.accent,
-        borderColor: theme.goldDeep,
-        borderWidth: 3,
-      },
-    ]}
-  >
-    <ThemedText style={[textVariants.h3, { color: theme.black }]}>
-      ✈️
-    </ThemedText>
-  </AnimatedPressable>
-
+          {/* BUTTON ROW */}
+          <View style={styles.buttonRow}>
+            {/* SHARE */}
+            <AnimatedPressable
+              onPress={() =>
+                shareFlip({
+                  title: item.title,
+                  buyPrice: safeBuy,
+                  sellPrice: safeSell,
+                  roi,
+                  profit: safeProfit,
+                  confidence: item.aiPriceConfidence || 0,
+                  origin: item.ai?.condition || "Unknown",
+                  description: item.ai?.description || "",
+                  image: item.images?.[0],
+                })
+              }
+              style={[
+                styles.fav,
+                {
+                  backgroundColor: theme.accent,
+                  borderColor: theme.goldDeep,
+                  borderWidth: 3,
+                },
+              ]}
+            >
+              <Text style={[textVariants.h3, { color: theme.black }]}>✈️</Text>
+            </AnimatedPressable>
 
             {/* FAVOURITE */}
             <AnimatedPressable
               onPress={() => toggleFavourite(item.id)}
               style={[
                 styles.fav,
+                styles.favLabelButton,
                 item.favourite
                   ? {
                       backgroundColor: theme.accent,
@@ -583,16 +534,18 @@ export default function HistoryScreen() {
                     },
               ]}
             >
-              <ThemedText
+              <Text
                 style={[
-                  textVariants.h3,
+                  styles.favLabelText,
                   {
                     color: item.favourite ? theme.black : theme.accent,
                   },
                 ]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
               >
-                ⭐
-              </ThemedText>
+                {item.favourite ? "⭐ Favourited" : "☆ Add to Favourites"}
+              </Text>
             </AnimatedPressable>
 
             {/* DELETE */}
@@ -607,31 +560,28 @@ export default function HistoryScreen() {
                 },
               ]}
             >
-              <ThemedText style={[textVariants.h3, { color: theme.white }]}>
-                🗑️
-              </ThemedText>
+              <Text style={[textVariants.h3, { color: theme.white }]}>🗑️</Text>
             </AnimatedPressable>
-
-          </ThemedView>
+          </View>
         </AnimatedPressable>
       </View>
     );
   };
 
   return (
-    <ThemedView
+    <View
       style={[
         styles.container,
         { backgroundColor: theme.background },
       ]}
     >
       {/* HEADER */}
-      <ThemedView style={styles.headerRow}>
-        <ThemedText style={[textVariants.h2, { color: theme.accent }]}>
+      <View style={styles.headerRow}>
+        <Text style={[textVariants.h2, { color: theme.accent }]}>
           ✈️ FlipPilot
-        </ThemedText>
+        </Text>
 
-        <ThemedView style={styles.headerButtonsRow}>
+        <View style={styles.headerButtonsRow}>
           {/* FAV FILTER */}
           <AnimatedPressable
             style={[
@@ -643,7 +593,7 @@ export default function HistoryScreen() {
             ]}
             onPress={() => setShowFavesOnly((v) => !v)}
           >
-            <ThemedText
+            <Text
               style={[
                 textVariants.h3,
                 {
@@ -652,7 +602,7 @@ export default function HistoryScreen() {
               ]}
             >
               ⭐
-            </ThemedText>
+            </Text>
           </AnimatedPressable>
 
           {/* CLEAR ALL */}
@@ -660,9 +610,7 @@ export default function HistoryScreen() {
             style={styles.headerIconBtn}
             onPress={() => setConfirmClearAll(true)}
           >
-            <ThemedText style={[textVariants.h3, { color: theme.text }]}>
-              🧹
-            </ThemedText>
+            <Text style={[textVariants.h3, { color: theme.text }]}>🧹</Text>
           </AnimatedPressable>
 
           {/* EXPORT */}
@@ -670,15 +618,28 @@ export default function HistoryScreen() {
             style={styles.headerIconBtn}
             onPress={exportToCSV}
           >
-            <ThemedText style={[textVariants.h3, { color: theme.text }]}>
-              📤
-            </ThemedText>
+            <Text style={[textVariants.h3, { color: theme.text }]}>📤</Text>
           </AnimatedPressable>
-        </ThemedView>
-      </ThemedView>
+        </View>
+      </View>
 
+      {/* LIST */}
+      <FlatList
+        data={filteredAndSortedFlips}
+        keyExtractor={(item) => item.id || Math.random().toString()}
+        renderItem={renderItem}
+        contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.accent}
+          />
+        }
+        ListHeaderComponent={
+          <>
       {/* DIVIDER */}
-      <ThemedView
+      <View
         style={{
           height: 2,
           backgroundColor: theme.goldDeep,
@@ -688,8 +649,8 @@ export default function HistoryScreen() {
       />
 
       {/* STATS */}
-      <ThemedView style={styles.statsRow}>
-        <ThemedView
+      <View style={styles.statsRow}>
+        <View
           style={[
             styles.statBox,
             {
@@ -699,15 +660,25 @@ export default function HistoryScreen() {
             },
           ]}
         >
-          <ThemedText style={[textVariants.h3, { color: theme.text, textAlign: "center" }]}>
+          <Text
+            style={[
+              textVariants.h3,
+              { color: theme.text, textAlign: "center" },
+            ]}
+          >
             £{totalProfit.toFixed(2)}
-          </ThemedText>
-          <ThemedText style={[textVariants.small, { color: theme.muted, textAlign: "center" }]}>
+          </Text>
+          <Text
+            style={[
+              textVariants.small,
+              { color: theme.muted, textAlign: "center" },
+            ]}
+          >
             Profit
-          </ThemedText>
-        </ThemedView>
+          </Text>
+        </View>
 
-        <ThemedView
+        <View
           style={[
             styles.statBox,
             {
@@ -717,15 +688,25 @@ export default function HistoryScreen() {
             },
           ]}
         >
-          <ThemedText style={[textVariants.h3, { color: theme.text, textAlign: "center" }]}>
+          <Text
+            style={[
+              textVariants.h3,
+              { color: theme.text, textAlign: "center" },
+            ]}
+          >
             {totalItems}
-          </ThemedText>
-          <ThemedText style={[textVariants.small, { color: theme.muted, textAlign: "center" }]}>
+          </Text>
+          <Text
+            style={[
+              textVariants.small,
+              { color: theme.muted, textAlign: "center" },
+            ]}
+          >
             Items
-          </ThemedText>
-        </ThemedView>
+          </Text>
+        </View>
 
-        <ThemedView
+        <View
           style={[
             styles.statBox,
             {
@@ -735,14 +716,24 @@ export default function HistoryScreen() {
             },
           ]}
         >
-          <ThemedText style={[textVariants.h3, { color: theme.text, textAlign: "center" }]}>
+          <Text
+            style={[
+              textVariants.h3,
+              { color: theme.text, textAlign: "center" },
+            ]}
+          >
             £{avgProfit.toFixed(2)}
-          </ThemedText>
-          <ThemedText style={[textVariants.small, { color: theme.muted, textAlign: "center" }]}>
+          </Text>
+          <Text
+            style={[
+              textVariants.small,
+              { color: theme.muted, textAlign: "center" },
+            ]}
+          >
             Avg
-          </ThemedText>
-        </ThemedView>
-      </ThemedView>
+          </Text>
+        </View>
+      </View>
 
       {/* BEST FLIP */}
       {bestFlip && (
@@ -757,40 +748,51 @@ export default function HistoryScreen() {
           ]}
           onPress={() => openDetails(bestFlip)}
         >
-          <ThemedView style={styles.bestHeaderRow}>
-            <ThemedText style={[textVariants.h3, { color: theme.accent }]}>
+          <View style={styles.bestHeaderRow}>
+            <Text style={[textVariants.h3, { color: theme.accent }]}>
               🏆 Best Flip
-            </ThemedText>
-            <ThemedText style={[textVariants.h3, { color: theme.accent }]}>
-              👑
-            </ThemedText>
-          </ThemedView>
+            </Text>
+            <Text style={[textVariants.h3, { color: theme.accent }]}>👑</Text>
+          </View>
 
-          {bestFlip.image && (
-            <ThemedView style={styles.bestImageWrapper}>
-              <Image source={{ uri: bestFlip.image }} style={styles.bestImage} />
-            </ThemedView>
+          {bestFlip.images?.[0] && (
+            <View style={styles.bestImageWrapper}>
+              <Image
+                source={{ uri: bestFlip.images[0] }}
+                style={styles.bestImage}
+              />
+            </View>
           )}
 
-          <ThemedText style={[textVariants.body, { color: theme.text, marginTop: 8 }]}>
+          <Text
+            style={[
+              textVariants.body,
+              { color: theme.text, marginTop: 8 },
+            ]}
+          >
             {bestFlip.title}
-          </ThemedText>
+          </Text>
 
-          <ThemedText style={[textVariants.body, { color: theme.muted, marginTop: 4 }]}>
-            £{(bestFlip.pricing?.predictedProfit || 0).toFixed(2)} •{" "}
+          <Text
+            style={[
+              textVariants.body,
+              { color: theme.muted, marginTop: 4 },
+            ]}
+          >
+            £{getProfit(bestFlip).toFixed(2)} •{" "}
             {(() => {
-              const safeBuy = Number(bestFlip.pricing?.recommendedBuyPrice || 0);
-              const safeProfit = Number(bestFlip.pricing?.predictedProfit || 0);
+              const safeBuy = getBuyPrice(bestFlip);
+              const safeProfit = getProfit(bestFlip);
               const roi = safeBuy > 0 ? (safeProfit / safeBuy) * 100 : 0;
               return roi.toFixed(0);
             })()}
             %
-          </ThemedText>
+          </Text>
         </AnimatedPressable>
       )}
 
       {/* SEARCH */}
-      <ThemedView style={styles.searchRow}>
+      <View style={styles.searchRow}>
         <TextInput
           placeholder="Search flips..."
           placeholderTextColor={theme.muted}
@@ -806,20 +808,8 @@ export default function HistoryScreen() {
             },
           ]}
         />
-      </ThemedView>
-
-      {/* LIST */}
-      <FlatList
-        data={filteredAndSortedFlips}
-        keyExtractor={(item) => item.id || Math.random().toString()}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={theme.accent}
-          />
+      </View>
+          </>
         }
       />
 
@@ -836,9 +826,7 @@ export default function HistoryScreen() {
             },
           ]}
         >
-          <ThemedText style={{ color: theme.text }}>
-            {overlayText}
-          </ThemedText>
+          <Text style={{ color: theme.text }}>{overlayText}</Text>
         </Animated.View>
       )}
 
@@ -849,8 +837,8 @@ export default function HistoryScreen() {
         animationType="fade"
         onRequestClose={() => setConfirmDelete(null)}
       >
-        <ThemedView style={styles.modalOverlay}>
-          <ThemedView
+        <View style={styles.modalOverlay}>
+          <View
             style={[
               styles.modalContainer,
               {
@@ -860,20 +848,29 @@ export default function HistoryScreen() {
               },
             ]}
           >
-            <ThemedText style={[textVariants.h3, { color: theme.accent, textAlign: "center" }]}>
+            <Text
+              style={[
+                textVariants.h3,
+                { color: theme.accent, textAlign: "center" },
+              ]}
+            >
               Delete flip?
-            </ThemedText>
+            </Text>
 
-            <ThemedText
+            <Text
               style={[
                 textVariants.body,
-                { color: theme.muted, textAlign: "center", marginTop: 8 },
+                {
+                  color: theme.muted,
+                  textAlign: "center",
+                  marginTop: 8,
+                },
               ]}
             >
               This cannot be undone.
-            </ThemedText>
+            </Text>
 
-            <ThemedView style={styles.modalButtonsRow}>
+            <View style={styles.modalButtonsRow}>
               <AnimatedPressable
                 style={[
                   styles.modalCancel,
@@ -881,9 +878,7 @@ export default function HistoryScreen() {
                 ]}
                 onPress={() => setConfirmDelete(null)}
               >
-                <ThemedText style={{ color: theme.text }}>
-                  Cancel
-                </ThemedText>
+                <Text style={{ color: theme.text }}>Cancel</Text>
               </AnimatedPressable>
 
               <AnimatedPressable
@@ -897,13 +892,15 @@ export default function HistoryScreen() {
                 ]}
                 onPress={() => deleteFlipHard(confirmDelete)}
               >
-                <ThemedText style={{ color: theme.white, fontWeight: "900" }}>
+                <Text
+                  style={{ color: theme.white, fontWeight: "900" }}
+                >
                   Delete
-                </ThemedText>
+                </Text>
               </AnimatedPressable>
-            </ThemedView>
-          </ThemedView>
-        </ThemedView>
+            </View>
+          </View>
+        </View>
       </Modal>
 
       {/* CLEAR ALL MODAL */}
@@ -913,8 +910,8 @@ export default function HistoryScreen() {
         animationType="fade"
         onRequestClose={() => setConfirmClearAll(false)}
       >
-        <ThemedView style={styles.modalOverlay}>
-          <ThemedView
+        <View style={styles.modalOverlay}>
+          <View
             style={[
               styles.modalContainer,
               {
@@ -924,20 +921,29 @@ export default function HistoryScreen() {
               },
             ]}
           >
-            <ThemedText style={[textVariants.h3, { color: theme.accent, textAlign: "center" }]}>
+            <Text
+              style={[
+                textVariants.h3,
+                { color: theme.accent, textAlign: "center" },
+              ]}
+            >
               Clear all history?
-            </ThemedText>
+            </Text>
 
-            <ThemedText
+            <Text
               style={[
                 textVariants.body,
-                { color: theme.muted, textAlign: "center", marginTop: 8 },
+                {
+                  color: theme.muted,
+                  textAlign: "center",
+                  marginTop: 8,
+                },
               ]}
             >
               This will remove all flips from your device.
-            </ThemedText>
+            </Text>
 
-            <ThemedView style={styles.modalButtonsRow}>
+            <View style={styles.modalButtonsRow}>
               <AnimatedPressable
                 style={[
                   styles.modalCancel,
@@ -945,9 +951,7 @@ export default function HistoryScreen() {
                 ]}
                 onPress={() => setConfirmClearAll(false)}
               >
-                <ThemedText style={{ color: theme.text }}>
-                  Cancel
-                </ThemedText>
+                <Text style={{ color: theme.text }}>Cancel</Text>
               </AnimatedPressable>
 
               <AnimatedPressable
@@ -961,20 +965,19 @@ export default function HistoryScreen() {
                 ]}
                 onPress={clearAllFlips}
               >
-                <ThemedText style={{ color: theme.white, fontWeight: "900" }}>
+                <Text
+                  style={{ color: theme.white, fontWeight: "900" }}
+                >
                   Clear
-                </ThemedText>
+                </Text>
               </AnimatedPressable>
-            </ThemedView>
-          </ThemedView>
-        </ThemedView>
+            </View>
+          </View>
+        </View>
       </Modal>
-    </ThemedView>
+    </View>
   );
 }
-/* ============================
-   STYLES (THEME-READY)
-   ============================ */
 
 const styles = StyleSheet.create({
   container: {
@@ -1027,46 +1030,47 @@ const styles = StyleSheet.create({
   },
   bestImageWrapper: {
     marginTop: 8,
-    borderRadius: 10,
+    borderRadius: 12,
     overflow: "hidden",
   },
   bestImage: {
     width: "100%",
     height: 160,
-    resizeMode: "cover",
+    borderRadius: 12,
   },
 
   /* SEARCH */
   searchRow: {
-    marginTop: 8,
-    marginBottom: 8,
+    marginVertical: 12,
   },
   searchInput: {
-    borderRadius: 10,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
+    borderRadius: 10,
+    fontSize: 16,
   },
 
   /* LIST */
   listContent: {
     paddingBottom: 40,
+    gap: 12,
   },
 
   /* CARD */
   card: {
-    marginVertical: 8,
+    marginBottom: 10,
     padding: 12,
     borderRadius: 12,
   },
   imageWrapper: {
-    borderRadius: 10,
+    marginBottom: 10,
+    borderRadius: 12,
     overflow: "hidden",
-    marginBottom: 8,
   },
   image: {
     width: "100%",
     height: 160,
-    resizeMode: "cover",
+    borderRadius: 12,
   },
   cardHeaderRow: {
     flexDirection: "row",
@@ -1079,24 +1083,26 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   trendBadge: {
-    opacity: 0.7,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
   },
   row: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 4,
-  },
-  text: {},
-  profit: {
     marginTop: 4,
   },
-
-  /* BADGES */
+  text: {
+    flex: 1,
+  },
+  profit: {
+    marginTop: 8,
+  },
   badgeRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 6,
-    marginTop: 6,
+    marginTop: 8,
   },
   roiBadge: {
     paddingHorizontal: 8,
@@ -1120,29 +1126,33 @@ const styles = StyleSheet.create({
   /* BUTTON ROW */
   buttonRow: {
     flexDirection: "row",
-    alignItems: "center",
-    marginTop: 10,
     gap: 8,
+    marginTop: 10,
   },
   fav: {
-    flex: 0,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    flex: 1,
+    paddingVertical: 10,
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
+  },
+  favLabelButton: {
+    flex: 2.2,
+    paddingHorizontal: 6,
+  },
+  favLabelText: {
+    fontSize: 13,
+    fontWeight: "800",
   },
 
   /* OVERLAY TOAST */
   overlayToast: {
     position: "absolute",
-    bottom: 30,
+    bottom: 20,
     left: 20,
     right: 20,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 999,
-    alignItems: "center",
+    padding: 12,
+    borderRadius: 12,
   },
 
   /* MODALS */
@@ -1151,15 +1161,15 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.6)",
     justifyContent: "center",
     alignItems: "center",
+    padding: 20,
   },
   modalContainer: {
-    width: "85%",
-    borderRadius: 12,
+    width: "100%",
+    borderRadius: 16,
     padding: 16,
   },
   modalButtonsRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     gap: 10,
     marginTop: 16,
   },
@@ -1168,12 +1178,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 999,
     alignItems: "center",
+    justifyContent: "center",
   },
   modalDelete: {
     flex: 1,
     paddingVertical: 10,
     borderRadius: 999,
     alignItems: "center",
+    justifyContent: "center",
   },
 });
-

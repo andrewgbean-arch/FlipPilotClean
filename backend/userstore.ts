@@ -18,7 +18,6 @@ export interface UserData {
 
   tier: "free" | "pro";
 
-  // Optional: track scan types
   barcodeUses: number;
   visionUses: number;
 
@@ -32,36 +31,56 @@ type UserStore = Record<string, UserData>;
 ================================ */
 const storePath = path.join(__dirname, "data", "users.json");
 
+/* -------------------------------------------------------
+   Ensure directory + file exist
+------------------------------------------------------- */
 function ensureStore() {
   const dir = path.dirname(storePath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   if (!fs.existsSync(storePath)) fs.writeFileSync(storePath, "{}");
 }
 
+/* -------------------------------------------------------
+   Load store safely
+------------------------------------------------------- */
 function loadStore(): UserStore {
   ensureStore();
+
   try {
-    const raw = fs.readFileSync(storePath, "utf8");
+    const raw = fs.readFileSync(storePath, "utf8").trim();
     return raw ? JSON.parse(raw) : {};
-  } catch {
+  } catch (err) {
+    console.error("❌ Failed to load users.json:", err);
     return {};
   }
 }
 
+/* -------------------------------------------------------
+   Save store atomically (prevents corruption)
+------------------------------------------------------- */
 function saveStore(store: UserStore) {
   ensureStore();
-  fs.writeFileSync(storePath, JSON.stringify(store, null, 2));
+
+  const tmpPath = storePath + ".tmp";
+
+  fs.writeFileSync(tmpPath, JSON.stringify(store, null, 2));
+  fs.renameSync(tmpPath, storePath);
 }
 
+/* -------------------------------------------------------
+   In‑memory cache
+------------------------------------------------------- */
 let userStore: UserStore = loadStore();
 
 /* ================================
    ⭐ RESET LOGIC
 ================================ */
 function resetIfNeeded(user: UserData) {
-  const today = new Date().toISOString().slice(0, 10);
-  const month = new Date().toISOString().slice(0, 7);
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  const month = today.slice(0, 7);
 
+  // Daily reset
   if (user.lastScanDate !== today) {
     user.dailyUses = 0;
     user.barcodeUses = 0;
@@ -69,6 +88,7 @@ function resetIfNeeded(user: UserData) {
     user.lastScanDate = today;
   }
 
+  // Monthly reset
   if (user.lastScanMonth !== month) {
     user.monthlyUses = 0;
     user.lastScanMonth = month;
@@ -98,7 +118,7 @@ function createUser(): UserData {
     barcodeUses: 0,
     visionUses: 0,
 
-    createdAt: now,
+    createdAt: now
   };
 }
 
@@ -128,10 +148,7 @@ export function saveUser(userId: string, data: UserData): void {
 /* ================================
    ⭐ INCREMENT USAGE
 ================================ */
-export function incrementUsage(
-  userId: string,
-  type: "barcode" | "vision"
-) {
+export function incrementUsage(userId: string, type: "barcode" | "vision") {
   const user = getUser(userId);
 
   user.dailyUses++;
@@ -170,10 +187,7 @@ export function lockDevice(userId: string, deviceId: string) {
 /* ================================
    ⭐ VERIFY DEVICE
 ================================ */
-export function isDeviceAllowed(
-  userId: string,
-  deviceId: string
-): boolean {
+export function isDeviceAllowed(userId: string, deviceId: string): boolean {
   const user = getUser(userId);
 
   if (!user.lockedDevice) return true;

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { FlipRecord } from "../models/FlipRecord";
+import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
+
 
 type MOTResponse = {
   motStatus: "Valid" | "Expired" | "Unknown";

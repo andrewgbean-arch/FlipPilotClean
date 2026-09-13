@@ -7,24 +7,23 @@ import {
   Modal,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
+  Text,
   View,
 } from "react-native";
 
-import { useFlipHistory } from "../../src/context/FlipHistoryContext";
-import { usePro, useTheme } from "../../src/context/ThemeContext";
-import { ThemedText } from "../../src/styles/theme/ThemedText";
-import ThemedView from "../../src/styles/theme/ThemedView";
+import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
+import { useTheme } from "@/styles/ThemeContext";
 
 export default function ScanResultsScreen() {
   const params = useLocalSearchParams();
-  const { addToHistory } = useFlipHistory();
+  const { addVehicle } = useVehicleHistory();
   const theme = useTheme();
-  const { isPro } = usePro();
+  const isPro = theme.mode === "pro";
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [saved, setSaved] = useState(false);
 
   const [buyPrice, setBuyPrice] = useState<number | null>(null);
   const [sellPrice, setSellPrice] = useState<number | null>(null);
@@ -39,7 +38,6 @@ export default function ScanResultsScreen() {
         const parsed = JSON.parse(params.data as string);
         setData(parsed);
 
-        // backend fields
         setBuyPrice(parsed.ai?.suggested_buy ?? null);
         setSellPrice(parsed.ai?.suggested_sell ?? null);
       }
@@ -97,47 +95,94 @@ export default function ScanResultsScreen() {
   };
 
   const saveToHistory = () => {
-    if (!data) return;
+    if (!data || saved) return;
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    addToHistory({
-      ...data,
+    addVehicle({
+      title: data.title ?? data.product?.title ?? "Unknown Item",
+      barcode: data.barcode ?? data.product?.barcode ?? null,
+      images: data.image ? [data.image] : null,
+      buyPrice,
+      sellPrice,
       pricing: {
         recommendedBuyPrice: buyPrice,
         recommendedSellPrice: sellPrice,
         predictedProfit: profit,
       },
-      flipScore,
+      ai: {
+        condition: data.ai?.condition ?? null,
+        description: data.ai?.description ?? null,
+        conditionScore: data.ai?.confidence ?? null,
+        fullDescription: null,
+        origin: null,
+        photos: null,
+      },
     });
+
+    setSaved(true);
   };
 
   if (loading || !data) {
     return (
-      <ThemedView style={[styles.center, { backgroundColor: theme.background }]}>
+      <View style={[styles.center, { backgroundColor: theme.background }]}>
         <ActivityIndicator size="large" color={theme.gold} />
-        <ThemedText style={{ marginTop: 16, color: theme.gold, fontWeight: "700" }}>
+        <Text style={{ marginTop: 16, color: theme.gold, fontWeight: "700" }}>
           Loading scan…
-        </ThemedText>
-      </ThemedView>
+        </Text>
+      </View>
     );
   }
 
-  const title = data.product?.title ?? "Unknown Item";
+  const title = data.title ?? data.product?.title ?? "Unknown Item";
 
   return (
-    <ThemedView style={[styles.container, { backgroundColor: theme.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        
         {/* TITLE */}
         <View style={styles.header}>
-          <ThemedText style={[styles.title, { color: theme.text }]}>
-            {title}
-          </ThemedText>
-          <ThemedText style={[styles.subtitle, { color: theme.muted }]}>
-            Barcode: {data.product?.barcode ?? "N/A"}
-          </ThemedText>
+          <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
+          <Text style={[styles.subtitle, { color: theme.muted }]}>
+            {data.barcode ?? data.product?.barcode ?? "Identified from photo"}
+          </Text>
         </View>
+
+        {/* AI DESCRIPTION */}
+        {(data.ai?.description || data.ai?.condition) && (
+          <View
+            style={[
+              styles.cardWide,
+              { backgroundColor: theme.card, borderColor: theme.goldSoftGlow, marginBottom: 16 },
+            ]}
+          >
+            <Text style={[styles.cardLabel, { color: theme.gold }]}>AI Analysis</Text>
+
+            {data.ai?.description && (
+              <Text style={[styles.marketLine, { color: theme.text }]}>
+                {data.ai.description}
+              </Text>
+            )}
+
+            <View style={styles.priceRow}>
+              {data.ai?.condition && (
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.priceLabel, { color: theme.muted }]}>Condition</Text>
+                  <Text style={[styles.priceValue, { color: theme.text }]}>
+                    {data.ai.condition}
+                  </Text>
+                </View>
+              )}
+              {data.ai?.confidence != null && (
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.priceLabel, { color: theme.muted }]}>Confidence</Text>
+                  <Text style={[styles.priceValue, { color: theme.text }]}>
+                    {data.ai.confidence}%
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
 
         {/* IMAGE */}
         {data.image && (
@@ -147,7 +192,11 @@ export default function ScanResultsScreen() {
               { backgroundColor: theme.card, borderColor: theme.goldSoftGlow },
             ]}
           >
-            <Image source={{ uri: data.image }} style={styles.image} resizeMode="contain" />
+            <Image
+              source={{ uri: data.image }}
+              style={styles.image}
+              resizeMode="contain"
+            />
           </View>
         )}
 
@@ -159,21 +208,30 @@ export default function ScanResultsScreen() {
               { backgroundColor: theme.card, borderColor: theme.goldSoftGlow },
             ]}
           >
-            <ThemedText style={[styles.cardLabel, { color: theme.gold }]}>
+            <Text style={[styles.cardLabel, { color: theme.gold }]}>
               FlipScore
-            </ThemedText>
-            <ThemedText style={[styles.flipScoreValue, { color: theme.text }]}>
+            </Text>
+            <Text style={[styles.flipScoreValue, { color: theme.text }]}>
               {flipScore}
-            </ThemedText>
+            </Text>
 
-            <View style={[styles.meterBackground, { backgroundColor: theme.secondary }]}>
+            <View
+              style={[
+                styles.meterBackground,
+                { backgroundColor: theme.secondary },
+              ]}
+            >
               <View
                 style={[
                   styles.meterFill,
                   {
                     width: `${flipScore}%`,
                     backgroundColor:
-                      flipScore >= 70 ? theme.success : flipScore >= 40 ? theme.gold : theme.danger,
+                      flipScore >= 70
+                        ? theme.success
+                        : flipScore >= 40
+                        ? theme.gold
+                        : theme.danger,
                   },
                 ]}
               />
@@ -188,80 +246,92 @@ export default function ScanResultsScreen() {
             { backgroundColor: theme.card, borderColor: theme.goldSoftGlow },
           ]}
         >
-          <ThemedText style={[styles.cardLabel, { color: theme.gold }]}>
+          <Text style={[styles.cardLabel, { color: theme.gold }]}>
             Pricing
-          </ThemedText>
+          </Text>
 
           {/* FAIR PRICE */}
-          <ThemedText style={[styles.marketLine, { color: theme.text }]}>
-            Fair Price: £{data.ai?.fair_price?.toFixed(2)}
-          </ThemedText>
+          <Text style={[styles.marketLine, { color: theme.text }]}>
+            Fair Price: £
+            {data.ai?.fair_price != null
+              ? data.ai.fair_price.toFixed(2)
+              : "—"}
+          </Text>
 
           {/* BUY PRICE */}
           <View style={styles.priceRow}>
             <View style={{ flex: 1 }}>
-              <ThemedText style={[styles.priceLabel, { color: theme.muted }]}>
+              <Text style={[styles.priceLabel, { color: theme.muted }]}>
                 Buy price
-              </ThemedText>
-              <ThemedText style={[styles.priceValue, { color: theme.text }]}>
+              </Text>
+              <Text style={[styles.priceValue, { color: theme.text }]}>
                 {buyPrice != null ? `£${buyPrice.toFixed(2)}` : "Tap to set"}
-              </ThemedText>
+              </Text>
             </View>
 
             <Pressable
               style={[styles.priceButton, { backgroundColor: theme.gold }]}
               onPress={() => openCalculator("buy")}
             >
-              <ThemedText style={[styles.priceButtonText, { color: theme.black }]}>
+              <Text
+                style={[styles.priceButtonText, { color: theme.black }]}
+              >
                 Set
-              </ThemedText>
+              </Text>
             </Pressable>
           </View>
 
           {/* SELL PRICE */}
           <View style={styles.priceRow}>
             <View style={{ flex: 1 }}>
-              <ThemedText style={[styles.priceLabel, { color: theme.muted }]}>
+              <Text style={[styles.priceLabel, { color: theme.muted }]}>
                 Sell price
-              </ThemedText>
-              <ThemedText style={[styles.priceValue, { color: theme.text }]}>
+              </Text>
+              <Text style={[styles.priceValue, { color: theme.text }]}>
                 {sellPrice != null ? `£${sellPrice.toFixed(2)}` : "Tap to set"}
-              </ThemedText>
+              </Text>
             </View>
 
             <Pressable
               style={[styles.priceButton, { backgroundColor: theme.gold }]}
               onPress={() => openCalculator("sell")}
             >
-              <ThemedText style={[styles.priceButtonText, { color: theme.black }]}>
+              <Text
+                style={[styles.priceButtonText, { color: theme.black }]}
+              >
                 Set
-              </ThemedText>
+              </Text>
             </Pressable>
           </View>
 
           {/* PROFIT + ROI */}
           <View style={styles.priceRow}>
             <View style={{ flex: 1 }}>
-              <ThemedText style={[styles.priceLabel, { color: theme.muted }]}>
+              <Text style={[styles.priceLabel, { color: theme.muted }]}>
                 Profit
-              </ThemedText>
-              <ThemedText
+              </Text>
+              <Text
                 style={[
                   styles.priceValue,
-                  { color: profit != null && profit < 0 ? theme.danger : theme.success },
+                  {
+                    color:
+                      profit != null && profit < 0
+                        ? theme.danger
+                        : theme.success,
+                  },
                 ]}
               >
                 {profit != null ? `£${profit.toFixed(2)}` : "—"}
-              </ThemedText>
+              </Text>
             </View>
 
             <View style={{ flex: 1 }}>
-              <ThemedText style={[styles.priceLabel, { color: theme.muted }]}>
+              <Text style={[styles.priceLabel, { color: theme.muted }]}>
                 ROI
-              </ThemedText>
-              <ThemedText style={[styles.priceValue, { color: theme.text }]}>
+              </Text>
+              <Text style={[styles.priceValue, { color: theme.text }]}>
                 {roi != null ? `${roi}%` : "—"}
-              </ThemedText>
+              </Text>
             </View>
           </View>
         </View>
@@ -275,9 +345,11 @@ export default function ScanResultsScreen() {
             ]}
             onPress={() => router.push("/(tabs)/scan")}
           >
-            <ThemedText style={[styles.actionButtonText, { color: theme.black }]}>
+            <Text
+              style={[styles.actionButtonText, { color: theme.black }]}
+            >
               Scan Again
-            </ThemedText>
+            </Text>
           </Pressable>
         </View>
 
@@ -286,15 +358,19 @@ export default function ScanResultsScreen() {
           style={[
             styles.saveBox,
             { backgroundColor: theme.card, borderColor: theme.gold },
+            saved && { opacity: 0.6 },
           ]}
           onPress={saveToHistory}
+          disabled={saved}
         >
-          <ThemedText style={[styles.saveTitle, { color: theme.gold }]}>
-            Save to history
-          </ThemedText>
-          <ThemedText style={[styles.saveSubtitle, { color: theme.muted }]}>
-            Keep this flip in your log for later
-          </ThemedText>
+          <Text style={[styles.saveTitle, { color: theme.gold }]}>
+            {saved ? "Saved ✓" : "Save to history"}
+          </Text>
+          <Text style={[styles.saveSubtitle, { color: theme.muted }]}>
+            {saved
+              ? "This flip is now in your History and Home dashboard"
+              : "Keep this flip in your log for later"}
+          </Text>
         </Pressable>
       </ScrollView>
 
@@ -312,9 +388,9 @@ export default function ScanResultsScreen() {
               { backgroundColor: theme.card, borderColor: theme.goldSoftGlow },
             ]}
           >
-            <ThemedText style={[styles.calcTitle, { color: theme.gold }]}>
+            <Text style={[styles.calcTitle, { color: theme.gold }]}>
               {calcMode === "buy" ? "Set buy price" : "Set sell price"}
-            </ThemedText>
+            </Text>
 
             <View
               style={[
@@ -322,36 +398,32 @@ export default function ScanResultsScreen() {
                 { backgroundColor: theme.secondary },
               ]}
             >
-              <ThemedText
-                style={[
-                  styles.calcDisplayText,
-                  { color: theme.text },
-                ]}
+              <Text
+                style={[styles.calcDisplayText, { color: theme.text }]}
               >
                 £{calcValue || "0"}
-              </ThemedText>
+              </Text>
             </View>
 
             <View style={styles.calcGrid}>
-              {["7","8","9","4","5","6","1","2","3","0",".","DEL"].map((key) => (
-                <Pressable
-                  key={key}
-                  style={[
-                    styles.calcKey,
-                    { backgroundColor: theme.secondary },
-                  ]}
-                  onPress={() => handleCalcKey(key)}
-                >
-                  <ThemedText
+              {["7","8","9","4","5","6","1","2","3","0",".","DEL"].map(
+                (key) => (
+                  <Pressable
+                    key={key}
                     style={[
-                      styles.calcKeyText,
-                      { color: theme.text },
+                      styles.calcKey,
+                      { backgroundColor: theme.secondary },
                     ]}
+                    onPress={() => handleCalcKey(key)}
                   >
-                    {key}
-                  </ThemedText>
-                </Pressable>
-              ))}
+                    <Text
+                      style={[styles.calcKeyText, { color: theme.text }]}
+                    >
+                      {key}
+                    </Text>
+                  </Pressable>
+                )
+              )}
             </View>
 
             <View style={styles.calcBottomRow}>
@@ -362,14 +434,11 @@ export default function ScanResultsScreen() {
                 ]}
                 onPress={() => handleCalcKey("CLR")}
               >
-                <ThemedText
-                  style={[
-                    styles.calcActionText,
-                    { color: theme.text },
-                  ]}
+                <Text
+                  style={[styles.calcActionText, { color: theme.text }]}
                 >
                   Clear
-                </ThemedText>
+                </Text>
               </Pressable>
 
               <Pressable
@@ -379,20 +448,17 @@ export default function ScanResultsScreen() {
                 ]}
                 onPress={confirmCalc}
               >
-                <ThemedText
-                  style={[
-                    styles.calcActionText,
-                    { color: theme.black },
-                  ]}
+                <Text
+                  style={[styles.calcActionText, { color: theme.black }]}
                 >
                   Confirm
-                </ThemedText>
+                </Text>
               </Pressable>
             </View>
           </View>
         </View>
       </Modal>
-    </ThemedView>
+    </View>
   );
 }
 

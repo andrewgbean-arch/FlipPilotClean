@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   Animated,
   Pressable,
@@ -6,14 +6,15 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
+  Text,
 } from "react-native";
 
-import ThemedText from "@/src/styles/theme/ThemedText";
-
-import { useTheme } from "@/src/context/ThemeContext";
+import { useTheme } from "@/styles/useTheme";
+import { Feather } from "@expo/vector-icons";
 
 interface FeedbackSheetProps {
-  translateY: Animated.AnimatedInterpolation<string | number>;
+  translateY: Animated.Value;
   closeSheet: () => void;
   feedbackText: string;
   setFeedbackText: (t: string) => void;
@@ -30,10 +31,35 @@ const FeedbackSheet: React.FC<FeedbackSheetProps> = ({
   sendFeedback,
 }) => {
   const theme = useTheme();
+  const silver = "#AAB4C3";
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener("keyboardWillShow", (e) => {
+      Animated.timing(translateY, {
+        toValue: -e.endCoordinates.height + 40,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    });
+
+    const hideSub = Keyboard.addListener("keyboardWillHide", () => {
+      Animated.timing(translateY, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      behavior={Platform.OS === "ios" ? "position" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
       style={styles.overlay}
       pointerEvents="box-none"
     >
@@ -44,7 +70,7 @@ const FeedbackSheet: React.FC<FeedbackSheetProps> = ({
         pointerEvents="auto"
       />
 
-      {/* Sliding sheet */}
+      {/* Floating Sheet */}
       <Animated.View
         pointerEvents="auto"
         style={[
@@ -52,59 +78,65 @@ const FeedbackSheet: React.FC<FeedbackSheetProps> = ({
           {
             backgroundColor: theme.card,
             borderColor: theme.goldDeep,
-            borderWidth: 3,
             transform: [{ translateY }],
           },
         ]}
       >
-        <ThemedText style={[styles.title, { color: theme.accent }]}>
+        {/* Title */}
+        <Text style={[styles.title, { color: theme.goldDeep }]}>
+          <Feather name="message-circle" size={22} color={theme.goldDeep} />{" "}
           Feedback / Ideas
-        </ThemedText>
+        </Text>
 
+        {/* Input */}
         <TextInput
           style={[
             styles.input,
             {
               backgroundColor: theme.background,
-              color: theme.accent,
+              color: theme.text,
               borderColor: theme.goldDeep,
             },
           ]}
           placeholder="Tell us your idea..."
-          placeholderTextColor="#999"
+          placeholderTextColor={silver}
           value={feedbackText}
           onChangeText={setFeedbackText}
           multiline
         />
 
         {warning && (
-          <ThemedText style={{ color: "red", marginTop: 6 }}>
+          <Text style={{ color: "red", marginTop: 6 }}>
             Please enter something first
-          </ThemedText>
+          </Text>
         )}
 
         {/* SEND BUTTON */}
         <Pressable
           style={[
             styles.button,
-            { backgroundColor: theme.goldDeep, borderColor: theme.black },
+            {
+              backgroundColor: theme.goldDeep,
+              borderColor: theme.black,
+            },
           ]}
           onPress={sendFeedback}
         >
-          <ThemedText style={styles.buttonText}>Send</ThemedText>
+          <Text style={[styles.buttonText, { color: theme.black }]}>Send</Text>
         </Pressable>
 
         {/* CANCEL BUTTON */}
         <Pressable
           style={[
             styles.cancelButton,
-            { backgroundColor: theme.background, borderColor: theme.goldDeep },
+            {
+              backgroundColor: theme.background,
+              borderColor: theme.goldDeep,
+            },
           ]}
           onPress={closeSheet}
         >
-          <ThemedText style={[styles.buttonText, { color: theme.accent }]}>
-            Cancel
-          </ThemedText>
+          <Text style={[styles.buttonText, { color: silver }]}>Cancel</Text>
         </Pressable>
       </Animated.View>
     </KeyboardAvoidingView>
@@ -119,32 +151,33 @@ const styles = StyleSheet.create({
   },
   sheet: {
     width: "100%",
-    padding: 20,
+    padding: 22,
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
+    borderWidth: 3,
   },
   title: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "900",
-    marginBottom: 14,
+    marginBottom: 16,
     textAlign: "center",
   },
   input: {
-    minHeight: 120,
+    minHeight: 130,
     borderWidth: 2,
-    borderRadius: 14,
-    padding: 12,
+    borderRadius: 16,
+    padding: 14,
     fontSize: 16,
   },
   button: {
-    marginTop: 20,
+    marginTop: 22,
     paddingVertical: 14,
     borderWidth: 2,
     borderRadius: 14,
     alignItems: "center",
   },
   cancelButton: {
-    marginTop: 12,
+    marginTop: 14,
     paddingVertical: 14,
     borderWidth: 2,
     borderRadius: 14,

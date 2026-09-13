@@ -1,5 +1,5 @@
-import { router } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
   FlatList,
@@ -12,9 +12,10 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import SponsoredCard from "../../src/components/SponsoredCard";
+import SponsoredCard from "@/components/marketplace/SponsoredCard";
+
 import { businessAdverts } from "../../src/lib/businessAdverts";
-import { Fair, fairs } from "../../src/lib/fairs";
+import { Fair, fairs, loadUserFairs } from "../../src/lib/fairs";
 
 export default function BootFairFinderScreen() {
   const [postcode, setPostcode] = useState("");
@@ -26,9 +27,13 @@ export default function BootFairFinderScreen() {
 
   const [fairLocations, setFairLocations] = useState<Fair[]>([]);
 
-  useEffect(() => {
-    setFairLocations(fairs);
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadUserFairs().then((userFairs) => {
+        setFairLocations([...userFairs, ...fairs]);
+      });
+    }, [])
+  );
 
   useEffect(() => {
     Animated.timing(headerAnim, {

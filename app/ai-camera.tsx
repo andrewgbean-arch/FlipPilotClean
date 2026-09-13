@@ -2,9 +2,10 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import * as FileSystem from "expo-file-system/legacy";
 
 import { router } from "expo-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   Easing,
   Pressable,
@@ -12,6 +13,9 @@ import {
   Text,
   View,
 } from "react-native";
+
+import { aiLookup } from "@/utils/api";
+import { transformScanResult } from "@/utils/scanTransform";
 
 const NAVY = "#0A1128";
 const GOLD = "#FFD700";
@@ -68,29 +72,9 @@ export default function AiCameraScreen() {
     ).start();
   };
 
-  const buildUnifiedPayload = (raw: any, image: string) => {
-    return {
-      title: raw.title || "Unknown Item",
-      image,
-      barcode: "N/A",
-      buy: raw.smartPrice ?? null,
-      sell: raw.googlePriceMax ?? null,
-      confidence: raw.confidence ?? null,
-      google: {
-        min: raw.googlePriceMin ?? null,
-        max: raw.googlePriceMax ?? null,
-      },
-      ebay: {
-        average: raw.ebayData?.average ?? null,
-        lowest: raw.ebayData?.lowest ?? null,
-        highest: raw.ebayData?.highest ?? null,
-      },
-      amazon: {
-        min: raw.amazonPriceMin ?? null,
-        max: raw.amazonPriceMax ?? null,
-      },
-    };
-  };
+  useEffect(() => {
+    startLockPulse();
+  }, []);
 
   const handleTakePhoto = async () => {
     if (!cameraRef.current || loading) return;
@@ -99,34 +83,23 @@ export default function AiCameraScreen() {
     startScanWave();
 
     try {
-      const photo = await cameraRef.current.takePicture();
+      const photo = await cameraRef.current.takePictureAsync();
 
       const base64 = await FileSystem.readAsStringAsync(photo.uri, {
         encoding: "base64",
       });
 
-      const res = await fetch("http://192.168.0.47:3001/lookup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imageBase64: base64,
-          userId: "demo-user-1",
-          deviceId: "device-1",
-        }),
-      });
+      const res = await aiLookup(base64);
 
-      const data = await res.json();
+      if (!res || res.error) {
+        throw new Error(res?.error ?? "AI lookup failed");
+      }
 
       // SUPER NOVA VISION MODE DATA
-      setVisionBox(data.ai?.box ?? null);
-      setConfidence(data.ai?.confidence ?? null);
+      setVisionBox(res.ai?.box ?? null);
+      setConfidence(res.ai?.confidence ?? null);
 
-      const raw = {
-        ...data.market,
-        ...data.ai,
-      };
-
-      const payload = buildUnifiedPayload(raw, photo.uri);
+      const payload = transformScanResult(res, photo.uri);
 
       router.push({
         pathname: "/scan/scan-results",
@@ -134,23 +107,7 @@ export default function AiCameraScreen() {
       });
     } catch (err) {
       console.log("AI camera error:", err);
-
-      router.push({
-        pathname: "/scan/scan-results",
-        params: {
-          data: JSON.stringify({
-            title: "Unknown Item",
-            image: "",
-            barcode: "N/A",
-            buy: null,
-            sell: null,
-            confidence: null,
-            google: { min: null, max: null },
-            ebay: { average: null, lowest: null, highest: null },
-            amazon: { min: null, max: null },
-          }),
-        },
-      });
+      Alert.alert("Scan failed", "Couldn't identify this item — try again.");
     }
 
     setLoading(false);
@@ -174,8 +131,6 @@ export default function AiCameraScreen() {
       </View>
     );
   }
-
-  startLockPulse();
 
   return (
     <View style={styles.container}>

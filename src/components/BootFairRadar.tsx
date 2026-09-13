@@ -1,7 +1,5 @@
 import React from "react";
-import { StyleSheet } from "react-native";
-import ThemedView from "./ThemedView";
-import ThemedText from "./ThemedText";
+import { StyleSheet, View, Text } from "react-native";
 
 // ------------------------------------------------------
 // TYPES
@@ -27,7 +25,7 @@ export default function BootFairRadar({
   if (!nearest) return null;
 
   return (
-    <ThemedView
+    <View
       style={[
         styles.card,
         {
@@ -37,24 +35,28 @@ export default function BootFairRadar({
         },
       ]}
     >
-      <ThemedText style={[styles.title, { color: theme.accent }]}>
+      <Text style={[styles.title, { color: theme.accent }]}>
         Boot Fair Radar
-      </ThemedText>
+      </Text>
 
-      <ThemedText style={styles.text}>{nearest.name}</ThemedText>
-      <ThemedText style={styles.text}>
+      <Text style={[styles.text, { color: theme.text }]}>
+        {nearest.name}
+      </Text>
+
+      <Text style={[styles.text, { color: theme.text }]}>
         Distance: {nearest.distance.toFixed(1)} km
-      </ThemedText>
-      <ThemedText style={styles.text}>
-        Next: {nearest.nextOpen}
-      </ThemedText>
+      </Text>
 
-      <ThemedText style={[styles.tip, { color: theme.accent }]}>
+      <Text style={[styles.text, { color: theme.text }]}>
+        Next: {nearest.nextOpen}
+      </Text>
+
+      <Text style={[styles.tip, { color: theme.accent }]}>
         {nearest.distance < 10
           ? "Close enough to visit today"
           : "Bit of a drive, boss"}
-      </ThemedText>
-    </ThemedView>
+      </Text>
+    </View>
   );
 }
 
@@ -75,9 +77,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   text: {
-    color: "white",
     fontSize: 15,
     marginBottom: 4,
+    fontWeight: "600",
   },
   tip: {
     marginTop: 10,
@@ -85,3 +87,4 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
+

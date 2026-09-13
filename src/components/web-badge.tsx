@@ -1,11 +1,7 @@
 import { version } from "expo/package.json";
 import { Image } from "expo-image";
-import { useColorScheme, StyleSheet } from "react-native";
+import { useColorScheme, StyleSheet, View, Text } from "react-native";
 
-import ThemedText from "../styles/theme/ThemedText";
-import ThemedView from "../styles/theme/ThemedView";
-
-// local text variant
 const textVariants = StyleSheet.create({
   small: { fontSize: 13, opacity: 0.75 },
 });
@@ -14,10 +10,10 @@ export function WebBadge() {
   const scheme = useColorScheme();
 
   return (
-    <ThemedView style={styles.container}>
-      <ThemedText style={[textVariants.small, styles.versionText]}>
+    <View style={styles.container}>
+      <Text style={[textVariants.small, styles.versionText]}>
         v{version}
-      </ThemedText>
+      </Text>
 
       <Image
         source={
@@ -27,7 +23,7 @@ export function WebBadge() {
         }
         style={styles.badgeImage}
       />
-    </ThemedView>
+    </View>
   );
 }
 
@@ -39,6 +35,7 @@ const styles = StyleSheet.create({
   },
   versionText: {
     textAlign: "center",
+    fontWeight: "600",
   },
   badgeImage: {
     width: 123,

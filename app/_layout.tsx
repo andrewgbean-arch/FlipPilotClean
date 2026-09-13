@@ -1,14 +1,34 @@
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
+import { View } from "react-native";
 
+import DealerBanner from "../src/components/DealerBanner";
 import ProBadge from "../src/components/ProBadge";
-import { FlipHistoryProvider } from "../src/context/FlipHistoryContext";
-import { SubscriptionProvider } from "../src/context/SubscriptionContext";
-import { ThemeProvider, useTheme } from "../src/context/ThemeContext";
 
-// ⭐ ADD THIS IMPORT
-import { VehicleHistoryProvider } from "../src/features/vehicles/context/VehicleHistoryContext";
+import { SubscriptionProvider } from "../src/context/SubscriptionContext";
+import { ThemeProvider, useTheme } from "../src/styles/ThemeContext";
+
+import { VehicleHistoryProvider, useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
+import { FlipHistoryProvider } from "@/context/FlipHistoryContext";
+
+// ✔ REAL Dealer Mode Provider
+import { UserSettingsProvider } from "@/features/settings/UserSettingsContext";
+
+// Dealer Notifications
+import { DealerNotificationsProvider } from "@/features/vehicles/context/DealerNotificationsContext";
+
+// Dealer AI
+import { DealerAIProvider } from "@/features/dealer-ai/DealerAIContext";
+
+// Gold Flash Overlay
+import GoldFlashOverlay from "@/components/ui/GoldFlashOverlay";
+
+// ⭐ Gold Confetti Overlay
+import GoldConfetti from "@/components/ui/GoldConfetti";
+
+// ⭐ Gold Lightning Flash (milestone accent)
+import GoldLightning from "@/components/ui/GoldLightning";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -19,20 +39,39 @@ export default function RootLayout() {
 
   return (
     <SubscriptionProvider>
-      <ThemeProvider>
-        <FlipHistoryProvider>
+      <UserSettingsProvider>
+        <DealerAIProvider>
+          <ThemeProvider>
+            <DealerNotificationsProvider>
+              <FlipHistoryProvider>
+                <VehicleHistoryProvider>
 
-          {/* ⭐ WRAP THE ENTIRE APP IN VEHICLE HISTORY PROVIDER */}
-          <VehicleHistoryProvider>
+                  {/* ⭐ Global UI Overlays */}
+                  <DealerBanner />
+                  <ProBadgeOverlay />
+                  <GoldFlashOverlayWrapper />
 
-            <ProBadgeOverlay />
-            <ThemedStack />
+                  <ThemedStack />
 
-          </VehicleHistoryProvider>
-
-        </FlipHistoryProvider>
-      </ThemeProvider>
+                </VehicleHistoryProvider>
+              </FlipHistoryProvider>
+            </DealerNotificationsProvider>
+          </ThemeProvider>
+        </DealerAIProvider>
+      </UserSettingsProvider>
     </SubscriptionProvider>
+  );
+}
+
+function GoldFlashOverlayWrapper() {
+  const { flashTrigger } = useVehicleHistory();
+
+  return (
+    <>
+      <GoldFlashOverlay trigger={flashTrigger} />
+      <GoldConfetti trigger={flashTrigger} />
+      <GoldLightning trigger={flashTrigger} />
+    </>
   );
 }
 
@@ -41,7 +80,6 @@ function ThemedStack() {
 
   return (
     <Stack
-      initialRouteName="index"
       screenOptions={{
         headerStyle: { backgroundColor: theme.background },
         headerTintColor: theme.accent,
@@ -49,18 +87,23 @@ function ThemedStack() {
         contentStyle: { backgroundColor: theme.background },
       }}
     >
+      {/* Core */}
       <Stack.Screen name="index" options={{ headerShown: false }} />
+
+      {/* ⭐ Tabs — this loads app/(tabs)/_layout.tsx */}
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="(market)" options={{ headerShown: false }} />
+
+      {/* Core non-tab screens */}
       <Stack.Screen name="ai-camera" options={{ headerShown: false }} />
       <Stack.Screen name="upgrade" options={{ title: "Upgrade" }} />
       <Stack.Screen name="manage-subscription" options={{ title: "Manage Subscription" }} />
       <Stack.Screen name="pro-success" options={{ headerShown: false }} />
+
+      {/* ❌ DO NOT manually register dealer or finance screens here */}
+      {/* Expo Router will auto-load everything inside /app/dealer and /app/dealer/finance */}
     </Stack>
   );
 }
-
-import { View } from "react-native";
 
 function ProBadgeOverlay() {
   return (

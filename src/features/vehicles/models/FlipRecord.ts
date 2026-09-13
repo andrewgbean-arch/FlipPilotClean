@@ -1,114 +1,410 @@
+/* -------------------------------------------------------
+   FLIP RECORD MODEL
+------------------------------------------------------- */
+
 export interface FlipRecord {
   id: string;
+
+  // Basic info
   title: string;
+  buyPrice: number | null;
+  sellPrice: number | null;
 
-  /* ================================
-     ⭐ TIMESTAMP (required by context)
-  ================================= */
-  timestamp?: string | null;
+  // Dealer analytics fields (NEW)
+  mileage?: number | null;
+  buyDate?: string | null;
+  sellDate?: string | null;
 
-  /* ================================
-     ⭐ BASIC PRICES
-  ================================= */
-  buyPrice?: number | null;
-  sellPrice?: number | null;
+  // AI fair price (existing)
+  price?: number | null;
 
-  /* ================================
-     ⭐ IMAGES
-  ================================= */
-  images?: string[] | null;
+  // Vehicle valuation (NEW)
+  valuation?: number | null;
 
-  /* ================================
-     ⭐ FAVOURITE
-  ================================= */
+  // Historical valuations
+  valuationHistory?: {
+    date: string;
+    value: number;
+  }[] | null;
+
+  // AI valuation engine output
+  aiValuation?: {
+    estimatedValue?: number | null;
+    confidence?: number | null;
+    notes?: string | null;
+  } | null;
+
+  // Trade-in value
+  tradeValue?: number | null;
+
+  // Buyer confidence score
+  buyerConfidence?: number | null;
+
+  // Flip score + favourite
+  flipScore?: number | null;
   favourite?: boolean;
 
-  /* ================================
-     ⭐ USER NOTES
-  ================================= */
-  notes?: string | null;
+  // Timestamp
+  timestamp: string;
 
-  /* ================================
-     ⭐ AI PRICE BLOCK (simple)
-  ================================= */
+  // General metadata
+  category?: string | null;
+  barcode?: string | null;
+  profit?: number | null;
+
+  // Images
+  images?: string[] | null;
+
+  // FlipScore inputs
+  rarity?: string | null;
+  sellSpeed?: string | null;
+
+  // AI analysis
+  ai?: {
+    condition?: string | null;
+    description?: string | null;
+
+    fullDescription?: string | null;
+    origin?: string | null;
+    conditionScore?: number | null;
+
+    photos?: any[] | null;
+  } | null;
+
+  // AI price engine output
   aiPrice?: {
     recommendedSellPrice?: number | null;
     riskLevel?: "low" | "medium" | "high" | null;
+    confidence?: number | null;
+    notes?: string | null;
+
+    min?: number | null;
+    max?: number | null;
   } | null;
 
-  /* ================================
-   ⭐ MOT BLOCK (FULL TYPE)
-================================= */
-mot?: {
-  motStatus?: string | null;
-  expiryDate?: string | null;
-  mileageHistory?: { date: string; mileage: number }[];
-  advisories?: string[];
-  failures?: string[];
-} | null;
+  // Legacy AI price fields
+  aiPriceMin?: number | null;
+  aiPriceMax?: number | null;
+  aiPriceConfidence?: number | null;
 
-
-  /* ================================
-     ⭐ AI BLOCK (backend)
-  ================================= */
-  ai?: {
-    title?: string;
-    description?: string;
-    fullDescription?: string;
-    condition?: string;
-    conditionScore?: number | null;
-    category?: string | null;
-    keywords?: string[] | null;
-    origin?: string | null;
-  } | null;
-
-  /* ================================
-     ⭐ MARKET BLOCK
-  ================================= */
+  // Market scan
   market?: {
+    demandScore?: number | null;
+
     googlePriceMin?: number | null;
     googlePriceMax?: number | null;
+    smartPrice?: number | null;
 
     lowest?: number | null;
     highest?: number | null;
     average?: number | null;
 
-    smartPrice?: number | null;
     soldCount?: number | null;
-    demandScore?: number | null;
 
     aiPriceMin?: number | null;
     aiPriceMax?: number | null;
     aiPriceConfidence?: number | null;
   } | null;
 
-  /* ================================
-     ⭐ PRICING BLOCK
-  ================================= */
+  // FULL MOT structure
+  mot?: {
+    make?: string | null;
+    model?: string | null;
+    year?: number | null;
+    reg?: string | null;
+
+    motStatus?: string | null;
+    motExpiry?: string | null;
+    expiryDate?: string | null;
+
+    mileage?: number | null;
+    taxStatus?: string | null;
+
+    advisories?: string[] | null;
+    failures?: string[] | null;
+
+    mileageHistory?: {
+      date: string;
+      mileage: number;
+    }[] | null;
+
+    colour?: string | null;
+    keepers?: number | null;
+  } | null;
+
+  // Engine size
+  engineSize?: number | null;
+
+  // Pro tips
+  proTips?: string[] | null;
+
+  // Legacy pricing fields
   pricing?: {
     recommendedBuyPrice?: number | null;
     recommendedSellPrice?: number | null;
     predictedProfit?: number | null;
   } | null;
 
-  /* ================================
-     ⭐ FLIP META
-  ================================= */
-  flipScore?: number | null;
   flipPotential?: string | null;
-  sellSpeed?: string | null;
-  rarity?: string | null;
   insights?: string | null;
 
-  /* ================================
-     ⭐ FALLBACK FIELDS
-  ================================= */
-  aiPriceMin?: number | null;
-  aiPriceMax?: number | null;
-  aiPriceConfidence?: number | null;
+  // Notes
+  notes?: string | null;
 
-  /* ================================
-     ⭐ AI PRO TIPS
-  ================================= */
-  proTips?: string[] | null;
+  /* -------------------------------------------------------
+     DEALER INTELLIGENCE FIELDS (NEW)
+  ------------------------------------------------------- */
+
+  listingStatus?: string | null;
+
+  buyerEmotion?: string | null;
+  buyerPersonality?: string | null;
+  buyerStage?: string | null;
+  followUp?: string | null;
+
+  financeRisk?: string | null;
+
+  diagnosticSummary?: string | null;
+  warrantyRisk?: string | null;
+  predictiveMaintenance?: string | null;
+
+  closingProbability?: string | null;
+  closingNextMove?: string | null;
+}
+
+/* -------------------------------------------------------
+   DEFAULTS
+------------------------------------------------------- */
+
+export const FlipRecordDefaults: FlipRecord = {
+  id: "",
+  title: "",
+  buyPrice: null,
+  sellPrice: null,
+
+  mileage: null,
+  buyDate: null,
+  sellDate: null,
+
+  price: null,
+  valuation: null,
+  valuationHistory: null,
+
+  aiValuation: {
+    estimatedValue: null,
+    confidence: null,
+    notes: null,
+  },
+
+  tradeValue: null,
+  buyerConfidence: null,
+
+  flipScore: null,
+  favourite: false,
+
+  timestamp: new Date().toISOString(),
+
+  category: null,
+  barcode: null,
+  profit: null,
+
+  images: null,
+
+  rarity: null,
+  sellSpeed: null,
+
+  ai: {
+    condition: null,
+    description: null,
+    fullDescription: null,
+    origin: null,
+    conditionScore: null,
+    photos: null,
+  },
+
+  aiPrice: {
+    recommendedSellPrice: null,
+    riskLevel: null,
+    confidence: null,
+    notes: null,
+    min: null,
+    max: null,
+  },
+
+  aiPriceMin: null,
+  aiPriceMax: null,
+  aiPriceConfidence: null,
+
+  market: {
+    demandScore: null,
+    googlePriceMin: null,
+    googlePriceMax: null,
+    smartPrice: null,
+    lowest: null,
+    highest: null,
+    average: null,
+    soldCount: null,
+    aiPriceMin: null,
+    aiPriceMax: null,
+    aiPriceConfidence: null,
+  },
+
+  mot: {
+    make: null,
+    model: null,
+    year: null,
+    reg: null,
+    motStatus: null,
+    motExpiry: null,
+    expiryDate: null,
+    mileage: null,
+    taxStatus: null,
+    advisories: null,
+    failures: null,
+    mileageHistory: null,
+    colour: null,
+    keepers: null,
+  },
+
+  engineSize: null,
+  proTips: null,
+
+  pricing: {
+    recommendedBuyPrice: null,
+    recommendedSellPrice: null,
+    predictedProfit: null,
+  },
+
+  flipPotential: null,
+  insights: null,
+
+  notes: null,
+
+  /* -------------------------------------------------------
+     DEALER INTELLIGENCE DEFAULTS
+  ------------------------------------------------------- */
+
+  listingStatus: null,
+
+  buyerEmotion: null,
+  buyerPersonality: null,
+  buyerStage: null,
+  followUp: null,
+
+  financeRisk: null,
+
+  diagnosticSummary: null,
+  warrantyRisk: null,
+  predictiveMaintenance: null,
+
+  closingProbability: null,
+  closingNextMove: null,
+};
+
+/* -------------------------------------------------------
+   FACTORY (NEW FLIP)
+------------------------------------------------------- */
+
+export function FlipRecordFactory(title: string): FlipRecord {
+  return {
+    ...FlipRecordDefaults,
+    id: crypto.randomUUID(),
+    title,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+/* -------------------------------------------------------
+   NORMALISER (FIX OLD FLIPS)
+------------------------------------------------------- */
+
+export function normalizeFlipRecord(v: Partial<FlipRecord>): FlipRecord {
+  return {
+    ...FlipRecordDefaults,
+    ...v,
+
+    aiValuation: {
+      ...FlipRecordDefaults.aiValuation,
+      ...(v.aiValuation ?? {}),
+    },
+
+    aiPrice: {
+      ...FlipRecordDefaults.aiPrice,
+      ...(v.aiPrice ?? {}),
+    },
+
+    market: {
+      ...FlipRecordDefaults.market,
+      ...(v.market ?? {}),
+    },
+
+    mot: {
+      ...FlipRecordDefaults.mot,
+      ...(v.mot ?? {}),
+    },
+
+    pricing: {
+      ...FlipRecordDefaults.pricing,
+      ...(v.pricing ?? {}),
+    },
+
+    ai: {
+      ...FlipRecordDefaults.ai,
+      ...(v.ai ?? {}),
+    },
+
+    /* -------------------------------------------------------
+       DEALER INTELLIGENCE NORMALISATION
+    ------------------------------------------------------- */
+
+    listingStatus: v.listingStatus ?? FlipRecordDefaults.listingStatus,
+
+    buyerEmotion: v.buyerEmotion ?? FlipRecordDefaults.buyerEmotion,
+    buyerPersonality: v.buyerPersonality ?? FlipRecordDefaults.buyerPersonality,
+    buyerStage: v.buyerStage ?? FlipRecordDefaults.buyerStage,
+    followUp: v.followUp ?? FlipRecordDefaults.followUp,
+
+    financeRisk: v.financeRisk ?? FlipRecordDefaults.financeRisk,
+
+    diagnosticSummary:
+      v.diagnosticSummary ?? FlipRecordDefaults.diagnosticSummary,
+    warrantyRisk: v.warrantyRisk ?? FlipRecordDefaults.warrantyRisk,
+    predictiveMaintenance:
+      v.predictiveMaintenance ?? FlipRecordDefaults.predictiveMaintenance,
+
+    closingProbability:
+      v.closingProbability ?? FlipRecordDefaults.closingProbability,
+    closingNextMove: v.closingNextMove ?? FlipRecordDefaults.closingNextMove,
+  };
+}
+
+/* -------------------------------------------------------
+   VALIDATOR (ENSURE SAFE DATA)
+------------------------------------------------------- */
+
+export function validateFlipRecord(v: FlipRecord): string[] {
+  const errors: string[] = [];
+
+  if (!v.id) errors.push("Missing id");
+  if (!v.title) errors.push("Missing title");
+  if (!v.timestamp) errors.push("Missing timestamp");
+
+  if (v.buyPrice !== null && v.buyPrice < 0)
+    errors.push("Buy price cannot be negative");
+
+  if (v.sellPrice !== null && v.sellPrice < 0)
+    errors.push("Sell price cannot be negative");
+
+  if (v.mileage != null && v.mileage < 0)
+    errors.push("Mileage cannot be negative");
+
+  return errors;
+}
+
+/* -------------------------------------------------------
+   MIGRATION (UPGRADE OLD DATA)
+------------------------------------------------------- */
+
+export function migrateFlipRecords(records: any[]): FlipRecord[] {
+  return records.map((r) => normalizeFlipRecord(r));
 }

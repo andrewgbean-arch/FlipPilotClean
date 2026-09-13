@@ -1,5 +1,6 @@
 {
   "extends": "expo/tsconfig.base",
+
   "compilerOptions": {
     "strict": true,
     "ignoreDeprecations": "6.0",
@@ -7,13 +8,22 @@
     "baseUrl": ".",
 
     "paths": {
-      "@/*": ["./*"],
-      "@/src/*": ["src/*"]
-    }
+      "@/*": ["src/*"],
+      "~/*": ["app/*"],
+      "@styles/*": ["src/styles/*"]
+    },
+
+    "jsx": "react-native",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "types": ["react", "react-native"]
   },
+
   "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    "declarations.d.ts"
-  ]
+    "src",
+    "app",
+    "src/types/react-native.d.ts",
+    "declarations.d.ts",
+    "app/listing/analysis/[id].tsx"
+, "src/components/DepreciationCurve.tsx", "app/dealer/DealerTools.tsx"  ]
 }

@@ -1,11 +1,13 @@
-import { FlipRecord } from "../models/FlipRecord";
+import { FlipRecord } from "../features/vehicles/models/FlipRecord";
 
 export function resolveCategory(flip: FlipRecord): string {
-  // 1. Direct AI category
-  if (flip.ai?.category) return flip.ai.category;
+  // 1. Direct category from FlipRecord (top-level)
+  if (flip.category) return flip.category;
 
-  // 2. Keyword-based detection
-  const keywords = flip.ai?.keywords?.join(" ").toLowerCase() ?? "";
+  // 2. Keyword-based detection (from description instead)
+  const keywords =
+    flip.ai?.description?.toLowerCase() ??
+    flip.title.toLowerCase(); // fallback to title
 
   if (keywords.includes("toy") || keywords.includes("lego")) return "Toys";
   if (keywords.includes("book") || keywords.includes("novel")) return "Books";

@@ -11,7 +11,7 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Fair, fairs } from "../../src/lib/fairs";
+import { Fair, addUserFair } from "../../src/lib/fairs";
 
 // Simple profanity filter
 const bannedWords = ["fuck", "shit", "bitch", "cunt", "slut", "whore"];
@@ -53,7 +53,7 @@ export default function AddFairScreen() {
     }
   };
 
-  const validateAndSubmit = () => {
+  const validateAndSubmit = async () => {
     if (
       !name ||
       !postcode ||
@@ -145,7 +145,7 @@ export default function AddFairScreen() {
       acceptsCash: true,
     };
 
-    fairs.push(newFair);
+    await addUserFair(newFair);
 
     Alert.alert("Success", "Your boot fair has been added!");
     router.back();

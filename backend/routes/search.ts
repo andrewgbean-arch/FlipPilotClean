@@ -1,11 +1,11 @@
 import axios from "axios";
 import { Router } from "express";
 import fetchMarketData from "../market-backend/fetchMarketData";
+import { buildFlipMeta } from "../market-backend/buildFlipMeta";
 
 
 
 const router = Router();
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 /* --------------------------------------------------
    1. OpenFoodFacts
@@ -72,7 +72,7 @@ Return JSON with:
       },
       {
         headers: {
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
           "Content-Type": "application/json",
         },
       }
@@ -91,41 +91,6 @@ Return JSON with:
       category,
     };
   }
-}
-
-/* --------------------------------------------------
-   3. Flip Meta (unchanged)
--------------------------------------------------- */
-function buildFlipMeta(market: any) {
-  const profit =
-    market?.googlePriceMax && market?.smartPrice
-      ? market.googlePriceMax - market.smartPrice
-      : 0;
-
-  let flipScore = 40;
-
-  if (profit > 1) flipScore += 20;
-  if (profit > 3) flipScore += 20;
-  if (profit > 5) flipScore += 10;
-
-  if (market?.soldCount > 5) flipScore += 10;
-  if (market?.soldCount === 0) flipScore -= 10;
-
-  return {
-    flipScore,
-    flipPotential:
-      flipScore >= 80 ? "High" : flipScore >= 60 ? "Medium" : "Low",
-    sellSpeed:
-      market?.soldCount > 5
-        ? "Fast"
-        : market?.soldCount > 0
-        ? "Normal"
-        : "Slow",
-    rarity: "Common",
-    insights:
-      "Based on current retail and used prices, this item has moderate flip potential.",
-    predictedProfit: profit,
-  };
 }
 
 /* --------------------------------------------------
@@ -150,7 +115,7 @@ router.get("/search", async (req, res) => {
 
     const pricing = {
       recommendedBuyPrice: market.smartPrice,
-      recommendedSellPrice: market.googlePriceMax,
+      recommendedSellPrice: market.average ?? market.googlePriceMax,
       predictedProfit: flipMeta.predictedProfit,
     };
 

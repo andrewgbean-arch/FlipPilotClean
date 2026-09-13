@@ -1,31 +1,22 @@
-import { Text, TextProps } from "react-native";
 import React from "react";
-import { useTheme } from "../../context/ThemeContext";
+import { Text, TextProps, StyleProp, TextStyle } from "react-native";
+import { useTheme } from "@/styles/useTheme";
 
 interface ThemedTextProps extends TextProps {
-  variant?: "default" | "muted" | "accent" | "danger" | "success";
+  style?: StyleProp<TextStyle>;
+  children?: React.ReactNode;
 }
 
-export function ThemedText({
-  variant = "default",
-  style,
-  ...props
-}: ThemedTextProps) {
+export default function ThemedText({ children, style, ...rest }: ThemedTextProps) {
   const theme = useTheme();
 
-  const color =
-    variant === "muted"
-      ? theme.muted
-      : variant === "accent"
-      ? theme.accent
-      : variant === "danger"
-      ? theme.danger
-      : variant === "success"
-      ? theme.success
-      : theme.text;
-
-  return <Text {...props} style={[{ color }, style]} />;
+  return (
+    <Text
+      {...rest}
+      style={[{ color: theme.text }, style]}
+    >
+      {children}
+    </Text>
+  );
 }
-
-export default ThemedText;
 

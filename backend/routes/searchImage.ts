@@ -1,9 +1,10 @@
 import { Router } from "express";
 import axios from "axios";
 import { rateLimit } from "../middleware/rateLimit";
+import fetchMarketData from "../market-backend/fetchMarketData";
+import { buildFlipMeta } from "../market-backend/buildFlipMeta";
 
 const router = Router();
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 /* --------------------------------------------------
    BULLETPROOF JSON EXTRACTOR
@@ -75,7 +76,7 @@ Return ONLY valid JSON with:
       payload,
       {
         headers: {
-          Authorization: `Bearer ${OPENAI_API_KEY}`,
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
           "Content-Type": "application/json"
         }
       }
@@ -116,23 +117,15 @@ router.post("/search-image", rateLimit(2), async (req, res) => {
     ai.category = ai.category || "Unknown";
     ai.origin = ai.origin || "Unknown";
 
-    // No barcode → no market data
-    const market = {
-      googlePriceMin: null,
-      googlePriceMax: null,
-      average: null,
-      lowest: null,
-      highest: null,
-      smartPrice: null,
-      soldCount: null,
-      demandScore: null,
-      items: []
-    };
+    // No barcode from a photo — use the AI-identified title to run the same
+    // real eBay/Amazon/Google pricing lookup the barcode `/search` route uses.
+    const market = await fetchMarketData(ai.title);
+    const flipMeta = buildFlipMeta(market);
 
     const pricing = {
-      recommendedBuyPrice: null,
-      recommendedSellPrice: null,
-      predictedProfit: null
+      recommendedBuyPrice: market.smartPrice,
+      recommendedSellPrice: market.average ?? market.googlePriceMax,
+      predictedProfit: flipMeta.predictedProfit
     };
 
     const usage = {
@@ -147,14 +140,18 @@ router.post("/search-image", rateLimit(2), async (req, res) => {
       ai,
       market,
       pricing,
-      ebayItems: [],
-      flipScore: 50,
-      flipPotential: "Medium",
-      sellSpeed: "Unknown",
-      rarity: "Unknown",
-      insights: ai.fullDescription ?? ai.description ?? "",
-      image: null,
+      ebayItems: market.ebayItems,
+      googleItems: market.googleItems,
+      flipScore: flipMeta.flipScore,
+      flipPotential: flipMeta.flipPotential,
+      sellSpeed: flipMeta.sellSpeed,
+      rarity: flipMeta.rarity,
+      insights: ai.fullDescription ?? ai.description ?? flipMeta.insights,
+      image: market.image,
       title: ai.title,
+      aiPriceMin: market.aiPriceMin,
+      aiPriceMax: market.aiPriceMax,
+      aiPriceConfidence: market.aiPriceConfidence,
       usage
     });
   } catch (err) {

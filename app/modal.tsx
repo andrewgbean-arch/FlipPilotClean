@@ -1,10 +1,9 @@
 import { router } from "expo-router";
-import { StyleSheet, View, Pressable, Animated, PanResponder } from "react-native";
+import { StyleSheet, View, Pressable, Animated, PanResponder, Text } from "react-native";
 import { useEffect, useRef } from "react";
 import { BlurView } from "expo-blur";
-import { ThemedText } from "../components/themed-text";
 
-import { useTheme } from "../src/context/ThemeContext";
+import { useTheme } from "@/styles/ThemeContext";
 
 export default function ModalScreen() {
   const theme = useTheme();
@@ -40,7 +39,7 @@ export default function ModalScreen() {
         useNativeDriver: true,
       }),
     ]).start(() => {
-      router.back(); // correct Expo Router 2.x dismiss
+      router.back();
     });
   };
 
@@ -55,20 +54,15 @@ export default function ModalScreen() {
 
   return (
     <View style={styles.overlay}>
-      <Animated.View
-        style={[styles.backdrop, { opacity: backdropOpacity }]}
-      >
+      <Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={closeModal} />
       </Animated.View>
 
-      <Animated.View
-        {...panResponder.panHandlers}
-        style={{ transform: [{ translateY }] }}
-      >
+      <Animated.View {...panResponder.panHandlers} style={{ transform: [{ translateY }] }}>
         <BlurView intensity={50} tint="default" style={styles.card}>
-          <ThemedText type="title" style={styles.title}>
-            This is a modal
-          </ThemedText>
+          <Text style={{ marginBottom: 12, fontSize: 20, fontWeight: "700", color: theme.text }}>
+            Some text
+          </Text>
 
           <Pressable
             onPress={() => {
@@ -77,11 +71,15 @@ export default function ModalScreen() {
             }}
             style={styles.button}
           >
-            <ThemedText type="link">Go to home screen</ThemedText>
+            <Text style={{ color: "#00A8FF", fontWeight: "600" }}>
+              Go to home screen
+            </Text>
           </Pressable>
 
           <Pressable onPress={closeModal} style={[styles.button, { marginTop: 10 }]}>
-            <ThemedText type="link">Close</ThemedText>
+            <Text style={{ color: "#00A8FF", fontWeight: "600" }}>
+              Close
+            </Text>
           </Pressable>
         </BlurView>
       </Animated.View>
@@ -95,7 +93,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.45)",
   },
   card: {
@@ -103,9 +101,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 25,
     borderTopRightRadius: 25,
     overflow: "hidden",
-  },
-  title: {
-    marginBottom: 20,
   },
   button: {
     paddingVertical: 12,

@@ -1,9 +1,13 @@
 {
   "demo-user-1": {
     "deviceId": "device-1",
-    "today": 0.5,
-    "month": 0,
-    "lastScanDate": "2026-06-17",
-    "lastScanMonth": "2026-06"
+    "stats": {
+      "today": 0.5,
+      "month": 0
+    },
+    "lastActivity": {
+      "scanDate": "2026-06-17",
+      "scanMonth": "2026-06"
+    }
   }
 }

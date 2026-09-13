@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { FlipRecord } from "../models/FlipRecord";
+import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
+import { BASE_URL } from "@/utils/api";
 
 type AIResponse = {
-  recommendedSellPrice: number;
+  recommendedSellPrice: number | null;
   riskLevel: "low" | "medium" | "high";
-  confidence: number;
-  aiPriceMin: number;
-  aiPriceMax: number;
+  confidence: number | null;
+  aiPriceMin: number | null;
+  aiPriceMax: number | null;
   insights: string;
 };
 
@@ -14,20 +15,28 @@ export function useAIValuation() {
   const [loading, setLoading] = useState(false);
 
   const fetchAIValuation = async (vehicle: FlipRecord): Promise<AIResponse | null> => {
+    if (!vehicle.title) return null;
+
     try {
       setLoading(true);
 
-      // 🔥 Replace with your backend endpoint
-      const res = await fetch("https://your-backend.com/ai/valuation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(vehicle),
-      });
+      const res = await fetch(`${BASE_URL}/search?q=${encodeURIComponent(vehicle.title)}`);
 
       if (!res.ok) return null;
 
       const data = await res.json();
-      return data as AIResponse;
+      if (data.error) return null;
+
+      const confidence = data.aiPriceConfidence ?? data.market?.aiPriceConfidence ?? null;
+
+      return {
+        recommendedSellPrice: data.pricing?.recommendedSellPrice ?? null,
+        riskLevel: confidence == null ? "medium" : confidence >= 70 ? "low" : confidence >= 40 ? "medium" : "high",
+        confidence,
+        aiPriceMin: data.aiPriceMin ?? null,
+        aiPriceMax: data.aiPriceMax ?? null,
+        insights: data.insights ?? "",
+      };
     } catch (e) {
       console.log("AI valuation error", e);
       return null;

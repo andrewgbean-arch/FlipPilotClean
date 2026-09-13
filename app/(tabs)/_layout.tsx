@@ -6,11 +6,21 @@ import {
   Heart,
   House,
   Scan as ScanIcon,
+  Briefcase,
 } from "phosphor-react-native";
+
+import { View, Text } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+// ⭐ Motors notifications
+import { useDealerNotifications } from "@/features/vehicles/context/DealerNotificationsContext";
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
+
+  // ⭐ unread count (Motors only)
+  const { notifications } = useDealerNotifications();
+  const unread = notifications.filter((n) => !n.read).length;
 
   return (
     <Tabs
@@ -18,9 +28,6 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: true,
-
-        // We no longer use tabBarActiveTintColor or tabBarInactiveTintColor
-        // because icons now have custom gold colours.
 
         tabBarStyle: {
           backgroundColor: "rgba(10, 25, 49, 0.96)",
@@ -42,6 +49,7 @@ export default function TabsLayout() {
       }}
     >
 
+      {/* HOME */}
       <Tabs.Screen
         name="home"
         options={{
@@ -56,6 +64,7 @@ export default function TabsLayout() {
         }}
       />
 
+      {/* SCAN */}
       <Tabs.Screen
         name="scan"
         options={{
@@ -70,6 +79,7 @@ export default function TabsLayout() {
         }}
       />
 
+      {/* HISTORY */}
       <Tabs.Screen
         name="history"
         options={{
@@ -84,6 +94,7 @@ export default function TabsLayout() {
         }}
       />
 
+      {/* FAVOURITES */}
       <Tabs.Screen
         name="favourites"
         options={{
@@ -97,20 +108,40 @@ export default function TabsLayout() {
           ),
         }}
       />
-<Tabs.Screen
-  name="vehicles"
-  options={{
-    tabBarLabel: "Vehicles",
-    tabBarIcon: ({ focused }) => (
-      <CompassRose
-        size={30}
-        weight={focused ? "bold" : "regular"}
-        color={focused ? "#FFD700" : "rgba(255, 215, 0, 0.45)"}
-      />
-    ),
-  }}
-/>
 
+      {/* ⭐ MOTORS (with unread badge) */}
+      <Tabs.Screen
+        name="motors"
+        options={{
+          tabBarLabel: "Motors",
+          tabBarIcon: ({ focused }) => (
+            <BadgeWrapper unread={unread}>
+              <CompassRose
+                size={30}
+                weight={focused ? "bold" : "regular"}
+                color={focused ? "#FFD700" : "rgba(255, 215, 0, 0.45)"}
+              />
+            </BadgeWrapper>
+          ),
+        }}
+      />
+
+      {/* ⭐ DEALER TAB */}
+      <Tabs.Screen
+        name="dealer"
+        options={{
+          tabBarLabel: "Dealer",
+          tabBarIcon: ({ focused }) => (
+            <Briefcase
+              size={30}
+              weight={focused ? "bold" : "regular"}
+              color={focused ? "#FFD700" : "rgba(255, 215, 0, 0.45)"}
+            />
+          ),
+        }}
+      />
+
+      {/* EXPLORE */}
       <Tabs.Screen
         name="explore"
         options={{
@@ -125,20 +156,44 @@ export default function TabsLayout() {
         }}
       />
 
-      <Tabs.Screen
-        name="market"
-        options={{
-          tabBarLabel: "Market",
-          tabBarIcon: ({ focused }) => (
-            <CompassRose
-              size={30}
-              weight={focused ? "bold" : "regular"}
-              color={focused ? "#FFD700" : "rgba(255, 215, 0, 0.45)"}
-            />
-          ),
-        }}
-      />
-
     </Tabs>
+  );
+}
+
+function BadgeWrapper({
+  children,
+  unread,
+}: {
+  children: React.ReactNode;
+  unread: number;
+}) {
+  return (
+    <View style={{ position: "relative" }}>
+      {children}
+
+      {unread > 0 && (
+        <View
+          style={{
+            position: "absolute",
+            top: -6,
+            right: -10,
+            backgroundColor: "#FFD700",
+            borderRadius: 999,
+            paddingHorizontal: 6,
+            paddingVertical: 2,
+          }}
+        >
+          <Text
+            style={{
+              color: "#000",
+              fontWeight: "800",
+              fontSize: 12,
+            }}
+          >
+            {unread}
+          </Text>
+        </View>
+      )}
+    </View>
   );
 }

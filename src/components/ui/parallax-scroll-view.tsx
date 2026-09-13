@@ -1,20 +1,14 @@
 import type { PropsWithChildren, ReactElement } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated, {
   interpolate,
   useAnimatedRef,
   useAnimatedStyle,
   useScrollViewOffset,
-
 } from 'react-native-reanimated';
-
-import { ThemedView } from "@/components/ui/themed-view";
-
-
 
 import { useColorScheme } from "../../../hooks/use-color-scheme";
 import { useThemeColor } from "../../../hooks/use-theme-color";
-
 
 const HEADER_HEIGHT = 250;
 
@@ -30,8 +24,9 @@ export default function ParallaxScrollView({
 }: Props) {
   const backgroundColor = useThemeColor({}, 'background');
   const colorScheme = useColorScheme() ?? 'light';
+
   const scrollRef = useAnimatedRef<Animated.ScrollView>();
- const scrollOffset = useScrollViewOffset(scrollRef);
+  const scrollOffset = useScrollViewOffset(scrollRef);
 
   const headerAnimatedStyle = useAnimatedStyle(() => {
     return {
@@ -44,7 +39,11 @@ export default function ParallaxScrollView({
           ),
         },
         {
-          scale: interpolate(scrollOffset.value, [-HEADER_HEIGHT, 0, HEADER_HEIGHT], [2, 1, 1]),
+          scale: interpolate(
+            scrollOffset.value,
+            [-HEADER_HEIGHT, 0, HEADER_HEIGHT],
+            [2, 1, 1]
+          ),
         },
       ],
     };
@@ -54,17 +53,23 @@ export default function ParallaxScrollView({
     <Animated.ScrollView
       ref={scrollRef}
       style={{ backgroundColor, flex: 1 }}
-      scrollEventThrottle={16}>
+      scrollEventThrottle={16}
+    >
       <Animated.View
         style={[
           styles.header,
-         { backgroundColor: headerBackgroundColor[colorScheme === "dark" ? "dark" : "light"] },
-
+          {
+            backgroundColor:
+              headerBackgroundColor[colorScheme === "dark" ? "dark" : "light"],
+          },
           headerAnimatedStyle,
-        ]}>
+        ]}
+      >
         {headerImage}
       </Animated.View>
-      <ThemedView style={styles.content}>{children}</ThemedView>
+
+      {/* FIXED: replaced ThemedView with View */}
+      <View style={styles.content}>{children}</View>
     </Animated.ScrollView>
   );
 }

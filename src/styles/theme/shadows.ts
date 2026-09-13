@@ -1,5 +1,5 @@
 import { StyleSheet } from "react-native";
-import { useTheme } from "../../context/ThemeContext";
+import { useTheme } from "../ThemeContext";
 
 export const useShadows = () => {
   const theme = useTheme();

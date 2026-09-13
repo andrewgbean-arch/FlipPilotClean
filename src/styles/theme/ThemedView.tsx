@@ -1,6 +1,6 @@
 import { View, ViewProps } from "react-native";
 import React from "react";
-import { useTheme } from "../../context/ThemeContext";
+import { useTheme } from "../ThemeContext";
 
 interface ThemedViewProps extends ViewProps {
   variant?: "card" | "background" | "accent" | "muted";

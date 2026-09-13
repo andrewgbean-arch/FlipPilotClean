@@ -1,9 +1,15 @@
 import React from "react";
-import { Animated, Platform, StyleSheet } from "react-native";
-import { useTheme } from "@/context/ThemeContext";
-import ThemedView from "@/styles/theme/ThemedView";
-import ThemedText from "@/styles/theme/ThemedText";
-import { FlipRecord } from "@/models/FlipRecord";
+import {
+  Animated,
+  Platform,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+  Text,
+} from "react-native";
+
+import { useTheme } from "@/styles/useTheme";
+import { FlipRecord } from "../src/features/vehicles/models/FlipRecord";
 
 interface ProfitSupernovaSheetProps {
   translateY: Animated.AnimatedInterpolation<string | number>;
@@ -23,7 +29,7 @@ const ProfitSupernovaSheet: React.FC<ProfitSupernovaSheetProps> = ({
   const theme = useTheme();
 
   return (
-    <ThemedView style={styles.sheetOverlay}>
+    <View style={styles.sheetOverlay}>
       <Animated.View
         style={[
           styles.sheetContainer,
@@ -35,32 +41,50 @@ const ProfitSupernovaSheet: React.FC<ProfitSupernovaSheetProps> = ({
           },
         ]}
       >
-        <ThemedView style={styles.sheetHandle} />
+        {/* Handle */}
+        <View style={styles.sheetHandle} />
 
-        <ThemedText style={styles.sheetTitle}>Profit Supernova</ThemedText>
-        <ThemedText style={styles.sheetSubtitle}>
+        {/* Title */}
+        <Text style={[styles.sheetTitle, { color: theme.text }]}>
+          Profit Supernova
+        </Text>
+
+        {/* Subtitle */}
+        <Text style={[styles.sheetSubtitle, { color: theme.muted }]}>
           Your strongest flips and averages
-        </ThemedText>
+        </Text>
 
-        <ThemedView style={styles.section}>
-          <ThemedText style={styles.label}>Best Flip Profit</ThemedText>
-          <ThemedText style={styles.value}>
+        {/* Best Flip */}
+        <View style={styles.section}>
+          <Text style={[styles.label, { color: theme.text }]}>
+            Best Flip Profit
+          </Text>
+          <Text style={[styles.value, { color: theme.text }]}>
             £{bestFlip ? bestFlip.pricing?.predictedProfit ?? 0 : 0}
-          </ThemedText>
-        </ThemedView>
+          </Text>
+        </View>
 
-        <ThemedView style={styles.section}>
-          <ThemedText style={styles.label}>Average Profit</ThemedText>
-          <ThemedText style={styles.value}>£{avgProfit.toFixed(2)}</ThemedText>
-        </ThemedView>
+        {/* Average Profit */}
+        <View style={styles.section}>
+          <Text style={[styles.label, { color: theme.text }]}>
+            Average Profit
+          </Text>
+          <Text style={[styles.value, { color: theme.text }]}>
+            £{avgProfit.toFixed(2)}
+          </Text>
+        </View>
 
-        <ThemedView style={styles.section}>
-          <ThemedText style={styles.label}>Average ROI</ThemedText>
-          <ThemedText style={styles.value}>{avgROI.toFixed(1)}%</ThemedText>
-        </ThemedView>
+        {/* Average ROI */}
+        <View style={styles.section}>
+          <Text style={[styles.label, { color: theme.text }]}>Average ROI</Text>
+          <Text style={[styles.value, { color: theme.text }]}>
+            {avgROI.toFixed(1)}%
+          </Text>
+        </View>
 
-        <ThemedView style={styles.sheetButtonsRow}>
-          <ThemedView
+        {/* Buttons */}
+        <View style={styles.sheetButtonsRow}>
+          <View
             style={[
               styles.closeButton,
               {
@@ -69,13 +93,15 @@ const ProfitSupernovaSheet: React.FC<ProfitSupernovaSheetProps> = ({
               },
             ]}
           >
-            <ThemedText style={styles.closeButtonText} onPress={closeSheet}>
-              Close
-            </ThemedText>
-          </ThemedView>
-        </ThemedView>
+            <TouchableOpacity onPress={closeSheet}>
+              <Text style={[styles.closeButtonText, { color: theme.text }]}>
+                Close
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Animated.View>
-    </ThemedView>
+    </View>
   );
 };
 
@@ -112,14 +138,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "900",
     textAlign: "center",
-    color: "white",
   },
 
   sheetSubtitle: {
     fontSize: 14,
     marginBottom: 16,
     textAlign: "center",
-    color: "#AFC6FF",
   },
 
   section: {
@@ -129,13 +153,11 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     opacity: 0.7,
-    color: "white",
   },
 
   value: {
     fontSize: 20,
     fontWeight: "900",
-    color: "white",
     marginTop: 4,
   },
 
@@ -155,7 +177,6 @@ const styles = StyleSheet.create({
   closeButtonText: {
     fontSize: 16,
     fontWeight: "900",
-    color: "white",
     textAlign: "center",
   },
 });

@@ -1,79 +1,65 @@
-import React, { useCallback, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { View, Text, Image, FlatList, Pressable, StyleSheet } from "react-native";
 import * as Haptics from "expo-haptics";
-import { useFocusEffect, router } from "expo-router";
+import { router } from "expo-router";
 
-import { useTheme } from "@/src/context/ThemeContext";
-import { CarRecord } from "@/src/car/carTypes";
-import { getAllCars, deleteCar, toggleFavourite } from "@/src/car/carStorage";
+import { useTheme } from "../../src/styles/ThemeContext";
+
+import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
+import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 
 export default function FavouritesScreen() {
   const theme = useTheme();
   const s = styles(theme);
 
-  const [favourites, setFavourites] = useState<CarRecord[]>([]);
+  const { vehicles, deleteVehicle, toggleFavourite } = useVehicleHistory();
   const [confirmId, setConfirmId] = useState<string | null>(null);
 
-  // Load favourites whenever screen focuses
-  useFocusEffect(
-    useCallback(() => {
-      loadFavourites();
-    }, [])
-  );
+  const favourites = useMemo(() => {
+    return [...vehicles]
+      .filter((v) => v.favourite)
+      .sort(
+        (a, b) => Number(new Date(b.timestamp)) - Number(new Date(a.timestamp))
+      );
+  }, [vehicles]);
 
-  const loadFavourites = async () => {
-    const cars = await getAllCars();
-    const favs = cars.filter((c) => c.favourite);
-
-    // Sort by createdAt newest first
-    const sorted = [...favs].sort(
-      (a, b) => Number(new Date(b.createdAt)) - Number(new Date(a.createdAt))
-    );
-
-    setFavourites(sorted);
-  };
-
-  const handleDelete = async (id: string) => {
-    await deleteCar(id);
-    await loadFavourites();
+  const handleDelete = (id: string) => {
+    deleteVehicle(id);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
-  const handleUnsave = async (id: string) => {
-    await toggleFavourite(id);
-    await loadFavourites();
+  const handleUnsave = (id: string) => {
+    toggleFavourite(id);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
-  const openDetails = (item: CarRecord) => {
-    router.push(`/vehicle/${item.id}`);
+  const openDetails = (item: FlipRecord) => {
+    router.push(`/vehicles/details/${item.id}`);
   };
 
-  const renderItem = ({ item }: { item: CarRecord }) => {
-    const profit = item.analytics?.profit ?? 0;
-    const roi = item.analytics?.roi ?? 0;
-    const flipScore = item.analytics?.flipScore ?? 0;
+  const renderItem = ({ item }: { item: FlipRecord }) => {
+    const safeBuy = Number(item.pricing?.recommendedBuyPrice ?? item.buyPrice ?? 0);
+    const safeSell = Number(item.pricing?.recommendedSellPrice ?? item.sellPrice ?? 0);
+    const profit = Number(item.pricing?.predictedProfit ?? item.profit ?? 0);
+    const roi = safeBuy > 0 ? (profit / safeBuy) * 100 : 0;
+    const flipScore = item.flipScore ?? 0;
 
     return (
       <Pressable style={s.card} onPress={() => openDetails(item)}>
         {/* IMAGE */}
-        {item.imageUri && (
+        {item.images?.[0] && (
           <View style={s.imageWrapper}>
-            <Image source={{ uri: item.imageUri }} style={s.image} />
+            <Image source={{ uri: item.images[0] }} style={s.image} />
           </View>
         )}
 
         {/* TITLE */}
-        <Text style={s.name}>
-          🚗 {item.year} {item.make} {item.model}
-        </Text>
+        <Text style={s.name}>🚗 {item.title}</Text>
 
         {/* MONEY */}
         <View style={s.row}>
-          <Text style={s.text}>Buy: £{item.purchasePrice.toFixed(2)}</Text>
-          <Text style={s.text}>
-            Sell: £{item.salePrice?.toFixed(2) ?? "-"}
-          </Text>
+          <Text style={s.text}>Buy: £{safeBuy.toFixed(2)}</Text>
+          <Text style={s.text}>Sell: £{safeSell.toFixed(2)}</Text>
         </View>
 
         {/* PROFIT */}

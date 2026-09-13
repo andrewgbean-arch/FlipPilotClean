@@ -1,9 +1,19 @@
 import { useState, useRef, useEffect } from "react";
-import { View, Pressable, Animated, Modal, TextInput } from "react-native";
+import {
+  View,
+  Pressable,
+  Animated,
+  Modal,
+  TextInput,
+  Text,
+} from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
-import ThemedText from "../src/components/ThemedText";
-import { useTheme } from "../src/context/ThemeContext";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+import { useTheme } from "@/styles/useTheme";
 import * as Haptics from "expo-haptics";
+
+const REVIEWS_KEY = "@flippilot_reviews";
 
 export default function RateScreen() {
   const theme = useTheme();
@@ -14,9 +24,9 @@ export default function RateScreen() {
   const [toastVisible, setToastVisible] = useState(false);
 
   // STAR ANIMATIONS
-  const starScale = Array.from({ length: 5 }, () => useRef(new Animated.Value(1)).current);
-  const starLift = Array.from({ length: 5 }, () => useRef(new Animated.Value(0)).current);
-  const starGlowBright = Array.from({ length: 5 }, () => useRef(new Animated.Value(0)).current);
+  const starScale = useRef(Array.from({ length: 5 }, () => new Animated.Value(1))).current;
+  const starLift = useRef(Array.from({ length: 5 }, () => new Animated.Value(0))).current;
+  const starGlowBright = useRef(Array.from({ length: 5 }, () => new Animated.Value(0))).current;
 
   // GOLD BURST
   const burstOpacity = useRef(new Animated.Value(0)).current;
@@ -46,41 +56,36 @@ export default function RateScreen() {
   const submitBounce = useRef(new Animated.Value(1)).current;
   const submitSparkle = useRef(new Animated.Value(0)).current;
 
-  // MAIN RATE HANDLER (CLEAN + GLOW)
+  // MAIN RATE HANDLER
   const handleRate = (value: number) => {
     setRating(value);
 
     for (let i = 0; i < 5; i++) {
       if (i < value) {
-        // bright glow
         Animated.timing(starGlowBright[i], {
           toValue: 1,
           duration: 250,
           useNativeDriver: true,
         }).start();
 
-        // pop
         Animated.spring(starScale[i], {
           toValue: 1.4,
           friction: 4,
           useNativeDriver: true,
         }).start();
 
-        // lift
         Animated.spring(starLift[i], {
           toValue: -10,
           friction: 5,
           useNativeDriver: true,
         }).start();
       } else {
-        // reset glow
         Animated.timing(starGlowBright[i], {
           toValue: 0,
           duration: 200,
           useNativeDriver: true,
         }).start();
 
-        // reset pop/lift
         Animated.spring(starScale[i], {
           toValue: 1,
           friction: 4,
@@ -97,7 +102,6 @@ export default function RateScreen() {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    // EXPLOSION LOGIC
     if (value >= 3) triggerBurst();
     if (value >= 4) triggerShockwave();
     if (value === 5) {
@@ -106,7 +110,6 @@ export default function RateScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
 
-    // pulse submit button after rating
     triggerSubmitPulse();
   };
 
@@ -186,9 +189,8 @@ export default function RateScreen() {
     ).start();
   };
 
-  // SUBMIT BUTTON PULSE + GLOW + SHAKE + SPARKLES
+  // SUBMIT BUTTON ANIMATIONS
   const triggerSubmitPulse = () => {
-    // glow
     Animated.timing(submitGlow, {
       toValue: 1,
       duration: 300,
@@ -201,7 +203,6 @@ export default function RateScreen() {
       }).start();
     });
 
-    // bounce
     Animated.sequence([
       Animated.spring(submitBounce, {
         toValue: 1.15,
@@ -215,7 +216,6 @@ export default function RateScreen() {
       }),
     ]).start();
 
-    // shake
     Animated.sequence([
       Animated.timing(submitShake, {
         toValue: 10,
@@ -234,7 +234,6 @@ export default function RateScreen() {
       }),
     ]).start();
 
-    // sparkles
     Animated.sequence([
       Animated.timing(submitSparkle, {
         toValue: 1,
@@ -295,11 +294,21 @@ export default function RateScreen() {
   }, [thankYouOpen]);
 
   // SUBMIT
-  const submitRating = () => {
+  const submitRating = async () => {
     if (rating === 0) return;
 
-    console.log("Rating:", rating);
-    console.log("Review:", reviewText);
+    try {
+      const existing = await AsyncStorage.getItem(REVIEWS_KEY);
+      const reviews = existing ? JSON.parse(existing) : [];
+      reviews.push({
+        rating,
+        reviewText,
+        date: new Date().toISOString(),
+      });
+      await AsyncStorage.setItem(REVIEWS_KEY, JSON.stringify(reviews));
+    } catch (e) {
+      console.log("Failed to save review", e);
+    }
 
     setThankYouOpen(true);
     showToast();
@@ -348,7 +357,7 @@ export default function RateScreen() {
             top: "30%",
           }}
         >
-          <ThemedText style={{ fontSize: 40, color: theme.goldDeep }}>✨✨✨</ThemedText>
+          <Text style={{ fontSize: 40, color: theme.goldDeep }}>✨✨✨</Text>
         </Animated.View>
 
         {/* SHOCKWAVE */}
@@ -367,7 +376,7 @@ export default function RateScreen() {
           }}
         />
 
-        <ThemedText
+        <Text
           style={{
             fontSize: 28,
             fontWeight: "900",
@@ -377,7 +386,7 @@ export default function RateScreen() {
           }}
         >
           Rate & Review FlipPilot
-        </ThemedText>
+        </Text>
 
         {/* STARS */}
         <Animated.View style={{ transform: [{ scale: orbitScale }] }}>
@@ -385,7 +394,7 @@ export default function RateScreen() {
             {[1, 2, 3, 4, 5].map((star, i) => (
               <Pressable key={star} onPress={() => handleRate(star)}>
                 <View style={{ alignItems: "center", justifyContent: "center" }}>
-                  {/* BRIGHT GLOW BEHIND STAR */}
+                  {/* GLOW */}
                   <Animated.View
                     style={{
                       position: "absolute",
@@ -449,7 +458,7 @@ export default function RateScreen() {
           }}
         />
 
-        {/* SUBMIT BUTTON WITH GLOW + BOUNCE + SHAKE + SPARKLES */}
+        {/* SUBMIT BUTTON */}
         <Animated.View
           style={{
             transform: [
@@ -503,7 +512,7 @@ export default function RateScreen() {
               borderRadius: 14,
             }}
           >
-            <ThemedText
+            <Text
               style={{
                 fontSize: 18,
                 fontWeight: "900",
@@ -511,7 +520,7 @@ export default function RateScreen() {
               }}
             >
               Submit Rating
-            </ThemedText>
+            </Text>
           </Pressable>
         </Animated.View>
 
@@ -532,7 +541,7 @@ export default function RateScreen() {
               shadowRadius: 12,
             }}
           >
-            <ThemedText
+            <Text
               style={{
                 color: theme.accent,
                 fontWeight: "900",
@@ -540,12 +549,12 @@ export default function RateScreen() {
               }}
             >
               Rating Saved ⭐
-            </ThemedText>
+            </Text>
           </Animated.View>
         )}
       </KeyboardAwareScrollView>
 
-      {/* THANK YOU MODAL (OUTSIDE SCROLL, AUTO‑CLOSE) */}
+      {/* THANK YOU MODAL */}
       <Modal transparent visible={thankYouOpen} animationType="fade">
         <View
           pointerEvents="none"
@@ -573,7 +582,7 @@ export default function RateScreen() {
               ],
             }}
           >
-            <ThemedText
+            <Text
               style={{
                 fontSize: 24,
                 fontWeight: "900",
@@ -582,9 +591,9 @@ export default function RateScreen() {
               }}
             >
               Thank You!
-            </ThemedText>
+            </Text>
 
-            <ThemedText
+            <Text
               style={{
                 fontSize: 16,
                 color: theme.text,
@@ -594,7 +603,7 @@ export default function RateScreen() {
               }}
             >
               Your rating helps us improve FlipPilot.
-            </ThemedText>
+            </Text>
           </Animated.View>
         </View>
       </Modal>

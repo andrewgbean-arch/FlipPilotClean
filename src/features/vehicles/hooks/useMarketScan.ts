@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { BASE_URL } from "@/utils/api";
 
 export type MarketScanResult = {
   googlePriceMin?: number | null;
@@ -24,20 +25,19 @@ export function useMarketScan() {
     notes: string;
     images: string[];
   }): Promise<MarketScanResult | null> => {
+    if (!query.title) return null;
+
     try {
       setLoading(true);
 
-      // 🔥 replace with your backend endpoint
-      const res = await fetch("https://your-backend.com/market/scan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(query),
-      });
+      const res = await fetch(`${BASE_URL}/search?q=${encodeURIComponent(query.title)}`);
 
       if (!res.ok) return null;
 
       const data = await res.json();
-      return data as MarketScanResult;
+      if (data.error) return null;
+
+      return data.market as MarketScanResult;
     } catch (e) {
       console.log("Market scan error", e);
       return null;

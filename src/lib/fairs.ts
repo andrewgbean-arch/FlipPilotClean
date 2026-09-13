@@ -1,3 +1,5 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 export interface Fair {
   id: string;
 
@@ -47,3 +49,21 @@ phone?: string;
 }
 
 export const fairs: Fair[] = [];
+
+const USER_FAIRS_KEY = "@flippilot_user_bootfairs";
+
+export async function loadUserFairs(): Promise<Fair[]> {
+  try {
+    const raw = await AsyncStorage.getItem(USER_FAIRS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function addUserFair(fair: Fair): Promise<Fair[]> {
+  const existing = await loadUserFairs();
+  const updated = [fair, ...existing];
+  await AsyncStorage.setItem(USER_FAIRS_KEY, JSON.stringify(updated));
+  return updated;
+}

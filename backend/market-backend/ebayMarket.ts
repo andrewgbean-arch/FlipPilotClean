@@ -65,7 +65,7 @@ export default async function fetchEbayMarket(
       };
     }
 
-    const url = `https://serpapi.com/search.json?engine=ebay&q=${encodeURIComponent(
+    const url = `https://serpapi.com/search.json?engine=ebay&_nkw=${encodeURIComponent(
       query
     )}&api_key=${process.env.SERPAPI_KEY}&ebay_domain=ebay.co.uk&sort=best_match&sold_items=true`;
 

@@ -1,4 +1,5 @@
 import { router } from "expo-router";
+import Constants from "expo-constants";
 import {
   ReactNode,
   createContext,
@@ -6,6 +7,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import { Platform } from "react-native";
 import Purchases, {
   CustomerInfo,
   PurchasesOfferings,
@@ -20,15 +22,29 @@ type SubscriptionContextType = {
 
 const SubscriptionContext = createContext<SubscriptionContextType | null>(null);
 
+// RevenueCat ships a real native module — it only works in a custom dev
+// client / production build, never in Expo Go (which can't include
+// arbitrary native modules) and never on web.
+const REVENUECAT_SUPPORTED =
+  Platform.OS !== "web" && Constants.appOwnership !== "expo";
+
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const [offerings, setOfferings] = useState<PurchasesOfferings | null>(null);
   const [isPro, setIsPro] = useState(false);
 
+  // ⭐ Update Pro status
+  const updateProStatus = (info: CustomerInfo) => {
+    const active = info.entitlements.active;
+    setIsPro(!!active["pro"]);
+  };
+
   // ⭐ Initialize RevenueCat
   useEffect(() => {
+    if (!REVENUECAT_SUPPORTED) return;
+
     async function init() {
       try {
-        Purchases.setDebugLogsEnabled(true);
+        await Purchases.setDebugLogsEnabled(true);
 
         await Purchases.configure({
           apiKey: process.env.EXPO_PUBLIC_REVENUECAT_KEY!,
@@ -49,14 +65,9 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     init();
   }, []);
 
-  // ⭐ Update Pro status
-  const updateProStatus = (info: CustomerInfo) => {
-    const active = info.entitlements.active;
-    setIsPro(!!active["pro"]);
-  };
-
   // ⭐ Purchase handler
   const purchase = async (pkg: any) => {
+    if (!REVENUECAT_SUPPORTED) return;
     try {
       const { customerInfo } = await Purchases.purchasePackage(pkg);
       updateProStatus(customerInfo);
@@ -73,6 +84,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
   // ⭐ Restore purchases
   const restore = async () => {
+    if (!REVENUECAT_SUPPORTED) return;
     try {
       const info = await Purchases.restorePurchases();
       updateProStatus(info);

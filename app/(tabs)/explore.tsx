@@ -8,12 +8,11 @@ import {
   ScrollView,
   TextInput,
   View,
+  Text,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useTheme } from "../../src/context/ThemeContext";
-import { ThemedText } from "../../src/styles/theme/ThemedText";
-import ThemedView from "../../src/styles/theme/ThemedView";
+import { useTheme } from "@/styles/useTheme";
 
 type Feature = {
   icon: string;
@@ -268,9 +267,9 @@ export default function ExploreScreen() {
 
   const renderProBadge = (f: Feature) =>
     f.premium ? (
-      <ThemedView style={styles.proBadge}>
-        <ThemedText style={styles.proBadgeText}>PRO</ThemedText>
-      </ThemedView>
+      <View style={styles.proBadge}>
+        <Text style={styles.proBadgeText}>PRO</Text>
+      </View>
     ) : null;
 
   return (
@@ -300,10 +299,10 @@ export default function ExploreScreen() {
           ],
         }}
       >
-        <ThemedText style={styles.title}>FlipPilot Academy</ThemedText>
-        <ThemedText style={styles.subtitle}>
+        <Text style={styles.title}>FlipPilot Academy</Text>
+        <Text style={styles.subtitle}>
           Your hub for tools, guides, AI features, and flipping mastery.
-        </ThemedText>
+        </Text>
       </Animated.View>
 
       {/* SEARCH */}
@@ -321,7 +320,7 @@ export default function ExploreScreen() {
           marginTop: 12,
         }}
       >
-        <ThemedView>
+        <View>
           <TextInput
             placeholder="Search tools, features, guides..."
             placeholderTextColor={theme.muted}
@@ -345,20 +344,20 @@ export default function ExploreScreen() {
                 top: 18,
               }}
             >
-              <ThemedText
+              <Text
                 style={{ color: theme.accent, fontSize: 14, fontWeight: "700" }}
               >
                 Clear
-              </ThemedText>
+              </Text>
             </Pressable>
           )}
-        </ThemedView>
+        </View>
       </Animated.View>
 
-      {/* QUICK ACCESS (now premium card, no gradient) */}
+      {/* QUICK ACCESS */}
       {!search && (
-        <ThemedView style={{ marginTop: 26 }}>
-          <ThemedView
+        <View style={{ marginTop: 26 }}>
+          <View
             style={{
               padding: 16,
               borderRadius: 16,
@@ -367,9 +366,9 @@ export default function ExploreScreen() {
               backgroundColor: theme.card,
             }}
           >
-            <ThemedText style={styles.sectionTitle}>Quick Access</ThemedText>
+            <Text style={styles.sectionTitle}>Quick Access</Text>
 
-            <ThemedView style={{ gap: 14, marginTop: 14 }}>
+            <View style={{ gap: 14, marginTop: 14 }}>
               {/* AI Lookup */}
               <Pressable
                 onPress={() => {
@@ -387,12 +386,10 @@ export default function ExploreScreen() {
                   },
                 ]}
               >
-                <ThemedText style={styles.cardTitleDark}>
-                  🔍 AI Lookup
-                </ThemedText>
-                <ThemedText style={styles.cardTextDark}>
+                <Text style={styles.cardTitleDark}>🔍 AI Lookup</Text>
+                <Text style={styles.cardTextDark}>
                   Identify any item instantly
-                </ThemedText>
+                </Text>
               </Pressable>
 
               {/* Barcode Scanner */}
@@ -411,12 +408,10 @@ export default function ExploreScreen() {
                   },
                 ]}
               >
-                <ThemedText style={styles.cardTitleDark}>
-                  📸 Barcode Scanner
-                </ThemedText>
-                <ThemedText style={styles.cardTextDark}>
+                <Text style={styles.cardTitleDark}>📸 Barcode Scanner</Text>
+                <Text style={styles.cardTextDark}>
                   Fastest way to check value
-                </ThemedText>
+                </Text>
               </Pressable>
 
               {/* Boot Fairs */}
@@ -434,19 +429,15 @@ export default function ExploreScreen() {
                   },
                 ]}
               >
-                <ThemedText style={styles.cardTitleDark}>
-                  🛒 Boot Fairs
-                </ThemedText>
-                <ThemedText style={styles.cardTextDark}>
-                  Find local boot fairs
-                </ThemedText>
+                <Text style={styles.cardTitleDark}>🛒 Boot Fairs</Text>
+                <Text style={styles.cardTextDark}>Find local boot fairs</Text>
               </Pressable>
 
               {/* Market Tools */}
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push("/(market)");
+                  router.push("/marketplace");
                 }}
                 style={({ pressed }) => [
                   styles.cardDark,
@@ -457,22 +448,20 @@ export default function ExploreScreen() {
                   },
                 ]}
               >
-                <ThemedText style={styles.cardTitleDark}>
-                  📊 Market Tools
-                </ThemedText>
-                <ThemedText style={styles.cardTextDark}>
+                <Text style={styles.cardTitleDark}>📊 Market Tools</Text>
+                <Text style={styles.cardTextDark}>
                   Real resale value & trends
-                </ThemedText>
+                </Text>
               </Pressable>
-            </ThemedView>
-          </ThemedView>
-        </ThemedView>
+            </View>
+          </View>
+        </View>
       )}
 
       {/* WHAT’S NEW */}
       {!search && (
-        <ThemedView style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>What’s New</ThemedText>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>What’s New</Text>
 
           {FEATURES.slice(0, 1).map((f, i) => (
             <View key={f.title}>
@@ -489,29 +478,31 @@ export default function ExploreScreen() {
                   onPress={() => handleOpenFeature(f)}
                 >
                   {renderProBadge(f)}
-                  <ThemedText
+                  <Text
                     style={
                       f.premium ? styles.cardTitleDark : styles.cardTitle
                     }
                   >
                     {f.icon} {f.title}
-                  </ThemedText>
-                  <ThemedText
-                    style={f.premium ? styles.cardTextDark : styles.cardText}
+                  </Text>
+                  <Text
+                    style={
+                      f.premium ? styles.cardTextDark : styles.cardText
+                    }
                   >
                     {f.desc}
-                  </ThemedText>
+                  </Text>
                 </Pressable>
               </Animated.View>
             </View>
           ))}
-        </ThemedView>
+        </View>
       )}
 
       {/* SUGGESTED FOR YOU */}
       {!search && (
-        <ThemedView style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Suggested for You</ThemedText>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Suggested for You</Text>
 
           {smartSuggestions.map((f, i) => (
             <View key={f.title}>
@@ -528,29 +519,31 @@ export default function ExploreScreen() {
                   onPress={() => handleOpenFeature(f)}
                 >
                   {renderProBadge(f)}
-                  <ThemedText
+                  <Text
                     style={
                       f.premium ? styles.cardTitleDark : styles.cardTitle
                     }
                   >
                     {f.icon} {f.title}
-                  </ThemedText>
-                  <ThemedText
-                    style={f.premium ? styles.cardTextDark : styles.cardText}
+                  </Text>
+                  <Text
+                    style={
+                      f.premium ? styles.cardTextDark : styles.cardText
+                    }
                   >
                     {f.desc}
-                  </ThemedText>
+                  </Text>
                 </Pressable>
               </Animated.View>
             </View>
           ))}
-        </ThemedView>
+        </View>
       )}
 
       {/* RECENTLY VIEWED */}
       {!search && recent.length > 0 && (
-        <ThemedView style={styles.section}>
-          <ThemedText style={styles.sectionTitle}>Recently Viewed</ThemedText>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Recently Viewed</Text>
 
           {recent.map((title, i) => {
             const f = FEATURES.find((x) => x.title === title);
@@ -571,31 +564,31 @@ export default function ExploreScreen() {
                     onPress={() => handleOpenFeature(f)}
                   >
                     {renderProBadge(f)}
-                    <ThemedText
+                    <Text
                       style={
                         f.premium ? styles.cardTitleDark : styles.cardTitle
                       }
                     >
                       {f.icon} {f.title}
-                    </ThemedText>
-                    <ThemedText
+                    </Text>
+                    <Text
                       style={
                         f.premium ? styles.cardTextDark : styles.cardText
                       }
                     >
                       {f.desc}
-                    </ThemedText>
+                    </Text>
                   </Pressable>
                 </Animated.View>
               </View>
             );
           })}
-        </ThemedView>
+        </View>
       )}
 
       {/* GROUPED SECTIONS */}
       {Object.keys(grouped).map((category, sectionIndex) => (
-        <ThemedView key={category} style={styles.section}>
+        <View key={category} style={styles.section}>
           {sectionIndex > 0 && <View style={styles.divider} />}
 
           <Animated.Text
@@ -619,29 +612,29 @@ export default function ExploreScreen() {
                   onPress={() => handleOpenFeature(f)}
                 >
                   {renderProBadge(f)}
-                  <ThemedText
+                  <Text
                     style={
                       f.premium ? styles.cardTitleDark : styles.cardTitle
                     }
                   >
                     {f.icon} {f.title}
-                  </ThemedText>
-                  <ThemedText
+                  </Text>
+                  <Text
                     style={
                       f.premium ? styles.cardTextDark : styles.cardText
                     }
                   >
                     {f.desc}
-                  </ThemedText>
+                  </Text>
                 </Pressable>
               </Animated.View>
             </View>
           ))}
-        </ThemedView>
+        </View>
       ))}
 
       {filtered.length === 0 && (
-        <ThemedText style={styles.empty}>No results found.</ThemedText>
+        <Text style={styles.empty}>No results found.</Text>
       )}
     </ScrollView>
   );

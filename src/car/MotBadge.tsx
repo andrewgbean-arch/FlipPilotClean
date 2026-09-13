@@ -1,8 +1,9 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, View } from "react-native";
-import ThemedText from "@/src/styles/theme/ThemedText";
-import { useTheme } from "@/src/context/ThemeContext";
-import { getMotStatus } from "@/src/car/carUtils";
+import { Text } from "react-native";
+
+import { useTheme } from "@/styles/ThemeContext";
+import { getMotStatus } from "@/car/carUtils";
 
 interface MotBadgeProps {
   expiry?: string;
@@ -48,7 +49,8 @@ export default function MotBadge({ expiry }: MotBadgeProps) {
           backgroundColor: s.bg,
         }}
       >
-        <ThemedText style={{ color: s.text, fontWeight: "900" }}>{s.label}</ThemedText>
+        <Text style={{ color: s.text, fontWeight: "900" }}>{s.label}</Text>
+
       </View>
     </Animated.View>
   );

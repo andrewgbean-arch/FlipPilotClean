@@ -2,18 +2,21 @@ import axios from "axios";
 
 console.log("VISION.TS LOADED");
 
-// --------------------------------------------------
-// BULLETPROOF JSON EXTRACTOR
-// --------------------------------------------------
+/* --------------------------------------------------
+   ⭐ BULLETPROOF JSON EXTRACTOR
+-------------------------------------------------- */
 function extractJSON(text: string) {
   if (!text) return null;
 
+  // Remove markdown fences
   text = text.replace(/```json/gi, "").replace(/```/g, "").trim();
 
+  // Direct parse attempt
   try {
     return JSON.parse(text);
   } catch {}
 
+  // Fallback: extract first valid JSON block
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start !== -1 && end !== -1) {
@@ -25,9 +28,9 @@ function extractJSON(text: string) {
   return null;
 }
 
-// --------------------------------------------------
-// SAFE NORMALISERS
-// --------------------------------------------------
+/* --------------------------------------------------
+   ⭐ SAFE NORMALISERS
+-------------------------------------------------- */
 function safeNumber(n: any, fallback: number) {
   const num = Number(n);
   return isNaN(num) ? fallback : num;
@@ -37,9 +40,9 @@ function clamp(num: number, min: number, max: number) {
   return Math.max(min, Math.min(max, num));
 }
 
-// --------------------------------------------------
-// MAIN VISION FUNCTION — OPENAI RESPONSES API
-// --------------------------------------------------
+/* --------------------------------------------------
+   ⭐ MAIN VISION FUNCTION — OPENAI RESPONSES API
+-------------------------------------------------- */
 export default async function runVision(imageBase64: string) {
   const apiKey = process.env.OPENAI_API_KEY;
 
@@ -117,20 +120,30 @@ Rules:
       const parsed = extractJSON(raw);
       if (!parsed) return null;
 
-      // ⭐ Normalise fields
-      parsed.confidence = safeNumber(parsed.confidence, 50);
+      /* --------------------------------------------------
+         ⭐ NORMALISE FIELDS
+      -------------------------------------------------- */
+      parsed.confidence = clamp(safeNumber(parsed.confidence, 50), 0, 100);
       parsed.conditionScore = clamp(
         safeNumber(parsed.conditionScore, 5),
         1,
         10
       );
 
-      if (!parsed.title || parsed.title === "Unknown Item") {
-        parsed.title = "Unknown Item";
-      }
+      parsed.title = parsed.title || "Unknown Item";
+      parsed.category = parsed.category || "Unknown";
+      parsed.origin = parsed.origin || "Unknown";
 
-      if (!parsed.category) parsed.category = "Unknown";
-      if (!parsed.origin) parsed.origin = "Unknown";
+      if (!parsed.market) {
+        parsed.market = {
+          retailPrice: null,
+          usedPrice: null,
+          sellThroughRating: 0,
+          demand: "Low",
+          riskScore: 50,
+          flipDifficulty: 50,
+        };
+      }
 
       return parsed;
     } catch (err: any) {
@@ -139,7 +152,9 @@ Rules:
     }
   };
 
-  // Retry 3 times
+  /* --------------------------------------------------
+     ⭐ RETRY LOGIC (3 attempts)
+  -------------------------------------------------- */
   for (let i = 0; i < 3; i++) {
     const parsed = await attempt();
     if (parsed) return parsed;
@@ -147,6 +162,9 @@ Rules:
 
   console.log("❌ AI Lookup: All retries failed — returning fallback.");
 
+  /* --------------------------------------------------
+     ⭐ FALLBACK RESPONSE
+  -------------------------------------------------- */
   return {
     title: "Unknown Item",
     category: "Unknown",

@@ -39,7 +39,6 @@ export default {
       "expo-sharing",
       "expo-router",
       "expo-image",
-      
       "expo-camera"
     ],
     experiments: {

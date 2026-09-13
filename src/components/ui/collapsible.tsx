@@ -1,8 +1,8 @@
-import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
 import { PropsWithChildren, useRef, useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View, Text } from "react-native";
 import { PanGestureHandler } from "react-native-gesture-handler";
+
 import Animated, {
   interpolateColor,
   runOnJS,
@@ -13,21 +13,19 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 
-import { ThemedText } from "@/components/themed-text";
-import { ThemedView } from "@/components/themed-view";
-import { useTheme } from "@/hooks/use-theme-legacy";
-import { Radius, Spacing } from "@/styles/theme";
+import { useTheme } from "@/styles/ThemeContext";
+
 
 export function Collapsible({
   children,
   title,
   onOpen,
   scrollTo,
-}: PropsWithChildren & {
+}: PropsWithChildren<{
   title: string;
   onOpen?: () => void;
   scrollTo?: () => void;
-}) {
+}>) {
   const [isOpen, setIsOpen] = useState(false);
   const theme = useTheme();
 
@@ -46,13 +44,6 @@ export function Collapsible({
 
   const contentRef = useRef<View>(null);
 
-  const playClick = async () => {
-    const sound = new Audio.Sound();
-    await sound.loadAsync(require("@/assets/sounds/click.mp3"));
-    await sound.playAsync();
-    setTimeout(() => sound.unloadAsync(), 500);
-  };
-
   const toggle = (manual = true) => {
     const next = !isOpen;
     setIsOpen(next);
@@ -62,7 +53,6 @@ export function Collapsible({
 
     if (manual) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      playClick();
     }
 
     glow.value = withTiming(next ? 1 : 0, { duration: 300 });
@@ -86,16 +76,13 @@ export function Collapsible({
   const onGesture = (event: any) => {
     drag.value = event.translationY;
 
-    // Elastic adaptive rotation curve
     const speed = Math.abs(event.velocityY) / 300;
     const elastic = speed * 120;
     rotation.value = withTiming(elastic, { duration: 80 });
 
-    // Particle direction
     particleX.value = withTiming(event.translationX / 10, { duration: 80 });
     particleY.value = withTiming(event.translationY / 10, { duration: 80 });
 
-    // Smooth fade
     particleOpacity.value = withTiming(1, { duration: 120 });
 
     if (drag.value > 40 && isOpen) {
@@ -106,9 +93,7 @@ export function Collapsible({
 
   const onGestureEnd = () => {
     drag.value = withDecay({ velocity: 0 });
-
     particleOpacity.value = withTiming(0, { duration: 300 });
-
     rotation.value = withTiming(0, { duration: 300 });
   };
 
@@ -154,7 +139,7 @@ export function Collapsible({
   }));
 
   return (
-    <ThemedView style={styles.wrapper}>
+    <View style={styles.wrapper}>
       <Pressable
         style={({ pressed }) => [
           styles.heading,
@@ -163,13 +148,14 @@ export function Collapsible({
         onPress={() => toggle(true)}
       >
         <Animated.View style={[styles.button, glowStyle, tiltStyle]}>
-          {/* Dual-Core Reactor */}
           <Animated.View style={[styles.reactorOuter, reactorStyle]}>
             <View style={styles.reactorInner} />
           </Animated.View>
         </Animated.View>
 
-        <ThemedText style={styles.titleText}>{title}</ThemedText>
+        <Text style={[styles.titleText, { color: theme.text }]}>
+          {title}
+        </Text>
       </Pressable>
 
       <PanGestureHandler onGestureEvent={onGesture} onEnded={onGestureEnd}>
@@ -185,38 +171,37 @@ export function Collapsible({
           </Animated.View>
         </Animated.View>
       </PanGestureHandler>
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: {
-    marginBottom: Spacing.md,
+    marginBottom: 12,
   },
   heading: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.sm,
-    paddingVertical: Spacing.sm,
+    gap: 8,
+    paddingVertical: 8,
   },
   pressedHeading: {
     opacity: 0.7,
   },
   button: {
-    width: Spacing.lg,
-    height: Spacing.lg,
-    borderRadius: Radius.md,
+    width: 16,
+    height: 16,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
   },
 
-  // Dual-Core Reactor
   reactorOuter: {
     width: 22,
     height: 22,
     borderRadius: 22,
     borderWidth: 2,
-    borderColor: "#FFD700", // gold outer ring
+    borderColor: "#FFD700",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -224,16 +209,17 @@ const styles = StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 10,
-    backgroundColor: "#00A8FF", // blue inner core
+    backgroundColor: "#00A8FF",
   },
 
   titleText: {
     fontSize: 15,
     fontWeight: "700",
   },
+
   content: {
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
+    borderRadius: 12,
+    padding: 16,
     position: "relative",
     overflow: "hidden",
   },

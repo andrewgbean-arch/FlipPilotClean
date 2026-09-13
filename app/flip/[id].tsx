@@ -1,5 +1,7 @@
-import { useFlipHistory } from "@/context/FlipHistoryContext";
-import type { FlipRecord } from "@/models/FlipRecord";
+import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
+
+import type { FlipRecord } from "@/features/vehicles/models/FlipRecord";
+
 
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
@@ -41,7 +43,8 @@ const getRoiColor = (roi: number | null | undefined) => {
 
 export default function FlipDetails() {
   const insets = useSafeAreaInsets();
-  const { flips } = useFlipHistory();
+ const { vehicles: flips } = useVehicleHistory();
+
   const params = useLocalSearchParams();
   const { id } = params as { id?: string };
 
@@ -110,9 +113,7 @@ export default function FlipDetails() {
   ============================ */
   const {
     title,
-    barcode,
     favourite,
-    timestamp,
     ai,
     pricing,
     flipScore,
@@ -120,7 +121,7 @@ export default function FlipDetails() {
     sellSpeed,
     rarity,
     insights,
-    image,
+    images,
   } = flip;
 
   const origin = ai?.origin ?? null;
@@ -155,13 +156,12 @@ export default function FlipDetails() {
   const aiPriceConfidence =
     market?.aiPriceConfidence ?? flip.aiPriceConfidence ?? null;
 
-  const effectiveRoi = useMemo(() => {
-    if (roi != null) return roi;
-    if (buyPrice && profit != null) {
-      return Math.round((profit / buyPrice) * 100);
-    }
-    return null;
-  }, [roi, buyPrice, profit]);
+  const effectiveRoi =
+    roi != null
+      ? roi
+      : buyPrice && profit != null
+      ? Math.round((profit / buyPrice) * 100)
+      : null;
 
   const roiColor = getRoiColor(effectiveRoi);
 
@@ -183,12 +183,11 @@ export default function FlipDetails() {
       confidence: confidence ?? 0,
       origin: origin ?? "Unknown",
       description: description ?? "",
+      image: images?.[0] ?? null,
     });
   };
 
-  const prettyDate = timestamp
-    ? new Date(timestamp).toLocaleString()
-    : "Date not recorded";
+  const prettyDate = "Date not recorded";
 
   /* ============================
      RENDER
@@ -211,12 +210,12 @@ export default function FlipDetails() {
             <View style={styles.heroImageWrapper}>
               <Pressable
                 style={styles.noImageBox}
-                disabled={!image}
+                disabled={!images?.[0]}
                 onPress={() => setImageModalVisible(true)}
               >
-                {image ? (
+                {images?.[0] ? (
                   <Image
-                    source={{ uri: image }}
+                    source={{ uri: images[0] }}
                     style={{ width: "100%", height: "100%" }}
                     resizeMode="cover"
                   />
@@ -235,7 +234,7 @@ export default function FlipDetails() {
                   Confidence: {confidence.toFixed(0)}%
                 </Text>
               )}
-              {barcode && <Text style={styles.badge}>Barcode: {barcode}</Text>}
+              {/* barcode removed */}
             </View>
 
             <Text style={styles.dateText}>{prettyDate}</Text>
@@ -475,13 +474,13 @@ export default function FlipDetails() {
           )}
         </View>
 
-        {/* SHARE CARD — CLEAN VERSION */}
+        {/* SHARE CARD */}
         <View style={styles.shareCard}>
           <View style={styles.shareInner}>
             <View style={styles.sharePlaceholder}>
-              {image ? (
+              {images?.[0] ? (
                 <Image
-                  source={{ uri: image }}
+                  source={{ uri: images[0] }}
                   style={{ width: "100%", height: "100%" }}
                   resizeMode="cover"
                 />
@@ -513,8 +512,6 @@ export default function FlipDetails() {
           </Text>
         </Pressable>
 
-        {/* Removed shareImage button (ViewShot removed) */}
-
         <Pressable style={styles.actionButton} onPress={shareText}>
           <Text style={styles.actionText}>Share Text</Text>
         </Pressable>
@@ -540,9 +537,9 @@ export default function FlipDetails() {
             onPress={() => setImageModalVisible(false)}
           >
             <View style={styles.imageModalContent}>
-              {image ? (
+              {images?.[0] ? (
                 <Image
-                  source={{ uri: image }}
+                  source={{ uri: images[0] }}
                   style={styles.imageModalImage}
                   resizeMode="contain"
                 />
@@ -572,7 +569,7 @@ export default function FlipDetails() {
             },
           ]}
         >
-                  <Text style={styles.toastText}>✓ Flip already saved</Text>
+          <Text style={styles.toastText}>✓ Flip already saved</Text>
         </Animated.View>
       )}
     </View>
@@ -591,14 +588,14 @@ const styles = StyleSheet.create({
   heroCard: {
     marginHorizontal: 16,
     marginTop: 10,
-    padding: 16,
+    padding: 18,
     borderRadius: 20,
-    backgroundColor: "rgba(19,32,68,0.9)",
+    backgroundColor: "#111827",
     borderWidth: 1,
-    borderColor: "rgba(255, 215, 0, 0.25)",
-    shadowColor: "#000",
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
+    borderColor: GOLD,
+    shadowColor: GOLD,
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
     alignItems: "center",
   },
@@ -607,18 +604,18 @@ const styles = StyleSheet.create({
     height: 220,
     borderRadius: 16,
     overflow: "hidden",
-    backgroundColor: SLATE,
+    backgroundColor: "#0F172A",
   },
   noImageBox: {
     flex: 1,
-    backgroundColor: SLATE,
+    backgroundColor: "#0F172A",
     justifyContent: "center",
     alignItems: "center",
   },
-  noImageText: { color: "#AFC6FF", fontSize: 18 },
+  noImageText: { color: SILVER, fontSize: 18 },
 
   heroTitle: {
-    color: "white",
+    color: GOLD,
     fontSize: 24,
     fontWeight: "800",
     textAlign: "center",
@@ -633,13 +630,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   badge: {
-    backgroundColor: SLATE,
+    backgroundColor: "#111827",
     color: GOLD,
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 999,
     fontWeight: "700",
     fontSize: 12,
+    borderWidth: 1,
+    borderColor: GOLD,
   },
   badgeBlue: {
     backgroundColor: ELECTRIC_BLUE,
@@ -652,19 +651,22 @@ const styles = StyleSheet.create({
   },
   dateText: {
     marginTop: 8,
-    color: "#AFC6FF",
+    color: SILVER,
     fontSize: 12,
   },
 
   /* CARD */
   card: {
-    backgroundColor: "#132044",
+    backgroundColor: "#111827",
     padding: 18,
     borderRadius: 16,
     marginTop: 20,
     marginHorizontal: 16,
     borderWidth: 1,
-    borderColor: "rgba(255, 215, 0, 0.18)",
+    borderColor: GOLD,
+    shadowColor: GOLD,
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
   },
   cardTitle: {
     color: GOLD,
@@ -674,7 +676,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   cardLine: {
-    color: "#AFC6FF",
+    color: SILVER,
     fontSize: 15,
     marginBottom: 6,
     textAlign: "center",
@@ -694,11 +696,11 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   cardLabel: {
-    color: "#AFC6FF",
+    color: SILVER,
     fontSize: 15,
   },
   cardValue: {
-    color: "white",
+    color: GOLD,
     fontSize: 15,
     fontWeight: "700",
   },
@@ -707,13 +709,16 @@ const styles = StyleSheet.create({
   shareCard: {
     marginTop: 30,
     alignSelf: "center",
-    backgroundColor: NAVY,
+    backgroundColor: "#111827",
     borderRadius: 24,
     overflow: "hidden",
     width: 300,
     height: 420,
     borderWidth: 1,
-    borderColor: "rgba(255, 215, 0, 0.4)",
+    borderColor: GOLD,
+    shadowColor: GOLD,
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
   },
   shareInner: {
     flex: 1,
@@ -725,7 +730,7 @@ const styles = StyleSheet.create({
     width: 260,
     height: 220,
     borderRadius: 16,
-    backgroundColor: SLATE,
+    backgroundColor: "#0F172A",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -737,19 +742,19 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   shareLine: {
-    color: "#AFC6FF",
+    color: SILVER,
     fontSize: 15,
     marginTop: 4,
     textAlign: "center",
   },
   shareLineSmall: {
-    color: "#AFC6FF",
+    color: SILVER,
     fontSize: 13,
     marginTop: 2,
     textAlign: "center",
   },
   logo: {
-    color: ELECTRIC_BLUE,
+    color: GOLD,
     fontSize: 20,
     fontWeight: "900",
     marginTop: 10,
@@ -766,16 +771,19 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     justifyContent: "space-around",
     borderTopWidth: 1,
-    borderTopColor: "#1b2a4a",
+    borderTopColor: GOLD,
   },
   actionButton: {
-    backgroundColor: ELECTRIC_BLUE,
+    backgroundColor: GOLD,
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: 10,
+    shadowColor: GOLD,
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
   },
   actionText: {
-    color: "white",
+    color: "#000",
     fontSize: 13,
     fontWeight: "700",
   },
@@ -789,12 +797,15 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 18,
     borderRadius: 999,
-    backgroundColor: ELECTRIC_BLUE,
+    backgroundColor: GOLD,
     justifyContent: "center",
     alignItems: "center",
+    shadowColor: GOLD,
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
   },
   toastText: {
-    color: "white",
+    color: "#000",
     fontSize: 16,
     fontWeight: "700",
   },
@@ -811,7 +822,7 @@ const styles = StyleSheet.create({
   /* IMAGE MODAL */
   imageModalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.85)",
+    backgroundColor: "rgba(10,17,40,0.9)",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -844,14 +855,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 16,
+    backgroundColor: "#111827",
   },
   flipScoreNumber: {
-    color: "white",
+    color: GOLD,
     fontSize: 26,
     fontWeight: "900",
   },
   flipScoreMax: {
-    color: "#AFC6FF",
+    color: SILVER,
     fontSize: 12,
     marginTop: -2,
   },
@@ -859,12 +871,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   flipScoreTag: {
-    color: "#AFC6FF",
+    color: SILVER,
     fontSize: 13,
     marginBottom: 4,
   },
   flipScoreInsight: {
-    color: "#DDE6F7",
+    color: SILVER,
     fontSize: 13,
     marginTop: 4,
   },
@@ -881,7 +893,7 @@ const styles = StyleSheet.create({
     left: "10%",
     right: "10%",
     height: 3,
-    backgroundColor: "rgba(175,198,255,0.4)",
+    backgroundColor: "rgba(255,215,0,0.4)",
     borderRadius: 999,
   },
   trendDot: {
@@ -902,12 +914,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   trendLabelTitle: {
-    color: "#AFC6FF",
+    color: SILVER,
     fontSize: 12,
     marginBottom: 2,
   },
   trendLabelValue: {
-    color: "white",
+    color: GOLD,
     fontSize: 14,
     fontWeight: "700",
   },

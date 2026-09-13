@@ -25,7 +25,7 @@ export async function searchBarcode(barcode: string) {
 // -----------------------------
 export async function aiLookup(imageBase64: string) {
   try {
-    const res = await fetch(`${BASE_URL}/ai/lookup`, {
+    const res = await fetch(`${BASE_URL}/search-image`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ imageBase64 }),
@@ -35,6 +35,25 @@ export async function aiLookup(imageBase64: string) {
     return await res.json();
   } catch (err) {
     console.log("❌ AI lookup error:", err);
+    return null;
+  }
+}
+
+// -----------------------------
+// VEHICLE PHOTO CONDITION ANALYSIS
+// -----------------------------
+export async function analyzeVehiclePhoto(imageBase64: string) {
+  try {
+    const res = await fetch(`${BASE_URL}/vehicle-photo-analysis`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageBase64 }),
+    });
+
+    if (!res.ok) throw new Error("Vehicle photo analysis failed");
+    return await res.json();
+  } catch (err) {
+    console.log("❌ Vehicle photo analysis error:", err);
     return null;
   }
 }
