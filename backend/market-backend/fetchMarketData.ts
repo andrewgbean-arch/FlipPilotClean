@@ -2,6 +2,7 @@ import axios from "axios";
 import fetchAmazonMarket from "./amazonMarket";
 import fetchEbayMarket, { EbayMarketResult } from "./ebayMarket";
 import fetchEbayBrowseMarket from "./ebayBrowseApi";
+import { isBulkListing } from "./bulkListingFilter";
 
 // Read this at call time, not at module load — server.ts imports this
 // module (via search.ts/searchImage.ts) BEFORE it calls dotenv.config(),
@@ -99,6 +100,8 @@ async function fetchGoogleShopping(query: string) {
     const rawPrices: number[] = [];
 
     for (const item of items) {
+      if (isBulkListing(item.title)) continue;
+
       const candidates = [
         item.extracted_price,
         item.unit_price,

@@ -1,4 +1,5 @@
 import axios from "axios";
+import { isBulkListing } from "./bulkListingFilter";
 
 export interface EbayMarketResult {
   average: number | null;
@@ -75,6 +76,8 @@ export default async function fetchEbayMarket(
     const rawPrices: number[] = [];
 
     for (const item of items) {
+      if (isBulkListing(item.title)) continue;
+
       if (typeof item.extracted_price === "number") {
         rawPrices.push(item.extracted_price);
       }

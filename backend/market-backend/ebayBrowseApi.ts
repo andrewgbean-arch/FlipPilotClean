@@ -1,5 +1,6 @@
 import axios from "axios";
 import { EbayMarketResult } from "./ebayMarket";
+import { isBulkListing } from "./bulkListingFilter";
 
 /* --------------------------------------------------
    ⭐ eBay Browse API (official, OAuth2 client-credentials)
@@ -113,6 +114,8 @@ export default async function fetchEbayBrowseMarket(
     const items: any[] = [];
 
     for (const item of summaries) {
+      if (isBulkListing(item?.title)) continue;
+
       const value = parseFloat(item?.price?.value);
       if (!isNaN(value)) rawPrices.push(value);
 

@@ -53,9 +53,16 @@ clearly visible (logo, printed name) in the image. If the brand/model is
 not clearly visible, use a generic descriptive title instead (e.g.
 "Portable Bluetooth Speaker", "Wireless Over-Ear Headphones").
 
+If a size, volume, or weight is clearly printed on the item/packaging
+(e.g. "500ml", "1L", "750g", "72g"), include it at the end of the title.
+This matters a lot for cheap consumables (drinks, cleaning products,
+toiletries, snacks) — without it, the price search can't tell a single
+small bottle/packet from a 5L catering container or a 12-pack, and ends
+up comparing against the wrong size entirely.
+
 Return ONLY valid JSON with:
 {
-  "title": "Short product title — generic unless brand/model is clearly visible",
+  "title": "Short product title — generic unless brand/model is clearly visible, ending with the size/volume/weight if visible",
   "description": "1–2 sentence summary",
   "fullDescription": "4–6 sentence detailed description",
   "condition": "New / Like New / Good / Fair / Poor",
