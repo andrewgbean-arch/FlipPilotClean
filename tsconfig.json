@@ -22,8 +22,6 @@
   "include": [
     "src",
     "app",
-    "src/types/react-native.d.ts",
-    "declarations.d.ts",
-    "app/listing/analysis/[id].tsx"
-, "src/components/DepreciationCurve.tsx", "app/dealer/DealerTools.tsx"  ]
+    "declarations.d.ts"
+  ]
 }

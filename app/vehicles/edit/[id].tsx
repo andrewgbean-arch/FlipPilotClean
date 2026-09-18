@@ -217,7 +217,7 @@ function EditFlipForm({
 
       setMotInfo({
         reg: registration.toUpperCase(),
-        motStatus: mot.motStatus ?? mot.status ?? "Unknown",
+        motStatus: mot.motStatus,
         motExpiry: mot.motExpiry ?? mot.expiryDate ?? "",
         mileage: mot.mileage ?? 0,
         advisories: mot.advisories ?? [],
