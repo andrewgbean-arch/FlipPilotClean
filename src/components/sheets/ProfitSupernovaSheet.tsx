@@ -9,7 +9,7 @@ import {
 } from "react-native";
 
 import { useTheme } from "@/styles/useTheme";
-import { FlipRecord } from "../src/features/vehicles/models/FlipRecord";
+import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
 
 interface ProfitSupernovaSheetProps {
   translateY: Animated.AnimatedInterpolation<string | number>;

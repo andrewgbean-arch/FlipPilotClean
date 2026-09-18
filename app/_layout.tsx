@@ -28,6 +28,9 @@ import GoldLightning from "@/components/ui/GoldLightning";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
+// Without this, one render error in any screen unmounts the whole app.
+export { RouteErrorScreen as ErrorBoundary } from "@/components/ErrorScreen";
+
 export default function RootLayout() {
   useEffect(() => {
     SplashScreen.hideAsync().catch(() => {});

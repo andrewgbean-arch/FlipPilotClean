@@ -2,8 +2,7 @@ import React from "react";
 import { View, Text, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/styles/useTheme";
- import WeatherCard from "../components/WeatherCard";
-// your winning card
+import WeatherCard from "@/components/WeatherCard";
 
 export default function WeatherScreen() {
   const insets = useSafeAreaInsets();

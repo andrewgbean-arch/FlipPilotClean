@@ -14,8 +14,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from "@/styles/useTheme";
 
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
-import WeatherCard from "../components/WeatherCard";
-import FeedbackSheet from "../FeedbackSheet";
+import WeatherCard from "@/components/WeatherCard";
+import FeedbackSheet from "@/components/sheets/FeedbackSheet";
 import GlowPulseCard from "@/components/ui/GlowPulseCard";
 
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";

@@ -12,7 +12,7 @@ import {
 
 import HeroHeader from "@/components/ui/HeroHeader";
 import GlowPulseCard from "@/components/ui/GlowPulseCard";
-import FlipPilotAssistantSheet from "../FlipPilotAssistantSheet";
+import FlipPilotAssistantSheet from "@/components/sheets/FlipPilotAssistantSheet";
 
 import SellerProfileCard from "@/features/seller/SellerProfileCard";
 import ConfidenceMeter from "@/components/analytics/ConfidenceMeter";
