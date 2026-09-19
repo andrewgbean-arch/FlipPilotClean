@@ -13,40 +13,13 @@ import {
   TextInput,
   Text,
 } from "react-native";
-import {
-  Broom,
-  Diamond,
-  Export,
-  Fire,
-  Heart,
-  Lightning,
-  Package,
-  ShareNetwork,
-  Tag,
-  Trash,
-  Trophy,
-  TrendUp,
-} from "phosphor-react-native";
-import type { Icon as PhosphorIcon } from "phosphor-react-native";
+import { Broom, Export, Heart, Trophy } from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/styles/ThemeContext";
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
-import { shareFlip } from "@/utils/share/shareFlip";
-
-// Buy/sell/profit live at the top level of a record, and that is where edits
-// write them (a cleared price is stored as null). `pricing` only holds the
-// original scan estimate, so it is used only for a record with no top-level
-// prices at all.
-const hasOwnPrices = (f: FlipRecord) =>
-  f.buyPrice != null || f.sellPrice != null || f.profit != null;
-const getBuyPrice = (f: FlipRecord) =>
-  Number((hasOwnPrices(f) ? f.buyPrice : f.pricing?.recommendedBuyPrice) ?? 0);
-const getSellPrice = (f: FlipRecord) =>
-  Number((hasOwnPrices(f) ? f.sellPrice : f.pricing?.recommendedSellPrice) ?? 0);
-const getProfit = (f: FlipRecord) =>
-  Number((hasOwnPrices(f) ? f.profit : f.pricing?.predictedProfit) ?? 0);
+import FlipCard, { getBuyPrice, getProfit, getSellPrice } from "@/components/FlipCard";
 
 // Ids are uuids, so recency has to come from the timestamp.
 const savedAt = (f: FlipRecord) => Date.parse(f.timestamp) || 0;
@@ -114,29 +87,6 @@ const AnimatedPressable = ({
         {children}
       </Pressable>
     </Animated.View>
-  );
-};
-
-// Small icon + text pill used for the facts on a flip card.
-const MetaChip = ({
-  Icon,
-  label,
-  accent,
-}: {
-  Icon?: PhosphorIcon;
-  label: string;
-  accent?: boolean;
-}) => {
-  const theme = useTheme();
-  const tint = accent ? theme.gold : theme.muted;
-
-  return (
-    <View style={[styles.chip, { backgroundColor: theme.background }]}>
-      {Icon ? <Icon size={14} color={tint} weight={accent ? "fill" : "regular"} /> : null}
-      <Text style={[styles.chipText, { color: accent ? theme.gold : theme.text }]} numberOfLines={1}>
-        {label}
-      </Text>
-    </View>
   );
 };
 
@@ -208,7 +158,7 @@ export default function HistoryScreen() {
     deleteVehicle(id);
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    showOverlayMessage("Deleted ❌");
+    showOverlayMessage("Flip deleted");
 
     setConfirmDelete(null);
   };
@@ -218,7 +168,7 @@ export default function HistoryScreen() {
   const clearAllFlips = async () => {
     await clearAll();
     setConfirmClearAll(false);
-    showOverlayMessage("Cleared 🧹");
+    showOverlayMessage("History cleared");
   };
 
   const toggleFavourite = (id: string) => {
@@ -227,7 +177,7 @@ export default function HistoryScreen() {
     toggleVehicleFavourite(id);
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    showOverlayMessage(isFav ? "Saved ⭐" : "Removed ❌");
+    showOverlayMessage(isFav ? "Added to favourites" : "Removed from favourites");
   };
 
   const totalProfit = flips.reduce((sum, item) => sum + getProfit(item), 0);
@@ -319,13 +269,6 @@ export default function HistoryScreen() {
     router.push(detailsHref(item));
   };
 
-  const getRoiColor = (roi: number | null | undefined) => {
-    if (roi == null) return theme.muted;
-    if (roi > 50) return theme.success;
-    if (roi > 0) return theme.accent;
-    return theme.danger;
-  };
-
   const exportToCSV = async () => {
     if (flips.length === 0) {
       showOverlayMessage("Nothing to export");
@@ -381,116 +324,14 @@ export default function HistoryScreen() {
     }
   };
 
-  const renderItem = ({ item, index }: { item: FlipRecord; index: number }) => {
-    const safeBuy = getBuyPrice(item);
-    const safeSell = getSellPrice(item);
-    const safeProfit = getProfit(item);
-    const roi = safeBuy > 0 ? (safeProfit / safeBuy) * 100 : 0;
-
-    const roiColor = getRoiColor(roi);
-
-    const thumb =
-      typeof item.images?.[0] === "string" && item.images[0].trim().length > 0
-        ? item.images[0]
-        : null;
-    const profitColor = safeProfit >= 0 ? theme.success : theme.danger;
-    const profitText = `${safeProfit >= 0 ? "+" : "-"}£${Math.abs(safeProfit).toFixed(2)}`;
-
-    return (
-      <View style={[styles.card, { backgroundColor: theme.card, borderColor: HAIRLINE }]}>
-        {/* The tappable summary. The actions below sit beside it, not inside it, so they stay separate buttons. */}
-        <AnimatedPressable
-          onPress={() => openDetails(item)}
-          accessibilityRole="button"
-          accessibilityLabel={`${item.title}, ${safeProfit >= 0 ? "profit" : "loss"} of £${Math.abs(safeProfit).toFixed(2)}. Open details`}
-        >
-        <View style={styles.cardTop}>
-          {thumb ? (
-            <Image source={{ uri: thumb }} style={styles.thumb} />
-          ) : (
-            <View style={[styles.thumb, styles.thumbEmpty, { backgroundColor: theme.background }]}>
-              <Package size={26} color={theme.muted} />
-            </View>
-          )}
-
-          <View style={styles.cardMain}>
-            <Text numberOfLines={2} style={[styles.cardTitle, { color: theme.text }]}>
-              {item.title}
-            </Text>
-            <Text style={[styles.profitValue, { color: profitColor }]}>{profitText}</Text>
-            <Text style={[textVariants.small, { color: theme.muted }]} numberOfLines={1}>
-              Buy £{safeBuy.toFixed(2)} · Sell £{safeSell.toFixed(2)} ·{" "}
-              <Text style={{ color: roiColor }}>ROI {roi.toFixed(0)}%</Text>
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.chipRow}>
-          {item.flipScore != null && <MetaChip Icon={Fire} label={`Score ${item.flipScore}`} />}
-          {item.sellSpeed != null && <MetaChip Icon={Lightning} label={String(item.sellSpeed)} />}
-          {item.market?.demandScore != null && (
-            <MetaChip Icon={TrendUp} label={`Demand ${item.market.demandScore}`} />
-          )}
-          {item.rarity != null && <MetaChip Icon={Diamond} label={String(item.rarity)} />}
-          {item.ai?.condition ? <MetaChip Icon={Tag} label={item.ai.condition} /> : null}
-          {item.aiPriceConfidence != null && (
-            <MetaChip label={`Conf ${item.aiPriceConfidence.toFixed(0)}%`} />
-          )}
-          {item.favourite ? <MetaChip Icon={Heart} label="Favourite" accent /> : null}
-        </View>
-        </AnimatedPressable>
-
-        <View style={styles.actionsRow}>
-          <AnimatedPressable
-            accessibilityRole="button"
-            accessibilityLabel="Share flip"
-            style={styles.actionBtn}
-            onPress={() =>
-              shareFlip({
-                title: item.title,
-                buyPrice: safeBuy,
-                sellPrice: safeSell,
-                // No buy price means no meaningful ROI; leave it as "-".
-                roi: safeBuy > 0 ? Math.round(roi) : null,
-                profit: safeProfit,
-                // Scanned flips store the AI's confidence as conditionScore.
-                // Confidence and origin are left out of the text when unknown.
-                confidence: item.ai?.conditionScore ?? item.aiPriceConfidence ?? null,
-                origin: item.ai?.origin ?? null,
-                description: item.ai?.description || "",
-                image: item.images?.[0],
-                flipScore: item.flipScore ?? null,
-              })
-            }
-          >
-            <ShareNetwork size={22} color={theme.muted} />
-          </AnimatedPressable>
-
-          <AnimatedPressable
-            accessibilityRole="button"
-            accessibilityLabel={item.favourite ? "Remove from favourites" : "Add to favourites"}
-            style={styles.actionBtn}
-            onPress={() => toggleFavourite(item.id)}
-          >
-            <Heart
-              size={22}
-              weight={item.favourite ? "fill" : "regular"}
-              color={item.favourite ? theme.gold : theme.muted}
-            />
-          </AnimatedPressable>
-
-          <AnimatedPressable
-            accessibilityRole="button"
-            accessibilityLabel="Delete flip"
-            style={styles.actionBtn}
-            onPress={() => deleteFlip(item.id)}
-          >
-            <Trash size={22} color={theme.danger} />
-          </AnimatedPressable>
-        </View>
-      </View>
-    );
-  };
+  const renderItem = ({ item }: { item: FlipRecord }) => (
+    <FlipCard
+      item={item}
+      onOpen={() => openDetails(item)}
+      onToggleFavourite={() => toggleFavourite(item.id)}
+      onDelete={() => deleteFlip(item.id)}
+    />
+  );
 
   const hasFlips = flips.length > 0;
   const emptyTitle = loadError
@@ -1009,71 +850,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 32,
     paddingHorizontal: 16,
-  },
-
-  /* CARD */
-  card: {
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  cardTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  thumb: {
-    width: 72,
-    height: 72,
-    borderRadius: 12,
-  },
-  thumbEmpty: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cardMain: {
-    flex: 1,
-    gap: 2,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    lineHeight: 21,
-  },
-  profitValue: {
-    fontSize: 22,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-  },
-  chipRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    marginTop: 12,
-  },
-  chip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 999,
-  },
-  chipText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  actionsRow: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 4,
-    marginTop: 8,
-  },
-  actionBtn: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
   },
 
   /* OVERLAY TOAST */
