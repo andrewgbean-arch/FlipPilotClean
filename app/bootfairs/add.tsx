@@ -1,16 +1,25 @@
 import { router } from "expo-router";
+import { Check, WarningCircle } from "phosphor-react-native";
 import { useState } from "react";
+import type { ReactNode } from "react";
 import {
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import type { StyleProp, TextInputProps, ViewStyle } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { useTheme } from "@/styles/ThemeContext";
+
 import { Fair, addUserFair } from "../../src/lib/fairs";
 
 // Simple profanity filter. Whole words only (plus common endings), so genuine
@@ -70,7 +79,116 @@ const CATEGORY_OPTIONS = [
   "Community",
 ];
 
+type FieldKey =
+  | "name"
+  | "postcode"
+  | "nextDate"
+  | "entryFee"
+  | "stallFee"
+  | "openingTime"
+  | "closingTime"
+  | "organiserWebsite"
+  | "organiserEmail";
+
+type FormErrors = Partial<Record<FieldKey, string>>;
+
+// A soft fill for a selected chip. The theme has no translucent gold of its own.
+const GOLD_TINT = "rgba(255, 215, 0, 0.12)";
+
+/* SMALL LOCAL COMPONENTS */
+function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
+  const theme = useTheme();
+
+  return (
+    <View style={styles.sectionHeader}>
+      <Text style={[styles.sectionTitle, { color: theme.text }]} accessibilityRole="header">
+        {title}
+      </Text>
+      {subtitle ? (
+        <Text style={[styles.sectionSubtitle, { color: theme.muted }]}>{subtitle}</Text>
+      ) : null}
+    </View>
+  );
+}
+
+// A card that holds a run of fields.
+function FormCard({ children }: { children: ReactNode }) {
+  const theme = useTheme();
+
+  return (
+    <View style={[styles.formCard, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
+      {children}
+    </View>
+  );
+}
+
+// A label, a 48pt input and, when there is one, its hint or error.
+function FormField({
+  label,
+  required,
+  hint,
+  error,
+  style,
+  value,
+  onChangeText,
+  placeholder,
+  inputProps,
+}: {
+  label: string;
+  required?: boolean;
+  hint?: string;
+  error?: string;
+  style?: StyleProp<ViewStyle>;
+  value: string;
+  onChangeText: (text: string) => void;
+  placeholder: string;
+  // Keyboard hints for the field (capitalisation, keyboard type).
+  inputProps?: TextInputProps;
+}) {
+  const theme = useTheme();
+  const [focused, setFocused] = useState(false);
+
+  return (
+    <View style={[styles.field, style]}>
+      <Text style={[styles.label, { color: theme.muted }]}>
+        {required ? `${label} *` : label}
+      </Text>
+      <TextInput
+        style={[
+          styles.input,
+          {
+            backgroundColor: theme.background,
+            color: theme.text,
+            borderColor: error ? theme.danger : focused ? theme.gold : theme.hairline,
+          },
+        ]}
+        placeholder={placeholder}
+        placeholderTextColor={theme.muted}
+        value={value}
+        onChangeText={onChangeText}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        accessibilityLabel={required ? `${label}, required` : label}
+        {...inputProps}
+      />
+      {error ? (
+        <Text
+          style={[styles.fieldMessage, { color: theme.danger }]}
+          accessibilityLiveRegion="polite"
+        >
+          {error}
+        </Text>
+      ) : hint ? (
+        <Text style={[styles.fieldMessage, { color: theme.muted }]}>{hint}</Text>
+      ) : null}
+    </View>
+  );
+}
+
 export default function AddFairScreen() {
+  const theme = useTheme();
+  const insets = useSafeAreaInsets();
+
   const [name, setName] = useState("");
   const [postcode, setPostcode] = useState("");
   const [nextDate, setNextDate] = useState("");
@@ -83,6 +201,15 @@ export default function AddFairScreen() {
   const [showEmailPublicly, setShowEmailPublicly] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [formError, setFormError] = useState("");
+
+  // Typing in a field takes its error away.
+  const onChange = (key: FieldKey, set: (value: string) => void) => (text: string) => {
+    set(text);
+    if (errors[key]) setErrors((prev) => ({ ...prev, [key]: undefined }));
+    if (formError) setFormError("");
+  };
 
   const toggleCategory = (cat: string) => {
     if (categories.includes(cat)) {
@@ -95,41 +222,56 @@ export default function AddFairScreen() {
   const validateAndSubmit = async () => {
     if (submitting) return;
 
-    if (
-      !name ||
-      !postcode ||
-      !nextDate ||
-      !entryFee ||
-      !stallFee ||
-      !openingTime ||
-      !closingTime ||
-      !organiserEmail
-    ) {
-      Alert.alert("Missing Information", "Please fill in all required fields.");
+    setErrors({});
+    setFormError("");
+
+    const required: [FieldKey, string][] = [
+      ["name", name],
+      ["postcode", postcode],
+      ["nextDate", nextDate],
+      ["entryFee", entryFee],
+      ["stallFee", stallFee],
+      ["openingTime", openingTime],
+      ["closingTime", closingTime],
+      ["organiserEmail", organiserEmail],
+    ];
+
+    const missing: FormErrors = {};
+    for (const [key, value] of required) {
+      if (!value) missing[key] = "Required";
+    }
+
+    if (Object.keys(missing).length > 0) {
+      setErrors(missing);
+      setFormError("Please fill in all required fields.");
       return;
     }
 
-    const fieldsToCheck = [
-      name,
-      postcode,
-      nextDate,
-      entryFee,
-      stallFee,
-      organiserWebsite,
+    const fieldsToCheck: [FieldKey, string][] = [
+      ["name", name],
+      ["postcode", postcode],
+      ["nextDate", nextDate],
+      ["entryFee", entryFee],
+      ["stallFee", stallFee],
+      ["organiserWebsite", organiserWebsite],
     ];
 
-    for (const field of fieldsToCheck) {
-      if (containsBadLanguage(field)) {
-        Alert.alert(
-          "Invalid Content",
-          "Please remove inappropriate language from your listing."
-        );
-        return;
+    const badLanguage: FormErrors = {};
+    for (const [key, value] of fieldsToCheck) {
+      if (containsBadLanguage(value)) {
+        badLanguage[key] = "Please remove inappropriate language from your listing.";
       }
     }
 
+    if (Object.keys(badLanguage).length > 0) {
+      setErrors(badLanguage);
+      setFormError("Please check the highlighted fields.");
+      return;
+    }
+
     if (!organiserEmail.includes("@") || !organiserEmail.includes(".")) {
-      Alert.alert("Invalid Email", "Please enter a valid organiser email.");
+      setErrors({ organiserEmail: "Please enter a valid organiser email." });
+      setFormError("Please check the highlighted fields.");
       return;
     }
 
@@ -147,23 +289,23 @@ export default function AddFairScreen() {
       place = await lookupPostcode(postcode);
     } catch {
       setSubmitting(false);
-      Alert.alert(
-        "Couldn't check the postcode",
-        "Check your connection and try again."
-      );
+      setErrors({
+        postcode: "Couldn't check the postcode. Check your connection and try again.",
+      });
+      setFormError("Please check the highlighted fields.");
       return;
     }
 
     if (!place) {
       setSubmitting(false);
-      Alert.alert(
-        "Postcode not recognised",
-        "Please check the postcode and try again."
-      );
+      setErrors({
+        postcode: "Postcode not recognised. Please check the postcode and try again.",
+      });
+      setFormError("Please check the highlighted fields.");
       return;
     }
 
-    // ⭐ FULL PRO FAIR OBJECT
+    // The full fair object, with the fields this form does not ask for filled in.
     const newFair: Fair = {
       id: "BF-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
 
@@ -215,9 +357,8 @@ export default function AddFairScreen() {
       await addUserFair(newFair);
     } catch {
       setSubmitting(false);
-      Alert.alert(
-        "Couldn't save your boot fair",
-        "Something went wrong saving it to this phone. Please try again."
+      setFormError(
+        "Couldn't save your boot fair. Something went wrong saving it to this phone. Please try again."
       );
       return;
     }
@@ -232,233 +373,349 @@ export default function AddFairScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <KeyboardAvoidingView
+      style={[styles.flex, { backgroundColor: theme.background }]}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 44 : 0}
+    >
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        style={styles.flex}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]}
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.header}>List Your Boot Fair</Text>
+        <Text style={[styles.pageTitle, { color: theme.text }]} accessibilityRole="header">
+          List your boot fair
+        </Text>
+        <Text style={[styles.pageSubtitle, { color: theme.muted }]}>
+          Fairs you list are saved on this phone. Fields marked * are required.
+        </Text>
 
-        {/* NAME */}
-        <Text style={styles.label}>Fair Name *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Example: Torbay Sunday Boot Fair"
-          placeholderTextColor="#AAB4C3"
-          value={name}
-          onChangeText={setName}
-        />
-
-        {/* POSTCODE */}
-        <Text style={styles.label}>Postcode *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="TQ2 5DZ"
-          placeholderTextColor="#AAB4C3"
-          value={postcode}
-          onChangeText={setPostcode}
-        />
-
-        {/* DATE */}
-        <Text style={styles.label}>Next Date *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="20 Apr 2026"
-          placeholderTextColor="#AAB4C3"
-          value={nextDate}
-          onChangeText={setNextDate}
-        />
-
-        {/* FEES */}
-        <Text style={styles.label}>Entry Fee *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="£1"
-          placeholderTextColor="#AAB4C3"
-          value={entryFee}
-          onChangeText={setEntryFee}
-        />
-
-        <Text style={styles.label}>Stall Fee *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="£10"
-          placeholderTextColor="#AAB4C3"
-          value={stallFee}
-          onChangeText={setStallFee}
-        />
-
-        {/* TIMES */}
-        <Text style={styles.label}>Opening Time (24h) *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="07:00"
-          placeholderTextColor="#AAB4C3"
-          value={openingTime}
-          onChangeText={setOpeningTime}
-        />
-
-        <Text style={styles.label}>Closing Time (24h) *</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="13:00"
-          placeholderTextColor="#AAB4C3"
-          value={closingTime}
-          onChangeText={setClosingTime}
-        />
-
-        {/* WEBSITE */}
-        <Text style={styles.label}>Organiser Website (optional)</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="https://example.com"
-          placeholderTextColor="#AAB4C3"
-          value={organiserWebsite}
-          onChangeText={setOrganiserWebsite}
-        />
-
-        {/* EMAIL */}
-        <Text style={styles.label}>Organiser Email (required, private)</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="contact@example.com"
-          placeholderTextColor="#AAB4C3"
-          value={organiserEmail}
-          onChangeText={setOrganiserEmail}
-        />
-
-        {/* PUBLIC EMAIL TOGGLE */}
-        <View style={styles.toggleRow}>
-          <Text style={styles.toggleLabel}>Display my email publicly</Text>
-          <Switch
-            value={showEmailPublicly}
-            onValueChange={setShowEmailPublicly}
-            thumbColor={showEmailPublicly ? "#FFD700" : "#888"}
-            trackColor={{ true: "#FFD700", false: "#555" }}
+        {/* FAIR DETAILS */}
+        <SectionTitle title="Fair details" />
+        <FormCard>
+          <FormField
+            label="Fair name"
+            required
+            placeholder="Example: Torbay Sunday Boot Fair"
+            value={name}
+            onChangeText={onChange("name", setName)}
+            error={errors.name}
           />
-        </View>
+          <FormField
+            label="Postcode"
+            required
+            placeholder="TQ2 5DZ"
+            value={postcode}
+            onChangeText={onChange("postcode", setPostcode)}
+            error={errors.postcode}
+            inputProps={{ autoCapitalize: "characters", autoCorrect: false }}
+          />
+          <FormField
+            label="Next date"
+            required
+            placeholder="e.g. Sunday 4 October"
+            value={nextDate}
+            onChangeText={onChange("nextDate", setNextDate)}
+            error={errors.nextDate}
+          />
+        </FormCard>
+
+        {/* FEES AND TIMES */}
+        <SectionTitle title="Fees and times" />
+        <FormCard>
+          <View style={styles.pair}>
+            <FormField
+              style={styles.pairItem}
+              label="Entry fee"
+              required
+              placeholder="£1"
+              value={entryFee}
+              onChangeText={onChange("entryFee", setEntryFee)}
+              error={errors.entryFee}
+            />
+            <FormField
+              style={styles.pairItem}
+              label="Stall fee"
+              required
+              placeholder="£10"
+              value={stallFee}
+              onChangeText={onChange("stallFee", setStallFee)}
+              error={errors.stallFee}
+            />
+          </View>
+
+          <View style={styles.pair}>
+            <FormField
+              style={styles.pairItem}
+              label="Opening time"
+              required
+              placeholder="07:00"
+              value={openingTime}
+              onChangeText={onChange("openingTime", setOpeningTime)}
+              error={errors.openingTime}
+            />
+            <FormField
+              style={styles.pairItem}
+              label="Closing time"
+              required
+              placeholder="13:00"
+              value={closingTime}
+              onChangeText={onChange("closingTime", setClosingTime)}
+              error={errors.closingTime}
+            />
+          </View>
+
+          <Text style={[styles.fieldMessage, { color: theme.muted }]}>
+            Use 24-hour times, for example 07:00.
+          </Text>
+        </FormCard>
+
+        {/* ORGANISER */}
+        <SectionTitle title="Organiser" />
+        <FormCard>
+          <FormField
+            label="Organiser website (optional)"
+            placeholder="https://example.com"
+            value={organiserWebsite}
+            onChangeText={onChange("organiserWebsite", setOrganiserWebsite)}
+            error={errors.organiserWebsite}
+            inputProps={{ keyboardType: "url", autoCapitalize: "none", autoCorrect: false }}
+          />
+          <FormField
+            label="Organiser email"
+            required
+            hint="Kept private unless you turn on public display below."
+            placeholder="contact@example.com"
+            value={organiserEmail}
+            onChangeText={onChange("organiserEmail", setOrganiserEmail)}
+            error={errors.organiserEmail}
+            inputProps={{
+              keyboardType: "email-address",
+              autoCapitalize: "none",
+              autoCorrect: false,
+            }}
+          />
+
+          {/* PUBLIC EMAIL TOGGLE */}
+          <View style={[styles.toggleRow, { borderTopColor: theme.hairline }]}>
+            <Text style={[styles.toggleLabel, { color: theme.text }]}>
+              Display my email publicly
+            </Text>
+            <Switch
+              value={showEmailPublicly}
+              onValueChange={setShowEmailPublicly}
+              thumbColor={theme.white}
+              trackColor={{ true: theme.gold, false: theme.cardElevated }}
+              ios_backgroundColor={theme.cardElevated}
+              accessibilityLabel="Display my email publicly"
+            />
+          </View>
+        </FormCard>
 
         {/* CATEGORIES */}
-        <Text style={styles.label}>Categories</Text>
+        <SectionTitle title="Categories" subtitle="Choose any that apply." />
         <View style={styles.categoryContainer}>
-          {CATEGORY_OPTIONS.map((cat) => (
-            <TouchableOpacity
-              key={cat}
-              style={[
-                styles.categoryChip,
-                categories.includes(cat) && styles.categoryChipSelected,
-              ]}
-              onPress={() => toggleCategory(cat)}
-            >
-              <Text
-                style={[
-                  styles.categoryText,
-                  categories.includes(cat) && styles.categoryTextSelected,
+          {CATEGORY_OPTIONS.map((cat) => {
+            const selected = categories.includes(cat);
+
+            return (
+              <Pressable
+                key={cat}
+                accessibilityRole="button"
+                accessibilityLabel={cat}
+                accessibilityState={{ selected }}
+                onPress={() => toggleCategory(cat)}
+                style={({ pressed }) => [
+                  styles.categoryChip,
+                  {
+                    backgroundColor: selected ? GOLD_TINT : theme.card,
+                    borderColor: selected ? theme.gold : theme.hairline,
+                  },
+                  pressed && styles.pressed,
                 ]}
               >
-                {cat}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                {selected ? <Check size={14} color={theme.gold} weight="bold" /> : null}
+                <Text
+                  style={[styles.categoryText, { color: selected ? theme.gold : theme.text }]}
+                >
+                  {cat}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         {/* SUBMIT */}
-        <TouchableOpacity
-          style={[styles.submitButton, submitting && styles.submitButtonBusy]}
-          onPress={validateAndSubmit}
-          disabled={submitting}
-        >
-          <Text style={styles.submitText}>
-            {submitting ? "Checking postcode..." : "Submit Fair"}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.submitBlock}>
+          {formError ? (
+            <View
+              style={styles.formError}
+              accessibilityRole="alert"
+              accessibilityLiveRegion="polite"
+            >
+              <WarningCircle size={18} color={theme.danger} />
+              <Text style={[styles.formErrorText, { color: theme.danger }]}>{formError}</Text>
+            </View>
+          ) : null}
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={submitting ? "Checking postcode" : "Submit fair"}
+            accessibilityState={{ disabled: submitting, busy: submitting }}
+            onPress={validateAndSubmit}
+            disabled={submitting}
+            style={({ pressed }) => [
+              styles.submitButton,
+              { backgroundColor: theme.gold },
+              submitting && styles.submitButtonBusy,
+              pressed && styles.pressed,
+            ]}
+          >
+            {submitting ? <ActivityIndicator size="small" color={theme.black} /> : null}
+            <Text style={[styles.submitText, { color: theme.black }]}>
+              {submitting ? "Checking postcode..." : "Submit fair"}
+            </Text>
+          </Pressable>
+        </View>
       </ScrollView>
-    </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
+  flex: {
     flex: 1,
-    backgroundColor: "#0A1931",
   },
   scrollContent: {
-    padding: 20,
-    paddingBottom: 200,
+    paddingHorizontal: 16,
+    paddingTop: 16,
   },
-  header: {
+  pressed: {
+    opacity: 0.75,
+  },
+
+  /* HEADER */
+  pageTitle: {
     fontSize: 28,
-    fontWeight: "900",
-    color: "#FFD700",
-    textAlign: "center",
-    marginBottom: 20,
+    fontWeight: "700",
+  },
+  pageSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 6,
+  },
+  sectionHeader: {
+    marginTop: 24,
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+
+  /* FORM */
+  formCard: {
+    padding: 16,
+    gap: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  field: {
+    gap: 8,
   },
   label: {
-    color: "#FFD700",
-    fontWeight: "700",
-    marginTop: 14,
-    marginBottom: 6,
+    fontSize: 13,
+    fontWeight: "600",
   },
   input: {
-    backgroundColor: "#112240",
-    padding: 14,
+    height: 48,
+    paddingHorizontal: 14,
     borderRadius: 12,
-    color: "#fff",
     borderWidth: 1,
-    borderColor: "#FFD700",
-  },
-  toggleRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 20,
-    marginBottom: 20,
-  },
-  toggleLabel: {
-    color: "#FFD700",
-    fontWeight: "700",
     fontSize: 16,
   },
+  fieldMessage: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  pair: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  pairItem: {
+    flex: 1,
+  },
+  toggleRow: {
+    minHeight: 52,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  toggleLabel: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "600",
+  },
+
+  /* CATEGORIES */
   categoryContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
-    marginBottom: 20,
+    gap: 8,
   },
   categoryChip: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    backgroundColor: "#112240",
-    borderRadius: 20,
+    minHeight: 44,
+    paddingHorizontal: 16,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: "#FFD700",
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  categoryChipSelected: {
-    backgroundColor: "#FFD700",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
   },
   categoryText: {
-    color: "#FFD700",
-    fontWeight: "700",
+    fontSize: 15,
+    fontWeight: "600",
   },
-  categoryTextSelected: {
-    color: "#0A1931",
+
+  /* SUBMIT */
+  submitBlock: {
+    marginTop: 24,
+    gap: 12,
+  },
+  formError: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  formErrorText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
   },
   submitButton: {
-    backgroundColor: "#00E676",
-    paddingVertical: 16,
+    minHeight: 52,
+    paddingHorizontal: 16,
     borderRadius: 14,
+    flexDirection: "row",
     alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#FFD700",
-    marginTop: 10,
+    justifyContent: "center",
+    gap: 8,
   },
   submitButtonBusy: {
     opacity: 0.6,
   },
   submitText: {
-    color: "#0A1931",
-    fontSize: 17,
-    fontWeight: "900",
+    fontSize: 16,
+    fontWeight: "700",
   },
 });

@@ -1,27 +1,248 @@
 import { router, useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Animated,
+  ArrowSquareOut,
+  CalendarBlank,
+  CaretRight,
+  Clock,
+  MagnifyingGlass,
+  MapPin,
+  Plus,
+  Star,
+  Tent,
+  Users,
+} from "phosphor-react-native";
+import type { Icon as PhosphorIcon } from "phosphor-react-native";
+import { useCallback, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
   FlatList,
   Image,
+  Linking,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import SponsoredCard from "@/components/marketplace/SponsoredCard";
+import type { StyleProp, ViewStyle } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { businessAdverts } from "../../src/lib/businessAdverts";
+import { useTheme } from "@/styles/ThemeContext";
+
+import { BusinessAdvert, businessAdverts } from "../../src/lib/businessAdverts";
 import { Fair, getAllFairs } from "../../src/lib/fairs";
 
+const RADIUS_OPTIONS = [5, 10, 20];
+
+// A soft fill for a selected chip, and the scrim and pill that sit over a photo.
+// The theme has no translucent values of its own.
+const GOLD_TINT = "rgba(255, 215, 0, 0.12)";
+const SCRIM = "rgba(0, 0, 0, 0.5)";
+const ON_PHOTO_PILL = "rgba(255, 255, 255, 0.18)";
+
+/* SMALL LOCAL COMPONENTS */
+function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
+  const theme = useTheme();
+
+  return (
+    <View style={styles.sectionHeader}>
+      <Text style={[styles.sectionTitle, { color: theme.text }]} accessibilityRole="header">
+        {title}
+      </Text>
+      {subtitle ? (
+        <Text style={[styles.sectionSubtitle, { color: theme.muted }]}>{subtitle}</Text>
+      ) : null}
+    </View>
+  );
+}
+
+// Small icon + text pill for the facts on a fair.
+function Chip({
+  Icon,
+  label,
+  accent,
+}: {
+  Icon?: PhosphorIcon;
+  label: string;
+  accent?: boolean;
+}) {
+  const theme = useTheme();
+
+  return (
+    <View style={[styles.chip, { backgroundColor: theme.background }]}>
+      {Icon ? (
+        <Icon
+          size={14}
+          color={accent ? theme.gold : theme.muted}
+          weight={accent ? "fill" : "regular"}
+        />
+      ) : null}
+      <Text style={[styles.chipText, { color: theme.text }]} numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+function FactRow({ Icon, text }: { Icon: PhosphorIcon; text: string }) {
+  const theme = useTheme();
+
+  return (
+    <View style={styles.factRow}>
+      <Icon size={16} color={theme.muted} />
+      <Text style={[styles.factText, { color: theme.text }]} numberOfLines={1}>
+        {text}
+      </Text>
+    </View>
+  );
+}
+
+// One boot fair in the list. The whole card opens the fair.
+function FairCard({ item }: { item: Fair }) {
+  const theme = useTheme();
+  const [imageFailed, setImageFailed] = useState(false);
+
+  const image = imageFailed ? undefined : item.images?.[0];
+  const hasTimes = Boolean(item.openingTime || item.closingTime);
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${item.name}, ${[item.postcode, item.nextDate]
+        .filter(Boolean)
+        .join(", ")}. View details`}
+      onPress={() =>
+        router.push({
+          pathname: "/bootfairs/details",
+          params: { id: item.id },
+        })
+      }
+      style={({ pressed }) => [
+        styles.fairCard,
+        { backgroundColor: theme.card, borderColor: theme.hairline },
+        pressed && styles.pressed,
+      ]}
+    >
+      {image ? (
+        <Image
+          source={{ uri: image }}
+          style={[styles.fairImage, { backgroundColor: theme.background }]}
+          resizeMode="cover"
+          onError={() => setImageFailed(true)}
+        />
+      ) : null}
+
+      <View style={styles.fairBody}>
+        <Text numberOfLines={2} style={[styles.fairTitle, { color: theme.text }]}>
+          {item.name}
+        </Text>
+
+        <View style={styles.chips}>
+          {item.featured ? <Chip Icon={Star} label="Featured" accent /> : null}
+          {item.frequency ? <Chip label={item.frequency} /> : null}
+          {/* 0 means nobody has rated it, not "quiet" */}
+          {item.busyScore > 0 ? <Chip Icon={Users} label={`Busy ${item.busyScore}/10`} /> : null}
+        </View>
+
+        <View style={styles.facts}>
+          <FactRow Icon={MapPin} text={item.postcode} />
+          {item.nextDate ? <FactRow Icon={CalendarBlank} text={item.nextDate} /> : null}
+          {hasTimes ? (
+            <FactRow Icon={Clock} text={`${item.openingTime}–${item.closingTime}`} />
+          ) : null}
+        </View>
+
+        <View style={[styles.cardFooter, { borderTopColor: theme.hairline }]}>
+          <Text style={[styles.cardFooterText, { color: theme.text }]}>View details</Text>
+          <CaretRight size={18} color={theme.muted} />
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
+// A local business advert. Always labelled Sponsored; the card opens the
+// advertiser's website when it has one.
+function AdCard({ advert, style }: { advert: BusinessAdvert; style?: StyleProp<ViewStyle> }) {
+  const theme = useTheme();
+  const website = advert.website;
+  // A photo that won't load leaves a dead block, so drop it and show the text alone.
+  const [imageFailed, setImageFailed] = useState(false);
+
+  return (
+    <Pressable
+      disabled={!website}
+      accessibilityRole={website ? "button" : undefined}
+      accessibilityLabel={
+        website
+          ? `Sponsored: ${advert.title}. Visit website`
+          : `Sponsored: ${advert.title}`
+      }
+      onPress={() => {
+        if (website) Linking.openURL(website);
+      }}
+      style={({ pressed }) => [
+        styles.adCard,
+        { backgroundColor: theme.card, borderColor: theme.hairline },
+        style,
+        pressed && styles.pressed,
+      ]}
+    >
+      {advert.image && !imageFailed ? (
+        <Image
+          source={{ uri: advert.image }}
+          style={[styles.adImage, { backgroundColor: theme.background }]}
+          resizeMode="cover"
+          onError={() => setImageFailed(true)}
+        />
+      ) : null}
+
+      <View style={styles.adBody}>
+        <View style={[styles.sponsoredPill, { backgroundColor: theme.background }]}>
+          <Text style={[styles.sponsoredPillText, { color: theme.muted }]}>Sponsored</Text>
+        </View>
+
+        <Text numberOfLines={2} style={[styles.adTitle, { color: theme.text }]}>
+          {advert.title}
+        </Text>
+
+        {advert.tagline ? (
+          <Text style={[styles.adTagline, { color: theme.muted }]} numberOfLines={1}>
+            {advert.tagline}
+          </Text>
+        ) : null}
+
+        <Text style={[styles.adDescription, { color: theme.muted }]} numberOfLines={3}>
+          {advert.description}
+        </Text>
+
+        {advert.rating ? (
+          <View style={styles.ratingRow}>
+            <Star size={16} color={theme.gold} weight="fill" />
+            <Text style={[styles.ratingText, { color: theme.text }]}>
+              {advert.rating.toFixed(1)}
+            </Text>
+          </View>
+        ) : null}
+
+        {website ? (
+          <View style={[styles.cardFooter, { borderTopColor: theme.hairline }]}>
+            <Text style={[styles.cardFooterText, { color: theme.text }]}>Visit website</Text>
+            <ArrowSquareOut size={18} color={theme.muted} />
+          </View>
+        ) : null}
+      </View>
+    </Pressable>
+  );
+}
+
 export default function BootFairFinderScreen() {
+  const theme = useTheme();
+  const insets = useSafeAreaInsets();
+
   const [postcode, setPostcode] = useState("");
   const [radius, setRadius] = useState(10);
-
-  const headerAnim = useRef(new Animated.Value(0)).current;
 
   const [fairLocations, setFairLocations] = useState<Fair[]>([]);
   const [fairsLoaded, setFairsLoaded] = useState(false);
@@ -35,16 +256,10 @@ export default function BootFairFinderScreen() {
     }, [])
   );
 
-  useEffect(() => {
-    Animated.timing(headerAnim, {
-      toValue: 1,
-      duration: 500,
-      useNativeDriver: true,
-    }).start();
-  }, []);
-
   const featuredAd = businessAdverts.find((ad) => ad.isFeatured);
   const otherAds = businessAdverts.filter((ad) => !ad.isFeatured);
+  // The closing banner shows an advert that isn't already on the page above it.
+  const footerAd = businessAdverts.find((ad) => ad !== featuredAd && !otherAds.includes(ad));
 
   // Use `featured` fairs as "sponsored" for now
   const sponsoredFairs = useMemo(
@@ -53,638 +268,600 @@ export default function BootFairFinderScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={{ paddingBottom: 24 }}
-        showsVerticalScrollIndicator={false}
+    <ScrollView
+      style={[styles.container, { backgroundColor: theme.background }]}
+      contentContainerStyle={{ paddingTop: 16, paddingBottom: insets.bottom + 24 }}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
+      <Text style={[styles.intro, styles.block, { color: theme.muted }]}>
+        Find car boot fairs near you, or list your own.
+      </Text>
+
+      {/* SEARCH */}
+      <View
+        style={[
+          styles.card,
+          styles.block,
+          { backgroundColor: theme.card, borderColor: theme.hairline },
+        ]}
       >
-        {/* HEADER SIGNBOARD */}
-        <Animated.View
-          style={{
-            opacity: headerAnim,
-            transform: [
-              {
-                translateY: headerAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [20, 0],
-                }),
-              },
-            ],
-          }}
-        >
-          <View style={styles.signBoard}>
-            <Text style={styles.signTitle}>Boot Fairs</Text>
-            <Text style={styles.signSubtitle}>
-              Real British car boot vibes. Find stalls, fields, and bargains.
-            </Text>
-          </View>
-        </Animated.View>
+        <Text style={[styles.cardTitle, { color: theme.text }]} accessibilityRole="header">
+          Find a boot fair near you
+        </Text>
 
-        {/* CHALKBOARD SEARCH */}
-        <View style={styles.searchBox}>
-          <Text style={styles.searchLabel}>Find a boot fair near you</Text>
+        <Text style={[styles.fieldLabel, { color: theme.muted }]}>Postcode</Text>
+        <TextInput
+          style={[
+            styles.input,
+            {
+              backgroundColor: theme.background,
+              borderColor: theme.hairline,
+              color: theme.text,
+            },
+          ]}
+          placeholder="Enter postcode (e.g. TQ4 6AG)"
+          placeholderTextColor={theme.muted}
+          value={postcode}
+          onChangeText={setPostcode}
+          accessibilityLabel="Postcode"
+        />
 
-          <TextInput
-            style={styles.input}
-            placeholder="Enter postcode (e.g. TQ4 6AG)"
-            placeholderTextColor="#C9D2E0"
-            value={postcode}
-            onChangeText={setPostcode}
-          />
+        <Text style={[styles.fieldLabel, { color: theme.muted }]}>Search radius</Text>
+        <View style={styles.segmentRow}>
+          {RADIUS_OPTIONS.map((r) => {
+            const selected = radius === r;
 
-          <View style={styles.radiusRow}>
-            {[5, 10, 20].map((r) => (
-              <TouchableOpacity
+            return (
+              <Pressable
                 key={r}
-                style={[
-                  styles.radiusButton,
-                  radius === r && styles.radiusSelected,
-                ]}
+                accessibilityRole="button"
+                accessibilityLabel={`${r} miles`}
+                accessibilityState={{ selected }}
                 onPress={() => setRadius(r)}
+                style={({ pressed }) => [
+                  styles.segment,
+                  {
+                    backgroundColor: selected ? GOLD_TINT : theme.background,
+                    borderColor: selected ? theme.gold : theme.hairline,
+                  },
+                  pressed && styles.pressed,
+                ]}
               >
                 <Text
                   style={[
-                    styles.radiusText,
-                    radius === r && styles.radiusTextSelected,
+                    styles.segmentText,
+                    { color: selected ? theme.gold : theme.text },
                   ]}
                 >
                   {r} miles
                 </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <TouchableOpacity
-  style={styles.searchButton}
-  onPress={() =>
-    router.push({
-      pathname: "/bootfairs/search",
-      params: { postcode, radius },
-    })
-  }
->
-  <Text style={styles.searchText}>Search boot fairs</Text>
-</TouchableOpacity>
-
+              </Pressable>
+            );
+          })}
         </View>
 
-        {/* TOP SPONSORED BOOTFAIRS BOX */}
-        {sponsoredFairs.length > 0 && (
-          <View style={styles.sponsoredBox}>
-            <Text style={styles.sponsoredTitle}>
-              Featured boot fairs
-            </Text>
-            <Text style={styles.sponsoredSubtitle}>
-              Listings the organisers have promoted.
-            </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Search boot fairs"
+          onPress={() =>
+            router.push({
+              pathname: "/bootfairs/search",
+              params: { postcode, radius },
+            })
+          }
+          style={({ pressed }) => [
+            styles.primaryButton,
+            styles.searchButton,
+            { backgroundColor: theme.gold },
+            pressed && styles.pressed,
+          ]}
+        >
+          <MagnifyingGlass size={20} color={theme.black} weight="bold" />
+          <Text style={[styles.primaryLabel, { color: theme.black }]}>Search boot fairs</Text>
+        </Pressable>
+      </View>
 
-            {sponsoredFairs.map((item) => (
-              <TouchableOpacity
+      {/* TOP SPONSORED BOOTFAIRS */}
+      {sponsoredFairs.length > 0 && (
+        <View style={[styles.section, styles.block]}>
+          <SectionTitle
+            title="Featured boot fairs"
+            subtitle="Listings the organisers have promoted."
+          />
+
+          <View
+            style={[styles.group, { backgroundColor: theme.card, borderColor: theme.hairline }]}
+          >
+            {sponsoredFairs.map((item, i) => (
+              <Pressable
                 key={item.id}
-                style={styles.sponsoredFairCard}
+                accessibilityRole="button"
+                accessibilityLabel={`${item.name}, ${[item.postcode, item.nextDate]
+                  .filter(Boolean)
+                  .join(", ")}. Sponsored boot fair. View details`}
                 onPress={() =>
                   router.push({
                     pathname: "/bootfairs/details",
                     params: { id: item.id },
                   })
                 }
+                style={({ pressed }) => [
+                  styles.featuredRow,
+                  i > 0 && { borderTopWidth: 1, borderTopColor: theme.hairline },
+                  pressed && styles.pressed,
+                ]}
               >
-                <View style={styles.sponsoredFairLeft}>
-                  <Text style={styles.sponsoredFairName}>
+                <View style={styles.featuredMain}>
+                  <Text numberOfLines={2} style={[styles.featuredName, { color: theme.text }]}>
                     {item.name}
                   </Text>
-                  <Text style={styles.sponsoredFairMeta}>
-                    {item.postcode} • {item.nextDate}
+                  <Text style={[styles.featuredMeta, { color: theme.muted }]} numberOfLines={1}>
+                    {[item.postcode, item.nextDate].filter(Boolean).join(" · ")}
                   </Text>
-                  <Text style={styles.sponsoredFairTag}>
-                    ⭐ Sponsored bootfair
-                  </Text>
+                  <View style={[styles.sponsoredPill, { backgroundColor: theme.background }]}>
+                    <Text style={[styles.sponsoredPillText, { color: theme.muted }]}>
+                      Sponsored boot fair
+                    </Text>
+                  </View>
                 </View>
-              </TouchableOpacity>
+                <CaretRight size={18} color={theme.muted} />
+              </Pressable>
             ))}
           </View>
-        )}
+        </View>
+      )}
 
-        {/* HERO SPONSOR BANNER (LOCAL BUSINESS) */}
-        {featuredAd && (
-          <View style={styles.heroSponsor}>
-            {featuredAd.image && (
-              <Image
-                source={{ uri: featuredAd.image }}
-                style={styles.heroImage}
-              />
-            )}
-
-            <View style={styles.heroOverlay} />
-
-            <View style={styles.heroContent}>
-              <Text style={styles.heroTag}>Sponsored stall</Text>
-              <Text style={styles.heroTitle}>{featuredAd.title}</Text>
-            </View>
-          </View>
-        )}
-
-        {/* SPONSOR CAROUSEL (LOCAL BUSINESSES) */}
-        {otherAds.length > 0 && (
-          <View style={styles.carouselSection}>
-            <Text style={styles.carouselTitle}>Other sponsored stalls</Text>
-
-            <FlatList
-              data={otherAds}
-              keyExtractor={(item) => item.id}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.carouselContent}
-              renderItem={({ item }) => (
-                <View style={styles.sponsorCardWrapper}>
-                  <SponsoredCard advert={item} />
-                </View>
-              )}
+      {/* HERO SPONSOR (LOCAL BUSINESS) */}
+      {featuredAd && (
+        <View
+          accessible
+          accessibilityLabel={`Sponsored stall: ${featuredAd.title}`}
+          style={[
+            styles.hero,
+            styles.block,
+            { backgroundColor: theme.card, borderColor: theme.hairline },
+          ]}
+        >
+          {featuredAd.image ? (
+            <Image
+              source={{ uri: featuredAd.image }}
+              style={StyleSheet.absoluteFill}
+              resizeMode="cover"
             />
-          </View>
-        )}
+          ) : null}
 
-        {/* BOOTFAIR LIST */}
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: SCRIM }]} />
+
+          <View style={styles.heroContent}>
+            <View style={[styles.sponsoredPill, { backgroundColor: ON_PHOTO_PILL }]}>
+              <Text style={[styles.sponsoredPillText, { color: theme.white }]}>
+                Sponsored stall
+              </Text>
+            </View>
+            <Text numberOfLines={2} style={[styles.heroTitle, { color: theme.white }]}>
+              {featuredAd.title}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* SPONSOR CAROUSEL (LOCAL BUSINESSES) */}
+      {otherAds.length > 0 && (
+        <View style={styles.section}>
+          <View style={styles.block}>
+            <SectionTitle title="Other sponsored stalls" />
+          </View>
+
+          <FlatList
+            data={otherAds}
+            keyExtractor={(item) => item.id}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.carouselContent}
+            renderItem={({ item }) => (
+              <View style={styles.adSlot}>
+                <AdCard advert={item} style={styles.adFill} />
+              </View>
+            )}
+          />
+        </View>
+      )}
+
+      {/* BOOTFAIR LIST */}
+      <View style={styles.section}>
+        {fairLocations.length > 0 ? (
+          <View style={styles.block}>
+            <SectionTitle title="All boot fairs" />
+          </View>
+        ) : null}
+
         <FlatList
           data={fairLocations}
           keyExtractor={(item) => item.id}
           scrollEnabled={false}
-          contentContainerStyle={{ paddingBottom: 8 }}
+          contentContainerStyle={styles.listContent}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
           ListEmptyComponent={
             fairsLoaded ? (
               <View style={styles.emptyBox}>
-                <Text style={styles.emptyTitle}>No boot fairs listed yet</Text>
-                <Text style={styles.emptyText}>
+                <View
+                  style={[
+                    styles.emptyIcon,
+                    { backgroundColor: theme.card, borderColor: theme.goldSoftGlow },
+                  ]}
+                >
+                  <Tent size={30} color={theme.gold} />
+                </View>
+                <Text style={[styles.emptyTitle, { color: theme.text }]}>
+                  No boot fairs listed yet
+                </Text>
+                <Text style={[styles.emptyBody, { color: theme.muted }]}>
                   Boot fairs you list show up here. Use the button below to add one.
                 </Text>
               </View>
-            ) : null
-          }
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.card}
-              onPress={() =>
-                router.push({
-                  pathname: "/bootfairs/details",
-                  params: { id: item.id },
-                })
-              }
-            >
-              {/* Ticket stub top strip */}
-              <View style={styles.cardTopStrip}>
-                <Text style={styles.cardTopStripText}>
-                  {item.postcode}
+            ) : (
+              <View style={styles.loadingBox}>
+                <ActivityIndicator color={theme.muted} />
+                <Text style={[styles.loadingText, { color: theme.muted }]}>
+                  Loading boot fairs
                 </Text>
               </View>
-
-              {item.images?.[0] && (
-                <Image
-                  source={{ uri: item.images[0] }}
-                  style={styles.cardImage}
-                />
-              )}
-
-              <Text style={styles.cardTitle}>{item.name}</Text>
-
-              <View style={styles.badgeRow}>
-                {item.featured && (
-                  <View style={styles.featuredBadge}>
-                    <Text style={styles.featuredText}>⭐ Featured</Text>
-                  </View>
-                )}
-
-                <View style={styles.frequencyBadge}>
-                  <Text style={styles.frequencyText}>
-                    {item.frequency}
-                  </Text>
-                </View>
-
-                {/* 0 means nobody has rated it, not "quiet" */}
-                {item.busyScore > 0 && (
-                  <View style={styles.busyBadge}>
-                    <Text style={styles.busyText}>
-                      {item.busyScore}/10 Busy
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              <Text style={styles.cardSub}>{item.postcode}</Text>
-              <Text style={styles.cardSub}>{item.nextDate}</Text>
-
-              <Text style={styles.cardFees}>
-                {item.openingTime}–{item.closingTime}
-              </Text>
-
-              <Text style={styles.viewDetails}>View stall details →</Text>
-
-              {/* Ticket perforation */}
-              <View style={styles.cardPerforationRow}>
-                <View style={styles.cardPerforationDot} />
-                <View style={styles.cardPerforationLine} />
-                <View style={styles.cardPerforationDot} />
-              </View>
-            </TouchableOpacity>
-          )}
+            )
+          }
+          renderItem={({ item }) => <FairCard item={item} />}
         />
+      </View>
 
-        {/* BOTTOM LOCAL BUSINESS SPONSOR (SECONDARY) */}
-        {otherAds.length > 0 && (
-          <View style={styles.bottomSponsorBox}>
-            <Text style={styles.bottomSponsorLabel}>Sponsored</Text>
-            <SponsoredCard advert={otherAds[0]} />
-          </View>
-        )}
+      {/* BOTTOM LOCAL BUSINESS SPONSOR (SECONDARY) */}
+      {footerAd && (
+        <View style={[styles.section, styles.block]}>
+          <AdCard advert={footerAd} />
+        </View>
+      )}
 
-        {/* LIST YOUR BOOT FAIR BUTTON */}
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => router.push("/bootfairs/add")}
-        >
-          <Text style={styles.addButtonText}>List Your Boot Fair</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
+      {/* LIST YOUR BOOT FAIR BUTTON */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="List your boot fair"
+        onPress={() => router.push("/bootfairs/add")}
+        style={({ pressed }) => [
+          styles.secondaryButton,
+          styles.block,
+          styles.addButton,
+          { backgroundColor: theme.card, borderColor: theme.hairline },
+          pressed && styles.pressed,
+        ]}
+      >
+        <Plus size={20} color={theme.text} weight="bold" />
+        <Text style={[styles.secondaryLabel, { color: theme.text }]}>List your boot fair</Text>
+      </Pressable>
+    </ScrollView>
   );
 }
 
 /* ---------------- STYLES ---------------- */
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#0A1128",
-  },
   container: {
     flex: 1,
-    backgroundColor: "#0A1128",
-    paddingHorizontal: 20,
-    paddingTop: 12,
   },
-
-  /* SIGNBOARD HEADER */
-  signBoard: {
-    backgroundColor: "#112240",
-    borderRadius: 18,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderWidth: 2,
-    borderColor: "#FFD700",
+  // Every top-level block sits inside the 16pt gutter; the carousel bleeds to the edge.
+  block: {
+    marginHorizontal: 16,
   },
-  signTitle: {
-    fontSize: 26,
-    fontWeight: "900",
-    color: "#FFD700",
-    textAlign: "center",
+  section: {
+    marginTop: 24,
   },
-  signSubtitle: {
-    marginTop: 6,
-    color: "#C9D2E0",
-    fontSize: 14,
-    textAlign: "center",
-  },
-
-  /* CHALKBOARD SEARCH */
-  searchBox: {
-    marginTop: 14,
-    backgroundColor: "#112240",
-    padding: 16,
-    borderRadius: 18,
-    borderWidth: 2,
-    borderColor: "#FFD700",
-    marginBottom: 16,
-  },
-  searchLabel: {
-    color: "#F9FAFB",
-    fontWeight: "800",
-    marginBottom: 8,
-    fontSize: 14,
-  },
-  input: {
-    backgroundColor: "#0A1128",
-    padding: 14,
-    borderRadius: 12,
-    fontSize: 16,
-    marginBottom: 12,
-    color: "#fff",
-    borderWidth: 1,
-    borderColor: "#4B5563",
-  },
-  radiusRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
-  radiusButton: {
-    flex: 1,
-    paddingVertical: 10,
-    marginHorizontal: 4,
-    backgroundColor: "#0A1128",
-    borderRadius: 999,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#4B5563",
-  },
-  radiusSelected: {
-    backgroundColor: "#3B82F6",
-    borderColor: "#3B82F6",
-  },
-  radiusText: {
-    color: "#E5E7EB",
-    fontWeight: "700",
-  },
-  radiusTextSelected: {
-    color: "#FFFFFF",
-  },
-  searchButton: {
-    backgroundColor: "#22C55E",
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: "center",
-    marginTop: 4,
-  },
-  searchText: {
-    color: "#022C22",
-    fontSize: 16,
-    fontWeight: "900",
-  },
-
-  /* SPONSORED BOOTFAIRS BOX */
-  sponsoredBox: {
-    width: "100%",
-    marginBottom: 16,
-    backgroundColor: "#112240",
-    borderRadius: 18,
-    borderWidth: 2,
-    borderColor: "#FFD700",
-    padding: 16,
-  },
-  sponsoredTitle: {
-    color: "#F9FAFB",
-    fontWeight: "900",
+  intro: {
     fontSize: 15,
+    lineHeight: 21,
   },
-  sponsoredSubtitle: {
-    color: "#9CA3AF",
-    fontSize: 13,
-    marginTop: 2,
-    marginBottom: 10,
-  },
-  sponsoredFairCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,215,0,0.25)",
-  },
-  sponsoredFairLeft: {
-    flex: 1,
-  },
-  sponsoredFairName: {
-    color: "#F9FAFB",
-    fontWeight: "800",
-    fontSize: 14,
-  },
-  sponsoredFairMeta: {
-    color: "#9CA3AF",
-    fontSize: 12,
-    marginTop: 2,
-  },
-  sponsoredFairTag: {
-    color: "#FBBF24",
-    fontSize: 11,
-    marginTop: 2,
-    fontWeight: "700",
+  pressed: {
+    opacity: 0.75,
   },
 
-  /* HERO SPONSOR */
-  heroSponsor: {
-    width: "100%",
-    marginBottom: 16,
-    borderRadius: 18,
-    overflow: "hidden",
-    borderWidth: 2,
-    borderColor: "#FFD700",
-  },
-  heroImage: {
-    width: "100%",
-    height: 160,
-  },
-heroOverlay: {
-  position: "absolute",
-  top: 0,
-  right: 0,
-  bottom: 0,
-  left: 0,
-  backgroundColor: "rgba(0,0,0,0.45)",
-},
-
-
-  heroContent: {
-    position: "absolute",
-    left: 16,
-    right: 16,
-    bottom: 16,
-  },
-  heroTag: {
-    color: "#FBBF24",
-    fontWeight: "800",
-    fontSize: 12,
-    marginBottom: 4,
-  },
-  heroTitle: {
-    color: "#F9FAFB",
-    fontSize: 20,
-    fontWeight: "900",
-  },
-
-  /* SPONSOR CAROUSEL */
-  carouselSection: {
-    marginBottom: 12,
-  },
-  carouselTitle: {
-    color: "#E5E7EB",
-    fontWeight: "800",
-    fontSize: 14,
-    marginBottom: 6,
-  },
-  carouselContent: {
-    paddingVertical: 4,
-  },
-  sponsorCardWrapper: {
-    width: 260,
-    marginRight: 10,
-  },
-
-  /* BOOTFAIR CARDS */
+  /* SEARCH */
   card: {
-    backgroundColor: "#112240",
+    marginTop: 16,
     padding: 16,
-    borderRadius: 18,
-    marginBottom: 14,
-    borderWidth: 2,
-    borderColor: "#FFD700",
-  },
-  cardTopStrip: {
-    backgroundColor: "#1F2937",
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    alignSelf: "flex-start",
-    marginBottom: 8,
-  },
-  cardTopStripText: {
-    color: "#9CA3AF",
-    fontSize: 11,
-    fontWeight: "700",
-    textTransform: "uppercase",
-  },
-  cardImage: {
-    width: "100%",
-    height: 140,
-    borderRadius: 12,
-    marginBottom: 10,
+    borderRadius: 16,
+    borderWidth: 1,
   },
   cardTitle: {
     fontSize: 18,
-    fontWeight: "900",
-    marginBottom: 4,
-    color: "#F9FAFB",
+    fontWeight: "700",
   },
-  badgeRow: {
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  input: {
+    height: 48,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    fontSize: 16,
+  },
+  segmentRow: {
     flexDirection: "row",
     gap: 8,
-    marginBottom: 8,
   },
-  featuredBadge: {
-    backgroundColor: "rgba(251, 191, 36, 0.15)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+  segment: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(251, 191, 36, 0.7)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  featuredText: {
-    color: "#FBBF24",
-    fontWeight: "700",
-    fontSize: 12,
-  },
-  frequencyBadge: {
-    backgroundColor: "rgba(148, 163, 184, 0.15)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "rgba(148, 163, 184, 0.6)",
-  },
-  frequencyText: {
-    color: "#E5E7EB",
+  segmentText: {
+    fontSize: 15,
     fontWeight: "600",
-    fontSize: 12,
+    fontVariant: ["tabular-nums"],
   },
-  busyBadge: {
-    backgroundColor: "rgba(248, 113, 113, 0.15)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "rgba(248, 113, 113, 0.7)",
-  },
-  busyText: {
-    color: "#FCA5A5",
-    fontWeight: "600",
-    fontSize: 12,
-  },
-  cardSub: {
-    color: "#9CA3AF",
-    marginBottom: 2,
-    fontSize: 13,
-  },
-  cardFees: {
-    color: "#22C55E",
-    fontWeight: "700",
-    marginBottom: 8,
-    fontSize: 14,
-  },
-  viewDetails: {
-    color: "#3B82F6",
-    fontWeight: "800",
-    fontSize: 14,
-  },
-
-  /* TICKET PERFORATION */
-  cardPerforationRow: {
+  primaryButton: {
+    minHeight: 52,
+    paddingHorizontal: 16,
+    borderRadius: 14,
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 10,
+    justifyContent: "center",
+    gap: 8,
   },
-  cardPerforationDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 999,
-    backgroundColor: "#0A1128",
+  searchButton: {
+    marginTop: 20,
   },
-  cardPerforationLine: {
-    flex: 1,
-    height: 1,
-    borderStyle: "dashed",
-    borderWidth: 1,
-    borderColor: "#4B5563",
-    marginHorizontal: 6,
-  },
-
-  /* BOTTOM SPONSOR */
-  bottomSponsorBox: {
-    width: "100%",
-    backgroundColor: "#112240",
-    borderRadius: 18,
-    borderWidth: 2,
-    borderColor: "#FFD700",
-    padding: 16,
-    marginTop: 8,
-    marginBottom: 12,
-  },
-  bottomSponsorLabel: {
-    color: "#9CA3AF",
-    fontSize: 12,
-    marginBottom: 4,
+  primaryLabel: {
+    fontSize: 16,
     fontWeight: "700",
   },
+  secondaryButton: {
+    minHeight: 52,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  secondaryLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  addButton: {
+    marginTop: 24,
+  },
 
-  /* EMPTY LIST */
+  /* SECTIONS */
+  sectionHeader: {
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  group: {
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+
+  /* FEATURED FAIRS */
+  featuredRow: {
+    minHeight: 72,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  featuredMain: {
+    flex: 1,
+    gap: 3,
+  },
+  featuredName: {
+    fontSize: 16,
+    fontWeight: "600",
+    lineHeight: 21,
+  },
+  featuredMeta: {
+    fontSize: 13,
+    fontVariant: ["tabular-nums"],
+  },
+  sponsoredPill: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    marginTop: 4,
+  },
+  sponsoredPillText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
+  /* HERO SPONSOR */
+  hero: {
+    height: 168,
+    marginTop: 24,
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: "hidden",
+    justifyContent: "flex-end",
+  },
+  heroContent: {
+    padding: 16,
+    gap: 8,
+  },
+  heroTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    lineHeight: 26,
+  },
+
+  /* SPONSOR CARDS */
+  carouselContent: {
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  adSlot: {
+    width: 280,
+  },
+  adFill: {
+    flex: 1,
+  },
+  adCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  adImage: {
+    width: "100%",
+    height: 140,
+  },
+  adBody: {
+    padding: 16,
+    gap: 4,
+  },
+  adTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    lineHeight: 24,
+    marginTop: 6,
+  },
+  adTagline: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  adDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 2,
+  },
+  ratingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 8,
+  },
+  ratingText: {
+    fontSize: 14,
+    fontWeight: "600",
+    fontVariant: ["tabular-nums"],
+  },
+
+  /* BOOTFAIR CARDS */
+  listContent: {
+    paddingHorizontal: 16,
+  },
+  separator: {
+    height: 12,
+  },
+  fairCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  fairImage: {
+    width: "100%",
+    height: 140,
+  },
+  fairBody: {
+    padding: 16,
+  },
+  fairTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    lineHeight: 24,
+  },
+  chips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 10,
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  chipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    flexShrink: 1,
+    fontVariant: ["tabular-nums"],
+  },
+  facts: {
+    gap: 6,
+    marginTop: 12,
+  },
+  factRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  factText: {
+    flex: 1,
+    fontSize: 14,
+    fontVariant: ["tabular-nums"],
+  },
+  cardFooter: {
+    minHeight: 44,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  cardFooterText: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+
+  /* EMPTY AND LOADING */
   emptyBox: {
     alignItems: "center",
-    paddingVertical: 24,
-    paddingHorizontal: 12,
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+  },
+  emptyIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
   },
   emptyTitle: {
-    color: "#F9FAFB",
-    fontSize: 16,
-    fontWeight: "800",
-    marginBottom: 6,
-  },
-  emptyText: {
-    color: "#9CA3AF",
-    fontSize: 14,
+    fontSize: 20,
+    fontWeight: "700",
     textAlign: "center",
   },
-
-  /* ADD BUTTON */
-  addButton: {
+  emptyBody: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "center",
     marginTop: 8,
-    marginBottom: 16,
-    backgroundColor: "#22C55E",
-    paddingVertical: 16,
-    borderRadius: 14,
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#FFD700",
   },
-  addButtonText: {
-    color: "#022C22",
-    fontSize: 17,
-    fontWeight: "900",
+  loadingBox: {
+    alignItems: "center",
+    paddingVertical: 32,
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 15,
   },
 });
-

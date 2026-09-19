@@ -1,19 +1,124 @@
 import { router, useLocalSearchParams } from "expo-router";
+import {
+  CalendarBlank,
+  CaretRight,
+  MagnifyingGlass,
+  MapPin,
+  WarningCircle,
+} from "phosphor-react-native";
+import type { Icon as PhosphorIcon } from "phosphor-react-native";
 import { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    FlatList,
-    Image,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
-import { getAllFairs } from "../../src/lib/fairs";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { useTheme } from "@/styles/ThemeContext";
+
+import { Fair, getAllFairs } from "../../src/lib/fairs";
 
 const API_URL = "https://api.postcodes.io/postcodes/";
 
+type FairResult = Fair & { distance: number };
+
+// Calm, specific wording for each way the search can fail.
+function errorCopy(error: string): { title: string; body: string } {
+  switch (error) {
+    case "No postcode provided.":
+      return {
+        title: "No postcode entered",
+        body: "Go back and enter a postcode to search near.",
+      };
+    case "Invalid postcode.":
+      return {
+        title: "Postcode not recognised",
+        body: "Check the postcode and try again.",
+      };
+    case "Failed to fetch postcode data.":
+      return {
+        title: "Couldn't look up that postcode",
+        body: "Check your connection and try again.",
+      };
+    default:
+      return { title: "Couldn't search boot fairs", body: error };
+  }
+}
+
+function FactRow({ Icon, text }: { Icon: PhosphorIcon; text: string }) {
+  const theme = useTheme();
+
+  return (
+    <View style={styles.factRow}>
+      <Icon size={16} color={theme.muted} />
+      <Text style={[styles.factText, { color: theme.text }]} numberOfLines={1}>
+        {text}
+      </Text>
+    </View>
+  );
+}
+
+// One boot fair in the results. The whole card opens the fair.
+function ResultCard({ item }: { item: FairResult }) {
+  const theme = useTheme();
+
+  const image = item.images?.[0];
+  const distance = `${item.distance.toFixed(1)} miles away`;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${item.name}, ${[item.postcode, item.nextDate]
+        .filter(Boolean)
+        .join(", ")}, ${distance}. View details`}
+      onPress={() =>
+        router.push({
+          pathname: "/bootfairs/details",
+          params: { id: item.id },
+        })
+      }
+      style={({ pressed }) => [
+        styles.card,
+        { backgroundColor: theme.card, borderColor: theme.hairline },
+        pressed && styles.pressed,
+      ]}
+    >
+      {image ? (
+        <Image
+          source={{ uri: image }}
+          style={[styles.cardImage, { backgroundColor: theme.background }]}
+          resizeMode="cover"
+        />
+      ) : null}
+
+      <View style={styles.cardBody}>
+        <Text numberOfLines={2} style={[styles.cardTitle, { color: theme.text }]}>
+          {item.name}
+        </Text>
+
+        <View style={styles.facts}>
+          <FactRow Icon={MapPin} text={item.postcode} />
+          {item.nextDate ? <FactRow Icon={CalendarBlank} text={item.nextDate} /> : null}
+        </View>
+
+        <View style={[styles.cardFooter, { borderTopColor: theme.hairline }]}>
+          <Text style={[styles.distanceText, { color: theme.text }]}>{distance}</Text>
+          <CaretRight size={18} color={theme.muted} />
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
 export default function BootfairSearchResults() {
+  const theme = useTheme();
+  const insets = useSafeAreaInsets();
+
   const params = useLocalSearchParams<{
     postcode?: string | string[];
     radius?: string | string[];
@@ -23,8 +128,7 @@ export default function BootfairSearchResults() {
   const radius = Number(radiusParam) || 10;
 
   const [loading, setLoading] = useState(true);
-  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<FairResult[]>([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -35,13 +139,23 @@ export default function BootfairSearchResults() {
     }
 
     let active = true;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
 
-    fetch(API_URL + encodeURIComponent(postcode))
-      .then((res) => res.json())
+    fetch(API_URL + encodeURIComponent(postcode), { signal: controller.signal })
+      .then((res) => {
+        // A 404 means "no such postcode"; any other failure is the lookup itself.
+        if (res.status === 404) return null;
+        if (!res.ok) throw new Error(`Postcode lookup failed (${res.status})`);
+        return res.json();
+      })
       .then(async (data) => {
         if (!active) return;
 
-        if (!data.result) {
+        if (
+          typeof data?.result?.latitude !== "number" ||
+          typeof data?.result?.longitude !== "number"
+        ) {
           setError("Invalid postcode.");
           setLoading(false);
           return;
@@ -51,8 +165,6 @@ export default function BootfairSearchResults() {
           lat: data.result.latitude,
           lng: data.result.longitude,
         };
-
-        setUserCoords(coords);
 
         // Fairs the user added are stored on the device, so they are part of the search too.
         const allFairs = await getAllFairs();
@@ -73,73 +185,100 @@ export default function BootfairSearchResults() {
         if (!active) return;
         setError("Failed to fetch postcode data.");
         setLoading(false);
-      });
+      })
+      .finally(() => clearTimeout(timer));
 
     return () => {
       active = false;
+      clearTimeout(timer);
+      controller.abort();
     };
   }, [postcode, radius]);
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#FFD700" />
-        <Text style={styles.loadingText}>Searching bootfairs…</Text>
+      <View style={[styles.center, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={theme.muted} />
+        <Text style={[styles.stateBody, { color: theme.muted }]}>
+          {postcode ? `Searching for boot fairs near ${postcode}` : "Searching for boot fairs"}
+        </Text>
       </View>
     );
   }
 
   if (error) {
+    const copy = errorCopy(error);
+
     return (
-      <View style={styles.center}>
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>Go Back</Text>
-        </TouchableOpacity>
+      <View style={[styles.center, { backgroundColor: theme.background }]}>
+        <View
+          style={[styles.stateIcon, { backgroundColor: theme.card, borderColor: theme.hairline }]}
+        >
+          <WarningCircle size={30} color={theme.warning} />
+        </View>
+        <Text style={[styles.stateTitle, { color: theme.text }]} accessibilityRole="header">
+          {copy.title}
+        </Text>
+        <Text style={[styles.stateBody, { color: theme.muted }]}>{copy.body}</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          style={({ pressed }) => [
+            styles.primaryButton,
+            { backgroundColor: theme.gold },
+            pressed && styles.pressed,
+          ]}
+          onPress={() => router.back()}
+        >
+          <Text style={[styles.primaryLabel, { color: theme.black }]}>Go back</Text>
+        </Pressable>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.header}>
-        Results near {postcode} ({radius} miles)
-      </Text>
-
-      {results.length === 0 ? (
-        <View style={styles.center}>
-          <Text style={styles.noResults}>No bootfairs found in this area.</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={results}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{ paddingBottom: 40 }}
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.card}
-              onPress={() =>
-                router.push({
-                  pathname: "/bootfairs/details",
-                  params: { id: item.id },
-                })
-              }
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <FlatList
+        data={results}
+        keyExtractor={(item) => item.id}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingBottom: insets.bottom + 24 },
+        ]}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        ListHeaderComponent={
+          <View style={styles.header}>
+            <Text style={[styles.title, { color: theme.text }]} accessibilityRole="header">
+              Results near {postcode}
+            </Text>
+            <Text style={[styles.subtitle, { color: theme.muted }]}>
+              Within {radius} miles
+              {results.length > 0 ? ` · ${results.length} found` : ""}
+            </Text>
+          </View>
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyBox}>
+            <View
+              style={[
+                styles.stateIcon,
+                { backgroundColor: theme.card, borderColor: theme.goldSoftGlow },
+              ]}
             >
-              {item.images?.[0] && (
-                <Image source={{ uri: item.images[0] }} style={styles.cardImage} />
-              )}
-
-              <Text style={styles.cardTitle}>{item.name}</Text>
-              <Text style={styles.cardSub}>{item.postcode}</Text>
-              <Text style={styles.cardSub}>{item.nextDate}</Text>
-
-              <Text style={styles.distanceText}>
-                {item.distance.toFixed(1)} miles away
-              </Text>
-            </TouchableOpacity>
-          )}
-        />
-      )}
+              <MagnifyingGlass size={30} color={theme.gold} />
+            </View>
+            <Text style={[styles.stateTitle, { color: theme.text }]}>
+              No boot fairs in this area
+            </Text>
+            <Text style={[styles.stateBody, { color: theme.muted }]}>
+              Nothing is listed within {radius} miles of {postcode}. Go back and try a wider
+              search.
+            </Text>
+          </View>
+        }
+        renderItem={({ item }) => <ResultCard item={item} />}
+      />
     </View>
   );
 }
@@ -167,72 +306,122 @@ function distanceMiles(lat1: number, lon1: number, lat2: number, lon2: number) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0A1128",
-    padding: 20,
   },
+  pressed: {
+    opacity: 0.75,
+  },
+
+  /* LOADING / ERROR / EMPTY */
   center: {
     flex: 1,
-    justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#0A1128",
+    justifyContent: "center",
+    paddingHorizontal: 32,
   },
-  header: {
-    color: "#FFD700",
-    fontSize: 22,
-    fontWeight: "900",
+  emptyBox: {
+    alignItems: "center",
+    paddingTop: 48,
+    paddingHorizontal: 16,
+  },
+  stateIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 20,
+  },
+  stateTitle: {
+    fontSize: 20,
+    fontWeight: "700",
     textAlign: "center",
   },
-  loadingText: {
-    color: "#FFD700",
-    marginTop: 10,
+  stateBody: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "center",
+    marginTop: 8,
   },
-  errorText: {
-    color: "#FFD700",
-    fontSize: 18,
-    marginBottom: 20,
+  primaryButton: {
+    minHeight: 52,
+    paddingHorizontal: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 24,
   },
-  noResults: {
-    color: "#AFC6FF",
+  primaryLabel: {
     fontSize: 16,
-    marginTop: 20,
+    fontWeight: "700",
   },
-  backButton: {
-    backgroundColor: "#FFD700",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 10,
+
+  /* HEADER */
+  header: {
+    marginBottom: 16,
   },
-  backButtonText: {
-    color: "#0A1128",
-    fontWeight: "900",
+  title: {
+    fontSize: 28,
+    fontWeight: "700",
+    lineHeight: 34,
+  },
+  subtitle: {
+    fontSize: 14,
+    marginTop: 4,
+    fontVariant: ["tabular-nums"],
+  },
+
+  /* RESULTS */
+  listContent: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+  },
+  separator: {
+    height: 12,
   },
   card: {
-    backgroundColor: "#112240",
-    padding: 16,
     borderRadius: 16,
-    marginBottom: 14,
     borderWidth: 1,
-    borderColor: "#FFD700",
+    overflow: "hidden",
   },
   cardImage: {
     width: "100%",
     height: 140,
-    borderRadius: 12,
-    marginBottom: 10,
+  },
+  cardBody: {
+    padding: 16,
   },
   cardTitle: {
-    color: "#FFD700",
     fontSize: 18,
-    fontWeight: "900",
+    fontWeight: "700",
+    lineHeight: 24,
   },
-  cardSub: {
-    color: "#AFC6FF",
-    marginBottom: 2,
+  facts: {
+    gap: 6,
+    marginTop: 10,
+  },
+  factRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  factText: {
+    flex: 1,
+    fontSize: 14,
+    fontVariant: ["tabular-nums"],
+  },
+  cardFooter: {
+    minHeight: 44,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   distanceText: {
-    color: "#00E676",
-    fontWeight: "900",
-    marginTop: 6,
+    fontSize: 15,
+    fontWeight: "600",
+    fontVariant: ["tabular-nums"],
   },
 });

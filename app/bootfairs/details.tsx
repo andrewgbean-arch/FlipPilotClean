@@ -1,34 +1,220 @@
 import { router, useLocalSearchParams } from "expo-router";
 import {
-    ActivityIndicator,
-    Animated,
-    Image,
-    Linking,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ArrowLeft,
+  CaretRight,
+  Car,
+  CreditCard,
+  EnvelopeSimple,
+  FacebookLogo,
+  ForkKnife,
+  Globe,
+  House,
+  InstagramLogo,
+  MapPin,
+  Money,
+  NavigationArrow,
+  PawPrint,
+  Phone,
+  SealCheck,
+  Star,
+  Tent,
+  Toilet,
+  TwitterLogo,
+  Umbrella,
+  Users,
+  Wheelchair,
+} from "phosphor-react-native";
+import type { Icon as PhosphorIcon } from "phosphor-react-native";
+import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
+import {
+  ActivityIndicator,
+  Image,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-// ❌ REMOVED expo-maps
-// import { MapView } from "expo-maps";
+import { useTheme } from "@/styles/ThemeContext";
 
-// ❌ REMOVED react-native-maps Marker
-// import { Marker } from "react-native-maps";
-
-import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useRef, useState } from "react";
 import { Fair, getAllFairs } from "../../src/lib/fairs";
 
+/* SMALL LOCAL COMPONENTS */
+function SectionTitle({ children }: { children: string }) {
+  const theme = useTheme();
+
+  return (
+    <Text style={[styles.sectionTitle, { color: theme.text }]} accessibilityRole="header">
+      {children}
+    </Text>
+  );
+}
+
+// A card that holds rows and blocks; the rows inside are split by hairlines.
+function Group({ children }: { children: ReactNode }) {
+  const theme = useTheme();
+
+  return (
+    <View style={[styles.group, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
+      {children}
+    </View>
+  );
+}
+
+function DataRow({
+  label,
+  value,
+  divider,
+}: {
+  label: string;
+  value: string;
+  divider?: boolean;
+}) {
+  const theme = useTheme();
+
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${label}: ${value}`}
+      style={[styles.dataRow, divider && { borderTopWidth: 1, borderTopColor: theme.hairline }]}
+    >
+      <Text style={[styles.dataLabel, { color: theme.muted }]}>{label}</Text>
+      <Text style={[styles.dataValue, { color: theme.text }]}>{value}</Text>
+    </View>
+  );
+}
+
+// Small icon + text pill for the status of a fair.
+function Chip({
+  Icon,
+  label,
+  iconColor,
+  filled,
+}: {
+  Icon?: PhosphorIcon;
+  label: string;
+  iconColor?: string;
+  filled?: boolean;
+}) {
+  const theme = useTheme();
+
+  return (
+    <View style={[styles.chip, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
+      {Icon ? (
+        <Icon
+          size={14}
+          color={iconColor ?? theme.muted}
+          weight={filled ? "fill" : "regular"}
+        />
+      ) : null}
+      <Text style={[styles.chipText, { color: theme.text }]} numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+// Two figures side by side, as a pair of tiles.
+function StatTile({ label, value }: { label: string; value: string }) {
+  const theme = useTheme();
+
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${label}: ${value}`}
+      style={[styles.statTile, { backgroundColor: theme.card, borderColor: theme.hairline }]}
+    >
+      <Text style={[styles.statLabel, { color: theme.muted }]}>{label}</Text>
+      <Text style={[styles.statValue, { color: theme.text }]} numberOfLines={2}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+// One thing the fair does or does not have. A missing one is dimmed rather
+// than crossed out, because it may simply not have been listed.
+function Facility({
+  Icon,
+  label,
+  enabled,
+}: {
+  Icon: PhosphorIcon;
+  label: string;
+  enabled: boolean;
+}) {
+  const theme = useTheme();
+
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${label}: ${enabled ? "available" : "not listed"}`}
+      style={[
+        styles.facility,
+        { backgroundColor: theme.card, borderColor: theme.hairline },
+        !enabled && styles.facilityOff,
+      ]}
+    >
+      <Icon
+        size={22}
+        color={enabled ? theme.text : theme.muted}
+        weight={enabled ? "fill" : "regular"}
+      />
+      <Text
+        style={[styles.facilityLabel, { color: enabled ? theme.text : theme.muted }]}
+        numberOfLines={2}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+type Contact = {
+  key: string;
+  Icon: PhosphorIcon;
+  label: string;
+  description: string;
+  onPress: () => void;
+};
+
+function ContactRow({ contact, divider }: { contact: Contact; divider: boolean }) {
+  const theme = useTheme();
+  const { Icon } = contact;
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={contact.description}
+      onPress={contact.onPress}
+      style={({ pressed }) => [
+        styles.contactRow,
+        divider && { borderTopWidth: 1, borderTopColor: theme.hairline },
+        pressed && styles.pressed,
+      ]}
+    >
+      <Icon size={20} color={theme.muted} />
+      <Text style={[styles.contactText, { color: theme.text }]} numberOfLines={1}>
+        {contact.label}
+      </Text>
+      <CaretRight size={18} color={theme.muted} />
+    </Pressable>
+  );
+}
+
 export default function BootfairDetails() {
+  const theme = useTheme();
+  const insets = useSafeAreaInsets();
+
   const { id: idParam } = useLocalSearchParams<{ id?: string | string[] }>();
   const id = Array.isArray(idParam) ? idParam[0] : idParam;
 
   const [fair, setFair] = useState<Fair | null>(null);
   const [loading, setLoading] = useState(true);
-
-  const slideAnim = useRef(new Animated.Value(80)).current;
 
   useEffect(() => {
     let active = true;
@@ -40,12 +226,6 @@ export default function BootfairDetails() {
       setLoading(false);
     });
 
-    Animated.timing(slideAnim, {
-      toValue: 0,
-      duration: 450,
-      useNativeDriver: true,
-    }).start();
-
     return () => {
       active = false;
     };
@@ -53,19 +233,40 @@ export default function BootfairDetails() {
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color="#FFD700" />
+      <View style={[styles.container, styles.center, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={theme.muted} />
+        <Text style={[styles.stateBody, { color: theme.muted }]}>Loading boot fair</Text>
       </View>
     );
   }
 
   if (!fair) {
     return (
-      <View style={[styles.container, styles.center]}>
-        <Text style={styles.errorText}>Bootfair not found.</Text>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>Go Back</Text>
-        </TouchableOpacity>
+      <View style={[styles.container, styles.center, { backgroundColor: theme.background }]}>
+        <View
+          style={[styles.stateIcon, { backgroundColor: theme.card, borderColor: theme.hairline }]}
+        >
+          <Tent size={30} color={theme.muted} />
+        </View>
+        <Text style={[styles.stateTitle, { color: theme.text }]} accessibilityRole="header">
+          Boot fair not found
+        </Text>
+        <Text style={[styles.stateBody, { color: theme.muted }]}>
+          We could not find that boot fair. It may have been removed from your list.
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          style={({ pressed }) => [
+            styles.primaryButton,
+            styles.stateButton,
+            { backgroundColor: theme.gold },
+            pressed && styles.pressed,
+          ]}
+          onPress={() => router.back()}
+        >
+          <Text style={[styles.primaryLabel, { color: theme.black }]}>Go back</Text>
+        </Pressable>
       </View>
     );
   }
@@ -92,466 +293,504 @@ export default function BootfairDetails() {
     if (fair.email) Linking.openURL(`mailto:${fair.email}`);
   };
 
+  // Only the ways of getting in touch that this fair actually has.
+  const contacts: Contact[] = [];
+
+  if (fair.displayEmailPublicly && fair.email) {
+    contacts.push({
+      key: "email",
+      Icon: EnvelopeSimple,
+      label: fair.email,
+      description: `Email the organiser at ${fair.email}`,
+      onPress: emailOrganiser,
+    });
+  }
+
+  if (fair.phone) {
+    contacts.push({
+      key: "phone",
+      Icon: Phone,
+      label: fair.phone,
+      description: `Call the organiser on ${fair.phone}`,
+      onPress: callOrganiser,
+    });
+  }
+
+  if (fair.website) {
+    contacts.push({
+      key: "website",
+      Icon: Globe,
+      label: "Website",
+      description: "Open the organiser's website",
+      onPress: openWebsite,
+    });
+  }
+
+  if (fair.social?.facebook) {
+    contacts.push({
+      key: "facebook",
+      Icon: FacebookLogo,
+      label: "Facebook",
+      description: "Open the organiser's Facebook page",
+      onPress: () => Linking.openURL(fair.social?.facebook!),
+    });
+  }
+
+  if (fair.social?.instagram) {
+    contacts.push({
+      key: "instagram",
+      Icon: InstagramLogo,
+      label: "Instagram",
+      description: "Open the organiser's Instagram page",
+      onPress: () => Linking.openURL(fair.social?.instagram!),
+    });
+  }
+
+  if (fair.social?.twitter) {
+    contacts.push({
+      key: "twitter",
+      Icon: TwitterLogo,
+      label: "Twitter",
+      description: "Open the organiser's Twitter page",
+      onPress: () => Linking.openURL(fair.social?.twitter!),
+    });
+  }
+
+  const hasFees = Boolean(fair.entryFee || fair.stallFee);
+  // 0 means no estimate, so the block is hidden.
+  const hasEstimates = fair.estimatedStalls > 0 || fair.estimatedVisitors > 0;
+
+  const updated = fair.lastUpdated ? new Date(fair.lastUpdated) : null;
+  const updatedText =
+    updated && !Number.isNaN(updated.getTime())
+      ? updated.toLocaleDateString("en-GB", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })
+      : null;
+
+  const hasDetails = Boolean(fair.nextDate || fair.hours || fair.frequency);
+  const detailRows: { label: string; value: string }[] = [];
+  if (fair.nextDate) detailRows.push({ label: "Next date", value: fair.nextDate });
+  if (fair.hours) detailRows.push({ label: "Opening hours", value: fair.hours });
+  if (fair.frequency) detailRows.push({ label: "How often", value: fair.frequency });
+
   return (
-    <ScrollView style={styles.container}>
-      {/* HERO IMAGE */}
-      {fair.images?.length > 0 && (
-        <Image source={{ uri: fair.images[0] }} style={styles.heroImage} />
-      )}
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* HERO IMAGE */}
+        {fair.images?.length > 0 && fair.images[0] ? (
+          <Image
+            source={{ uri: fair.images[0] }}
+            style={[styles.heroImage, { backgroundColor: theme.card }]}
+            resizeMode="cover"
+          />
+        ) : null}
 
-      <Text style={styles.title}>{fair.name}</Text>
-      <Text style={styles.address}>{fair.address || fair.postcode}</Text>
+        {/* TITLE */}
+        <Text style={[styles.title, { color: theme.text }]} accessibilityRole="header">
+          {fair.name}
+        </Text>
+        <View style={styles.addressRow}>
+          <MapPin size={16} color={theme.muted} />
+          <Text style={[styles.address, { color: theme.muted }]}>
+            {fair.address || fair.postcode}
+          </Text>
+        </View>
 
-      {/* SLIDE-UP PANEL */}
-      <Animated.View style={[styles.panel, { transform: [{ translateY: slideAnim }] }]}>
         {/* BADGES */}
-        <View style={styles.badgeRow}>
-          {fair.featured && (
-            <View style={styles.featuredBadge}>
-              <Text style={styles.featuredText}>⭐ Featured</Text>
-            </View>
-          )}
+        <View style={styles.chips}>
+          {fair.featured ? (
+            <Chip Icon={Star} label="Featured" iconColor={theme.gold} filled />
+          ) : null}
 
-          {fair.verified && (
-            <View style={styles.verifiedBadge}>
-              <Ionicons name="shield-checkmark" size={16} color="#FFD700" />
-              <Text style={styles.verifiedText}>Verified</Text>
-            </View>
-          )}
-
-          <View style={styles.hoursBadge}>
-            <Text style={styles.hoursText}>{fair.hours}</Text>
-          </View>
+          {fair.verified ? (
+            <Chip Icon={SealCheck} label="Verified" iconColor={theme.success} filled />
+          ) : null}
 
           {/* 0 means nobody has rated it, not "quiet" */}
-          {fair.busyScore > 0 && (
-            <View style={styles.busyBadge}>
-              <Text style={styles.busyText}>Busy {fair.busyScore}/10</Text>
-            </View>
-          )}
-
-          <View style={styles.frequencyBadge}>
-            <Text style={styles.frequencyText}>{fair.frequency}</Text>
-          </View>
+          {fair.busyScore > 0 ? <Chip Icon={Users} label={`Busy ${fair.busyScore}/10`} /> : null}
         </View>
 
         {/* CATEGORY CHIPS */}
-        <View style={styles.categoryRow}>
-          {fair.categories?.map((cat) => (
-            <View key={cat} style={styles.categoryChip}>
-              <Text style={styles.categoryChipText}>{cat}</Text>
-            </View>
-          ))}
-        </View>
+        {fair.categories?.length > 0 ? (
+          <View style={styles.chips}>
+            {fair.categories.map((cat) => (
+              <Chip key={cat} label={cat} />
+            ))}
+          </View>
+        ) : null}
 
         {/* DESCRIPTION */}
         {fair.description ? (
-          <Text style={styles.description}>{fair.description}</Text>
+          <Text style={[styles.description, { color: theme.muted }]}>{fair.description}</Text>
         ) : null}
 
-        {/* WHEN AND HOW MUCH (entered by whoever listed the fair) */}
-        {fair.nextDate ? (
-          <Text style={styles.nextDate}>Next date: {fair.nextDate}</Text>
+        {/* WHEN (entered by whoever listed the fair) */}
+        {hasDetails ? (
+          <>
+            <SectionTitle>Details</SectionTitle>
+            <Group>
+              {detailRows.map((row, i) => (
+                <DataRow key={row.label} label={row.label} value={row.value} divider={i > 0} />
+              ))}
+            </Group>
+          </>
         ) : null}
 
-        {fair.entryFee || fair.stallFee ? (
-          <View style={styles.statsRow}>
-            <View style={styles.statsCard}>
-              <Text style={styles.statsLabel}>Entry Fee</Text>
-              <Text style={styles.statsValue}>{fair.entryFee || "-"}</Text>
+        {/* HOW MUCH */}
+        {hasFees ? (
+          <>
+            <SectionTitle>Fees</SectionTitle>
+            <View style={styles.tileRow}>
+              <StatTile label="Entry fee" value={fair.entryFee || "-"} />
+              <StatTile label="Stall fee" value={fair.stallFee || "-"} />
             </View>
-
-            <View style={styles.statsCard}>
-              <Text style={styles.statsLabel}>Stall Fee</Text>
-              <Text style={styles.statsValue}>{fair.stallFee || "-"}</Text>
-            </View>
-          </View>
+          </>
         ) : null}
 
-        {/* EVENT STATS (0 means no estimate, so the block is hidden) */}
-        {fair.estimatedStalls > 0 || fair.estimatedVisitors > 0 ? (
-          <View style={styles.statsRow}>
-            <View style={styles.statsCard}>
-              <Text style={styles.statsLabel}>Estimated Stalls</Text>
-              <Text style={styles.statsValue}>{fair.estimatedStalls}</Text>
+        {/* EVENT STATS */}
+        {hasEstimates ? (
+          <>
+            <SectionTitle>Expected turnout</SectionTitle>
+            <View style={styles.tileRow}>
+              <StatTile label="Estimated stalls" value={String(fair.estimatedStalls)} />
+              <StatTile label="Estimated visitors" value={String(fair.estimatedVisitors)} />
             </View>
-
-            <View style={styles.statsCard}>
-              <Text style={styles.statsLabel}>Estimated Visitors</Text>
-              <Text style={styles.statsValue}>{fair.estimatedVisitors}</Text>
-            </View>
-          </View>
+          </>
         ) : null}
 
-        {/* PAYMENTS */}
-        <View style={styles.paymentRow}>
-          <View style={styles.paymentItem}>
-            <Ionicons
-              name="card"
-              size={20}
-              color={fair.acceptsCard ? "#FFD700" : "#555"}
-            />
-            <Text style={styles.paymentLabel}>Card</Text>
-          </View>
-
-          <View style={styles.paymentItem}>
-            <Ionicons
-              name="cash"
-              size={20}
-              color={fair.acceptsCash ? "#FFD700" : "#555"}
-            />
-            <Text style={styles.paymentLabel}>Cash</Text>
-          </View>
-        </View>
-
-        {/* GOOD TO KNOW */}
-        <Text style={styles.sectionTitle}>Good to Know</Text>
+        {/* PAYMENTS AND GOOD TO KNOW */}
+        <SectionTitle>Good to know</SectionTitle>
         <View style={styles.facilityGrid}>
-          <Facility icon="car" label="Parking" enabled={fair.parking} />
-          <Facility icon="restaurant" label="Food" enabled={fair.foodStalls} />
-          <Facility icon="paw" label="Dogs" enabled={fair.dogFriendly} />
-          <Facility icon="male-female" label="Toilets" enabled={fair.toilets} />
-          <Facility icon="accessibility" label="Accessible" enabled={fair.wheelchairAccessible} />
-          <Facility icon="cloud" label="Weather Safe" enabled={fair.weatherSafe} />
-          <Facility icon="home" label="Indoor" enabled={fair.indoor} />
+          <Facility Icon={CreditCard} label="Card payments" enabled={fair.acceptsCard} />
+          <Facility Icon={Money} label="Cash payments" enabled={fair.acceptsCash} />
+          <Facility Icon={Car} label="Parking" enabled={fair.parking} />
+          <Facility Icon={ForkKnife} label="Food" enabled={fair.foodStalls} />
+          <Facility Icon={PawPrint} label="Dogs" enabled={fair.dogFriendly} />
+          <Facility Icon={Toilet} label="Toilets" enabled={fair.toilets} />
+          <Facility Icon={Wheelchair} label="Accessible" enabled={fair.wheelchairAccessible} />
+          <Facility Icon={Umbrella} label="Weather safe" enabled={fair.weatherSafe} />
+          <Facility Icon={House} label="Indoor" enabled={fair.indoor} />
         </View>
 
         {/* ORGANISER CONTACT */}
-        <Text style={styles.sectionTitle}>Organiser Contact</Text>
-        <View style={styles.organiserCard}>
-          {fair.displayEmailPublicly && fair.email && (
-            <TouchableOpacity onPress={emailOrganiser}>
-              <Text style={styles.contactLink}>{fair.email}</Text>
-            </TouchableOpacity>
+        <SectionTitle>Organiser contact</SectionTitle>
+        <Group>
+          {contacts.length > 0 ? (
+            contacts.map((contact, i) => (
+              <ContactRow key={contact.key} contact={contact} divider={i > 0} />
+            ))
+          ) : (
+            <Text style={[styles.noContact, { color: theme.muted }]}>
+              The organiser has not listed any contact details.
+            </Text>
           )}
-
-          {fair.phone && (
-            <TouchableOpacity onPress={callOrganiser}>
-              <Text style={styles.contactLink}>{fair.phone}</Text>
-            </TouchableOpacity>
-          )}
-
-          {fair.website && (
-            <TouchableOpacity onPress={openWebsite}>
-              <Text style={styles.contactLink}>Website</Text>
-            </TouchableOpacity>
-          )}
-
-          {fair.social?.facebook && (
-            <TouchableOpacity onPress={() => Linking.openURL(fair.social?.facebook!)}>
-              <Text style={styles.contactLink}>Facebook</Text>
-            </TouchableOpacity>
-          )}
-
-          {fair.social?.instagram && (
-            <TouchableOpacity onPress={() => Linking.openURL(fair.social?.instagram!)}>
-              <Text style={styles.contactLink}>Instagram</Text>
-            </TouchableOpacity>
-          )}
-
-          {fair.social?.twitter && (
-            <TouchableOpacity onPress={() => Linking.openURL(fair.social?.twitter!)}>
-              <Text style={styles.contactLink}>Twitter</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* BUTTONS */}
-        <TouchableOpacity style={styles.buttonPrimary} onPress={openMaps}>
-          <Ionicons name="navigate" size={20} color="white" />
-          <Text style={styles.buttonPrimaryText}>Open in Google Maps</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>Back</Text>
-        </TouchableOpacity>
+        </Group>
 
         {/* LAST UPDATED */}
-        <Text style={styles.lastUpdated}>
-          Last updated: {new Date(fair.lastUpdated).toLocaleDateString()}
-        </Text>
-      </Animated.View>
-    </ScrollView>
-  );
-}
+        {updatedText ? (
+          <Text style={[styles.lastUpdated, { color: theme.muted }]}>
+            Last updated {updatedText}
+          </Text>
+        ) : null}
+      </ScrollView>
 
-/* FACILITY COMPONENT */
-function Facility({
-  icon,
-  label,
-  enabled,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  enabled: boolean;
-}) {
-  return (
-    <View style={[styles.facilityItem, enabled ? styles.facilityOn : styles.facilityOff]}>
-      <Ionicons name={icon} size={18} color={enabled ? "#FFD700" : "#555"} />
-      <Text style={[styles.facilityLabel, { color: enabled ? "#FFD700" : "#777" }]}>
-        {label}
-      </Text>
+      {/* ACTIONS */}
+      <View
+        style={[
+          styles.footer,
+          {
+            backgroundColor: theme.background,
+            borderTopColor: theme.hairline,
+            paddingBottom: insets.bottom + 12,
+          },
+        ]}
+      >
+        <View style={styles.actionsRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            style={({ pressed }) => [
+              styles.secondaryButton,
+              { borderColor: theme.hairline, backgroundColor: theme.card },
+              pressed && styles.pressed,
+            ]}
+            onPress={() => router.back()}
+          >
+            <ArrowLeft size={18} color={theme.text} />
+            <Text style={[styles.secondaryLabel, { color: theme.text }]} numberOfLines={1}>
+              Back
+            </Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open in Google Maps"
+            style={({ pressed }) => [
+              styles.primaryButton,
+              styles.mapsButton,
+              { backgroundColor: theme.gold },
+              pressed && styles.pressed,
+            ]}
+            onPress={openMaps}
+          >
+            <NavigationArrow size={18} color={theme.black} weight="fill" />
+            <Text style={[styles.primaryLabel, { color: theme.black }]} numberOfLines={1}>
+              Open in Google Maps
+            </Text>
+          </Pressable>
+        </View>
+      </View>
     </View>
   );
 }
 
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#0A0F1F",
+  container: { flex: 1 },
+  scroll: { flex: 1 },
+  content: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 24,
   },
+  pressed: {
+    opacity: 0.75,
+  },
+
+  /* LOADING / NOT FOUND */
+  center: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+  },
+  stateIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  stateTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  stateBody: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "center",
+    marginTop: 8,
+  },
+  stateButton: {
+    alignSelf: "center",
+    paddingHorizontal: 28,
+    marginTop: 24,
+  },
+
+  /* HERO AND TITLE */
   heroImage: {
     width: "100%",
     height: 200,
-    borderBottomLeftRadius: 16,
-    borderBottomRightRadius: 16,
+    borderRadius: 16,
+    marginBottom: 16,
   },
   title: {
-    color: "white",
     fontSize: 28,
     fontWeight: "700",
-    marginTop: 16,
-    marginLeft: 20,
+    lineHeight: 34,
+  },
+  addressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 6,
   },
   address: {
-    color: "#AFC6FF",
-    fontSize: 16,
-    marginLeft: 20,
-    marginBottom: 16,
+    flex: 1,
+    fontSize: 15,
   },
-
-  center: {
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 32,
-  },
-
-  panel: {
-    backgroundColor: "rgba(20, 30, 60, 0.75)",
-    padding: 20,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "rgba(255, 215, 0, 0.25)",
-    marginHorizontal: 20,
-    marginBottom: 40,
-  },
-  badgeRow: {
+  chips: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    marginBottom: 16,
+    marginTop: 14,
   },
-  featuredBadge: {
-    backgroundColor: "rgba(255, 215, 0, 0.2)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(255, 215, 0, 0.5)",
-  },
-  featuredText: {
-    color: "#FFD700",
-    fontWeight: "700",
-  },
-  verifiedBadge: {
+  chip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    backgroundColor: "rgba(255, 215, 0, 0.15)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(255, 215, 0, 0.4)",
-  },
-  verifiedText: {
-    color: "#FFD700",
-    fontWeight: "700",
-  },
-  hoursBadge: {
-    backgroundColor: "rgba(30, 144, 255, 0.2)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(30, 144, 255, 0.5)",
-  },
-  hoursText: {
-    color: "#1e90ff",
-    fontWeight: "600",
-  },
-  busyBadge: {
-    backgroundColor: "rgba(255, 80, 80, 0.2)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(255, 80, 80, 0.5)",
-  },
-  busyText: {
-    color: "#FF8080",
-    fontWeight: "600",
-  },
-  frequencyBadge: {
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.2)",
-  },
-  frequencyText: {
-    color: "#fff",
-    fontWeight: "600",
-  },
-  categoryRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 16,
-  },
-  categoryChip: {
-    paddingVertical: 6,
+    gap: 6,
     paddingHorizontal: 12,
-    backgroundColor: "#112240",
-    borderRadius: 20,
+    paddingVertical: 6,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: "#FFD700",
   },
-  categoryChipText: {
-    color: "#FFD700",
-    fontWeight: "700",
+  chipText: {
+    fontSize: 13,
+    fontWeight: "600",
+    flexShrink: 1,
+    fontVariant: ["tabular-nums"],
   },
   description: {
-    color: "#D0D8FF",
-    fontSize: 15,
-    marginBottom: 16,
-  },
-  nextDate: {
-    color: "#FFD700",
     fontSize: 16,
+    lineHeight: 23,
+    marginTop: 16,
+  },
+
+  /* SECTIONS */
+  sectionTitle: {
+    fontSize: 18,
     fontWeight: "700",
+    marginTop: 24,
     marginBottom: 12,
   },
-  statsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 16,
-  },
-  statsCard: {
-    width: "48%",
-    backgroundColor: "rgba(255,255,255,0.05)",
-    padding: 14,
-    borderRadius: 12,
+  group: {
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+    overflow: "hidden",
   },
-  statsLabel: {
-    color: "#AFC6FF",
-    fontSize: 14,
-    marginBottom: 4,
-  },
-  statsValue: {
-    color: "white",
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  paymentRow: {
+  dataRow: {
+    minHeight: 52,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     flexDirection: "row",
-    justifyContent: "space-around",
-    marginBottom: 20,
-  },
-  paymentItem: {
     alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
   },
-  paymentLabel: {
-    color: "#AFC6FF",
-    marginTop: 4,
+  dataLabel: {
+    fontSize: 15,
   },
-  sectionTitle: {
-    color: "#FFD700",
-    fontSize: 18,
+  dataValue: {
+    fontSize: 16,
+    fontWeight: "600",
+    flexShrink: 1,
+    textAlign: "right",
+    fontVariant: ["tabular-nums"],
+  },
+
+  /* STAT TILES */
+  tileRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  statTile: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  statLabel: {
+    fontSize: 13,
+  },
+  statValue: {
+    fontSize: 22,
     fontWeight: "700",
-    marginBottom: 10,
-    marginTop: 10,
+    marginTop: 4,
+    fontVariant: ["tabular-nums"],
   },
+
+  /* GOOD TO KNOW */
   facilityGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 12,
-    marginBottom: 20,
+    gap: 8,
   },
-  facilityItem: {
-    width: "30%",
-    padding: 10,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  facilityOn: {
-    backgroundColor: "rgba(255, 215, 0, 0.15)",
+  facility: {
+    // Three to a row at any phone width; the nine tiles fill the rows exactly.
+    flexGrow: 1,
+    flexShrink: 0,
+    flexBasis: "30%",
+    minHeight: 84,
+    paddingHorizontal: 6,
+    paddingVertical: 12,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "rgba(255, 215, 0, 0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
   },
   facilityOff: {
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+    opacity: 0.55,
   },
   facilityLabel: {
-    marginTop: 6,
     fontSize: 13,
+    fontWeight: "600",
+    textAlign: "center",
   },
-  organiserCard: {
-    backgroundColor: "rgba(255,255,255,0.05)",
+
+  /* ORGANISER CONTACT */
+  contactRow: {
+    minHeight: 52,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  contactText: {
+    flex: 1,
+    fontSize: 16,
+  },
+  noContact: {
     padding: 16,
-    borderRadius: 12,
-    marginBottom: 20,
-  },
-  contactLink: {
-    color: "#1e90ff",
     fontSize: 15,
-    marginTop: 4,
+    lineHeight: 22,
   },
-  buttonPrimary: {
+  lastUpdated: {
+    fontSize: 13,
+    textAlign: "center",
+    marginTop: 24,
+  },
+
+  /* ACTIONS */
+  footer: {
+    paddingTop: 12,
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
+  },
+  actionsRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  secondaryButton: {
+    flex: 1,
+    minHeight: 52,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    borderWidth: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#1e90ff",
-    paddingVertical: 14,
-    borderRadius: 12,
-    marginBottom: 12,
-    gap: 8,
+    gap: 6,
   },
-  buttonPrimaryText: {
-    color: "white",
-    fontSize: 16,
+  secondaryLabel: {
+    fontSize: 15,
     fontWeight: "600",
+    flexShrink: 1,
   },
-  backButton: {
-    backgroundColor: "rgba(255,255,255,0.05)",
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    marginTop: 6,
+  primaryButton: {
+    minHeight: 52,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
   },
-  backButtonText: {
-    color: "white",
+  mapsButton: {
+    flex: 2,
+  },
+  primaryLabel: {
     fontSize: 16,
-    textAlign: "center",
-  },
-  lastUpdated: {
-    color: "#AFC6FF",
-    fontSize: 12,
-    textAlign: "center",
-    marginTop: 10,
-  },
-  errorText: {
-    color: "white",
-    fontSize: 20,
-    textAlign: "center",
-    marginBottom: 20,
+    fontWeight: "700",
+    flexShrink: 1,
   },
 });
