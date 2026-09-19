@@ -2,6 +2,7 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import { View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import DealerBanner from "../src/components/DealerBanner";
 import ProBadge from "../src/components/ProBadge";
@@ -37,24 +38,27 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <SubscriptionProvider>
-      <UserSettingsProvider>
-        <ThemeProvider>
-          <DealerNotificationsProvider>
-            <VehicleHistoryProvider>
+    // Gesture handlers (vehicle gallery, advisor panel) only work under this root view.
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SubscriptionProvider>
+        <UserSettingsProvider>
+          <ThemeProvider>
+            <DealerNotificationsProvider>
+              <VehicleHistoryProvider>
 
-              {/* ⭐ Global UI Overlays */}
-              <DealerBanner />
-              <ProBadgeOverlay />
-              <GoldFlashOverlayWrapper />
+                {/* ⭐ Global UI Overlays */}
+                <DealerBanner />
+                <ProBadgeOverlay />
+                <GoldFlashOverlayWrapper />
 
-              <ThemedStack />
+                <ThemedStack />
 
-            </VehicleHistoryProvider>
-          </DealerNotificationsProvider>
-        </ThemeProvider>
-      </UserSettingsProvider>
-    </SubscriptionProvider>
+              </VehicleHistoryProvider>
+            </DealerNotificationsProvider>
+          </ThemeProvider>
+        </UserSettingsProvider>
+      </SubscriptionProvider>
+    </GestureHandlerRootView>
   );
 }
 
@@ -70,17 +74,51 @@ function GoldFlashOverlayWrapper() {
   );
 }
 
+// A route with no title falls back to its file path in the header ("flip/[id]").
+// Screens declared below set their own; everything else gets a name from here.
+const SCREEN_TITLES: Record<string, string> = {
+  rate: "Rate FlipPilot",
+  "weather/index": "Weather",
+  "settings/index": "Settings",
+  "feature/[slug]": "Feature",
+  "scan/scan-results": "Scan result",
+  "flip/[id]": "Flip details",
+  "mot/[id]": "MOT history",
+  "messages/[id]": "Message seller",
+  bootfairs: "Boot Fairs",
+  vehicles: "Vehicles",
+  "marketplace/index": "Marketplace",
+  "marketplace/MarketplaceHub": "Marketplace",
+  "marketplace/Listings": "Listings",
+  "marketplace/[id]": "Listing",
+  "marketplace/PublicListing": "Listing",
+  "marketplace/PublishFlip": "Publish flip",
+  "marketplace/my-listings": "My listings",
+  "marketplace/create/index": "Create listing",
+  "marketplace/create/new": "Create listing",
+  "motors/hub": "Motors",
+  "motors/dashboard": "Dashboard",
+  "motors/analytics": "Analytics",
+  "motors/listings": "Listings",
+  "motors/mot-alerts": "MOT alerts",
+  "motors/notifications": "Notifications",
+  "motors/vehicle-detail": "Vehicle",
+  "motors/edit-vehicle": "Edit vehicle",
+  "motors/gallery/[id]": "Gallery",
+};
+
 function ThemedStack() {
   const theme = useTheme();
 
   return (
     <Stack
-      screenOptions={{
+      screenOptions={({ route }) => ({
+        title: SCREEN_TITLES[route.name],
         headerStyle: { backgroundColor: theme.background },
         headerTintColor: theme.accent,
         headerTitleStyle: { fontWeight: "800", color: theme.text },
         contentStyle: { backgroundColor: theme.background },
-      }}
+      })}
     >
       {/* Core */}
       <Stack.Screen name="index" options={{ headerShown: false }} />

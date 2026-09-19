@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { View, Text, Image, FlatList, Pressable, StyleSheet } from "react-native";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "../../src/styles/ThemeContext";
 
@@ -10,9 +11,10 @@ import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryCon
 
 export default function FavouritesScreen() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const s = styles(theme);
 
-  const { vehicles, deleteVehicle, toggleFavourite } = useVehicleHistory();
+  const { vehicles, deleteVehicle, toggleFavourite, loaded, loadError } = useVehicleHistory();
   const [confirmId, setConfirmId] = useState<string | null>(null);
 
   const favourites = useMemo(() => {
@@ -33,14 +35,20 @@ export default function FavouritesScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
+  // Scanned items open the flip details; records from the vehicle flows carry a
+  // registration and keep their own vehicle screen.
   const openDetails = (item: FlipRecord) => {
-    router.push(`/vehicles/details/${item.id}`);
+    router.push(item.mot?.reg ? `/vehicles/details/${item.id}` : `/flip/${item.id}`);
   };
 
   const renderItem = ({ item }: { item: FlipRecord }) => {
-    const safeBuy = Number(item.pricing?.recommendedBuyPrice ?? item.buyPrice ?? 0);
-    const safeSell = Number(item.pricing?.recommendedSellPrice ?? item.sellPrice ?? 0);
-    const profit = Number(item.pricing?.predictedProfit ?? item.profit ?? 0);
+    // Top-level fields are what edits write (a cleared price is null); `pricing`
+    // is the original scan estimate, used only when there are no top-level prices.
+    const ownPrices =
+      item.buyPrice != null || item.sellPrice != null || item.profit != null;
+    const safeBuy = Number((ownPrices ? item.buyPrice : item.pricing?.recommendedBuyPrice) ?? 0);
+    const safeSell = Number((ownPrices ? item.sellPrice : item.pricing?.recommendedSellPrice) ?? 0);
+    const profit = Number((ownPrices ? item.profit : item.pricing?.predictedProfit) ?? 0);
     const roi = safeBuy > 0 ? (profit / safeBuy) * 100 : 0;
     const flipScore = item.flipScore ?? 0;
 
@@ -96,14 +104,22 @@ export default function FavouritesScreen() {
   };
 
   return (
-    <View style={s.container}>
+    <View style={[s.container, { paddingTop: insets.top + 20 }]}>
       <Text style={s.title}>⭐ Favourites</Text>
 
       {favourites.length === 0 ? (
-        <View style={s.emptyBox}>
-          <Text style={s.empty}>⭐ No favourites yet</Text>
-          <Text style={s.sub}>Save your best flips</Text>
-        </View>
+        // Nothing until the saved flips have been read, so this never flashes
+        // up while loading (or for a list that couldn't be read).
+        loaded ? (
+          <View style={s.emptyBox}>
+            <Text style={s.empty}>
+              {loadError ? "Couldn't load your flips" : "⭐ No favourites yet"}
+            </Text>
+            <Text style={s.sub}>
+              {loadError ?? "Star a flip in History and it will show up here."}
+            </Text>
+          </View>
+        ) : null
       ) : (
         <FlatList
           data={favourites}

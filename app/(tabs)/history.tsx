@@ -8,24 +8,41 @@ import {
   Image,
   Modal,
   Pressable,
-  RefreshControl,
   Share,
   StyleSheet,
   TextInput,
   Text,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/styles/ThemeContext";
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { shareFlip } from "@/utils/share/shareFlip";
 
-// Vehicles added via the manual/scan flow only populate the top-level
-// buyPrice/sellPrice/profit fields, not the `pricing` sub-object — fall
-// back to those so real flips still show their numbers here.
-const getBuyPrice = (f: FlipRecord) => Number(f.pricing?.recommendedBuyPrice ?? f.buyPrice ?? 0);
-const getSellPrice = (f: FlipRecord) => Number(f.pricing?.recommendedSellPrice ?? f.sellPrice ?? 0);
-const getProfit = (f: FlipRecord) => Number(f.pricing?.predictedProfit ?? f.profit ?? 0);
+// Buy/sell/profit live at the top level of a record, and that is where edits
+// write them (a cleared price is stored as null). `pricing` only holds the
+// original scan estimate, so it is used only for a record with no top-level
+// prices at all.
+const hasOwnPrices = (f: FlipRecord) =>
+  f.buyPrice != null || f.sellPrice != null || f.profit != null;
+const getBuyPrice = (f: FlipRecord) =>
+  Number((hasOwnPrices(f) ? f.buyPrice : f.pricing?.recommendedBuyPrice) ?? 0);
+const getSellPrice = (f: FlipRecord) =>
+  Number((hasOwnPrices(f) ? f.sellPrice : f.pricing?.recommendedSellPrice) ?? 0);
+const getProfit = (f: FlipRecord) =>
+  Number((hasOwnPrices(f) ? f.profit : f.pricing?.predictedProfit) ?? 0);
+
+// Ids are uuids, so recency has to come from the timestamp.
+const savedAt = (f: FlipRecord) => Date.parse(f.timestamp) || 0;
+
+// Records that came from the vehicle flows carry a registration and have their
+// own detail screen; everything else (scanned items) opens the flip details.
+const detailsHref = (f: FlipRecord) =>
+  f.mot?.reg ? `/vehicles/details/${f.id}` : `/flip/${f.id}`;
+
+// CSV text cell: rarity and sell speed are words ("Common", "Fast"), not numbers.
+const csvText = (v: string | null | undefined) => `"${(v ?? "").replace(/"/g, '""')}"`;
 
 // text variants
 const textVariants = StyleSheet.create({
@@ -74,12 +91,15 @@ const AnimatedPressable = ({
 
 export default function HistoryScreen() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   const {
     vehicles: flips,
     deleteVehicle,
     toggleFavourite: toggleVehicleFavourite,
     clearAll,
+    loaded,
+    loadError,
   } = useVehicleHistory();
 
   const bestFlip = useMemo<FlipRecord | null>(() => {
@@ -105,15 +125,12 @@ export default function HistoryScreen() {
     | "aiPrice"
     | "flipScore"
     | "demand"
-    | "rarity"
-    | "sellSpeed"
     | "smartPrice"
     | "googlePrice"
   >("newest");
 
   const [search, setSearch] = useState("");
   const [showFavesOnly, setShowFavesOnly] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
 
   const showOverlayMessage = (text: string) => {
     setOverlayText(text);
@@ -132,11 +149,6 @@ export default function HistoryScreen() {
         useNativeDriver: false,
       }),
     ]).start(() => setShowOverlay(false));
-  };
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 300);
   };
 
   const deleteFlipHard = (id: string | null) => {
@@ -218,14 +230,6 @@ export default function HistoryScreen() {
         );
         break;
 
-      case "rarity":
-        list.sort((a, b) => Number(b.rarity || 0) - Number(a.rarity || 0));
-        break;
-
-      case "sellSpeed":
-        list.sort((a, b) => Number(b.sellSpeed || 0) - Number(a.sellSpeed || 0));
-        break;
-
       case "smartPrice":
         list.sort(
           (a, b) => (b.market?.smartPrice || 0) - (a.market?.smartPrice || 0)
@@ -244,15 +248,14 @@ export default function HistoryScreen() {
 
       case "faves":
         list.sort((a, b) => {
-          if (a.favourite === b.favourite)
-            return Number(b.id || 0) - Number(a.id || 0);
+          if (!!a.favourite === !!b.favourite) return savedAt(b) - savedAt(a);
           return a.favourite ? -1 : 1;
         });
         break;
 
       case "newest":
       default:
-        list.sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
+        list.sort((a, b) => savedAt(b) - savedAt(a));
         break;
     }
 
@@ -275,11 +278,10 @@ export default function HistoryScreen() {
     return "➖";
   };
 
+  // Saved flips open by id. The scan-results screen only understands a fresh
+  // scan payload, and it would offer to save this flip a second time.
   const openDetails = (item: FlipRecord) => {
-    router.push({
-      pathname: "/scan/scan-results",
-      params: { data: JSON.stringify(item) },
-    });
+    router.push(detailsHref(item));
   };
 
   const getRoiColor = (roi: number | null | undefined) => {
@@ -318,8 +320,8 @@ export default function HistoryScreen() {
           Number(f.aiPriceConfidence ?? 0),
 
           Number(f.flipScore ?? 0),
-          Number(f.rarity ?? 0),
-          Number(f.sellSpeed ?? 0),
+          csvText(f.rarity),
+          csvText(f.sellSpeed),
 
           Number(f.market?.googlePriceMin ?? 0),
           Number(f.market?.googlePriceMax ?? 0),
@@ -496,12 +498,16 @@ export default function HistoryScreen() {
                   title: item.title,
                   buyPrice: safeBuy,
                   sellPrice: safeSell,
-                  roi,
+                  // No buy price means no meaningful ROI; leave it as "-".
+                  roi: safeBuy > 0 ? Math.round(roi) : null,
                   profit: safeProfit,
-                  confidence: item.aiPriceConfidence || 0,
-                  origin: item.ai?.condition || "Unknown",
+                  // Scanned flips store the AI's confidence as conditionScore.
+                  // Confidence and origin are left out of the text when unknown.
+                  confidence: item.ai?.conditionScore ?? item.aiPriceConfidence ?? null,
+                  origin: item.ai?.origin ?? null,
                   description: item.ai?.description || "",
                   image: item.images?.[0],
+                  flipScore: item.flipScore ?? null,
                 })
               }
               style={[
@@ -568,11 +574,23 @@ export default function HistoryScreen() {
     );
   };
 
+  const hasFlips = flips.length > 0;
+  const emptyTitle = loadError
+    ? "Couldn't load your flips"
+    : hasFlips
+    ? "No matching flips"
+    : "No flips yet";
+  const emptyBody =
+    loadError ??
+    (hasFlips
+      ? "Try a different search, or turn off the favourites filter."
+      : "Scan an item and save it, and it will show up here.");
+
   return (
     <View
       style={[
         styles.container,
-        { backgroundColor: theme.background },
+        { backgroundColor: theme.background, paddingTop: insets.top + 16 },
       ]}
     >
       {/* HEADER */}
@@ -626,15 +644,29 @@ export default function HistoryScreen() {
       {/* LIST */}
       <FlatList
         data={filteredAndSortedFlips}
-        keyExtractor={(item) => item.id || Math.random().toString()}
+        keyExtractor={(item, index) => item.id || String(index)}
         renderItem={renderItem}
         contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={theme.accent}
-          />
+        ListEmptyComponent={
+          // Nothing until the saved flips have been read, so "No flips yet"
+          // never flashes up (or shows for an unreadable list).
+          loaded ? (
+            <View style={styles.emptyBox}>
+              <Text
+                style={[textVariants.h3, { color: theme.text, textAlign: "center" }]}
+              >
+                {emptyTitle}
+              </Text>
+              <Text
+                style={[
+                  textVariants.body,
+                  { color: theme.muted, textAlign: "center", marginTop: 6 },
+                ]}
+              >
+                {emptyBody}
+              </Text>
+            </View>
+          ) : null
         }
         ListHeaderComponent={
           <>
@@ -1054,6 +1086,11 @@ const styles = StyleSheet.create({
   listContent: {
     paddingBottom: 40,
     gap: 12,
+  },
+  emptyBox: {
+    alignItems: "center",
+    paddingVertical: 32,
+    paddingHorizontal: 16,
   },
 
   /* CARD */

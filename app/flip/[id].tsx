@@ -7,6 +7,7 @@ import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   Image,
   Modal,
@@ -43,7 +44,7 @@ const getRoiColor = (roi: number | null | undefined) => {
 
 export default function FlipDetails() {
   const insets = useSafeAreaInsets();
- const { vehicles: flips } = useVehicleHistory();
+  const { vehicles: flips, loaded, loadError } = useVehicleHistory();
 
   const params = useLocalSearchParams();
   const { id } = params as { id?: string };
@@ -96,12 +97,27 @@ export default function FlipDetails() {
   };
 
   if (!flip) {
+    // Saved flips are read from storage after launch; don't call one missing
+    // before that has finished.
+    if (!loaded) {
+      return (
+        <View style={[styles.container, styles.center]}>
+          <ActivityIndicator size="large" color={GOLD} />
+        </View>
+      );
+    }
+
     return (
       <View style={[styles.container, styles.center]}>
-        <Text style={{ color: "white", fontSize: 18, marginBottom: 12 }}>
-          Flip not found
+        <Text style={styles.notFoundTitle}>Flip not found</Text>
+        <Text style={styles.notFoundBody}>
+          {loadError ?? "It may have been deleted from your history."}
         </Text>
-        <Pressable onPress={() => router.replace("/history")}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back to History"
+          onPress={() => router.replace("/history")}
+        >
           <Text style={{ color: GOLD, fontSize: 16 }}>Back to History</Text>
         </Pressable>
       </View>
@@ -130,9 +146,14 @@ export default function FlipDetails() {
   const condition = ai?.condition ?? null;
   const conditionScore = ai?.conditionScore ?? null;
 
-  const buyPrice = pricing?.recommendedBuyPrice ?? null;
-  const sellPrice = pricing?.recommendedSellPrice ?? null;
-  const profit = pricing?.predictedProfit ?? null;
+  // Buy/sell/profit live at the top level and are what edits update (a cleared
+  // price is null). `pricing` is the original scan estimate, used only when the
+  // record has no top-level prices at all.
+  const ownPrices =
+    flip.buyPrice != null || flip.sellPrice != null || flip.profit != null;
+  const buyPrice = (ownPrices ? flip.buyPrice : pricing?.recommendedBuyPrice) ?? null;
+  const sellPrice = (ownPrices ? flip.sellPrice : pricing?.recommendedSellPrice) ?? null;
+  const profit = (ownPrices ? flip.profit : pricing?.predictedProfit) ?? null;
 
   const roi = profit && buyPrice ? Math.round((profit / buyPrice) * 100) : null;
   const confidence = ai?.conditionScore ?? null;
@@ -173,21 +194,39 @@ export default function FlipDetails() {
     setTimeout(() => setSaving(false), 400);
   };
 
+  // null confidence/origin/ROI are left out of the shared text rather than
+  // printed as "0%" / "Unknown".
   const shareText = () => {
     shareFlip({
       title,
       buyPrice: buyPrice ?? 0,
       sellPrice: sellPrice ?? 0,
-      roi: effectiveRoi ?? 0,
+      roi: effectiveRoi,
       profit: profit ?? 0,
-      confidence: confidence ?? 0,
-      origin: origin ?? "Unknown",
+      confidence,
+      origin,
       description: description ?? "",
       image: images?.[0] ?? null,
+      flipScore,
     });
   };
 
-  const prettyDate = "Date not recorded";
+  const savedOn = flip.timestamp ? new Date(flip.timestamp) : null;
+  const prettyDate =
+    savedOn && !Number.isNaN(savedOn.getTime())
+      ? `Saved ${savedOn.toLocaleDateString("en-GB", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })}`
+      : "Date not recorded";
+
+  // Back to wherever the flip was opened from (Home or History); fall back to
+  // History only when there is nothing to go back to.
+  const goBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace("/history");
+  };
 
   /* ============================
      RENDER
@@ -518,7 +557,7 @@ export default function FlipDetails() {
 
         <Pressable
           style={[styles.actionButton, { backgroundColor: "#333" }]}
-          onPress={() => router.replace("/history")}
+          onPress={goBack}
         >
           <Text style={styles.actionText}>Back</Text>
         </Pressable>
@@ -582,6 +621,18 @@ const styles = StyleSheet.create({
   center: {
     justifyContent: "center",
     alignItems: "center",
+    paddingHorizontal: 32,
+  },
+  notFoundTitle: {
+    color: "white",
+    fontSize: 18,
+    marginBottom: 8,
+  },
+  notFoundBody: {
+    color: SILVER,
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 16,
   },
 
   /* HERO */

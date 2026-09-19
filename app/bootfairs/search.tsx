@@ -9,12 +9,19 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import { fairs } from "../../src/lib/fairs";
+import { getAllFairs } from "../../src/lib/fairs";
 
 const API_URL = "https://api.postcodes.io/postcodes/";
 
 export default function BootfairSearchResults() {
-  const { postcode, radius } = useLocalSearchParams();
+  const params = useLocalSearchParams<{
+    postcode?: string | string[];
+    radius?: string | string[];
+  }>();
+  const postcode = (Array.isArray(params.postcode) ? params.postcode[0] : params.postcode)?.trim();
+  const radiusParam = Array.isArray(params.radius) ? params.radius[0] : params.radius;
+  const radius = Number(radiusParam) || 10;
+
   const [loading, setLoading] = useState(true);
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [results, setResults] = useState<any[]>([]);
@@ -27,9 +34,13 @@ export default function BootfairSearchResults() {
       return;
     }
 
-    fetch(API_URL + postcode)
+    let active = true;
+
+    fetch(API_URL + encodeURIComponent(postcode))
       .then((res) => res.json())
-      .then((data) => {
+      .then(async (data) => {
+        if (!active) return;
+
         if (!data.result) {
           setError("Invalid postcode.");
           setLoading(false);
@@ -43,21 +54,30 @@ export default function BootfairSearchResults() {
 
         setUserCoords(coords);
 
-        const filtered = fairs
+        // Fairs the user added are stored on the device, so they are part of the search too.
+        const allFairs = await getAllFairs();
+        if (!active) return;
+
+        const filtered = allFairs
           .map((fair) => {
             const d = distanceMiles(coords.lat, coords.lng, fair.lat, fair.lng);
             return { ...fair, distance: d };
           })
-          .filter((f) => f.distance <= Number(radius))
+          .filter((f) => f.distance <= radius)
           .sort((a, b) => a.distance - b.distance);
 
         setResults(filtered);
         setLoading(false);
       })
       .catch(() => {
+        if (!active) return;
         setError("Failed to fetch postcode data.");
         setLoading(false);
       });
+
+    return () => {
+      active = false;
+    };
   }, [postcode, radius]);
 
   if (loading) {

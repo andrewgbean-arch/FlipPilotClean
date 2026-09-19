@@ -13,12 +13,50 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Fair, addUserFair } from "../../src/lib/fairs";
 
-// Simple profanity filter
+// Simple profanity filter. Whole words only (plus common endings), so genuine
+// place names such as Scunthorpe or Shitterton are not rejected.
 const bannedWords = ["fuck", "shit", "bitch", "cunt", "slut", "whore"];
+const bannedPattern = new RegExp(
+  `\\b(?:${bannedWords.join("|")})(?:s|es|ed|er|ers|ing|y)?\\b`,
+  "i"
+);
 
 function containsBadLanguage(text: string) {
-  const lower = text.toLowerCase();
-  return bannedWords.some((word) => lower.includes(word));
+  return bannedPattern.test(text);
+}
+
+const POSTCODE_API = "https://api.postcodes.io/postcodes/";
+
+type PostcodePlace = { postcode: string; lat: number; lng: number };
+
+// Resolves a UK postcode to coordinates, which distance search and "Open in
+// Google Maps" both need. Returns null when the postcode is not recognised;
+// throws when the lookup itself fails (offline, timeout, server error).
+async function lookupPostcode(postcode: string): Promise<PostcodePlace | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10000);
+
+  try {
+    const res = await fetch(POSTCODE_API + encodeURIComponent(postcode.trim()), {
+      signal: controller.signal,
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`Postcode lookup failed (${res.status})`);
+
+    const data = await res.json();
+    const result = data?.result;
+    if (typeof result?.latitude !== "number" || typeof result?.longitude !== "number") {
+      return null;
+    }
+
+    return {
+      postcode: result.postcode ?? postcode.trim().toUpperCase(),
+      lat: result.latitude,
+      lng: result.longitude,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // Categories available
@@ -44,6 +82,7 @@ export default function AddFairScreen() {
   const [organiserEmail, setOrganiserEmail] = useState("");
   const [showEmailPublicly, setShowEmailPublicly] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
 
   const toggleCategory = (cat: string) => {
     if (categories.includes(cat)) {
@@ -54,6 +93,8 @@ export default function AddFairScreen() {
   };
 
   const validateAndSubmit = async () => {
+    if (submitting) return;
+
     if (
       !name ||
       !postcode ||
@@ -97,13 +138,38 @@ export default function AddFairScreen() {
       cleanedWebsite = "https://" + cleanedWebsite;
     }
 
+    // Held until the fair is saved (or the attempt fails) so a second tap
+    // can't add it twice while the postcode lookup is running.
+    setSubmitting(true);
+
+    let place: PostcodePlace | null;
+    try {
+      place = await lookupPostcode(postcode);
+    } catch {
+      setSubmitting(false);
+      Alert.alert(
+        "Couldn't check the postcode",
+        "Check your connection and try again."
+      );
+      return;
+    }
+
+    if (!place) {
+      setSubmitting(false);
+      Alert.alert(
+        "Postcode not recognised",
+        "Please check the postcode and try again."
+      );
+      return;
+    }
+
     // ⭐ FULL PRO FAIR OBJECT
     const newFair: Fair = {
-      id: "BF-" + Math.floor(Math.random() * 99999).toString().padStart(5, "0"),
+      id: "BF-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
 
       // User‑entered fields
       name,
-      postcode,
+      postcode: place.postcode,
       nextDate,
       entryFee,
       stallFee,
@@ -116,8 +182,8 @@ export default function AddFairScreen() {
 
       // Auto‑generated Pro fields
       address: "",
-      lat: 0,
-      lng: 0,
+      lat: place.lat,
+      lng: place.lng,
       hours: `${openingTime} – ${closingTime}`,
       frequency: "One‑off",
       images: [],
@@ -145,9 +211,23 @@ export default function AddFairScreen() {
       acceptsCash: true,
     };
 
-    await addUserFair(newFair);
+    try {
+      await addUserFair(newFair);
+    } catch {
+      setSubmitting(false);
+      Alert.alert(
+        "Couldn't save your boot fair",
+        "Something went wrong saving it to this phone. Please try again."
+      );
+      return;
+    }
 
-    Alert.alert("Success", "Your boot fair has been added!");
+    // Fairs are only stored on this device for now, so say so.
+    Alert.alert(
+      "Boot fair saved",
+      "It's saved on this phone and will show in your boot fair list."
+    );
+    setSubmitting(false);
     router.back();
   };
 
@@ -283,8 +363,14 @@ export default function AddFairScreen() {
         </View>
 
         {/* SUBMIT */}
-        <TouchableOpacity style={styles.submitButton} onPress={validateAndSubmit}>
-          <Text style={styles.submitText}>Submit Fair</Text>
+        <TouchableOpacity
+          style={[styles.submitButton, submitting && styles.submitButtonBusy]}
+          onPress={validateAndSubmit}
+          disabled={submitting}
+        >
+          <Text style={styles.submitText}>
+            {submitting ? "Checking postcode..." : "Submit Fair"}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -366,6 +452,9 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#FFD700",
     marginTop: 10,
+  },
+  submitButtonBusy: {
+    opacity: 0.6,
   },
   submitText: {
     color: "#0A1931",

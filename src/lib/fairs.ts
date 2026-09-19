@@ -52,17 +52,37 @@ export const fairs: Fair[] = [];
 
 const USER_FAIRS_KEY = "@flippilot_user_bootfairs";
 
-export async function loadUserFairs(): Promise<Fair[]> {
+// Throws if storage itself cannot be read; an empty or unparseable value is just "no fairs".
+async function readUserFairs(): Promise<Fair[]> {
+  const raw = await AsyncStorage.getItem(USER_FAIRS_KEY);
+  if (!raw) return [];
   try {
-    const raw = await AsyncStorage.getItem(USER_FAIRS_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
 }
 
+export async function loadUserFairs(): Promise<Fair[]> {
+  try {
+    return await readUserFairs();
+  } catch {
+    return [];
+  }
+}
+
+// Every fair the app knows about: fairs the user added on this device first,
+// then the built-in list. Lists, details and search must all read from here.
+export async function getAllFairs(): Promise<Fair[]> {
+  const userFairs = await loadUserFairs();
+  return [...userFairs, ...fairs];
+}
+
 export async function addUserFair(fair: Fair): Promise<Fair[]> {
-  const existing = await loadUserFairs();
+  // Use the throwing read: if storage can't be read, fail the add instead of
+  // writing back a list that contains only this fair and wipes the earlier ones.
+  const existing = await readUserFairs();
   const updated = [fair, ...existing];
   await AsyncStorage.setItem(USER_FAIRS_KEY, JSON.stringify(updated));
   return updated;

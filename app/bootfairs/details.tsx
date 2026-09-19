@@ -1,5 +1,6 @@
 import { router, useLocalSearchParams } from "expo-router";
 import {
+    ActivityIndicator,
     Animated,
     Image,
     Linking,
@@ -18,28 +19,49 @@ import {
 
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useRef, useState } from "react";
-import { Fair, fairs } from "../../src/lib/fairs";
+import { Fair, getAllFairs } from "../../src/lib/fairs";
 
 export default function BootfairDetails() {
-  const { id } = useLocalSearchParams();
+  const { id: idParam } = useLocalSearchParams<{ id?: string | string[] }>();
+  const id = Array.isArray(idParam) ? idParam[0] : idParam;
+
   const [fair, setFair] = useState<Fair | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const slideAnim = useRef(new Animated.Value(80)).current;
 
   useEffect(() => {
-    const found = fairs.find((f) => f.id === id);
-    setFair(found || null);
+    let active = true;
+
+    // Fairs the user added live in storage, so they are read asynchronously.
+    getAllFairs().then((all) => {
+      if (!active) return;
+      setFair(all.find((f) => f.id === id) ?? null);
+      setLoading(false);
+    });
 
     Animated.timing(slideAnim, {
       toValue: 0,
       duration: 450,
       useNativeDriver: true,
     }).start();
+
+    return () => {
+      active = false;
+    };
   }, [id]);
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color="#FFD700" />
+      </View>
+    );
+  }
 
   if (!fair) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, styles.center]}>
         <Text style={styles.errorText}>Bootfair not found.</Text>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Text style={styles.backButtonText}>Go Back</Text>
@@ -49,8 +71,13 @@ export default function BootfairDetails() {
   }
 
   const openMaps = () => {
-    const url = `https://www.google.com/maps/search/?api=1&query=${fair.lat},${fair.lng}`;
-    Linking.openURL(url);
+    // Fairs listed without coordinates are stored as 0,0 (a point in the sea),
+    // so search by address/postcode instead.
+    const hasCoords = fair.lat !== 0 || fair.lng !== 0;
+    const query = hasCoords
+      ? `${fair.lat},${fair.lng}`
+      : encodeURIComponent([fair.address, fair.postcode].filter(Boolean).join(", "));
+    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
   };
 
   const openWebsite = () => {
@@ -73,16 +100,7 @@ export default function BootfairDetails() {
       )}
 
       <Text style={styles.title}>{fair.name}</Text>
-      <Text style={styles.address}>{fair.address}</Text>
-
-      {/* ❌ MAP REMOVED — replaced with a placeholder */}
-      <View style={styles.mapPlaceholder}>
-        <Ionicons name="map" size={40} color="#FFD700" />
-        <Text style={styles.mapPlaceholderText}>Map disabled</Text>
-        <Text style={styles.mapPlaceholderTextSmall}>
-          (Enable later with Google Maps API key)
-        </Text>
-      </View>
+      <Text style={styles.address}>{fair.address || fair.postcode}</Text>
 
       {/* SLIDE-UP PANEL */}
       <Animated.View style={[styles.panel, { transform: [{ translateY: slideAnim }] }]}>
@@ -105,9 +123,12 @@ export default function BootfairDetails() {
             <Text style={styles.hoursText}>{fair.hours}</Text>
           </View>
 
-          <View style={styles.busyBadge}>
-            <Text style={styles.busyText}>Busy {fair.busyScore}/10</Text>
-          </View>
+          {/* 0 means nobody has rated it, not "quiet" */}
+          {fair.busyScore > 0 && (
+            <View style={styles.busyBadge}>
+              <Text style={styles.busyText}>Busy {fair.busyScore}/10</Text>
+            </View>
+          )}
 
           <View style={styles.frequencyBadge}>
             <Text style={styles.frequencyText}>{fair.frequency}</Text>
@@ -128,18 +149,39 @@ export default function BootfairDetails() {
           <Text style={styles.description}>{fair.description}</Text>
         ) : null}
 
-        {/* EVENT STATS */}
-        <View style={styles.statsRow}>
-          <View style={styles.statsCard}>
-            <Text style={styles.statsLabel}>Estimated Stalls</Text>
-            <Text style={styles.statsValue}>{fair.estimatedStalls}</Text>
-          </View>
+        {/* WHEN AND HOW MUCH (entered by whoever listed the fair) */}
+        {fair.nextDate ? (
+          <Text style={styles.nextDate}>Next date: {fair.nextDate}</Text>
+        ) : null}
 
-          <View style={styles.statsCard}>
-            <Text style={styles.statsLabel}>Estimated Visitors</Text>
-            <Text style={styles.statsValue}>{fair.estimatedVisitors}</Text>
+        {fair.entryFee || fair.stallFee ? (
+          <View style={styles.statsRow}>
+            <View style={styles.statsCard}>
+              <Text style={styles.statsLabel}>Entry Fee</Text>
+              <Text style={styles.statsValue}>{fair.entryFee || "-"}</Text>
+            </View>
+
+            <View style={styles.statsCard}>
+              <Text style={styles.statsLabel}>Stall Fee</Text>
+              <Text style={styles.statsValue}>{fair.stallFee || "-"}</Text>
+            </View>
           </View>
-        </View>
+        ) : null}
+
+        {/* EVENT STATS (0 means no estimate, so the block is hidden) */}
+        {fair.estimatedStalls > 0 || fair.estimatedVisitors > 0 ? (
+          <View style={styles.statsRow}>
+            <View style={styles.statsCard}>
+              <Text style={styles.statsLabel}>Estimated Stalls</Text>
+              <Text style={styles.statsValue}>{fair.estimatedStalls}</Text>
+            </View>
+
+            <View style={styles.statsCard}>
+              <Text style={styles.statsLabel}>Estimated Visitors</Text>
+              <Text style={styles.statsValue}>{fair.estimatedVisitors}</Text>
+            </View>
+          </View>
+        ) : null}
 
         {/* PAYMENTS */}
         <View style={styles.paymentRow}>
@@ -279,27 +321,10 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
 
-  mapPlaceholder: {
-    width: "90%",
-    height: 260,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,215,0,0.3)",
-    backgroundColor: "rgba(255,255,255,0.05)",
-    alignSelf: "center",
+  center: {
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 20,
-  },
-  mapPlaceholderText: {
-    color: "#FFD700",
-    fontSize: 18,
-    marginTop: 10,
-  },
-  mapPlaceholderTextSmall: {
-    color: "#AFC6FF",
-    fontSize: 12,
-    marginTop: 4,
+    paddingHorizontal: 32,
   },
 
   panel: {
@@ -403,6 +428,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     marginBottom: 16,
   },
+  nextDate: {
+    color: "#FFD700",
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 12,
+  },
   statsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -500,6 +531,7 @@ const styles = StyleSheet.create({
   backButton: {
     backgroundColor: "rgba(255,255,255,0.05)",
     paddingVertical: 14,
+    paddingHorizontal: 32,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.15)",

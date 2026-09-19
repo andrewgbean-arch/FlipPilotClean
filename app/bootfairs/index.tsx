@@ -15,22 +15,22 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import SponsoredCard from "@/components/marketplace/SponsoredCard";
 
 import { businessAdverts } from "../../src/lib/businessAdverts";
-import { Fair, fairs, loadUserFairs } from "../../src/lib/fairs";
+import { Fair, getAllFairs } from "../../src/lib/fairs";
 
 export default function BootFairFinderScreen() {
   const [postcode, setPostcode] = useState("");
   const [radius, setRadius] = useState(10);
-  const [viewMode, setViewMode] = useState<"list" | "map">("list");
 
-  const fadeAnim = useRef(new Animated.Value(1)).current;
   const headerAnim = useRef(new Animated.Value(0)).current;
 
   const [fairLocations, setFairLocations] = useState<Fair[]>([]);
+  const [fairsLoaded, setFairsLoaded] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
-      loadUserFairs().then((userFairs) => {
-        setFairLocations([...userFairs, ...fairs]);
+      getAllFairs().then((all) => {
+        setFairLocations(all);
+        setFairsLoaded(true);
       });
     }, [])
   );
@@ -42,22 +42,6 @@ export default function BootFairFinderScreen() {
       useNativeDriver: true,
     }).start();
   }, []);
-
-  const toggleView = () => {
-    Animated.timing(fadeAnim, {
-      toValue: 0,
-      duration: 150,
-      useNativeDriver: true,
-    }).start(() => {
-      setViewMode(viewMode === "list" ? "map" : "list");
-
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 150,
-        useNativeDriver: true,
-      }).start();
-    });
-  };
 
   const featuredAd = businessAdverts.find((ad) => ad.isFeatured);
   const otherAds = businessAdverts.filter((ad) => !ad.isFeatured);
@@ -97,79 +81,41 @@ export default function BootFairFinderScreen() {
           </View>
         </Animated.View>
 
-        {/* SIGNPOST VIEW TOGGLE */}
-        <View style={styles.toggleRow}>
-          <TouchableOpacity
-            style={[
-              styles.signPostButton,
-              viewMode === "list" && styles.signPostActive,
-            ]}
-            onPress={() => viewMode !== "list" && toggleView()}
-          >
-            <Text
-              style={[
-                styles.signPostText,
-                viewMode === "list" && styles.signPostTextActive,
-              ]}
-            >
-              List View
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.signPostButton,
-              viewMode === "map" && styles.signPostActive,
-            ]}
-            onPress={() => viewMode !== "map" && toggleView()}
-          >
-            <Text
-              style={[
-                styles.signPostText,
-                viewMode === "map" && styles.signPostTextActive,
-              ]}
-            >
-              Map View
-            </Text>
-          </TouchableOpacity>
-        </View>
-
         {/* CHALKBOARD SEARCH */}
-        {viewMode === "list" && (
-          <View style={styles.searchBox}>
-            <Text style={styles.searchLabel}>Find a boot fair near you</Text>
+        <View style={styles.searchBox}>
+          <Text style={styles.searchLabel}>Find a boot fair near you</Text>
 
-            <TextInput
-              style={styles.input}
-              placeholder="Enter postcode (e.g. TQ4 6AG)"
-              placeholderTextColor="#C9D2E0"
-              value={postcode}
-              onChangeText={setPostcode}
-            />
+          <TextInput
+            style={styles.input}
+            placeholder="Enter postcode (e.g. TQ4 6AG)"
+            placeholderTextColor="#C9D2E0"
+            value={postcode}
+            onChangeText={setPostcode}
+          />
 
-            <View style={styles.radiusRow}>
-              {[5, 10, 20].map((r) => (
-                <TouchableOpacity
-                  key={r}
+          <View style={styles.radiusRow}>
+            {[5, 10, 20].map((r) => (
+              <TouchableOpacity
+                key={r}
+                style={[
+                  styles.radiusButton,
+                  radius === r && styles.radiusSelected,
+                ]}
+                onPress={() => setRadius(r)}
+              >
+                <Text
                   style={[
-                    styles.radiusButton,
-                    radius === r && styles.radiusSelected,
+                    styles.radiusText,
+                    radius === r && styles.radiusTextSelected,
                   ]}
-                  onPress={() => setRadius(r)}
                 >
-                  <Text
-                    style={[
-                      styles.radiusText,
-                      radius === r && styles.radiusTextSelected,
-                    ]}
-                  >
-                    {r} miles
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+                  {r} miles
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
-            <TouchableOpacity
+          <TouchableOpacity
   style={styles.searchButton}
   onPress={() =>
     router.push({
@@ -181,180 +127,175 @@ export default function BootFairFinderScreen() {
   <Text style={styles.searchText}>Search boot fairs</Text>
 </TouchableOpacity>
 
+        </View>
+
+        {/* TOP SPONSORED BOOTFAIRS BOX */}
+        {sponsoredFairs.length > 0 && (
+          <View style={styles.sponsoredBox}>
+            <Text style={styles.sponsoredTitle}>
+              Featured boot fairs
+            </Text>
+            <Text style={styles.sponsoredSubtitle}>
+              Listings the organisers have promoted.
+            </Text>
+
+            {sponsoredFairs.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.sponsoredFairCard}
+                onPress={() =>
+                  router.push({
+                    pathname: "/bootfairs/details",
+                    params: { id: item.id },
+                  })
+                }
+              >
+                <View style={styles.sponsoredFairLeft}>
+                  <Text style={styles.sponsoredFairName}>
+                    {item.name}
+                  </Text>
+                  <Text style={styles.sponsoredFairMeta}>
+                    {item.postcode} • {item.nextDate}
+                  </Text>
+                  <Text style={styles.sponsoredFairTag}>
+                    ⭐ Sponsored bootfair
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
           </View>
         )}
 
-        <Animated.View style={{ opacity: fadeAnim }}>
-          {viewMode === "list" ? (
-            <>
-              {/* TOP SPONSORED BOOTFAIRS BOX */}
-              {sponsoredFairs.length > 0 && (
-                <View style={styles.sponsoredBox}>
-                  <Text style={styles.sponsoredTitle}>
-                    Top sponsored bootfairs near you
-                  </Text>
-                  <Text style={styles.sponsoredSubtitle}>
-                    Featured stalls within about {radius} miles.
-                  </Text>
-
-                  {sponsoredFairs.map((item) => (
-                    <TouchableOpacity
-                      key={item.id}
-                      style={styles.sponsoredFairCard}
-                      onPress={() =>
-                        router.push({
-                          pathname: "/bootfairs/details",
-                          params: { id: item.id },
-                        })
-                      }
-                    >
-                      <View style={styles.sponsoredFairLeft}>
-                        <Text style={styles.sponsoredFairName}>
-                          {item.name}
-                        </Text>
-                        <Text style={styles.sponsoredFairMeta}>
-                          {item.postcode} • {item.nextDate}
-                        </Text>
-                        <Text style={styles.sponsoredFairTag}>
-                          ⭐ Sponsored bootfair
-                        </Text>
-                      </View>
-                      <View style={styles.sponsoredFairRight}>
-                        <Text style={styles.sponsoredFairDistance}>
-                          ~{radius} mi
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-
-              {/* HERO SPONSOR BANNER (LOCAL BUSINESS) */}
-              {featuredAd && (
-                <View style={styles.heroSponsor}>
-                  {featuredAd.image && (
-                    <Image
-                      source={{ uri: featuredAd.image }}
-                      style={styles.heroImage}
-                    />
-                  )}
-
-                  <View style={styles.heroOverlay} />
-
-                  <View style={styles.heroContent}>
-                    <Text style={styles.heroTag}>Sponsored stall</Text>
-                    <Text style={styles.heroTitle}>{featuredAd.title}</Text>
-                  </View>
-                </View>
-              )}
-
-              {/* SPONSOR CAROUSEL (LOCAL BUSINESSES) */}
-              {otherAds.length > 0 && (
-                <View style={styles.carouselSection}>
-                  <Text style={styles.carouselTitle}>Other sponsored stalls</Text>
-
-                  <FlatList
-                    data={otherAds}
-                    keyExtractor={(item) => item.id}
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.carouselContent}
-                    renderItem={({ item }) => (
-                      <View style={styles.sponsorCardWrapper}>
-                        <SponsoredCard advert={item} />
-                      </View>
-                    )}
-                  />
-                </View>
-              )}
-
-              {/* BOOTFAIR LIST */}
-              <FlatList
-                data={fairLocations}
-                keyExtractor={(item) => item.id}
-                scrollEnabled={false}
-                contentContainerStyle={{ paddingBottom: 8 }}
-                renderItem={({ item }) => (
-                  <TouchableOpacity
-                    style={styles.card}
-                    onPress={() =>
-                      router.push({
-                        pathname: "/bootfairs/details",
-                        params: { id: item.id },
-                      })
-                    }
-                  >
-                    {/* Ticket stub top strip */}
-                    <View style={styles.cardTopStrip}>
-                      <Text style={styles.cardTopStripText}>
-                        {item.postcode}
-                      </Text>
-                    </View>
-
-                    {item.images?.[0] && (
-                      <Image
-                        source={{ uri: item.images[0] }}
-                        style={styles.cardImage}
-                      />
-                    )}
-
-                    <Text style={styles.cardTitle}>{item.name}</Text>
-
-                    <View style={styles.badgeRow}>
-                      {item.featured && (
-                        <View style={styles.featuredBadge}>
-                          <Text style={styles.featuredText}>⭐ Featured</Text>
-                        </View>
-                      )}
-
-                      <View style={styles.frequencyBadge}>
-                        <Text style={styles.frequencyText}>
-                          {item.frequency}
-                        </Text>
-                      </View>
-
-                      <View style={styles.busyBadge}>
-                        <Text style={styles.busyText}>
-                          {item.busyScore}/10 Busy
-                        </Text>
-                      </View>
-                    </View>
-
-                    <Text style={styles.cardSub}>{item.postcode}</Text>
-                    <Text style={styles.cardSub}>{item.nextDate}</Text>
-
-                    <Text style={styles.cardFees}>
-                      {item.openingTime}–{item.closingTime}
-                    </Text>
-
-                    <Text style={styles.viewDetails}>View stall details →</Text>
-
-                    {/* Ticket perforation */}
-                    <View style={styles.cardPerforationRow}>
-                      <View style={styles.cardPerforationDot} />
-                      <View style={styles.cardPerforationLine} />
-                      <View style={styles.cardPerforationDot} />
-                    </View>
-                  </TouchableOpacity>
-                )}
+        {/* HERO SPONSOR BANNER (LOCAL BUSINESS) */}
+        {featuredAd && (
+          <View style={styles.heroSponsor}>
+            {featuredAd.image && (
+              <Image
+                source={{ uri: featuredAd.image }}
+                style={styles.heroImage}
               />
+            )}
 
-              {/* BOTTOM LOCAL BUSINESS SPONSOR (SECONDARY) */}
-              {otherAds.length > 0 && (
-                <View style={styles.bottomSponsorBox}>
-                  <Text style={styles.bottomSponsorLabel}>Sponsored</Text>
-                  <SponsoredCard advert={otherAds[0]} />
+            <View style={styles.heroOverlay} />
+
+            <View style={styles.heroContent}>
+              <Text style={styles.heroTag}>Sponsored stall</Text>
+              <Text style={styles.heroTitle}>{featuredAd.title}</Text>
+            </View>
+          </View>
+        )}
+
+        {/* SPONSOR CAROUSEL (LOCAL BUSINESSES) */}
+        {otherAds.length > 0 && (
+          <View style={styles.carouselSection}>
+            <Text style={styles.carouselTitle}>Other sponsored stalls</Text>
+
+            <FlatList
+              data={otherAds}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.carouselContent}
+              renderItem={({ item }) => (
+                <View style={styles.sponsorCardWrapper}>
+                  <SponsoredCard advert={item} />
                 </View>
               )}
-            </>
-          ) : (
-            <View style={styles.mapPlaceholder}>
-              <Text style={{ color: "#fff", textAlign: "center" }}>
-                Map view disabled (Expo Go limitation)
+            />
+          </View>
+        )}
+
+        {/* BOOTFAIR LIST */}
+        <FlatList
+          data={fairLocations}
+          keyExtractor={(item) => item.id}
+          scrollEnabled={false}
+          contentContainerStyle={{ paddingBottom: 8 }}
+          ListEmptyComponent={
+            fairsLoaded ? (
+              <View style={styles.emptyBox}>
+                <Text style={styles.emptyTitle}>No boot fairs listed yet</Text>
+                <Text style={styles.emptyText}>
+                  Boot fairs you list show up here. Use the button below to add one.
+                </Text>
+              </View>
+            ) : null
+          }
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.card}
+              onPress={() =>
+                router.push({
+                  pathname: "/bootfairs/details",
+                  params: { id: item.id },
+                })
+              }
+            >
+              {/* Ticket stub top strip */}
+              <View style={styles.cardTopStrip}>
+                <Text style={styles.cardTopStripText}>
+                  {item.postcode}
+                </Text>
+              </View>
+
+              {item.images?.[0] && (
+                <Image
+                  source={{ uri: item.images[0] }}
+                  style={styles.cardImage}
+                />
+              )}
+
+              <Text style={styles.cardTitle}>{item.name}</Text>
+
+              <View style={styles.badgeRow}>
+                {item.featured && (
+                  <View style={styles.featuredBadge}>
+                    <Text style={styles.featuredText}>⭐ Featured</Text>
+                  </View>
+                )}
+
+                <View style={styles.frequencyBadge}>
+                  <Text style={styles.frequencyText}>
+                    {item.frequency}
+                  </Text>
+                </View>
+
+                {/* 0 means nobody has rated it, not "quiet" */}
+                {item.busyScore > 0 && (
+                  <View style={styles.busyBadge}>
+                    <Text style={styles.busyText}>
+                      {item.busyScore}/10 Busy
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <Text style={styles.cardSub}>{item.postcode}</Text>
+              <Text style={styles.cardSub}>{item.nextDate}</Text>
+
+              <Text style={styles.cardFees}>
+                {item.openingTime}–{item.closingTime}
               </Text>
-            </View>
+
+              <Text style={styles.viewDetails}>View stall details →</Text>
+
+              {/* Ticket perforation */}
+              <View style={styles.cardPerforationRow}>
+                <View style={styles.cardPerforationDot} />
+                <View style={styles.cardPerforationLine} />
+                <View style={styles.cardPerforationDot} />
+              </View>
+            </TouchableOpacity>
           )}
-        </Animated.View>
+        />
+
+        {/* BOTTOM LOCAL BUSINESS SPONSOR (SECONDARY) */}
+        {otherAds.length > 0 && (
+          <View style={styles.bottomSponsorBox}>
+            <Text style={styles.bottomSponsorLabel}>Sponsored</Text>
+            <SponsoredCard advert={otherAds[0]} />
+          </View>
+        )}
 
         {/* LIST YOUR BOOT FAIR BUTTON */}
         <TouchableOpacity
@@ -404,37 +345,9 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  /* SIGNPOST TOGGLE */
-  toggleRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 14,
-    marginBottom: 10,
-  },
-  signPostButton: {
-    flex: 1,
-    borderRadius: 999,
-    borderWidth: 2,
-    borderColor: "#374151",
-    paddingVertical: 8,
-    alignItems: "center",
-    backgroundColor: "#112240",
-  },
-  signPostActive: {
-    borderColor: "#FFD700",
-    backgroundColor: "#1F2937",
-  },
-  signPostText: {
-    color: "#9CA3AF",
-    fontWeight: "800",
-    fontSize: 14,
-  },
-  signPostTextActive: {
-    color: "#FFD700",
-  },
-
   /* CHALKBOARD SEARCH */
   searchBox: {
+    marginTop: 14,
     backgroundColor: "#112240",
     padding: 16,
     borderRadius: 18,
@@ -528,9 +441,6 @@ const styles = StyleSheet.create({
   sponsoredFairLeft: {
     flex: 1,
   },
-  sponsoredFairRight: {
-    paddingLeft: 10,
-  },
   sponsoredFairName: {
     color: "#F9FAFB",
     fontWeight: "800",
@@ -546,11 +456,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 2,
     fontWeight: "700",
-  },
-  sponsoredFairDistance: {
-    color: "#E5E7EB",
-    fontWeight: "700",
-    fontSize: 13,
   },
 
   /* HERO SPONSOR */
@@ -747,16 +652,22 @@ heroOverlay: {
     fontWeight: "700",
   },
 
-  /* MAP PLACEHOLDER */
-  mapPlaceholder: {
-    height: 260,
-    backgroundColor: "#112240",
-    borderRadius: 16,
-    justifyContent: "center",
+  /* EMPTY LIST */
+  emptyBox: {
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#1F2937",
-    marginBottom: 16,
+    paddingVertical: 24,
+    paddingHorizontal: 12,
+  },
+  emptyTitle: {
+    color: "#F9FAFB",
+    fontSize: 16,
+    fontWeight: "800",
+    marginBottom: 6,
+  },
+  emptyText: {
+    color: "#9CA3AF",
+    fontSize: 14,
+    textAlign: "center",
   },
 
   /* ADD BUTTON */
