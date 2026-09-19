@@ -7,29 +7,32 @@ import {
   Animated,
   TouchableOpacity,
 } from "react-native";
+import { daysUntilDate } from "@/features/vehicles/utils/motDates";
 
 /* ============================================================
    ⭐ AUTO FORMAT REG (AB12 CDE)
+   Only current-style plates (two letters, two digits, then letters) get the
+   space; older and private plates vary too much to guess where it goes.
 ============================================================ */
 export function autoFormatReg(input: string): string {
-  const cleaned = input.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  const cleaned = input.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 7);
 
-  if (cleaned.length <= 4) return cleaned;
-  return cleaned.slice(0, 4) + " " + cleaned.slice(4, 7);
+  if (/^[A-Z]{2}[0-9]{2}[A-Z]/.test(cleaned)) {
+    return cleaned.slice(0, 4) + " " + cleaned.slice(4);
+  }
+  return cleaned;
 }
 
 /* ============================================================
    ⭐ MOT STATUS BADGE
 ============================================================ */
 export function getMotStatusColor(theme: any, expiry: string | null) {
-  if (!expiry) return theme.muted;
+  // Days are counted on the calendar, so an MOT is still valid on its expiry day.
+  const days = daysUntilDate(expiry);
+  if (days === null) return theme.muted;
 
-  const today = new Date();
-  const exp = new Date(expiry);
-
-  if (exp < today) return theme.danger; // expired
-  if ((exp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24) < 30)
-    return theme.accent; // due soon
+  if (days < 0) return theme.danger; // expired
+  if (days < 30) return theme.accent; // due soon
 
   return theme.success; // pass
 }

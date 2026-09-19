@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import {
   ScrollView,
   TextInput,
   Image,
   Text,
   View,
-  Dimensions,
+  useWindowDimensions,
   TouchableOpacity,
 } from "react-native";
 import { useRouter } from "expo-router";
@@ -31,11 +31,19 @@ import {
 
 import { fetchMOT } from "../../src/features/vehicles/api/mot";
 
-const { width } = Dimensions.get("window");
+// "1,800" or "£1,800" -> 1800. Blank -> null; anything that is not a plain number -> undefined.
+function parseAmount(text: string): number | null | undefined {
+  const cleaned = text.replace(/[£,\s]/g, "");
+  if (!cleaned) return null;
+  return /^\d*\.?\d+$/.test(cleaned) ? Number(cleaned) : undefined;
+}
+
+const normaliseReg = (text: string) => text.replace(/\s+/g, "").toUpperCase();
 
 export default function NewVehicleScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const { width } = useWindowDimensions();
   const { addVehicle } = useVehicleHistory();
 
   // Form fields
@@ -53,24 +61,50 @@ export default function NewVehicleScreen() {
   const [notes, setNotes] = useState("");
   const [images, setImages] = useState<string[]>([]);
 
-  const [profit, setProfit] = useState<number | null>(null);
-
   const [motData, setMotData] = useState<any>(null);
+  const [motLoading, setMotLoading] = useState(false);
+  const [motError, setMotError] = useState<string | null>(null);
 
-  const { fetchAIValuation } = useAIValuation();
-  const { fetchMarketScan } = useMarketScan();
+  const { fetchAIValuation, loading: aiLoading } = useAIValuation();
+  const { fetchMarketScan, loading: marketLoading } = useMarketScan();
 
   const [aiData, setAiData] = useState<any>(null);
   const [marketData, setMarketData] = useState<any>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [marketError, setMarketError] = useState<string | null>(null);
+
+  // Set once Save is pressed, so problems are not shown on a form nobody has touched yet.
+  const [showProblem, setShowProblem] = useState(false);
+  // Guards against a double tap creating the same vehicle twice.
+  const saving = useRef(false);
+
+  /* ============================================================
+     ⭐ Parsed form values (undefined = typed but not a number)
+  ============================================================ */
+  const buyN = parseAmount(buyPrice);
+  const sellN = parseAmount(sellPrice);
+  const mileageN = parseAmount(mileage);
+  const yearN = parseAmount(year);
+  const engineN = parseAmount(engineSize);
+
+  const problem = !title.trim()
+    ? "Add a title for this vehicle."
+    : buyN === undefined
+    ? "Buy price must be a number, for example 1800."
+    : sellN === undefined
+    ? "Sell price must be a number, for example 2600."
+    : mileageN === undefined
+    ? "Mileage must be a number, for example 82000."
+    : yearN === undefined
+    ? "Year must be a number, for example 2014."
+    : engineN === undefined
+    ? "Engine size must be a number, for example 1.2."
+    : null;
 
   /* ============================================================
      ⭐ Profit Calculation
   ============================================================ */
-  useEffect(() => {
-    const buy = Number(buyPrice);
-    const sell = Number(sellPrice);
-    setProfit(!isNaN(buy) && !isNaN(sell) ? sell - buy : null);
-  }, [buyPrice, sellPrice]);
+  const profit = buyN != null && sellN != null ? sellN - buyN : null;
 
   const profitColor =
     profit == null
@@ -106,42 +140,143 @@ export default function NewVehicleScreen() {
      ⭐ MOT Lookup (mock fields supported)
   ============================================================ */
   const lookupMOT = async () => {
-    if (!reg.trim()) return;
+    if (motLoading) return;
 
-    const formatted = autoFormatReg(reg);
-    setReg(formatted);
+    // The DVLA and DVSA services want the plate without spaces.
+    const lookupReg = normaliseReg(reg);
+    if (!lookupReg) {
+      setMotError("Enter a registration first.");
+      return;
+    }
 
-    const data = await fetchMOT(formatted);
+    setReg(autoFormatReg(reg));
+    setMotLoading(true);
+    setMotError(null);
 
-    if (data) {
-      setMotData(data);
+    const data = await fetchMOT(lookupReg);
+    setMotLoading(false);
 
-      // Smart defaults
-      setMake(data.make ?? "");
-      setModel(data.model ?? "");
-      setYear(data.year?.toString() ?? "");
-      setColour(data.colour ?? "");
-      setMileage(data.mileage?.toString() ?? "");
+    if (!data) {
+      setMotError(
+        "Couldn't look up that registration. Check the number and your connection, then try again."
+      );
+      return;
+    }
 
-      // Auto title
-      if (!title.trim()) {
-        setTitle(`${data.make ?? ""} ${data.model ?? ""} ${data.year ?? ""}`.trim());
-      }
+    setMotData(data);
+
+    // Smart defaults
+    setMake(data.make ?? "");
+    setModel(data.model ?? "");
+    setYear(data.year?.toString() ?? "");
+    setColour(data.colour ?? "");
+    setMileage(data.mileage?.toString() ?? "");
+
+    // Auto title
+    if (!title.trim()) {
+      setTitle(`${data.make ?? ""} ${data.model ?? ""} ${data.year ?? ""}`.trim());
     }
   };
-    /* ============================================================
+
+  /* ============================================================
+     ⭐ AI Valuation + Market Scan
+  ============================================================ */
+  const runAIValuation = async () => {
+    if (aiLoading) return;
+    if (!title.trim()) {
+      setAiError("Add a title first so the AI knows what to value.");
+      return;
+    }
+    setAiError(null);
+
+    const ai = await fetchAIValuation({
+      id: "temp",
+      title,
+      buyPrice: buyN ?? null,
+      sellPrice: sellN ?? null,
+      notes,
+      images,
+      barcode: "manual-entry",
+      timestamp: Date.now().toString(),
+    });
+
+    if (!ai) {
+      setAiError("Couldn't get an AI valuation right now. Try again in a moment.");
+      return;
+    }
+
+    setAiData({
+      aiPrice: {
+        recommendedSellPrice: ai.recommendedSellPrice,
+        riskLevel: ai.riskLevel,
+      },
+      aiPriceMin: ai.aiPriceMin,
+      aiPriceMax: ai.aiPriceMax,
+      aiPriceConfidence: ai.confidence,
+      insights: ai.insights,
+    });
+  };
+
+  const runMarketScan = async () => {
+    if (marketLoading) return;
+    if (!title.trim()) {
+      setMarketError("Add a title first so we know what to search for.");
+      return;
+    }
+    setMarketError(null);
+
+    const market = await fetchMarketScan({
+      title,
+      buyPrice: buyN ?? null,
+      sellPrice: sellN ?? null,
+      notes,
+      images,
+    });
+
+    if (!market) {
+      setMarketError("Couldn't get market data right now. Try again in a moment.");
+      return;
+    }
+
+    setMarketData({
+      market: {
+        googlePriceMin: market.googlePriceMin ?? null,
+        googlePriceMax: market.googlePriceMax ?? null,
+        lowest: market.lowest ?? null,
+        highest: market.highest ?? null,
+        average: market.average ?? null,
+        smartPrice: market.smartPrice ?? null,
+        soldCount: market.soldCount ?? null,
+        demandScore: market.demandScore ?? null,
+        aiPriceMin: market.aiPriceMin ?? null,
+        aiPriceMax: market.aiPriceMax ?? null,
+        aiPriceConfidence: market.aiPriceConfidence ?? null,
+      },
+    });
+  };
+
+  /* ============================================================
      ⭐ Save Vehicle
   ============================================================ */
 const saveVehicle = () => {
-  if (!title.trim()) return;
+  if (saving.current) return;
+
+  if (problem) {
+    setShowProblem(true);
+    return;
+  }
+
+  saving.current = true;
+
+  const mileageInt = mileageN != null ? Math.round(mileageN) : null;
 
   const newVehicle = addVehicle({
-    title,
-    mileage: mileage ? Number(mileage) : null,
-    engineSize: engineSize || null,
+    title: title.trim(),
+    mileage: mileageInt,
+    engineSize: engineN ?? null,
 
-    buyPrice: buyPrice ? Number(buyPrice) : null,
-    sellPrice: sellPrice ? Number(sellPrice) : null,
+    buyPrice: buyN ?? null,
+    sellPrice: sellN ?? null,
     notes: notes || null,
     images: images.length > 0 ? images : null,
 
@@ -165,16 +300,17 @@ const saveVehicle = () => {
     // motData still supplies advisories/failures/motExpiry underneath.
     mot: {
       ...(motData || {}),
-      reg: reg || null,
-      make: make || null,
-      model: model || null,
-      year: year ? Number(year) : null,
-      colour: colour || null,
-      mileage: mileage ? Number(mileage) : null,
+      reg: normaliseReg(reg) || null,
+      make: make.trim() || null,
+      model: model.trim() || null,
+      year: yearN != null ? Math.round(yearN) : null,
+      colour: colour.trim() || null,
+      mileage: mileageInt,
     },
   });
 
-  router.push(`/vehicles/${newVehicle.id}`);
+  // replace, so Back does not return to the filled-in form and save it twice.
+  router.replace(`/vehicles/details/${newVehicle.id}`);
 };
 
 
@@ -222,6 +358,7 @@ const saveVehicle = () => {
           paddingBottom: 200,
         }}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         {/* ⭐ Vehicle Details */}
         <SuperCard theme={theme} title="Vehicle Details">
@@ -243,10 +380,16 @@ const saveVehicle = () => {
           />
 
           <SuperButton
-            label="🔍 Lookup MOT"
+            label={motLoading ? "Looking up..." : "🔍 Lookup MOT"}
             onPress={lookupMOT}
             theme={theme}
           />
+
+          {motError && (
+            <Text style={{ color: theme.danger, fontSize: 13, marginBottom: 12 }}>
+              {motError}
+            </Text>
+          )}
 
           {/* ⭐ 2-WIDE: Make + Model */}
           <View style={{ flexDirection: "row", gap: 12 }}>
@@ -475,34 +618,16 @@ const saveVehicle = () => {
         {/* ⭐ AI Tools */}
         <SuperCard theme={theme} title="AI Tools">
           <SuperButton
-            label="🤖 Run AI Valuation"
-            onPress={async () => {
-              const ai = await fetchAIValuation({
-                id: "temp",
-                title,
-                buyPrice: buyPrice ? Number(buyPrice) : null,
-                sellPrice: sellPrice ? Number(sellPrice) : null,
-                notes,
-                images,
-                barcode: "manual-entry",
-                timestamp: Date.now().toString(),
-              });
-
-              if (ai) {
-                setAiData({
-                  aiPrice: {
-                    recommendedSellPrice: ai.recommendedSellPrice,
-                    riskLevel: ai.riskLevel,
-                  },
-                  aiPriceMin: ai.aiPriceMin,
-                  aiPriceMax: ai.aiPriceMax,
-                  aiPriceConfidence: ai.confidence,
-                  insights: ai.insights,
-                });
-              }
-            }}
+            label={aiLoading ? "Running..." : "🤖 Run AI Valuation"}
+            onPress={runAIValuation}
             theme={theme}
           />
+
+          {aiError && (
+            <Text style={{ color: theme.danger, fontSize: 13, marginTop: 4 }}>
+              {aiError}
+            </Text>
+          )}
 
           {aiData && (
             <View
@@ -555,36 +680,16 @@ const saveVehicle = () => {
         {/* ⭐ Market Tools */}
         <SuperCard theme={theme} title="Market Intelligence">
           <SuperButton
-            label="📈 Run Market Scan"
-            onPress={async () => {
-              const market = await fetchMarketScan({
-                title,
-                buyPrice: buyPrice ? Number(buyPrice) : null,
-                sellPrice: sellPrice ? Number(sellPrice) : null,
-                notes,
-                images,
-              });
-
-              if (market) {
-                setMarketData({
-                  market: {
-                    googlePriceMin: market.googlePriceMin ?? null,
-                    googlePriceMax: market.googlePriceMax ?? null,
-                    lowest: market.lowest ?? null,
-                    highest: market.highest ?? null,
-                    average: market.average ?? null,
-                    smartPrice: market.smartPrice ?? null,
-                    soldCount: market.soldCount ?? null,
-                    demandScore: market.demandScore ?? null,
-                    aiPriceMin: market.aiPriceMin ?? null,
-                    aiPriceMax: market.aiPriceMax ?? null,
-                    aiPriceConfidence: market.aiPriceConfidence ?? null,
-                  },
-                });
-              }
-            }}
+            label={marketLoading ? "Scanning..." : "📈 Run Market Scan"}
+            onPress={runMarketScan}
             theme={theme}
           />
+
+          {marketError && (
+            <Text style={{ color: theme.danger, fontSize: 13, marginTop: 4 }}>
+              {marketError}
+            </Text>
+          )}
 
           {marketData && (
             <View
@@ -706,6 +811,19 @@ const saveVehicle = () => {
     right: 20,
   }}
 >
+  {showProblem && problem && (
+    <Text
+      style={{
+        color: theme.danger,
+        fontSize: 13,
+        textAlign: "center",
+        marginBottom: 8,
+      }}
+    >
+      {problem}
+    </Text>
+  )}
+
   <SuperGlowButton
     label="Save Vehicle"
     onPress={saveVehicle}

@@ -11,6 +11,18 @@ import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { useDealerNotifications } from "@/features/vehicles/context/DealerNotificationsContext";
+import {
+  motAttentionList,
+  motExpiryPhrase,
+} from "@/features/vehicles/utils/motDates";
+import {
+  barPercent,
+  formatMoney,
+  formatScore,
+  monthlyProfit,
+  realisedProfit,
+  summariseVehicles,
+} from "@/features/vehicles/utils/vehicleStats";
 
 const NAVY = "#0A1128";
 const GOLD = "#FFD700";
@@ -18,76 +30,37 @@ const SILVER = "#AAB4C3";
 const CARD = "#111827";
 
 export default function MotorsDashboard() {
-  const { vehicles: flips } = useVehicleHistory();
+  const { vehicles: records } = useVehicleHistory();
   const { notifications } = useDealerNotifications();
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   /* -------------------------------------------------------
      ⭐ STATS
+     Scans share the store with vehicles but are not vehicles, so only
+     records with MOT data are counted or listed here.
   ------------------------------------------------------- */
-  const stats = useMemo(() => {
-    const total = flips.length;
+  const { vehicles, total, totalProfit, avgScore, ranked } = useMemo(
+    () => summariseVehicles(records),
+    [records]
+  );
 
-    const totalProfit = flips.reduce(
-      (sum, f) =>
-        sum +
-        ((f.sellPrice ?? f.valuation ?? 0) - (f.buyPrice ?? 0)),
-      0
-    );
-
-    const avgScoreRaw = flips.reduce(
-      (sum, f) => sum + (f.flipScore ?? 0),
-      0
-    );
-    const scoreCount = flips.filter((f) => f.flipScore != null).length;
-    const avgScore =
-      scoreCount > 0 ? Math.round(avgScoreRaw / scoreCount) : null;
-
-    return { total, totalProfit, avgScore };
-  }, [flips]);
-
-  const latest = flips[0] ?? null;
+  const latest = vehicles[0] ?? null;
 
   /* -------------------------------------------------------
      ⭐ MOT ATTENTION
   ------------------------------------------------------- */
-  const motAttention = flips.filter((v) => {
-    const expiry = v.mot?.motExpiry ?? v.mot?.expiryDate;
-    if (!expiry) return false;
-    const days = Math.ceil(
-      (new Date(expiry).getTime() - Date.now()) / 86400000
-    );
-    return days <= 30;
-  });
+  const motAttention = useMemo(() => motAttentionList(vehicles), [vehicles]);
 
   /* -------------------------------------------------------
      ⭐ TOP PERFORMERS
   ------------------------------------------------------- */
-  const topPerformers = [...flips]
-    .sort((a, b) => {
-      const profitA =
-        (a.sellPrice ?? a.valuation ?? 0) - (a.buyPrice ?? 0);
-      const profitB =
-        (b.sellPrice ?? b.valuation ?? 0) - (b.buyPrice ?? 0);
-      return profitB - profitA;
-    })
-    .slice(0, 3);
+  const topPerformers = ranked.slice(0, 3);
 
   /* -------------------------------------------------------
      ⭐ MONTHLY PROFIT TIMELINE
   ------------------------------------------------------- */
-  const monthly = useMemo(() => {
-    const map: Record<string, number> = {};
-    flips.forEach((v) => {
-      const month = new Date(v.timestamp).toLocaleString("en-GB", {
-        month: "short",
-      });
-      const profit =
-        (v.sellPrice ?? v.valuation ?? 0) - (v.buyPrice ?? 0);
-      map[month] = (map[month] ?? 0) + profit;
-    });
-    return Object.entries(map);
-  }, [flips]);
+  const monthly = useMemo(() => monthlyProfit(vehicles), [vehicles]);
+  const maxMonthly = Math.max(...monthly.map((m) => m.profit), 1);
 
   return (
     <View style={styles.container}>
@@ -112,16 +85,15 @@ export default function MotorsDashboard() {
             <View style={styles.statsBlock}>
               <Text style={styles.statsLabel}>Total Vehicles</Text>
               <Text style={styles.statsValue}>
-                <Feather name="layers" size={18} color={GOLD} />{" "}
-                {stats.total}
+                <Feather name="layers" size={18} color={GOLD} /> {total}
               </Text>
             </View>
 
             <View style={styles.statsBlock}>
               <Text style={styles.statsLabel}>Total Profit</Text>
               <Text style={styles.statsValue}>
-                <Feather name="dollar-sign" size={18} color={GOLD} /> £
-                {stats.totalProfit.toFixed(2)}
+                <Feather name="dollar-sign" size={18} color={GOLD} />{" "}
+                {formatMoney(totalProfit)}
               </Text>
             </View>
           </View>
@@ -131,7 +103,7 @@ export default function MotorsDashboard() {
               <Text style={styles.statsLabel}>Avg Flip Score</Text>
               <Text style={styles.statsValue}>
                 <Feather name="star" size={18} color={GOLD} />{" "}
-                {stats.avgScore ?? "?"}/100
+                {formatScore(avgScore)}
               </Text>
             </View>
           </View>
@@ -151,14 +123,13 @@ export default function MotorsDashboard() {
               <Text style={styles.spotlightTitle}>{latest.title}</Text>
 
               <Text style={styles.spotlightMeta}>
-                <Feather name="dollar-sign" size={16} color={GOLD} /> Profit: £
-                {(latest.sellPrice ?? latest.valuation ?? 0) -
-                  (latest.buyPrice ?? 0)}
+                <Feather name="dollar-sign" size={16} color={GOLD} /> Profit:{" "}
+                {formatMoney(realisedProfit(latest))}
               </Text>
 
               <Text style={styles.spotlightMeta}>
                 <Feather name="star" size={16} color={GOLD} /> Score:{" "}
-                {latest.flipScore ?? "?"}/100
+                {formatScore(latest.flipScore)}
               </Text>
 
               <Pressable
@@ -186,31 +157,18 @@ export default function MotorsDashboard() {
           {motAttention.length === 0 ? (
             <Text style={styles.emptyText}>No MOT issues.</Text>
           ) : (
-            motAttention.map((v) => {
-              const expiry =
-                v.mot?.motExpiry ?? v.mot?.expiryDate ?? null;
-              const daysLeft = expiry
-                ? Math.ceil(
-                    (new Date(expiry).getTime() - Date.now()) /
-                      86400000
-                  )
-                : null;
-
-              return (
-                <Pressable
-                  key={v.id}
-                  style={styles.motCard}
-                  onPress={() =>
-                    router.push(`/vehicles/overview/${v.id}`)
-                  }
-                >
-                  <Text style={styles.motTitle}>{v.title}</Text>
-                  <Text style={styles.motMeta}>
-                    Expires in {daysLeft} days
-                  </Text>
-                </Pressable>
-              );
-            })
+            motAttention.map(({ vehicle: v, days }) => (
+              <Pressable
+                key={v.id}
+                style={styles.motCard}
+                onPress={() => router.push(`/vehicles/overview/${v.id}`)}
+              >
+                <Text style={styles.motTitle}>{v.title}</Text>
+                <Text style={styles.motMeta}>
+                  MOT {motExpiryPhrase(days)}
+                </Text>
+              </Pressable>
+            ))
           )}
         </View>
 
@@ -221,26 +179,20 @@ export default function MotorsDashboard() {
           </Text>
 
           {topPerformers.length === 0 ? (
-            <Text style={styles.emptyText}>No flips yet.</Text>
+            <Text style={styles.emptyText}>No completed flips yet.</Text>
           ) : (
-            topPerformers.map((v) => {
-              const profit =
-                (v.sellPrice ?? v.valuation ?? 0) -
-                (v.buyPrice ?? 0);
-
-              return (
-                <Pressable
-                  key={v.id}
-                  style={styles.topCard}
-                  onPress={() =>
-                    router.push(`/vehicles/overview/${v.id}`)
-                  }
-                >
-                  <Text style={styles.topTitle}>{v.title}</Text>
-                  <Text style={styles.topMeta}>Profit: £{profit}</Text>
-                </Pressable>
-              );
-            })
+            topPerformers.map(({ vehicle: v, profit }) => (
+              <Pressable
+                key={v.id}
+                style={styles.topCard}
+                onPress={() => router.push(`/vehicles/overview/${v.id}`)}
+              >
+                <Text style={styles.topTitle}>{v.title}</Text>
+                <Text style={styles.topMeta}>
+                  Profit: {formatMoney(profit)}
+                </Text>
+              </Pressable>
+            ))
           )}
         </View>
 
@@ -254,10 +206,10 @@ export default function MotorsDashboard() {
           {monthly.length === 0 ? (
             <Text style={styles.emptyText}>No data yet.</Text>
           ) : (
-            monthly.map(([month, profit]) => (
-              <View key={month} style={{ marginBottom: 10 }}>
+            monthly.map(({ key, label, profit }) => (
+              <View key={key} style={{ marginBottom: 10 }}>
                 <Text style={{ color: SILVER }}>
-                  {month}: £{profit.toFixed(0)}
+                  {label}: {formatMoney(profit)}
                 </Text>
 
                 <View style={styles.timelineBar}>
@@ -265,7 +217,7 @@ export default function MotorsDashboard() {
                     style={[
                       styles.timelineFill,
                       {
-                        width: Math.min(100, profit / 10),
+                        width: `${barPercent(profit, maxMonthly)}%`,
                         backgroundColor:
                           profit > 500
                             ? GOLD

@@ -33,7 +33,7 @@ export default function VehiclesHome() {
         </GoldButton>
 
         <GoldButton onPress={() => router.push("/scan")}>
-          <MaterialCommunityIcons name="barcode-scan" size={20} /> VIN Scanner
+          <MaterialCommunityIcons name="barcode-scan" size={20} /> Scan Barcode
         </GoldButton>
       </View>
 

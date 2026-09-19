@@ -13,6 +13,12 @@ import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryCon
 import type { FlipRecord } from "@/features/vehicles/models/FlipRecord";
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "expo-router";
+import { motDaysLeft, motExpiryPhrase } from "@/features/vehicles/utils/motDates";
+import {
+  formatMoney,
+  isVehicleRecord,
+  realisedProfit,
+} from "@/features/vehicles/utils/vehicleStats";
 
 /* -------------------------------------------------------
    SIMULATED MARKET INTELLIGENCE ENGINE
@@ -153,7 +159,14 @@ export default function DealerListings() {
 
   const { vehicles } = useVehicleHistory();
 
-  return <DealerListingsContent vehicles={vehicles} router={router} theme={theme} />;
+  // Scans share the store with vehicles but are not vehicles.
+  return (
+    <DealerListingsContent
+      vehicles={vehicles.filter(isVehicleRecord)}
+      router={router}
+      theme={theme}
+    />
+  );
 }
 
 function DealerListingsContent({
@@ -178,11 +191,14 @@ function DealerListingsContent({
 
   const sorted = [...list].sort((a, b) => {
     switch (sortMode) {
-      case "profit":
-        return (
-          ((b.sellPrice ?? b.valuation ?? 0) - (b.buyPrice ?? 0)) -
-          ((a.sellPrice ?? a.valuation ?? 0) - (a.buyPrice ?? 0))
-        );
+      case "profit": {
+        const profitA = realisedProfit(a);
+        const profitB = realisedProfit(b);
+        if (profitA === null && profitB === null) return 0;
+        if (profitA === null) return 1;
+        if (profitB === null) return -1;
+        return profitB - profitA;
+      }
       case "score":
         return (b.flipScore ?? 0) - (a.flipScore ?? 0);
       case "newest":
@@ -219,7 +235,7 @@ function DealerListingsContent({
             textShadowRadius: 8,
           }}
         >
-          Dealer Listings
+          Vehicle Listings
         </Text>
 
         <View
@@ -326,9 +342,9 @@ function DealerListingsContent({
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16 }}>
-        {sorted.map((v, i) => (
+        {sorted.map((v) => (
           <TouchableOpacity
-            key={i}
+            key={v.id}
             onPress={() =>
               router.push(`/motors/vehicle-detail?id=${v.id}`)
             }
@@ -424,20 +440,11 @@ function VehicleCard({ vehicle, theme }: VehicleCardProps) {
 
   const market = simulateMarketIntel(vehicle);
 
-  const profit =
-    (vehicle.sellPrice ?? vehicle.valuation ?? 0) -
-    (vehicle.buyPrice ?? 0);
+  const profit = realisedProfit(vehicle);
 
   const flipScore = vehicle.flipScore ?? 0;
 
-  const motExpiry =
-    vehicle.mot?.motExpiry ?? vehicle.mot?.expiryDate ?? null;
-
-  const motDaysRemaining = motExpiry
-    ? Math.ceil(
-        (new Date(motExpiry).getTime() - Date.now()) / 86400000
-      )
-    : null;
+  const motDaysRemaining = motDaysLeft(vehicle);
 
   const motColor =
     motDaysRemaining !== null && motDaysRemaining < 30
@@ -449,7 +456,7 @@ function VehicleCard({ vehicle, theme }: VehicleCardProps) {
   const tags: string[] = [];
 
   if (flipScore > 70) tags.push("🔥 High Demand");
-  if (profit > 1000) tags.push("💰 Strong Profit");
+  if (profit !== null && profit > 1000) tags.push("💰 Strong Profit");
   if ((vehicle.mileage ?? vehicle.mot?.mileage ?? 0) < 60000)
     tags.push("🟢 Low Mileage");
   if (motDaysRemaining !== null && motDaysRemaining < 30)
@@ -705,7 +712,7 @@ function VehicleCard({ vehicle, theme }: VehicleCardProps) {
               fontWeight: "800",
             }}
           >
-            #{vehicle.id}
+            {vehicle.title}
           </Text>
         </View>
 
@@ -800,16 +807,21 @@ function VehicleCard({ vehicle, theme }: VehicleCardProps) {
 
       <Text
         style={{
-          color: profit >= 0 ? "#66FF99" : "#FF6666",
+          color:
+            profit === null
+              ? theme.muted
+              : profit >= 0
+              ? "#66FF99"
+              : "#FF6666",
           marginTop: 6,
           fontWeight: "700",
           fontSize: 18,
         }}
       >
-        Profit: £{profit.toFixed(0)}
+        Profit: {formatMoney(profit)}
       </Text>
 
-      {motExpiry && (
+      {motDaysRemaining !== null && (
         <View
           style={{
             marginTop: 6,
@@ -826,7 +838,7 @@ function VehicleCard({ vehicle, theme }: VehicleCardProps) {
               fontWeight: "700",
             }}
           >
-            MOT: {motDaysRemaining} days left
+            MOT {motExpiryPhrase(motDaysRemaining)}
           </Text>
         </View>
       )}

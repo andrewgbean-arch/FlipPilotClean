@@ -3,27 +3,25 @@ import { useTheme } from "@/styles/ThemeContext";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { useRouter } from "expo-router";
 import Svg, { Rect, Polyline } from "react-native-svg";
+import { motDaysLeft } from "@/features/vehicles/utils/motDates";
+import {
+  formatMoney,
+  isVehicleRecord,
+  realisedProfit,
+} from "@/features/vehicles/utils/vehicleStats";
 
-function parseUkDate(dateStr?: string | null) {
-  if (!dateStr) return null;
-  const [day, month, year] = dateStr.split("/").map(Number);
-  if (!day || !month || !year) return null;
-  return new Date(year, month - 1, day);
-}
-
-export default function DealerAnalytics() {
+export default function MotorsAnalytics() {
   const theme = useTheme();
   const router = useRouter();
-  const { vehicles } = useVehicleHistory();
+  const { vehicles: records } = useVehicleHistory();
+
+  // Scans share the store with vehicles but are not vehicles.
+  const vehicles = records.filter(isVehicleRecord);
 
   const sold = vehicles.filter((v) => v.sellDate);
   const stock = vehicles.filter((v) => !v.sellDate);
 
-  const totalProfit = sold.reduce((sum, v) => {
-    const profit =
-      (v.sellPrice ?? v.valuation ?? 0) - (v.buyPrice ?? 0);
-    return sum + profit;
-  }, 0);
+  const totalProfit = sold.reduce((sum, v) => sum + (realisedProfit(v) ?? 0), 0);
 
   const flipTimes = sold.map((v) => {
     const start = new Date(v.buyDate ?? v.timestamp).getTime();
@@ -38,9 +36,8 @@ export default function DealerAnalytics() {
 
   const bestFlip = sold.reduce(
     (best, v) => {
-      const profit =
-        (v.sellPrice ?? v.valuation ?? 0) - (v.buyPrice ?? 0);
-      if (profit > best.profit) {
+      const profit = realisedProfit(v);
+      if (profit !== null && profit > best.profit) {
         return { vehicle: v, profit };
       }
       return best;
@@ -50,9 +47,8 @@ export default function DealerAnalytics() {
 
   const worstFlip = sold.reduce(
     (worst, v) => {
-      const profit =
-        (v.sellPrice ?? v.valuation ?? 0) - (v.buyPrice ?? 0);
-      if (profit < worst.profit) {
+      const profit = realisedProfit(v);
+      if (profit !== null && profit < worst.profit) {
         return { vehicle: v, profit };
       }
       return worst;
@@ -60,25 +56,20 @@ export default function DealerAnalytics() {
     { vehicle: null as any, profit: Infinity }
   );
 
-  // MOT buckets
-  const now = new Date();
+  // MOT buckets (a MOT is valid through the whole of its expiry day)
   const expiredMOT = vehicles.filter((v) => {
-    const d = parseUkDate(v.mot?.motExpiry ?? v.mot?.expiryDate ?? null);
-    return d !== null && d.getTime() < now.getTime();
+    const days = motDaysLeft(v);
+    return days !== null && days < 0;
   });
 
   const mot30 = vehicles.filter((v) => {
-    const d = parseUkDate(v.mot?.motExpiry ?? v.mot?.expiryDate ?? null);
-    if (!d) return false;
-    const diffDays = Math.ceil((d.getTime() - now.getTime()) / 86400000);
-    return diffDays > 0 && diffDays <= 30;
+    const days = motDaysLeft(v);
+    return days !== null && days >= 0 && days <= 30;
   });
 
   const mot60 = vehicles.filter((v) => {
-    const d = parseUkDate(v.mot?.motExpiry ?? v.mot?.expiryDate ?? null);
-    if (!d) return false;
-    const diffDays = Math.ceil((d.getTime() - now.getTime()) / 86400000);
-    return diffDays > 30 && diffDays <= 60;
+    const days = motDaysLeft(v);
+    return days !== null && days > 30 && days <= 60;
   });
 
   // Monthly profit
@@ -87,8 +78,7 @@ export default function DealerAnalytics() {
     const month = new Date(v.sellDate ?? v.timestamp)
       .toISOString()
       .slice(0, 7);
-    const profit =
-      (v.sellPrice ?? v.valuation ?? 0) - (v.buyPrice ?? 0);
+    const profit = realisedProfit(v) ?? 0;
     monthlyProfitMap[month] = (monthlyProfitMap[month] ?? 0) + profit;
   });
 
@@ -120,7 +110,7 @@ export default function DealerAnalytics() {
     >
       <TouchableOpacity onPress={() => router.back()}>
         <Text style={{ color: theme.goldDeep, marginBottom: 10 }}>
-          ← Back to Dealer Mode
+          ← Back
         </Text>
       </TouchableOpacity>
 
@@ -135,24 +125,24 @@ export default function DealerAnalytics() {
           textShadowRadius: 8,
         }}
       >
-        Dealer Analytics
+        Analytics
       </Text>
 
       {/* Stats grid */}
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-        <StatCard label="Total Profit" value={`£${totalProfit}`} theme={theme} />
+        <StatCard label="Total Profit" value={formatMoney(totalProfit)} theme={theme} />
         <StatCard label="Total Vehicles" value={vehicles.length} theme={theme} />
         <StatCard label="Stock" value={stock.length} theme={theme} />
         <StatCard label="Sold" value={sold.length} theme={theme} />
         <StatCard label="Avg Flip Time" value={`${avgFlipTime} days`} theme={theme} />
         <StatCard
           label="Best Flip"
-          value={bestFlip.vehicle ? `£${bestFlip.profit}` : "N/A"}
+          value={bestFlip.vehicle ? formatMoney(bestFlip.profit) : "N/A"}
           theme={theme}
         />
         <StatCard
           label="Worst Flip"
-          value={worstFlip.vehicle ? `£${worstFlip.profit}` : "N/A"}
+          value={worstFlip.vehicle ? formatMoney(worstFlip.profit) : "N/A"}
           theme={theme}
         />
         <StatCard

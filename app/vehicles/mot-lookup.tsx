@@ -18,28 +18,37 @@ export default function MotLookupScreen() {
      ⭐ MOT Lookup Logic
   --------------------------------------------- */
   const lookup = async () => {
-    if (!reg || loading) return;
+    // The DVLA and DVSA services want the plate without spaces.
+    const plate = reg.replace(/\s+/g, "").toUpperCase();
+    if (!plate || loading) return;
 
     setLoading(true);
     setError(null);
 
     try {
-      const res = await fetch(`${BASE_URL}/vehicle?reg=${encodeURIComponent(reg)}`);
+      const res = await fetch(`${BASE_URL}/vehicle?reg=${encodeURIComponent(plate)}`);
       const data = await res.json();
 
       if (!res.ok || !data.ok) {
-        setError(data?.error ?? "No vehicle found for that registration.");
+        // The server sends a string for its own errors but can pass a DVSA error object through.
+        setError(
+          res.status === 503
+            ? "Vehicle lookup isn't available right now. Try again later."
+            : typeof data?.error === "string"
+            ? data.error
+            : "No vehicle found for that registration."
+        );
         return;
       }
 
       const v = data.vehicle ?? {};
 
       const newVehicle = addVehicle({
-        title: `${v.make ?? ""} ${v.model ?? ""}`.trim() || reg,
+        title: `${v.make ?? ""} ${v.model ?? ""}`.trim() || plate,
         buyPrice: null,
         sellPrice: null,
         mot: {
-          reg,
+          reg: plate,
           make: v.make ?? null,
           model: v.model ?? null,
           year: v.year ?? null,

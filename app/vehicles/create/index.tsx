@@ -22,7 +22,7 @@ export default function CreateVehicleMenu() {
 
       <Pressable
         style={styles.button}
-        onPress={() => router.push("/vehicles/edit")}
+        onPress={() => router.push("/vehicles/edit-lookup")}
       >
         <MaterialCommunityIcons
           name="file-edit-outline"

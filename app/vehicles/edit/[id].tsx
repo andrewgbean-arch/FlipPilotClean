@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 
 import {
   View,
@@ -18,13 +18,37 @@ import BreakdownModal from "@/components/core/BreakdownModal";
 
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
+import { fetchMOT } from "@/features/vehicles/api/mot";
 import { calculateFlipScore, FlipScoreInput } from "@/utils/flipScoreEngine";
 import { computeAiPrice } from "@/features/ai/priceengine";
 
 import { useTheme } from "@/styles/useTheme";
 import { Theme } from "@/styles/theme";
 import { styles } from "@/styles/styles";
-import { BASE_URL } from "@/utils/api";
+
+/* -------------------------------------------------------
+   HELPERS
+------------------------------------------------------- */
+
+// "1,800" or "£1,800" -> 1800. Blank -> null; anything that is not a plain number -> undefined.
+function parseAmount(text: string): number | null | undefined {
+  const cleaned = text.replace(/[£,\s]/g, "");
+  if (!cleaned) return null;
+  return /^\d*\.?\d+$/.test(cleaned) ? Number(cleaned) : undefined;
+}
+
+const normaliseReg = (text: string) => text.replace(/\s+/g, "").toUpperCase();
+
+const autoTitle = (year: number | string, make: string, model: string) =>
+  year && make && model ? `${year} ${make} ${model}` : "";
+
+// An MOT stays valid through the end of its expiry day.
+function motStatusFor(expiry: string | null | undefined) {
+  if (!expiry) return "Unknown";
+  const end = new Date(`${expiry.slice(0, 10)}T23:59:59`);
+  if (Number.isNaN(end.getTime())) return "Unknown";
+  return end.getTime() >= Date.now() ? "Valid" : "Expired";
+}
 
 /* -------------------------------------------------------
    ROUTE
@@ -32,7 +56,7 @@ import { BASE_URL } from "@/utils/api";
 
 export default function EditFlipRoute() {
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
-  const { vehicles, updateVehicle } = useVehicleHistory();
+  const { vehicles, updateVehicle, loaded } = useVehicleHistory();
   const router = useRouter();
   const theme = useTheme();
 
@@ -40,9 +64,50 @@ export default function EditFlipRoute() {
   const flip = vehicles.find((v) => v.id === vehicleId);
 
   if (!flip) {
+    // Flips load from storage after the first render, so only call it missing once they have.
+    if (!loaded) {
+      return (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" color={theme.goldDeep} />
+        </View>
+      );
+    }
+
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color={theme.goldDeep} />
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          padding: 20,
+        }}
+      >
+        <Text
+          style={{
+            color: theme.white,
+            fontSize: 20,
+            fontWeight: "700",
+            marginBottom: 8,
+          }}
+        >
+          Flip not found
+        </Text>
+        <Text style={{ color: theme.muted, textAlign: "center", marginBottom: 20 }}>
+          It may have been deleted.
+        </Text>
+        <TouchableOpacity
+          onPress={() => router.replace("/vehicles/list")}
+          style={{
+            backgroundColor: theme.goldDeep,
+            paddingVertical: 12,
+            paddingHorizontal: 20,
+            borderRadius: theme.radius.md,
+          }}
+        >
+          <Text style={{ color: theme.black, fontWeight: "700" }}>
+            Back to your flips
+          </Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -101,220 +166,290 @@ function EditFlipForm({
   const [year, setYear] = useState<number | string>(flip.mot?.year ?? "");
 
   const [colour, setColour] = useState(flip.mot?.colour ?? "");
-  const [keepers, setKeepers] = useState(flip.mot?.keepers ?? 0);
-  const [mileage, setMileage] = useState(flip.mot?.mileage ?? 0);
+  const [keepers, setKeepers] = useState(String(flip.mot?.keepers ?? ""));
+  const [mileage, setMileage] = useState(String(flip.mot?.mileage ?? ""));
 
-  const [engineSize, setEngineSize] = useState(flip.engineSize ?? 0);
+  const [engineSize, setEngineSize] = useState(String(flip.engineSize ?? ""));
 
   const [images, setImages] = useState<string[]>(flip.images ?? []);
-  const [liveScore, setLiveScore] = useState(flip.flipScore ?? 0);
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [dirty, setDirty] = useState(false);
+  // Until a score input is touched, the score shown is the one already saved with the flip.
+  const [scoreEdited, setScoreEdited] = useState(false);
+
+  const [motLoading, setMotLoading] = useState(false);
+  const [motError, setMotError] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+
+  /* -------------------------------------------------------
+       PARSED FORM VALUES (undefined = typed but not a number)
+    ------------------------------------------------------- */
+  const buyN = parseAmount(buyPrice);
+  const sellN = parseAmount(sellPrice);
+  const mileageN = parseAmount(mileage);
+  const keepersN = parseAmount(keepers);
+  const engineN = parseAmount(engineSize);
+  const confidenceN = parseAmount(aiPriceConfidence);
+  const demandN = parseAmount(demandScore);
 
   /* -------------------------------------------------------
        AUTO TITLE (YEAR + MAKE + MODEL)
     ------------------------------------------------------- */
-  useEffect(() => {
-    if (year && make && model) {
-      setTitle(`${year} ${make} ${model}`);
-    }
-  }, [year, make, model]);
+  // Keeps the title in step with year/make/model, but only while it is still the
+  // auto-generated one, so a title the user wrote themselves is never overwritten.
+  const syncTitle = (next: {
+    year?: number | string;
+    make?: string;
+    model?: string;
+  }) => {
+    const before = autoTitle(year, make, model);
+    const after = autoTitle(
+      next.year ?? year,
+      next.make ?? make,
+      next.model ?? model
+    );
+    if (after && (!title.trim() || title === before)) setTitle(after);
+  };
+
+  /* -------------------------------------------------------
+       FLIPSCORE (worked out from the current inputs, not a step behind)
+    ------------------------------------------------------- */
+  const liveScore = scoreEdited
+    ? calculateFlipScore({
+        buyPrice: buyN ?? 0,
+        sellPrice: sellN ?? 0,
+        demandScore: demandN ?? 0,
+        rarity,
+        condition,
+        sellSpeed,
+        aiPriceConfidence: confidenceN ?? undefined,
+      })
+    : flip.flipScore ?? 0;
 
   /* -------------------------------------------------------
        VALUATION ENGINE DATA
     ------------------------------------------------------- */
   const flipScore = liveScore;
-  const marketHeat = Number(demandScore);
+  const marketHeat = demandN ?? 0;
 
   const listing = {
     id: flip.id,
-    price: Number(sellPrice) || Number(buyPrice) || 0,
-    mileage,
+    price: sellN || buyN || 0,
+    mileage: mileageN ?? 0,
     year,
     condition,
     make,
-    engineSize,
+    engineSize: engineN ?? 0,
   };
 
   /* -------------------------------------------------------
        VALIDATION
     ------------------------------------------------------- */
-  const isValid =
-    Number(buyPrice) > 0 &&
-    Number(sellPrice) > 0;
+  // Prices are optional (an MOT-checked or unsold vehicle has none), but if typed
+  // they must be numbers.
+  const problem = !title.trim()
+    ? "Add a title for this flip."
+    : buyN === undefined
+    ? "Buy price must be a number, for example 1800."
+    : sellN === undefined
+    ? "Sell price must be a number, for example 2600."
+    : mileageN === undefined
+    ? "Mileage must be a number, for example 82000."
+    : keepersN === undefined
+    ? "Keepers must be a number."
+    : engineN === undefined
+    ? "Engine size must be a number, for example 1242."
+    : confidenceN === undefined || (confidenceN != null && confidenceN > 100)
+    ? "AI price confidence must be a number from 0 to 100."
+    : demandN === undefined || (demandN != null && demandN > 100)
+    ? "Demand score must be a number from 0 to 100."
+    : null;
+
+  const isValid = problem === null;
 
   /* -------------------------------------------------------
        IMAGE PICKER
     ------------------------------------------------------- */
   const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      quality: 0.8,
-    });
-    if (!result.canceled) {
-      setDirty(true);
-      setImages((prev) => [...prev, result.assets[0].uri]);
+    setPhotoError(null);
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.8,
+      });
+      if (!result.canceled) {
+        setDirty(true);
+        setImages((prev) => [...prev, result.assets[0].uri]);
+      }
+    } catch {
+      setPhotoError("Couldn't open your photos. Check the app has access and try again.");
     }
   };
 
   const takePhoto = async () => {
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-    if (!result.canceled) {
-      setDirty(true);
-      setImages((prev) => [...prev, result.assets[0].uri]);
+    setPhotoError(null);
+    try {
+      const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+      if (!result.canceled) {
+        setDirty(true);
+        setImages((prev) => [...prev, result.assets[0].uri]);
+      }
+    } catch {
+      setPhotoError("Couldn't open the camera. Check the app has camera access and try again.");
     }
-  };
-
-  /* -------------------------------------------------------
-       FLIPSCORE RECALC
-    ------------------------------------------------------- */
-  const recalcScore = () => {
-    const score = calculateFlipScore({
-      buyPrice: Number(buyPrice),
-      sellPrice: Number(sellPrice),
-      demandScore: Number(demandScore),
-      rarity,
-      condition,
-      sellSpeed,
-    });
-    setLiveScore(score);
   };
 
   /* -------------------------------------------------------
        MOT LOOKUP
     ------------------------------------------------------- */
   const lookupMot = async () => {
-    if (!registration.trim()) return;
+    if (motLoading) return;
 
-    try {
-      const res = await fetch(`${BASE_URL}/vehicle?reg=${encodeURIComponent(registration.trim())}`);
-      const data = await res.json();
-
-      if (!data.ok || !data.vehicle) return;
-
-      const mot = {
-        make: data.vehicle.make,
-        model: data.vehicle.model,
-        year: data.vehicle.year,
-        mileage: data.vehicle.mileage,
-        colour: data.vehicle.colour,
-        keepers: null,
-        motStatus: data.motAvailable ? "Valid" : "Unknown",
-        motExpiry: data.vehicle.motExpiry,
-        expiryDate: data.vehicle.motExpiry,
-        taxStatus: data.vehicle.taxStatus,
-        advisories: data.vehicle.advisories?.map((a: any) => a.text ?? String(a)) ?? [],
-      };
-
-      setDirty(true);
-
-      setMake(mot.make ?? "");
-      setModel(mot.model ?? "");
-      setYear(mot.year ?? "");
-      setMileage(mot.mileage ?? 0);
-      setColour(mot.colour ?? "");
-      setKeepers(mot.keepers ?? 0);
-
-      setMotInfo({
-        reg: registration.toUpperCase(),
-        motStatus: mot.motStatus,
-        motExpiry: mot.motExpiry ?? mot.expiryDate ?? "",
-        mileage: mot.mileage ?? 0,
-        advisories: mot.advisories ?? [],
-        taxStatus: mot.taxStatus ?? "Unknown",
-        make: mot.make ?? "",
-        model: mot.model ?? "",
-        year: mot.year ?? "",
-        colour: mot.colour ?? "",
-        keepers: mot.keepers ?? 0,
-      });
-
-      if (mot.year && mot.make && mot.model) {
-        setTitle(`${mot.year} ${mot.make} ${mot.model}`);
-      }
-    } catch (err) {
-      console.log("❌ MOT ERROR:", err);
+    // The DVLA and DVSA services want the plate without spaces.
+    const lookupReg = normaliseReg(registration);
+    if (!lookupReg) {
+      setMotError("Enter a registration first.");
+      return;
     }
+
+    setMotLoading(true);
+    setMotError(null);
+
+    const data = await fetchMOT(lookupReg);
+    setMotLoading(false);
+
+    if (!data) {
+      setMotError(
+        "Couldn't look up that registration. Check the number and your connection, then try again."
+      );
+      return;
+    }
+
+    setDirty(true);
+
+    setRegistration(lookupReg);
+    setMake(data.make ?? "");
+    setModel(data.model ?? "");
+    setYear(data.year ?? "");
+    setMileage(data.mileage != null ? String(data.mileage) : "");
+    setColour(data.colour ?? "");
+    // The lookup does not return previous keepers, so whatever was typed is kept.
+
+    setMotInfo({
+      ...flip.mot,
+      reg: lookupReg,
+      make: data.make ?? null,
+      model: data.model ?? null,
+      year: data.year ?? null,
+      colour: data.colour ?? null,
+      mileage: data.mileage ?? null,
+      motStatus: motStatusFor(data.motExpiry),
+      motExpiry: data.motExpiry ?? null,
+      expiryDate: data.motExpiry ?? null,
+      taxStatus: data.taxStatus ?? null,
+      advisories: data.advisories ?? [],
+      failures: data.failures ?? [],
+    });
+
+    syncTitle({
+      year: data.year ?? "",
+      make: data.make ?? "",
+      model: data.model ?? "",
+    });
   };
 
   /* -------------------------------------------------------
        SAVE
     ------------------------------------------------------- */
   const handleSave = () => {
-    const flipScore = liveScore;
+    if (!isValid) return;
 
+    const flipScore = liveScore;
+    const mileageInt = mileageN != null ? Math.round(mileageN) : null;
+
+    // Built from the form, so every field the user can edit is what gets saved.
+    // motInfo only supplies what the form has no field for (expiry, tax, advisories).
     const motPayload = {
       ...flip.mot,
-      reg: motInfo?.reg ?? registration.toUpperCase(),
-      make: motInfo?.make ?? make,
-      model: motInfo?.model ?? model,
-      colour: motInfo?.colour ?? colour,
-      keepers: motInfo?.keepers ?? keepers,
-      year: Number(motInfo?.year ?? year) || null,
-      mileage: Number(motInfo?.mileage ?? mileage ?? 0),
-      motExpiry: motInfo?.motExpiry ?? flip.mot?.motExpiry ?? null,
-      expiryDate: motInfo?.motExpiry ?? flip.mot?.expiryDate ?? null,
-      advisories: motInfo?.advisories ?? flip.mot?.advisories ?? [],
-      failures: flip.mot?.failures ?? [],
-      mileageHistory: flip.mot?.mileageHistory ?? [
-        {
-          date: new Date().toISOString(),
-          mileage: Number(motInfo?.mileage ?? mileage ?? 0),
-        },
-      ],
+      reg: normaliseReg(registration) || null,
+      make: make.trim() || null,
+      model: model.trim() || null,
+      colour: colour.trim() || null,
+      keepers: keepersN != null ? Math.round(keepersN) : null,
+      year: Number(year) || null,
+      mileage: mileageInt,
+      motStatus: motInfo?.motStatus ?? null,
+      taxStatus: motInfo?.taxStatus ?? null,
+      motExpiry: motInfo?.motExpiry ?? null,
+      expiryDate: motInfo?.expiryDate ?? motInfo?.motExpiry ?? null,
+      advisories: motInfo?.advisories ?? [],
+      failures: motInfo?.failures ?? [],
+      mileageHistory:
+        flip.mot?.mileageHistory ??
+        (mileageInt != null
+          ? [{ date: new Date().toISOString(), mileage: mileageInt }]
+          : []),
     };
 
     const aiPrice = computeAiPrice({
       ...flip,
       title,
-      buyPrice: Number(buyPrice),
-      sellPrice: Number(sellPrice),
+      buyPrice: buyN ?? null,
+      sellPrice: sellN ?? null,
       flipScore,
       rarity,
       sellSpeed,
       ai: { condition, description },
-      market: { demandScore: Number(demandScore) },
+      market: { demandScore: demandN ?? 0 },
       images,
       mot: motPayload,
     });
 
     updateVehicle(flip.id, {
-      title,
-      buyPrice: Number(buyPrice),
-      sellPrice: Number(sellPrice),
+      title: title.trim(),
+      buyPrice: buyN ?? null,
+      sellPrice: sellN ?? null,
+      engineSize: engineN ?? null,
       flipScore,
       rarity,
       sellSpeed,
       ai: { condition, description },
-      market: { demandScore: Number(demandScore) },
+      market: { demandScore: demandN ?? 0 },
       images,
       mot: motPayload,
       aiPrice: {
         recommendedSellPrice: aiPrice.recommendedSellPrice,
         riskLevel: aiPrice.riskLevel,
-        confidence: Number(aiPriceConfidence),
+        confidence: confidenceN ?? 0,
         notes: aiPrice.notes,
       },
     });
 
-    router.push("/vehicles/list");
+    // Back to wherever the edit was opened from, not a second copy of the list.
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace(`/vehicles/details/${flip.id}`);
+    }
   };
 
   /* -------------------------------------------------------
        BREAKDOWN BUILDER
     ------------------------------------------------------- */
-  const getBreakdown = () => ({
-    profit: Number(sellPrice) - Number(buyPrice),
-    profitMargin:
-      Number(buyPrice) > 0
-        ? ((Number(sellPrice) - Number(buyPrice)) / Number(buyPrice)) * 100
-        : 0,
-    demandScore: Number(demandScore),
-    rarity,
-    condition,
-    sellSpeed,
-    aiPriceConfidence: Number(aiPriceConfidence),
-  });
+  const getBreakdown = () => {
+    const buy = buyN ?? 0;
+    const sell = sellN ?? 0;
+
+    return {
+      profit: sell - buy,
+      profitMargin: buy > 0 ? ((sell - buy) / buy) * 100 : 0,
+      demandScore: demandN ?? 0,
+      rarity,
+      condition,
+      sellSpeed,
+      aiPriceConfidence: confidenceN ?? 0,
+    };
+  };
 
   /* -------------------------------------------------------
        UI
@@ -324,12 +459,13 @@ function EditFlipForm({
       <ScrollView
         style={{ flex: 1, backgroundColor: theme.background }}
         contentContainerStyle={{ padding: 20 }}
+        keyboardShouldPersistTaps="handled"
       >
         <Text style={[styles.heading, { color: theme.goldDeep }]}>
           Edit Flip
         </Text>
         <Text style={{ color: theme.muted, marginBottom: 10 }}>
-          Last updated: {new Date(flip.timestamp).toLocaleDateString()}
+          Added: {new Date(flip.timestamp).toLocaleDateString()}
         </Text>
         {dirty && (
           <Text style={{ color: theme.goldDeep, marginBottom: 10 }}>
@@ -342,6 +478,10 @@ function EditFlipForm({
           <ButtonSmall label="Pick Image" icon="image" onPress={pickImage} theme={theme} />
           <ButtonSmall label="Take Photo" icon="camera" onPress={takePhoto} theme={theme} />
         </View>
+
+        {photoError && (
+          <Text style={{ color: theme.danger, marginBottom: 20 }}>{photoError}</Text>
+        )}
 
         {images.length > 0 && (
           <ScrollView horizontal style={{ marginBottom: 20 }}>
@@ -371,11 +511,15 @@ function EditFlipForm({
         />
 
         <ButtonSmall
-          label="Refresh MOT data"
+          label={motLoading ? "Looking up..." : "Refresh MOT data"}
           icon="refresh-cw"
           onPress={lookupMot}
           theme={theme}
         />
+
+        {motError && (
+          <Text style={{ color: theme.danger, marginBottom: 20 }}>{motError}</Text>
+        )}
 
         {motInfo && <MotSummary mot={motInfo} theme={theme} />}
 
@@ -384,6 +528,7 @@ function EditFlipForm({
           value={make}
           onChangeText={(t) => {
             setDirty(true);
+            syncTitle({ make: t });
             setMake(t);
           }}
           theme={theme}
@@ -394,6 +539,7 @@ function EditFlipForm({
           value={model}
           onChangeText={(t) => {
             setDirty(true);
+            syncTitle({ model: t });
             setModel(t);
           }}
           theme={theme}
@@ -401,10 +547,10 @@ function EditFlipForm({
 
         <Input
           label="Mileage"
-          value={String(mileage)}
+          value={mileage}
           onChangeText={(v) => {
             setDirty(true);
-            setMileage(Math.round(Number(v)));
+            setMileage(v);
           }}
           keyboardType="numeric"
           theme={theme}
@@ -422,10 +568,10 @@ function EditFlipForm({
 
         <Input
           label="Keepers"
-          value={String(keepers)}
+          value={keepers}
           onChangeText={(v) => {
             setDirty(true);
-            setKeepers(Number(v));
+            setKeepers(v);
           }}
           keyboardType="numeric"
           theme={theme}
@@ -433,10 +579,10 @@ function EditFlipForm({
 
         <Input
           label="Engine Size (cc)"
-          value={String(engineSize)}
+          value={engineSize}
           onChangeText={(v) => {
             setDirty(true);
-            setEngineSize(Number(v));
+            setEngineSize(v);
           }}
           keyboardType="numeric"
           theme={theme}
@@ -458,7 +604,7 @@ function EditFlipForm({
           onChangeText={(t) => {
             setDirty(true);
             setBuyPrice(t);
-            recalcScore();
+            setScoreEdited(true);
           }}
           keyboardType="numeric"
           theme={theme}
@@ -470,14 +616,14 @@ function EditFlipForm({
           onChangeText={(t) => {
             setDirty(true);
             setSellPrice(t);
-            recalcScore();
+            setScoreEdited(true);
           }}
           keyboardType="numeric"
           theme={theme}
         />
 
         <Text style={{ color: theme.goldDeep, marginBottom: 10 }}>
-          Profit Preview: £{Number(sellPrice || 0) - Number(buyPrice || 0)}
+          Profit Preview: £{Math.round(((sellN ?? 0) - (buyN ?? 0)) * 100) / 100}
         </Text>
 
         {/* 🔥 LIVE MARKET VALUATION PREVIEW */}
@@ -494,7 +640,7 @@ function EditFlipForm({
           onChangeText={(t) => {
             setDirty(true);
             setAiPriceConfidence(t);
-            recalcScore();
+            setScoreEdited(true);
           }}
           theme={theme}
         />
@@ -505,7 +651,7 @@ function EditFlipForm({
           onSelect={(v) => {
             setDirty(true);
             setRarity(v as any);
-            recalcScore();
+            setScoreEdited(true);
           }}
           options={[
             { label: "Common", icon: "📦" },
@@ -522,7 +668,7 @@ function EditFlipForm({
           onSelect={(v) => {
             setDirty(true);
             setSellSpeed(v as any);
-            recalcScore();
+            setScoreEdited(true);
           }}
           options={[
             { label: "Slow", icon: "🐌" },
@@ -538,7 +684,7 @@ function EditFlipForm({
           onSelect={(v) => {
             setDirty(true);
             setCondition(v as any);
-            recalcScore();
+            setScoreEdited(true);
           }}
           options={[
             { label: "Poor", icon: "💔" },
@@ -555,7 +701,7 @@ function EditFlipForm({
           onChangeText={(t) => {
             setDirty(true);
             setDemandScore(t);
-            recalcScore();
+            setScoreEdited(true);
           }}
           keyboardType="numeric"
           theme={theme}
@@ -567,6 +713,12 @@ function EditFlipForm({
           theme={theme}
           onPress={() => setShowBreakdown(true)}
         />
+
+        {problem && (
+          <Text style={{ color: theme.danger, textAlign: "center", marginBottom: 10 }}>
+            {problem}
+          </Text>
+        )}
 
         <TouchableOpacity
           disabled={!isValid}

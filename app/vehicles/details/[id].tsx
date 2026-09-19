@@ -36,6 +36,7 @@ export default function VehicleDetails() {
 
   const vehicle = vehicles.find((v: FlipRecord) => v.id === id);
   const [advisorVisible, setAdvisorVisible] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   if (!vehicle) {
     return (
@@ -57,9 +58,21 @@ export default function VehicleDetails() {
   /* SAFE VALUES */
   const flipScore = vehicle.flipScore ?? 0;
   const demandScore = vehicle.market?.demandScore ?? 0;
-  const aiConfidence = vehicle.aiPriceConfidence ?? 0;
+  // Flips added by hand keep the confidence under aiPrice; ones from a market scan keep it on the record.
+  const aiConfidence =
+    vehicle.aiPriceConfidence ?? vehicle.aiPrice?.confidence ?? 0;
 
   const profit = (vehicle.sellPrice ?? 0) - (vehicle.buyPrice ?? 0);
+
+  const handleDelete = () => {
+    setConfirmDelete(false);
+    deleteVehicle(vehicle.id);
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/vehicles/list");
+    }
+  };
   const margin =
     vehicle.buyPrice && vehicle.buyPrice > 0
       ? (profit / vehicle.buyPrice) * 100
@@ -186,7 +199,11 @@ export default function VehicleDetails() {
             value={`£${vehicle.sellPrice ?? 0}`}
             theme={theme}
           />
-          <BreakItem label="Profit" value={`£${profit}`} theme={theme} />
+          <BreakItem
+            label="Profit"
+            value={`£${Math.round(profit * 100) / 100}`}
+            theme={theme}
+          />
           <BreakItem
             label="Margin"
             value={`${margin.toFixed(1)}%`}
@@ -381,13 +398,88 @@ export default function VehicleDetails() {
             styles.deleteButton,
             { borderColor: theme.goldDeep, borderRadius: theme.radius.md },
           ]}
-          onPress={() => deleteVehicle(vehicle.id)}
+          onPress={() => setConfirmDelete(true)}
         >
           <Text style={[styles.buttonText, { color: theme.goldDeep }]}>
             Delete Flip
           </Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* DELETE CONFIRMATION */}
+      <Modal
+        visible={confirmDelete}
+        animationType="none"
+        transparent
+        onRequestClose={() => setConfirmDelete(false)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.6)",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: theme.card,
+              borderRadius: theme.radius.lg,
+              borderWidth: 1,
+              borderColor: theme.goldDeep,
+              padding: 20,
+            }}
+          >
+            <Text
+              style={{
+                color: theme.white,
+                fontSize: 20,
+                fontWeight: "700",
+                marginBottom: 8,
+              }}
+            >
+              Delete this flip?
+            </Text>
+            <Text style={{ color: theme.muted, marginBottom: 18 }}>
+              {vehicle.title} will be removed from your flips. This can't be
+              undone.
+            </Text>
+
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <TouchableOpacity
+                onPress={() => setConfirmDelete(false)}
+                style={{
+                  flex: 1,
+                  paddingVertical: 12,
+                  borderRadius: theme.radius.md,
+                  borderWidth: 1,
+                  borderColor: theme.goldSoftGlow,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: theme.white, fontWeight: "600" }}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleDelete}
+                style={{
+                  flex: 1,
+                  paddingVertical: 12,
+                  borderRadius: theme.radius.md,
+                  backgroundColor: theme.danger,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ color: theme.white, fontWeight: "700" }}>
+                  Delete
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* AI ADVISOR MODAL */}
       {vehicle.aiPrice && (

@@ -4,6 +4,11 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { useTheme } from "@/styles/ThemeContext";
 import { estimateCarValue } from "@/car/valuation";
+import {
+  daysUntilDate,
+  formatDate,
+  motExpiryPhrase,
+} from "@/features/vehicles/utils/motDates";
 
 export default function MotTimelineScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -23,26 +28,23 @@ export default function MotTimelineScreen() {
 
   const mot = vehicle.mot;
 
-  // ⭐ Use mileageHistory from FlipRecord.mot
-  const history = mot.mileageHistory ?? [];
+  // ⭐ Use mileageHistory from FlipRecord.mot (an entry needs a date to sit on the timeline)
+  const history = (mot.mileageHistory ?? []).filter(
+    (entry: any) => typeof entry?.date === "string" && /^\d{4}/.test(entry.date)
+  );
 
   // Group tests by year
   const grouped = history.reduce((acc: any, entry: any) => {
-    const year = entry.date?.slice(0, 4);
+    const year = entry.date.slice(0, 4);
     if (!acc[year]) acc[year] = [];
     acc[year].push(entry);
     return acc;
   }, {});
 
-  // Expiry from mot.motExpiry or mot.expiryDate
-  const expiry =
-    mot.motExpiry ?? mot.expiryDate ?? null;
+  // Expiry from mot.motExpiry or mot.expiryDate (a blank string counts as none)
+  const expiry = mot.motExpiry?.trim() || mot.expiryDate?.trim() || null;
 
-  const expiryDays = expiry
-    ? Math.ceil(
-        (new Date(expiry).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-      )
-    : null;
+  const expiryDays = daysUntilDate(expiry);
 
   // Pass probability – we don’t have PASS/FAIL per entry, so base on failures length
   const passProbability =
@@ -88,6 +90,10 @@ export default function MotTimelineScreen() {
           condition: conditionMap[rawCondition ?? ""] ?? "good",
         })
       : null;
+  const showValuation =
+    valuation !== null &&
+    Number.isFinite(valuation.estimatedPrice) &&
+    valuation.estimatedPrice > 0;
 
   const healthColor =
     healthScore === null
@@ -173,7 +179,7 @@ export default function MotTimelineScreen() {
                 fontWeight: "700",
               }}
             >
-              Expires: {expiry}
+              Expires: {formatDate(expiry)}
             </Text>
           )}
 
@@ -220,9 +226,7 @@ export default function MotTimelineScreen() {
                 fontWeight: "700",
               }}
             >
-              {expiryDays > 0
-                ? `Expires in ${expiryDays} days`
-                : `Expired ${Math.abs(expiryDays)} days ago`}
+              MOT {motExpiryPhrase(expiryDays)}
             </Text>
           )}
 
@@ -240,7 +244,7 @@ export default function MotTimelineScreen() {
       </View>
 
       {/* QUICK VALUATION */}
-      {valuation && (
+      {valuation && showValuation && (
         <View
           style={{
             marginBottom: 24,
@@ -285,14 +289,10 @@ export default function MotTimelineScreen() {
         .sort((a, b) => Number(b) - Number(a))
         .map((year) => {
           const yearEntries = grouped[year];
-          const maxMileage =
-            yearEntries.length > 0
-              ? Math.max(
-                  ...yearEntries
-                    .map((e: any) => e.mileage ?? 0)
-                    .filter((m: number) => m > 0)
-                )
-              : 0;
+          const mileages: number[] = yearEntries
+            .map((e: any) => e.mileage)
+            .filter((m: any) => typeof m === "number" && Number.isFinite(m) && m > 0);
+          const maxMileage = mileages.length > 0 ? Math.max(...mileages) : 0;
 
           return (
             <View key={year} style={{ marginBottom: 30 }}>
@@ -325,8 +325,10 @@ export default function MotTimelineScreen() {
               </View>
 
               {yearEntries.map((entry: any, index: number) => {
+                const hasMileage =
+                  typeof entry.mileage === "number" && Number.isFinite(entry.mileage);
                 const mileageRatio =
-                  entry.mileage && maxMileage
+                  hasMileage && entry.mileage > 0 && maxMileage > 0
                     ? Math.min(entry.mileage / maxMileage, 1)
                     : 0;
 
@@ -364,11 +366,11 @@ export default function MotTimelineScreen() {
                         marginBottom: 6,
                       }}
                     >
-                      {entry.date}
+                      {formatDate(entry.date)}
                     </Text>
 
                     {/* MILEAGE MINI GRAPH */}
-                    {entry.mileage !== null && (
+                    {hasMileage && (
                       <View style={{ marginBottom: 8 }}>
                         <View
                           style={{
@@ -394,7 +396,11 @@ export default function MotTimelineScreen() {
       {/* BACK BUTTON */}
       <View style={{ marginTop: 10 }}>
         <Text
-          onPress={() => router.push(`/vehicles/overview/${vehicle.id}`)}
+          onPress={() =>
+            router.canGoBack()
+              ? router.back()
+              : router.replace(`/vehicles/overview/${vehicle.id}`)
+          }
           style={{
             backgroundColor: theme.goldDeep,
             color: theme.black,
@@ -407,7 +413,7 @@ export default function MotTimelineScreen() {
             fontWeight: "700",
           }}
         >
-          ← Back to Overview
+          ← Back
         </Text>
       </View>
     </ScrollView>

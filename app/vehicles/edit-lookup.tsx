@@ -12,21 +12,25 @@ export default function EditLookupScreen() {
   const { vehicles } = useVehicleHistory();
 
   const normalized = query.trim().toLowerCase();
+  // Plates are saved with or without a space, so compare them with spaces removed.
+  const compact = normalized.replace(/\s+/g, "");
 
   // 🔥 Fuzzy + partial matching
   const suggestions = vehicles.filter((v) => {
     const mot = v.mot || {};
 
-    const reg = mot.reg?.toLowerCase() || "";
+    const reg = mot.reg?.toLowerCase().replace(/\s+/g, "") || "";
     const make = mot.make?.toLowerCase() || "";
     const model = mot.model?.toLowerCase() || "";
     const year = mot.year?.toString() || "";
+    const title = v.title?.toLowerCase() || "";
 
     return (
-      reg.includes(normalized) ||
+      reg.includes(compact) ||
       make.includes(normalized) ||
       model.includes(normalized) ||
-      year.includes(normalized)
+      year.includes(normalized) ||
+      title.includes(normalized)
     );
   });
 
@@ -81,7 +85,9 @@ export default function EditLookupScreen() {
               }}
             >
               <Text style={{ color: theme.white, fontWeight: "700" }}>
-                {item.mot?.reg || "NO REG"} — {item.mot?.make} {item.mot?.model} {item.mot?.year}
+                {item.mot?.reg
+                  ? `${item.mot.reg} — ${[item.mot.make, item.mot.model, item.mot.year].filter(Boolean).join(" ")}`
+                  : item.title}
               </Text>
             </TouchableOpacity>
           )}

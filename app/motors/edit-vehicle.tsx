@@ -3,7 +3,16 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useTheme } from "@/styles/ThemeContext";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
+import { daysUntilDate } from "@/features/vehicles/utils/motDates";
 import { useState } from "react";
+
+// A blank box means "not set" (null), not zero. Undefined means it isn't a number.
+function readNumber(text: string): number | null | undefined {
+  const cleaned = text.replace(/[,£\s]/g, "");
+  if (cleaned === "") return null;
+  const value = Number(cleaned);
+  return Number.isFinite(value) ? value : undefined;
+}
 
 export default function EditVehicle() {
   const theme = useTheme();
@@ -50,21 +59,44 @@ function EditVehicleForm({
   const [mileage, setMileage] = useState(String(vehicle.mileage ?? ""));
   const [buyPrice, setBuyPrice] = useState(String(vehicle.buyPrice ?? ""));
   const [valuation, setValuation] = useState(String(vehicle.valuation ?? ""));
-  const [flipScore, setFlipScore] = useState(String(vehicle.flipScore ?? ""));
   const [motExpiry, setMotExpiry] = useState(
     vehicle.mot?.motExpiry ?? vehicle.mot?.expiryDate ?? ""
   );
   const [notes, setNotes] = useState(vehicle.notes ?? "");
+  const [error, setError] = useState<string | null>(null);
 
   const handleSave = () => {
+    const newMileage = readNumber(mileage);
+    const newBuyPrice = readNumber(buyPrice);
+    const newValuation = readNumber(valuation);
+    if (
+      newMileage === undefined ||
+      newBuyPrice === undefined ||
+      newValuation === undefined
+    ) {
+      setError("Mileage, buy price and valuation need to be numbers.");
+      return;
+    }
+
+    const expiry = motExpiry.trim();
+    if (expiry !== "" && daysUntilDate(expiry) === null) {
+      setError("Enter the MOT expiry as YYYY-MM-DD, for example 2026-11-04.");
+      return;
+    }
+
+    setError(null);
+
+    // The flip score is recalculated from these values when the vehicle is
+    // saved, so it is not an editable field.
     updateVehicle(vehicle.id, {
-      mileage: Number(mileage),
-      buyPrice: Number(buyPrice),
-      valuation: Number(valuation),
-      flipScore: Number(flipScore),
+      mileage: newMileage,
+      buyPrice: newBuyPrice,
+      valuation: newValuation,
       mot: {
         ...vehicle.mot,
-        motExpiry: motExpiry,
+        motExpiry: expiry || null,
+        expiryDate: expiry || null,
+        mileage: newMileage ?? vehicle.mot?.mileage ?? null,
       },
       notes,
     });
@@ -76,6 +108,7 @@ function EditVehicleForm({
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.black }}
       contentContainerStyle={{ padding: 16 }}
+      keyboardShouldPersistTaps="handled"
     >
       {/* HEADER */}
       <TouchableOpacity onPress={() => router.back()}>
@@ -95,7 +128,10 @@ function EditVehicleForm({
           textShadowRadius: 8,
         }}
       >
-        Edit Vehicle #{vehicle.id}
+        Edit Vehicle
+      </Text>
+      <Text style={{ color: theme.muted, marginBottom: 20 }}>
+        {vehicle.title}
       </Text>
 
       {/* FORM */}
@@ -124,14 +160,6 @@ function EditVehicleForm({
       />
 
       <EditField
-        label="Flip Score"
-        value={flipScore}
-        onChange={setFlipScore}
-        theme={theme}
-        keyboard="numeric"
-      />
-
-      <EditField
         label="MOT Expiry (YYYY-MM-DD)"
         value={motExpiry}
         onChange={setMotExpiry}
@@ -145,6 +173,10 @@ function EditVehicleForm({
         theme={theme}
         multiline
       />
+
+      {error && (
+        <Text style={{ color: theme.danger, marginTop: 4 }}>{error}</Text>
+      )}
 
       {/* SAVE BUTTON */}
       <TouchableOpacity

@@ -20,8 +20,12 @@ export interface MOTData {
  * `GET /vehicle?reg=` route — DVSA MOT History API + DVLA vehicle enquiry).
  */
 export async function fetchMOT(reg: string): Promise<MOTData | null> {
+  // The DVLA and DVSA lookups want the plate without spaces, in capitals.
+  const plate = reg.replace(/\s+/g, "").toUpperCase();
+  if (!plate) return null;
+
   try {
-    const response = await fetch(`${BASE_URL}/vehicle?reg=${encodeURIComponent(reg)}`);
+    const response = await fetch(`${BASE_URL}/vehicle?reg=${encodeURIComponent(plate)}`);
     const data = await response.json();
 
     if (!data.ok || !data.vehicle) {
@@ -31,7 +35,7 @@ export async function fetchMOT(reg: string): Promise<MOTData | null> {
     const v = data.vehicle;
 
     return {
-      reg,
+      reg: plate,
       make: v.make ?? null,
       model: v.model ?? null,
       year: v.year ?? null,

@@ -1,4 +1,5 @@
 import { FlipRecord } from "./FlipRecord";
+import { daysUntilDate } from "../utils/motDates";
 
 export type SupernovaRiskLevel = "low" | "medium" | "high";
 
@@ -44,11 +45,12 @@ export function runSupernovaEngine(vehicle: FlipRecord): SupernovaResult {
   let motRiskDays: number | null = null;
   let motRiskLabel: string | null = null;
 
-  if (motExpiry) {
-    const diffMs = new Date(motExpiry).getTime() - Date.now();
-    motRiskDays = Math.ceil(diffMs / 86400000);
+  // Counted in calendar days, so an MOT is still valid on its expiry day.
+  const daysLeft = daysUntilDate(motExpiry);
+  if (daysLeft !== null) {
+    motRiskDays = daysLeft;
 
-    if (motRiskDays <= 0) {
+    if (motRiskDays < 0) {
       motRiskLabel = "expired";
       reasons.push("MOT has expired.");
     } else if (motRiskDays <= 30) {

@@ -10,7 +10,18 @@ import {
 import { useRouter } from "expo-router";
 
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
+import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
 import { useTheme } from "@/styles/ThemeContext";
+
+const profitOf = (v: FlipRecord) =>
+  (v.sellPrice ?? v.valuation ?? 0) - (v.buyPrice ?? 0);
+
+function describeExpiry(days: number) {
+  if (days === 0) return "expires today";
+  const n = Math.abs(days);
+  const unit = n === 1 ? "day" : "days";
+  return days > 0 ? `in ${n} ${unit}` : `expired ${n} ${unit} ago`;
+}
 
 export default function VehiclesScreen() {
   const theme = useTheme();
@@ -44,6 +55,19 @@ export default function VehiclesScreen() {
     showHighScoreOnly,
     showUndervaluedOnly,
   ]);
+
+  // Best flips are the top tenth by profit, and only ones that actually made money.
+  const bestFlipIds = useMemo(
+    () =>
+      new Set(
+        [...filtered]
+          .sort((a, b) => profitOf(b) - profitOf(a))
+          .slice(0, Math.ceil(filtered.length * 0.1))
+          .filter((v) => profitOf(v) > 0)
+          .map((v) => v.id)
+      ),
+    [filtered]
+  );
 
   return (
     <ScrollView
@@ -119,11 +143,10 @@ export default function VehiclesScreen() {
           No flips found. Add your first flip to get started.
         </Text>
       ) : (
-        filtered.map((v, index) => {
+        filtered.map((v) => {
           const score = v.flipScore ?? 0;
 
-          const profit =
-            (v.sellPrice ?? v.valuation ?? 0) - (v.buyPrice ?? 0);
+          const profit = profitOf(v);
 
           const roi = v.buyPrice ? profit / v.buyPrice : 0;
 
@@ -140,7 +163,7 @@ export default function VehiclesScreen() {
               ? v.images[0]
               : "https://placehold.co/120x80/000000/FFFFFF";
 
-          const isBestFlip = index < Math.ceil(filtered.length * 0.1);
+          const isBestFlip = bestFlipIds.has(v.id);
 
           // ⭐ MOT expiry logic
           const motExpiry = v.mot?.motExpiry ?? v.mot?.expiryDate ?? null;
@@ -150,15 +173,20 @@ export default function VehiclesScreen() {
           let isExpiringSoon = false;
 
           if (motExpiry) {
-            const expiryDate = new Date(motExpiry);
-            const now = new Date();
-
-            expiryDays = Math.ceil(
-              (expiryDate.getTime() - now.getTime()) / 86400000
+            // The MOT is valid through the end of its expiry day, so compare calendar
+            // days in local time rather than the expiry's midnight against the clock.
+            const [y, m, d] = motExpiry.slice(0, 10).split("-").map(Number);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const days = Math.round(
+              (new Date(y, m - 1, d).getTime() - today.getTime()) / 86400000
             );
 
-            isExpired = expiryDate < now;
-            isExpiringSoon = !isExpired && expiryDays <= 30;
+            if (!Number.isNaN(days)) {
+              expiryDays = days;
+              isExpired = days < 0;
+              isExpiringSoon = days >= 0 && days <= 30;
+            }
           }
 
           // ⭐ MOT health
@@ -167,6 +195,9 @@ export default function VehiclesScreen() {
             (v.mot?.failures?.length ?? 0);
 
           const motHealth = Math.max(0, 100 - issues * 10);
+
+          // No MOT data means no MOT health to report (not a perfect score).
+          const hasMotData = !!motExpiry || issues > 0;
 
           return (
             <TouchableOpacity
@@ -230,29 +261,26 @@ export default function VehiclesScreen() {
                       }}
                     >
                       MOT: {motExpiry}
-                      {expiryDays != null &&
-                        ` • ${
-                          expiryDays > 0
-                            ? `in ${expiryDays} days`
-                            : `expired ${Math.abs(expiryDays)} days ago`
-                        }`}
+                      {expiryDays != null && ` • ${describeExpiry(expiryDays)}`}
                     </Text>
                   )}
 
-                  <Text
-                    style={{
-                      color:
-                        motHealth > 80
-                          ? "#7CFC00"
-                          : motHealth > 60
-                          ? "#FFA500"
-                          : "#FF4444",
-                      fontSize: 13,
-                      marginTop: 2,
-                    }}
-                  >
-                    MOT Health: {motHealth}
-                  </Text>
+                  {hasMotData && (
+                    <Text
+                      style={{
+                        color:
+                          motHealth > 80
+                            ? "#7CFC00"
+                            : motHealth > 60
+                            ? "#FFA500"
+                            : "#FF4444",
+                        fontSize: 13,
+                        marginTop: 2,
+                      }}
+                    >
+                      MOT Health: {motHealth}
+                    </Text>
+                  )}
                 </View>
 
                 <View style={{ flexDirection: "row", gap: 8 }}>
@@ -343,7 +371,7 @@ export default function VehiclesScreen() {
                       marginBottom: 4,
                     }}
                   >
-                    Profit: £{profit}
+                    Profit: £{Math.round(profit * 100) / 100}
                   </Text>
 
                   {/* ROI */}
@@ -375,10 +403,10 @@ export default function VehiclesScreen() {
                     style={{ flexDirection: "row", gap: 12, marginBottom: 4 }}
                   >
                     <Text style={{ color: theme.muted, fontSize: 13 }}>
-                      Buy: £{v.buyPrice ?? 0}
+                      Buy: {v.buyPrice != null ? `£${v.buyPrice}` : "-"}
                     </Text>
                     <Text style={{ color: theme.muted, fontSize: 13 }}>
-                      Sell: £{v.sellPrice ?? 0}
+                      Sell: {v.sellPrice != null ? `£${v.sellPrice}` : "-"}
                     </Text>
                   </View>
 

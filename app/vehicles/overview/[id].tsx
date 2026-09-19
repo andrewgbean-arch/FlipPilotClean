@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { ScrollView, View, Text } from "react-native";
 
 import { useTheme } from "@/styles/useTheme";
@@ -17,7 +17,7 @@ export default function VehicleOverviewScreen() {
 
   const vehicle = vehicles.find((v) => v.id === id);
 
-  if (!vehicle || !vehicle.mot) {
+  if (!vehicle) {
     return (
       <View
         style={{
@@ -34,11 +34,18 @@ export default function VehicleOverviewScreen() {
     );
   }
 
+  // Scanned or hand-added items have no MOT data; their details screen handles that.
+  if (!vehicle.mot) {
+    return <Redirect href={`/vehicles/details/${vehicle.id}`} />;
+  }
+
   const mot = vehicle.mot;
 
   // ⭐ Latest mileage
   const latestMileage =
-    mot.mileageHistory?.[mot.mileageHistory.length - 1]?.mileage ?? null;
+    mot.mileageHistory?.[mot.mileageHistory.length - 1]?.mileage ??
+    mot.mileage ??
+    null;
 
   // ⭐ MOT expiry
   const motExpiry = mot.motExpiry ?? mot.expiryDate ?? null;
@@ -48,13 +55,20 @@ export default function VehicleOverviewScreen() {
   let isExpiringSoon = false;
 
   if (motExpiry) {
-    const expiryDate = new Date(motExpiry);
-    const now = new Date();
+    // The MOT is valid through the end of its expiry day, so compare calendar
+    // days in local time rather than the expiry's midnight against the clock.
+    const [y, m, d] = motExpiry.slice(0, 10).split("-").map(Number);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const days = Math.round(
+      (new Date(y, m - 1, d).getTime() - today.getTime()) / 86400000
+    );
 
-    expiryDays = Math.ceil((expiryDate.getTime() - now.getTime()) / 86400000);
-
-    isExpired = expiryDate < now;
-    isExpiringSoon = !isExpired && expiryDays <= 30;
+    if (!Number.isNaN(days)) {
+      expiryDays = days;
+      isExpired = days < 0;
+      isExpiringSoon = days >= 0 && days <= 30;
+    }
   }
 
   // ⭐ MOT health score

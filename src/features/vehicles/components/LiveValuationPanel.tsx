@@ -5,11 +5,12 @@ import FlipScoreMeter from "@/components/analytics/FlipScoreMeter";
 import ConfidenceMeter from "@/components/analytics/ConfidenceMeter";
 import MarketHeatIndex from "@/components/analytics/MarketHeatIndex";
 import FlipIntelligencePanel from "@/components/core/FlipIntelligencePanel";
+import { formatMoney, realisedProfit } from "@/features/vehicles/utils/vehicleStats";
 
 export default function LiveValuationPanel({ flip, theme }: { flip: any; theme: any }) {
-  const profit = (flip.sellPrice ?? 0) - (flip.buyPrice ?? 0);
-  const confidence = flip.aiPriceConfidence ?? flip.ai?.confidence ?? 0;
-  const marketHeat = flip.market?.demandScore ?? 0;
+  const profit = realisedProfit(flip);
+  // Confidence is 0-100. The edit screens keep it under aiPrice, the AI lookup at the top level.
+  const confidence = flip.aiPrice?.confidence ?? flip.aiPriceConfidence ?? 0;
 
   return (
     <View
@@ -29,10 +30,15 @@ export default function LiveValuationPanel({ flip, theme }: { flip: any; theme: 
           style={{
             fontSize: 22,
             fontWeight: "800",
-            color: profit > 0 ? theme.accent : theme.warning,
+            color:
+              profit === null
+                ? theme.muted
+                : profit > 0
+                ? theme.accent
+                : theme.danger,
           }}
         >
-          Profit: £{profit}
+          Profit: {formatMoney(profit)}
         </Text>
       </GlowPulseCard>
 
@@ -40,7 +46,7 @@ export default function LiveValuationPanel({ flip, theme }: { flip: any; theme: 
       <FlipScoreMeter
         price={flip.sellPrice ?? 0}
         mileage={flip.mileage ?? 0}
-        descriptionLength={flip.description?.length ?? 0}
+        descriptionLength={flip.ai?.description?.length ?? 0}
       />
 
       {/* CONFIDENCE */}

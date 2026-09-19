@@ -6,6 +6,18 @@ import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/styles/ThemeContext";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
+import {
+  formatDate,
+  motDaysLeft,
+  motExpiryOf,
+  motExpiryPhrase,
+} from "@/features/vehicles/utils/motDates";
+import {
+  formatMiles,
+  formatMoney,
+  formatScore,
+  realisedProfit,
+} from "@/features/vehicles/utils/vehicleStats";
 
 export default function MotorsVehicleDetail() {
   const theme = useTheme();
@@ -30,11 +42,12 @@ export default function MotorsVehicleDetail() {
 }
 
 function MotorsVehicleDetailContent({ vehicle, theme }: { vehicle: FlipRecord; theme: any }) {
-  const profit = (vehicle.sellPrice ?? vehicle.valuation ?? 0) - (vehicle.buyPrice ?? 0);
-  const motExpiry = vehicle.mot?.motExpiry ?? vehicle.mot?.expiryDate ?? null;
-  const motDaysLeft = motExpiry
-    ? Math.ceil((new Date(motExpiry).getTime() - Date.now()) / 86400000)
-    : null;
+  const profit = realisedProfit(vehicle);
+  const motExpiry = motExpiryOf(vehicle);
+  const daysLeft = motDaysLeft(vehicle);
+  const makeModel = [vehicle.mot?.make, vehicle.mot?.model].filter(Boolean).join(" ");
+  const subtitle = [makeModel, vehicle.mot?.year].filter(Boolean).join(" • ");
+  const expiryPhrase = motExpiryPhrase(daysLeft);
 
   return (
     <ScrollView
@@ -43,7 +56,7 @@ function MotorsVehicleDetailContent({ vehicle, theme }: { vehicle: FlipRecord; t
     >
       {/* BACK */}
       <TouchableOpacity
-        onPress={() => (router.canGoBack() ? router.back() : router.push("/motors/listings"))}
+        onPress={() => router.back()}
         style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}
         hitSlop={10}
       >
@@ -64,9 +77,9 @@ function MotorsVehicleDetailContent({ vehicle, theme }: { vehicle: FlipRecord; t
       <Text style={{ color: theme.goldDeep, fontSize: 26, fontWeight: "800" }}>
         {vehicle.title}
       </Text>
-      <Text style={{ color: theme.muted, marginTop: 4 }}>
-        {vehicle.mot?.make} {vehicle.mot?.model} • {vehicle.mot?.year ?? "—"}
-      </Text>
+      {subtitle !== "" && (
+        <Text style={{ color: theme.muted, marginTop: 4 }}>{subtitle}</Text>
+      )}
 
       {/* QUICK ACTIONS */}
       <View style={{ flexDirection: "row", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
@@ -98,16 +111,16 @@ function MotorsVehicleDetailContent({ vehicle, theme }: { vehicle: FlipRecord; t
         <Text style={{ color: theme.white, fontSize: 18, fontWeight: "700", marginBottom: 10 }}>
           Flip Stats
         </Text>
-        <StatRow label="Buy Price" value={vehicle.buyPrice != null ? `£${vehicle.buyPrice}` : "—"} theme={theme} />
-        <StatRow label="Sell Price" value={vehicle.sellPrice != null ? `£${vehicle.sellPrice}` : "—"} theme={theme} />
+        <StatRow label="Buy Price" value={formatMoney(vehicle.buyPrice)} theme={theme} />
+        <StatRow label="Sell Price" value={formatMoney(vehicle.sellPrice)} theme={theme} />
         <StatRow
           label="Profit"
-          value={`£${profit.toFixed(2)}`}
-          valueColor={profit >= 0 ? theme.success : theme.danger}
+          value={formatMoney(profit)}
+          valueColor={profit === null ? undefined : profit >= 0 ? theme.success : theme.danger}
           theme={theme}
         />
-        <StatRow label="FlipScore" value={`${vehicle.flipScore ?? "?"}/100`} theme={theme} />
-        <StatRow label="Mileage" value={vehicle.mileage != null ? `${vehicle.mileage} mi` : "—"} theme={theme} />
+        <StatRow label="FlipScore" value={formatScore(vehicle.flipScore)} theme={theme} />
+        <StatRow label="Mileage" value={formatMiles(vehicle.mileage ?? vehicle.mot?.mileage)} theme={theme} />
       </View>
 
       {/* MOT */}
@@ -125,12 +138,17 @@ function MotorsVehicleDetailContent({ vehicle, theme }: { vehicle: FlipRecord; t
           MOT
         </Text>
         {motExpiry ? (
-          <StatRow
-            label="Expires"
-            value={`${motExpiry} (${motDaysLeft} days)`}
-            valueColor={motDaysLeft != null && motDaysLeft <= 30 ? theme.danger : theme.white}
-            theme={theme}
-          />
+          <>
+            <StatRow label="Expiry" value={formatDate(motExpiry)} theme={theme} />
+            {daysLeft !== null && (
+              <StatRow
+                label="Status"
+                value={expiryPhrase.charAt(0).toUpperCase() + expiryPhrase.slice(1)}
+                valueColor={daysLeft <= 30 ? theme.danger : theme.white}
+                theme={theme}
+              />
+            )}
+          </>
         ) : (
           <Text style={{ color: theme.muted }}>No MOT data on file.</Text>
         )}

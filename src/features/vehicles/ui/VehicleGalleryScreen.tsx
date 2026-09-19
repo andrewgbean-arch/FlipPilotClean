@@ -7,11 +7,12 @@ import {
   ScrollView,
   Dimensions,
   Modal,
-  Share,
+  Alert,
 } from "react-native";
 import * as FileSystem from "expo-file-system/legacy";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { analyzeVehiclePhoto } from "@/utils/api";
+import { shareImage } from "@/utils/share/shareImage";
 
 import Animated, {
   useSharedValue,
@@ -22,10 +23,26 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 
 const { width, height } = Dimensions.get("window");
 
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
+
+// Photos from barcode scans are web links, but reading and sharing need a file
+// on the phone, so those are downloaded to the cache first.
+async function toLocalFile(uri: string): Promise<string> {
+  if (!/^https?:\/\//i.test(uri)) return uri;
+  const target = `${FileSystem.cacheDirectory}flip-photo-${Date.now()}.jpg`;
+  const result = await FileSystem.downloadAsync(uri, target);
+  if (result.status < 200 || result.status >= 300) {
+    throw new Error(`Photo download failed (${result.status})`);
+  }
+  return result.uri;
+}
+
 // --- REAL AI PHOTO ANALYSIS (OpenAI vision via backend /vehicle-photo-analysis) ---
 async function analyzePhoto(uri: string) {
   try {
-    const base64 = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
+    const localUri = await toLocalFile(uri);
+    const base64 = await FileSystem.readAsStringAsync(localUri, { encoding: "base64" });
     const result = await analyzeVehiclePhoto(base64);
     if (!result || result.ok === false) return null;
     return result;
@@ -53,13 +70,35 @@ export default function VehicleGalleryScreen({
 
   const images = vehicle.images ?? [];
 
-  // Swipe left/right
+  // Both gestures run on the JS thread (runOnJS): the swipe changes React
+  // state, which a UI-thread worklet cannot do.
   const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const savedX = useSharedValue(0);
+  const savedY = useSharedValue(0);
+  const scale = useSharedValue(1);
+  const savedScale = useSharedValue(1);
+
+  // One finger: swipe to the next/previous photo, or drag around when zoomed in
   const swipeGesture = Gesture.Pan()
+    .runOnJS(true)
+    .maxPointers(1)
     .onUpdate((e) => {
-      translateX.value = e.translationX;
+      if (savedScale.value > 1) {
+        const maxX = ((savedScale.value - 1) * width) / 2;
+        const maxY = ((savedScale.value - 1) * height) / 2;
+        translateX.value = clamp(savedX.value + e.translationX, -maxX, maxX);
+        translateY.value = clamp(savedY.value + e.translationY, -maxY, maxY);
+      } else {
+        translateX.value = e.translationX;
+      }
     })
     .onEnd((e) => {
+      if (savedScale.value > 1) {
+        savedX.value = translateX.value;
+        savedY.value = translateY.value;
+        return;
+      }
       if (viewerIndex !== null) {
         if (e.translationX < -80 && viewerIndex < images.length - 1) {
           setViewerIndex(viewerIndex + 1);
@@ -70,35 +109,61 @@ export default function VehicleGalleryScreen({
       translateX.value = withSpring(0);
     });
 
-  const animatedSwipeStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }],
-  }));
-
-  // Pinch + zoom
-  const scale = useSharedValue(1);
+  // Two fingers: pinch to zoom. The zoom stays after the fingers lift; each
+  // pinch multiplies from the level the last one left (savedScale), 1x to 4x.
   const pinchGesture = Gesture.Pinch()
+    .runOnJS(true)
     .onUpdate((e) => {
-      scale.value = e.scale;
+      scale.value = clamp(savedScale.value * e.scale, 0.5, 4);
     })
     .onEnd(() => {
-      scale.value = withSpring(1);
+      if (scale.value <= 1) {
+        scale.value = withSpring(1);
+        savedScale.value = 1;
+        translateX.value = withSpring(0);
+        translateY.value = withSpring(0);
+        savedX.value = 0;
+        savedY.value = 0;
+      } else {
+        savedScale.value = scale.value;
+        const maxX = ((scale.value - 1) * width) / 2;
+        const maxY = ((scale.value - 1) * height) / 2;
+        translateX.value = clamp(translateX.value, -maxX, maxX);
+        translateY.value = clamp(translateY.value, -maxY, maxY);
+        savedX.value = translateX.value;
+        savedY.value = translateY.value;
+      }
     });
 
-  const animatedZoomStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
+  // One animated style: separate ones would overwrite each other's transform
+  const animatedImageStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: scale.value },
+    ],
   }));
 
   const combinedGesture = Gesture.Simultaneous(swipeGesture, pinchGesture);
 
+  const resetZoom = () => {
+    scale.value = 1;
+    savedScale.value = 1;
+    translateX.value = 0;
+    translateY.value = 0;
+    savedX.value = 0;
+    savedY.value = 0;
+  };
+
   const openViewer = (index: number) => {
+    resetZoom();
     setViewerIndex(index);
   };
 
   const closeViewer = () => {
     setViewerIndex(null);
     setAiData(null);
-    scale.value = 1;
-    translateX.value = 0;
+    resetZoom();
   };
 
   // Run real AI photo analysis whenever the viewed photo changes (with AI on)
@@ -112,7 +177,13 @@ export default function VehicleGalleryScreen({
     setAiLoading(true);
     setAiData(null);
 
-    analyzePhoto(images[viewerIndex]).then((result) => {
+    const photo = images[viewerIndex];
+    if (!photo) {
+      setAiLoading(false);
+      return;
+    }
+
+    analyzePhoto(photo).then((result) => {
       if (!cancelled) {
         setAiData(result);
         setAiLoading(false);
@@ -131,21 +202,17 @@ export default function VehicleGalleryScreen({
     setViewerIndex(null);
     setShowDeleteConfirm(false);
     setAiData(null);
+    resetZoom();
   };
 
-  const shareImage = async () => {
-    if (viewerIndex === null) return;
-    await Share.share({
-      message: "Check out this flip!",
-      url: images[viewerIndex],
-    });
-  };
-
-  const enhanceImage = () => {
-    scale.value = withSpring(1.15);
-    setTimeout(() => {
-      scale.value = withSpring(1);
-    }, 400);
+  const sharePhoto = async () => {
+    if (viewerIndex === null || !images[viewerIndex]) return;
+    try {
+      await shareImage(await toLocalFile(images[viewerIndex]));
+    } catch (err) {
+      console.log("Photo share error:", err);
+      Alert.alert("Couldn't share this photo", "Check your connection and try again.");
+    }
   };
 
   return (
@@ -178,8 +245,7 @@ export default function VehicleGalleryScreen({
                     height,
                     resizeMode: "contain",
                   },
-                  animatedSwipeStyle,
-                  animatedZoomStyle,
+                  animatedImageStyle,
                 ]}
               />
             </GestureDetector>
@@ -341,7 +407,7 @@ export default function VehicleGalleryScreen({
 
               {/* SHARE BUTTON */}
               <TouchableOpacity
-                onPress={shareImage}
+                onPress={sharePhoto}
                 style={{
                   marginTop: 20,
                   backgroundColor: theme.card,
@@ -353,22 +419,6 @@ export default function VehicleGalleryScreen({
                 }}
               >
                 <Text style={{ color: theme.white }}>Share Image</Text>
-              </TouchableOpacity>
-
-              {/* ENHANCE BUTTON */}
-              <TouchableOpacity
-                onPress={enhanceImage}
-                style={{
-                  marginTop: 10,
-                  backgroundColor: theme.goldDeep,
-                  paddingVertical: 10,
-                  paddingHorizontal: 20,
-                  borderRadius: theme.radius.md,
-                  borderWidth: 1,
-                  borderColor: theme.goldSoftGlow,
-                }}
-              >
-                <Text style={{ color: theme.black }}>✨ Enhance</Text>
               </TouchableOpacity>
             </View>
           )}

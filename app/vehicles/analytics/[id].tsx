@@ -72,6 +72,20 @@ function AnalyticsScreenContent({
     return list;
   }, [vehicles, search, showUndervaluedOnly, sortMode]);
 
+  // Best flips are the top tenth by profit, and only ones that actually made money.
+  const bestFlipIds = useMemo(() => {
+    const profitOf = (v: (typeof vehicles)[number]) =>
+      (v.sellPrice ?? v.valuation ?? 0) - (v.buyPrice ?? 0);
+
+    return new Set(
+      [...filtered]
+        .sort((a, b) => profitOf(b) - profitOf(a))
+        .slice(0, Math.ceil(filtered.length * 0.1))
+        .filter((v) => profitOf(v) > 0)
+        .map((v) => v.id)
+    );
+  }, [filtered]);
+
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.black }}
@@ -158,7 +172,7 @@ function AnalyticsScreenContent({
         />
       </View>
 
-      {filtered.map((v, index) => {
+      {filtered.map((v) => {
         const profit = (v.sellPrice ?? v.valuation ?? 0) - (v.buyPrice ?? 0);
         const roi = v.buyPrice ? profit / v.buyPrice : 0;
 
@@ -175,7 +189,7 @@ function AnalyticsScreenContent({
             ? v.images[0]
             : "https://placehold.co/120x80/000000/FFFFFF";
 
-        const isBestFlip = index < Math.ceil(filtered.length * 0.1);
+        const isBestFlip = bestFlipIds.has(v.id);
 
         return (
           <TouchableOpacity
@@ -248,7 +262,7 @@ function AnalyticsScreenContent({
                     marginBottom: 4,
                   }}
                 >
-                  Profit: £{profit}
+                  Profit: £{Math.round(profit * 100) / 100}
                 </Text>
 
                 <Text style={{ color: theme.muted, marginBottom: 4 }}>

@@ -115,10 +115,10 @@ function generateInsights(
 ): string[] {
   const insights: string[] = [];
 
-  if (score >= 85) insights.push("Your dealership is operating at Supernova level.");
-  else if (score >= 70) insights.push("Strong dealership performance — close to Supernova.");
+  if (score >= 85) insights.push("Your flipping is operating at Supernova level.");
+  else if (score >= 70) insights.push("Strong flipping performance — close to Supernova.");
   else if (score >= 50) insights.push("Moderate performance — improvements possible.");
-  else insights.push("Dealership performance is weak — high risk or low profit.");
+  else insights.push("Flipping performance is weak — high risk or low profit.");
 
   if (risk >= 80) insights.push("Risk profile is excellent.");
   else if (risk <= 40) insights.push("High-risk vehicles detected.");

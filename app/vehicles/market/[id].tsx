@@ -83,7 +83,11 @@ function MarketScanContent({
         if (cancelled) return;
 
         if (data.error) {
-          setError(data.error);
+          setError(
+            typeof data.error === "string"
+              ? data.error
+              : "Couldn't get market data for this vehicle."
+          );
           return;
         }
 
@@ -91,6 +95,12 @@ function MarketScanContent({
         const base = m.average ?? vehicle.valuation ?? m.smartPrice ?? 0;
 
         const items = [...(data.ebayItems ?? []), ...(data.googleItems ?? [])].slice(0, 2);
+
+        // With no price to work from, every figure below would read as a real £0.
+        if (!(base > 0)) {
+          setError("No market prices found for this vehicle yet.");
+          return;
+        }
 
         setMarket({
           priceRange: {
@@ -106,10 +116,7 @@ function MarketScanContent({
             `Based on ${m.soldCount ?? 0} real sold/listed matches found just now.`,
             `Demand score: ${Math.round(m.demandScore ?? 0)}/100.`,
           ].filter(Boolean),
-          similarListings:
-            items.length > 0
-              ? items.map((item) => mapItem(item, label))
-              : [{ title: label, price: null, image: vehicle.images?.[0] ?? null }],
+          similarListings: items.map((item) => mapItem(item, label)),
         });
       } catch (err) {
         if (!cancelled) setError("Couldn't reach the market lookup service.");
@@ -285,6 +292,7 @@ function MarketScanContent({
           </View>
 
           {/* SIMILAR LISTINGS */}
+          {market.similarListings.length > 0 && (
           <View
             style={{
               backgroundColor: theme.card,
@@ -338,6 +346,7 @@ function MarketScanContent({
               </View>
             ))}
           </View>
+          )}
         </>
       )}
 

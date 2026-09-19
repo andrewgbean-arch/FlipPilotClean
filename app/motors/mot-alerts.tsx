@@ -4,13 +4,12 @@ import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryCon
 import { useRouter } from "expo-router";
 import { useEffect } from "react";
 import { useDealerNotifications } from "@/features/vehicles/context/DealerNotificationsContext";
-
-function parseUkDate(dateStr?: string | null) {
-  if (!dateStr) return null;
-  const [day, month, year] = dateStr.split("/").map(Number);
-  if (!day || !month || !year) return null;
-  return new Date(year, month - 1, day);
-}
+import {
+  formatDate,
+  motDaysLeft,
+  motExpiryOf,
+} from "@/features/vehicles/utils/motDates";
+import { isVehicleRecord } from "@/features/vehicles/utils/vehicleStats";
 
 export default function MotAlertsScreen() {
   const theme = useTheme();
@@ -18,14 +17,16 @@ export default function MotAlertsScreen() {
 
   const { vehicles } = useVehicleHistory();
 
-  const { addNotification } = useDealerNotifications();
+  const { addNotification, notifications } = useDealerNotifications();
 
+  // Scans share the store with vehicles but have no MOT to check.
   return (
     <MotAlertsContent
-      vehicles={vehicles}
+      vehicles={vehicles.filter(isVehicleRecord)}
       router={router}
       theme={theme}
       addNotification={addNotification}
+      notifications={notifications}
     />
   );
 }
@@ -35,63 +36,48 @@ function MotAlertsContent({
   router,
   theme,
   addNotification,
+  notifications,
 }: {
   vehicles: ReturnType<typeof useVehicleHistory>["vehicles"];
   router: ReturnType<typeof useRouter>;
   theme: any;
   addNotification: ReturnType<typeof useDealerNotifications>["addNotification"];
+  notifications: ReturnType<typeof useDealerNotifications>["notifications"];
 }) {
-  const now = new Date();
-
+  // A MOT is valid through the whole of its expiry day, so today is not expired.
   const expired = vehicles.filter((v) => {
-    const d = parseUkDate(v.mot?.motExpiry ?? v.mot?.expiryDate ?? null);
-    return d !== null && d.getTime() < now.getTime();
+    const days = motDaysLeft(v);
+    return days !== null && days < 0;
   });
 
   const soon = vehicles.filter((v) => {
-    const d = parseUkDate(v.mot?.motExpiry ?? v.mot?.expiryDate ?? null);
-    if (!d) return false;
-    const diffDays = Math.ceil((d.getTime() - now.getTime()) / 86400000);
-    return diffDays > 0 && diffDays <= 30;
+    const days = motDaysLeft(v);
+    return days !== null && days >= 0 && days <= 30;
   });
 
   const later = vehicles.filter((v) => {
-    const d = parseUkDate(v.mot?.motExpiry ?? v.mot?.expiryDate ?? null);
-    if (!d) return false;
-    const diffDays = Math.ceil((d.getTime() - now.getTime()) / 86400000);
-    return diffDays > 30 && diffDays <= 60;
+    const days = motDaysLeft(v);
+    return days !== null && days > 30 && days <= 60;
   });
 
   /* ---------------------------------------------
      ⭐ Trigger notifications once when screen loads
+     (skipping any already raised, so reopening this screen does not repeat them)
   --------------------------------------------- */
   useEffect(() => {
-    expired.forEach((v) => {
-      const expiry = v.mot?.motExpiry ?? v.mot?.expiryDate ?? "N/A";
-      addNotification({
-        type: "MOT",
-        title: "MOT expired",
-        message: `Vehicle #${v.id} MOT expired on ${expiry}`,
-      });
-    });
+    const raised = new Set(notifications.map((n) => `${n.title}|${n.message}`));
 
-    soon.forEach((v) => {
-      const expiry = v.mot?.motExpiry ?? v.mot?.expiryDate ?? "N/A";
-      addNotification({
-        type: "MOT",
-        title: "MOT expiring soon",
-        message: `Vehicle #${v.id} MOT expires on ${expiry}`,
+    const notify = (title: string, list: typeof vehicles, verb: string) => {
+      list.forEach((v) => {
+        const message = `${v.title} MOT ${verb} ${formatDate(motExpiryOf(v))}`;
+        if (raised.has(`${title}|${message}`)) return;
+        addNotification({ type: "MOT", title, message });
       });
-    });
+    };
 
-    later.forEach((v) => {
-      const expiry = v.mot?.motExpiry ?? v.mot?.expiryDate ?? "N/A";
-      addNotification({
-        type: "MOT",
-        title: "MOT expiring in 30–60 days",
-        message: `Vehicle #${v.id} MOT expires on ${expiry}`,
-      });
-    });
+    notify("MOT expired", expired, "expired on");
+    notify("MOT expiring soon", soon, "expires on");
+    notify("MOT expiring in 30–60 days", later, "expires on");
   }, []);
 
   return (
@@ -101,7 +87,7 @@ function MotAlertsContent({
     >
       <TouchableOpacity onPress={() => router.back()}>
         <Text style={{ color: theme.goldDeep, marginBottom: 10 }}>
-          ← Back to Dealer Mode
+          ← Back
         </Text>
       </TouchableOpacity>
 
@@ -242,8 +228,7 @@ function MotRow({
   badge: string;
   badgeColor: string;
 }) {
-  const expiry =
-    vehicle.mot?.motExpiry ?? vehicle.mot?.expiryDate ?? "N/A";
+  const expiry = formatDate(motExpiryOf(vehicle));
 
   return (
     <View
@@ -261,7 +246,7 @@ function MotRow({
     >
       <View style={{ flex: 1 }}>
         <Text style={{ color: theme.white, fontWeight: "700" }}>
-          Vehicle #{vehicle.id}
+          {vehicle.title}
         </Text>
         <Text style={{ color: theme.muted, marginTop: 4 }}>
           MOT Expiry: {expiry}

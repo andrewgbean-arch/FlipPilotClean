@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -21,13 +21,22 @@ import ValuationEngine from "@/components/ai/ValuationEngine";
 
 
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
+import { fetchMOT } from "@/features/vehicles/api/mot";
 import { FlipScoreInput, calculateFlipScore } from "@/utils/flipScoreEngine";
 
 
-import { BASE_URL } from "@/utils/api";
 import { useTheme } from "../../../src/styles/ThemeContext";
 
 import { Theme } from "@/styles/theme";
+
+// "1,800" or "£1,800" -> 1800. Blank -> null; anything that is not a plain number -> undefined.
+function parseAmount(text: string): number | null | undefined {
+  const cleaned = text.replace(/[£,\s]/g, "");
+  if (!cleaned) return null;
+  return /^\d*\.?\d+$/.test(cleaned) ? Number(cleaned) : undefined;
+}
+
+const normaliseReg = (text: string) => text.replace(/\s+/g, "").toUpperCase();
 
 export default function CreateNewFlip() {
   const theme = useTheme();
@@ -42,6 +51,8 @@ export default function CreateNewFlip() {
 
   const [motInfo, setMotInfo] = useState<any>(null);
   const [motLoading, setMotLoading] = useState(false);
+  const [motError, setMotError] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   const [title, setTitle] = useState("");
   const [buyPrice, setBuyPrice] = useState("");
@@ -55,93 +66,134 @@ export default function CreateNewFlip() {
 
   const [make, setMake] = useState("");
   const [model, setModel] = useState("");
-  const [year, setYear] = useState<number | string>("");
-  const [mileage, setMileage] = useState<number>(0);
+  const [year, setYear] = useState("");
+  const [mileage, setMileage] = useState("");
   const [colour, setColour] = useState("");
-  const [keepers, setKeepers] = useState<number>(0);
+  const [keepers, setKeepers] = useState("");
 
-  const [liveScore, setLiveScore] = useState(0);
   const [showBreakdown, setShowBreakdown] = useState(false);
-const [price, setPrice] = useState("");
-const [engineSize, setEngineSize] = useState("");
-const [flipScore, setFlipScore] = useState(50);
-const [marketHeat, setMarketHeat] = useState(50);
+
+  // Set once Save is pressed, so problems are not shown on a form nobody has touched yet.
+  const [showProblem, setShowProblem] = useState(false);
+  // Guards against a double tap creating the same flip twice.
+  const saving = useRef(false);
+
+  /* -------------------------------------------------------
+     PARSED FORM VALUES (undefined = typed but not a number)
+  ------------------------------------------------------- */
+  const buyN = parseAmount(buyPrice);
+  const sellN = parseAmount(sellPrice);
+  const confidenceN = parseAmount(aiPriceConfidence);
+  const demandN = parseAmount(demandScore);
+  const yearN = parseAmount(year);
+  const mileageN = parseAmount(mileage);
+  const keepersN = parseAmount(keepers);
+
+  const problem = !title.trim()
+    ? "Add a title for this flip."
+    : buyN === undefined
+    ? "Buy price must be a number, for example 1800."
+    : sellN === undefined
+    ? "Sell price must be a number, for example 2600."
+    : confidenceN === undefined || (confidenceN != null && confidenceN > 100)
+    ? "AI price confidence must be a number from 0 to 100."
+    : demandN === undefined || (demandN != null && demandN > 100)
+    ? "Demand score must be a number from 0 to 100."
+    : yearN === undefined
+    ? "Year must be a number, for example 2014."
+    : mileageN === undefined
+    ? "Mileage must be a number, for example 82000."
+    : keepersN === undefined
+    ? "Previous keepers must be a number."
+    : null;
+
+  /* -------------------------------------------------------
+     FLIPSCORE (worked out from the current inputs, not a step behind)
+  ------------------------------------------------------- */
+  const liveScore =
+    buyN != null && sellN != null
+      ? calculateFlipScore({
+          buyPrice: buyN,
+          sellPrice: sellN,
+          demandScore: demandN ?? 0,
+          rarity,
+          condition,
+          sellSpeed,
+          aiPriceConfidence: confidenceN ?? undefined,
+        })
+      : 0;
 
   /* -------------------------------------------------------
      IMAGE PICKER
   ------------------------------------------------------- */
   const pickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      quality: 0.8,
-    });
-    if (!result.canceled) {
-      setImages((prev) => [...prev, result.assets[0].uri]);
+    setPhotoError(null);
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.8,
+      });
+      if (!result.canceled) {
+        setImages((prev) => [...prev, result.assets[0].uri]);
+      }
+    } catch {
+      setPhotoError("Couldn't open your photos. Check the app has access and try again.");
     }
   };
 
   const takePhoto = async () => {
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-    if (!result.canceled) {
-      setImages((prev) => [...prev, result.assets[0].uri]);
+    setPhotoError(null);
+    try {
+      const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+      if (!result.canceled) {
+        setImages((prev) => [...prev, result.assets[0].uri]);
+      }
+    } catch {
+      setPhotoError("Couldn't open the camera. Check the app has camera access and try again.");
     }
-  };
-
-  /* -------------------------------------------------------
-     FLIPSCORE RECALC
-  ------------------------------------------------------- */
-  const recalcScore = () => {
-    const score = calculateFlipScore({
-      buyPrice: Number(buyPrice),
-      sellPrice: Number(sellPrice),
-      demandScore: Number(demandScore),
-      rarity,
-      condition,
-      sellSpeed,
-    });
-    setLiveScore(score);
   };
 
   /* -------------------------------------------------------
      MOT LOOKUP
   ------------------------------------------------------- */
   const lookupMot = async () => {
-    if (!registration.trim()) return;
+    if (motLoading) return;
+
+    // The DVLA and DVSA services want the plate without spaces.
+    const lookupReg = normaliseReg(registration);
+    if (!lookupReg) {
+      setMotError("Enter a registration first.");
+      return;
+    }
+
     setMotLoading(true);
+    setMotError(null);
 
-    try {
-      const res = await fetch(`${BASE_URL}/mot?reg=${registration.trim()}`);
-      const data = await res.json();
-      const mot = data.mot?.[0];
+    const data = await fetchMOT(lookupReg);
+    setMotLoading(false);
 
-      if (!mot) return;
+    if (!data) {
+      setMotError(
+        "Couldn't look up that registration. Check the number and your connection, then try again."
+      );
+      return;
+    }
 
-      setMake(mot.make ?? "");
-      setModel(mot.model ?? "");
-      setYear(mot.year ?? "");
-      setMileage(mot.mileage ?? 0);
-      setColour(mot.colour ?? "");
-      setKeepers(mot.keepers ?? 0);
+    setMake(data.make ?? "");
+    setModel(data.model ?? "");
+    setYear(data.year != null ? String(data.year) : "");
+    setMileage(data.mileage != null ? String(data.mileage) : "");
+    setColour(data.colour ?? "");
 
-      setMotInfo({
-        reg: registration.toUpperCase(),
-        motExpiry: mot.expiry ?? "",
-        mileage: mot.mileage ?? 0,
-        advisories: mot.advisories ?? [],
-        make: mot.make ?? "",
-        model: mot.model ?? "",
-        year: mot.year ?? "",
-        colour: mot.colour ?? "",
-        keepers: mot.keepers ?? 0,
-      });
+    // The lookup does not return previous keepers, so whatever was typed is kept.
+    setMotInfo({
+      motExpiry: data.motExpiry ?? "",
+      advisories: data.advisories ?? [],
+      failures: data.failures ?? [],
+    });
 
-      if (mot.year && mot.make && mot.model) {
-        setTitle(`${mot.year} ${mot.make} ${mot.model}`);
-      }
-    } catch (err) {
-      console.log("❌ MOT ERROR:", err);
-    } finally {
-      setMotLoading(false);
+    if (data.year && data.make && data.model) {
+      setTitle(`${data.year} ${data.make} ${data.model}`);
     }
   };
 
@@ -149,54 +201,47 @@ const [marketHeat, setMarketHeat] = useState(50);
      SAVE FLIP
   ------------------------------------------------------- */
   const handleSave = () => {
-    const flipScore = liveScore;
+    if (saving.current) return;
 
-    const motPayload = motInfo
-      ? {
-          reg: motInfo.reg,
-          make: motInfo.make,
-          model: motInfo.model,
-          year: Number(motInfo.year),
-          colour: motInfo.colour,
-          keepers: motInfo.keepers,
-          mileage: Number(motInfo.mileage),
-          motExpiry: motInfo.motExpiry,
-          expiryDate: motInfo.motExpiry,
-          advisories: motInfo.advisories ?? [],
-          failures: [],
-          mileageHistory: [
-            {
-              date: new Date().toISOString(),
-              mileage: Number(motInfo.mileage),
-            },
-          ],
-        }
-      : {
-          reg: registration ? registration.toUpperCase() : null,
-          make,
-          model,
-          year: typeof year === "string" ? Number(year) || null : year,
-          colour,
-          keepers,
-          mileage,
-          motExpiry: null,
-          expiryDate: null,
-          advisories: [],
-          failures: [],
-          mileageHistory: mileage
-            ? [{ date: new Date().toISOString(), mileage }]
-            : [],
-        };
+    if (problem) {
+      setShowProblem(true);
+      return;
+    }
+
+    saving.current = true;
+
+    const flipScore = liveScore;
+    const mileageInt = mileageN != null ? Math.round(mileageN) : null;
+
+    // Built from what is in the form, so edits made after a lookup are kept;
+    // the lookup only supplies expiry, advisories and failures.
+    const motPayload = {
+      reg: normaliseReg(registration) || null,
+      make: make.trim() || null,
+      model: model.trim() || null,
+      year: yearN != null ? Math.round(yearN) : null,
+      colour: colour.trim() || null,
+      keepers: keepersN != null ? Math.round(keepersN) : null,
+      mileage: mileageInt,
+      motExpiry: motInfo?.motExpiry || null,
+      expiryDate: motInfo?.motExpiry || null,
+      advisories: motInfo?.advisories ?? [],
+      failures: motInfo?.failures ?? [],
+      mileageHistory:
+        mileageInt != null
+          ? [{ date: new Date().toISOString(), mileage: mileageInt }]
+          : [],
+    };
 
     const aiPrice = computeAiPrice({
       title,
-      buyPrice: Number(buyPrice),
-      sellPrice: Number(sellPrice),
+      buyPrice: buyN ?? null,
+      sellPrice: sellN ?? null,
       flipScore,
       rarity,
       sellSpeed,
       ai: { condition, description: null },
-      market: { demandScore: Number(demandScore) },
+      market: { demandScore: demandN ?? 0 },
       favourite: false,
       images,
       mot: motPayload,
@@ -206,9 +251,9 @@ const [marketHeat, setMarketHeat] = useState(50);
     });
 
     addVehicle({
-      title,
-      buyPrice: Number(buyPrice),
-      sellPrice: Number(sellPrice),
+      title: title.trim(),
+      buyPrice: buyN ?? null,
+      sellPrice: sellN ?? null,
       flipScore,
       rarity,
       sellSpeed,
@@ -217,7 +262,7 @@ const [marketHeat, setMarketHeat] = useState(50);
         description: null,
       },
       market: {
-        demandScore: Number(demandScore),
+        demandScore: demandN ?? 0,
       },
       favourite: false,
       images,
@@ -226,13 +271,13 @@ const [marketHeat, setMarketHeat] = useState(50);
       aiPrice: {
         recommendedSellPrice: aiPrice.recommendedSellPrice,
         riskLevel: aiPrice.riskLevel,
-        confidence: Number(aiPriceConfidence),
+        confidence: confidenceN ?? 0,
         notes: aiPrice.notes,
       },
     });
-    
 
-    router.push("/vehicles/list");
+    // replace, so Back does not return to the filled-in form and save it twice.
+    router.replace("/vehicles/list");
   };
     /* -------------------------------------------------------
      BREAKDOWN BUILDER (Fix for TS error)
@@ -254,20 +299,19 @@ const [marketHeat, setMarketHeat] = useState(50);
     sellSpeed: string;
     aiPriceConfidence: string;
   }) => {
-    const profit = Number(sellPrice) - Number(buyPrice);
-    const profitMargin =
-      Number(buyPrice) > 0
-        ? ((Number(sellPrice) - Number(buyPrice)) / Number(buyPrice)) * 100
-        : 0;
+    const buy = parseAmount(buyPrice) ?? 0;
+    const sell = parseAmount(sellPrice) ?? 0;
+    const profit = sell - buy;
+    const profitMargin = buy > 0 ? ((sell - buy) / buy) * 100 : 0;
 
     return {
       profit,
       profitMargin,
-      demandScore: Number(demandScore),
+      demandScore: parseAmount(demandScore) ?? 0,
       rarity,
       condition,
       sellSpeed,
-      aiPriceConfidence: Number(aiPriceConfidence),
+      aiPriceConfidence: parseAmount(aiPriceConfidence) ?? 0,
     };
   };
 
@@ -285,6 +329,7 @@ return (
         paddingBottom: 180, // ⭐ space for Save button
       }}
       showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
     >
       <Text style={[styles.heading, { color: theme.goldDeep }]}>
         Add New Flip
@@ -295,6 +340,10 @@ return (
         <GoldButton label="Pick Image" onPress={pickImage} theme={theme} />
         <GoldButton label="Take Photo" onPress={takePhoto} theme={theme} />
       </View>
+
+      {photoError && (
+        <Text style={{ color: theme.danger, marginBottom: 20 }}>{photoError}</Text>
+      )}
 
       {images.length > 0 && (
         <ScrollView horizontal style={{ marginBottom: 20 }}>
@@ -323,40 +372,46 @@ return (
         theme={theme}
       />
 
-      <GoldButton label="Lookup MOT data" onPress={lookupMot} theme={theme} />
+      <GoldButton
+        label={motLoading ? "Looking up..." : "Lookup MOT data"}
+        onPress={lookupMot}
+        theme={theme}
+      />
 
-      {motInfo && (
-        <MotSummary
-          theme={theme}
-          make={make}
-          model={model}
-          year={year}
-          mileage={mileage}
-          keepers={keepers}
-          colour={colour}
-          motInfo={motInfo}
-          setMake={setMake}
-          setModel={setModel}
-          setYear={setYear}
-          setMileage={setMileage}
-          setKeepers={setKeepers}
-        />
+      {motError && (
+        <Text style={{ color: theme.danger, marginTop: 10 }}>{motError}</Text>
       )}
+
+      <MotSummary
+        theme={theme}
+        make={make}
+        model={model}
+        year={year}
+        mileage={mileage}
+        keepers={keepers}
+        colour={colour}
+        motInfo={motInfo}
+        setMake={setMake}
+        setModel={setModel}
+        setYear={setYear}
+        setMileage={setMileage}
+        setKeepers={setKeepers}
+        setColour={setColour}
+      />
 
       {/* 🔥 LIVE MARKET VALUATION PREVIEW */}
       <ValuationEngine
         key={"new"}
         listing={{
-          price,
-          mileage,
-          year,
+          price: sellN ?? buyN ?? 0,
+          mileage: mileageN ?? 0,
+          year: yearN ?? 0,
           condition,
           make,
-          engineSize,
         }}
         prediction={{
-          flipScore,
-          marketHeat,
+          flipScore: liveScore,
+          marketHeat: demandN ?? 50,
         }}
       />
 
@@ -364,20 +419,14 @@ return (
       <Input
         label="Title"
         value={title}
-        onChangeText={(t) => {
-          setTitle(t);
-          recalcScore();
-        }}
+        onChangeText={setTitle}
         theme={theme}
       />
 
       <Input
         label="Buy Price (£)"
         value={buyPrice}
-        onChangeText={(t) => {
-          setBuyPrice(t);
-          recalcScore();
-        }}
+        onChangeText={setBuyPrice}
         keyboardType="numeric"
         theme={theme}
       />
@@ -385,10 +434,7 @@ return (
       <Input
         label="Sell Price (£)"
         value={sellPrice}
-        onChangeText={(t) => {
-          setSellPrice(t);
-          recalcScore();
-        }}
+        onChangeText={setSellPrice}
         keyboardType="numeric"
         theme={theme}
       />
@@ -397,14 +443,11 @@ return (
         label="AI Price Confidence (0–100)"
         hint="Higher confidence means AI believes the price estimate is accurate."
         value={aiPriceConfidence}
-        onChangeText={(t) => {
-          setAiPriceConfidence(t);
-          recalcScore();
-        }}
+        onChangeText={setAiPriceConfidence}
         theme={theme}
       />
         {/* DROPDOWNS */}
-        <Dropdown label="Rarity" value={rarity} onSelect={(v) => { setRarity(v as any); recalcScore(); }} theme={theme}
+        <Dropdown label="Rarity" value={rarity} onSelect={(v) => setRarity(v as any)} theme={theme}
           options={[
             { label: "Common", icon: "📦" },
             { label: "Uncommon", icon: "✨" },
@@ -413,7 +456,7 @@ return (
           ]}
         />
 
-        <Dropdown label="Sell Speed" value={sellSpeed} onSelect={(v) => { setSellSpeed(v as any); recalcScore(); }} theme={theme}
+        <Dropdown label="Sell Speed" value={sellSpeed} onSelect={(v) => setSellSpeed(v as any)} theme={theme}
           options={[
             { label: "Slow", icon: "🐌" },
             { label: "Medium", icon: "🚶‍♂️" },
@@ -421,7 +464,7 @@ return (
           ]}
         />
 
-        <Dropdown label="Condition" value={condition} onSelect={(v) => { setCondition(v as any); recalcScore(); }} theme={theme}
+        <Dropdown label="Condition" value={condition} onSelect={(v) => setCondition(v as any)} theme={theme}
           options={[
             { label: "Poor", icon: "💔" },
             { label: "Fair", icon: "🛠️" },
@@ -430,7 +473,7 @@ return (
           ]}
         />
 
-        <Input label="Demand Score (0–100)" value={demandScore} onChangeText={(t) => { setDemandScore(t); recalcScore(); }} keyboardType="numeric" theme={theme} />
+        <Input label="Demand Score (0–100)" value={demandScore} onChangeText={setDemandScore} keyboardType="numeric" theme={theme} />
 
         {/* FLIPSCORE */}
         <FlipScorePanel score={liveScore} theme={theme} onBreakdown={() => setShowBreakdown(true)} />
@@ -447,6 +490,18 @@ return (
     right: 20,
   }}
 >
+  {showProblem && problem && (
+    <Text
+      style={{
+        color: theme.danger,
+        textAlign: "center",
+        marginBottom: 8,
+      }}
+    >
+      {problem}
+    </Text>
+  )}
+
   <TouchableOpacity
     onPress={handleSave}
     style={{
@@ -528,6 +583,7 @@ function MotSummary({
   setYear,
   setMileage,
   setKeepers,
+  setColour,
 }: any) {
   return (
     <View
@@ -542,21 +598,26 @@ function MotSummary({
     >
       <Input label="Make" value={make} onChangeText={setMake} theme={theme} />
       <Input label="Model" value={model} onChangeText={setModel} theme={theme} />
-      <Input label="Year" value={String(year)} onChangeText={setYear} keyboardType="numeric" theme={theme} />
-      <Input label="Mileage" value={String(mileage)} onChangeText={(t) => setMileage(Number(t))} keyboardType="numeric" theme={theme} />
-      <Input label="Previous Keepers" value={String(keepers)} onChangeText={(t) => setKeepers(Number(t))} keyboardType="numeric" theme={theme} />
+      <Input label="Year" value={year} onChangeText={setYear} keyboardType="numeric" theme={theme} />
+      <Input label="Mileage" value={mileage} onChangeText={setMileage} keyboardType="numeric" theme={theme} />
+      <Input label="Colour" value={colour} onChangeText={setColour} theme={theme} />
+      <Input label="Previous Keepers" value={keepers} onChangeText={setKeepers} keyboardType="numeric" theme={theme} />
 
-      <Text style={{ color: theme.goldDeep, fontWeight: "600", marginBottom: 6, marginTop: 10 }}>
-        MOT Summary
-      </Text>
+      {motInfo && (
+        <>
+          <Text style={{ color: theme.goldDeep, fontWeight: "600", marginBottom: 6, marginTop: 10 }}>
+            MOT Summary
+          </Text>
 
-      <Text style={{ color: theme.muted }}>Expiry: {motInfo.motExpiry ?? "N/A"}</Text>
-      <Text style={{ color: theme.muted }}>Mileage: {motInfo.mileage ?? "N/A"}</Text>
-      <Text style={{ color: theme.muted }}>Make: {motInfo.make ?? "N/A"}</Text>
-      <Text style={{ color: theme.muted }}>Model: {motInfo.model ?? "N/A"}</Text>
-      <Text style={{ color: theme.muted }}>Year: {motInfo.year ?? "N/A"}</Text>
-      <Text style={{ color: theme.muted }}>Colour: {motInfo.colour ?? "N/A"}</Text>
-      <Text style={{ color: theme.muted }}>Keepers: {motInfo.keepers ?? "N/A"}</Text>
+          <Text style={{ color: theme.muted }}>Expiry: {motInfo.motExpiry || "N/A"}</Text>
+          <Text style={{ color: theme.muted }}>
+            Advisories: {motInfo.advisories?.length ?? 0}
+          </Text>
+          <Text style={{ color: theme.muted }}>
+            Failures: {motInfo.failures?.length ?? 0}
+          </Text>
+        </>
+      )}
     </View>
   );
 }
@@ -660,17 +721,11 @@ function BreakdownModal({ theme, breakdown, onClose }: any) {
 <BreakItem label="Condition" value={breakdown.condition} theme={theme} />
 <BreakItem label="Sell Speed" value={breakdown.sellSpeed} theme={theme} />
 
-{/* ⭐ THIS WAS THE MISSING LINE ⭐ */}
 <BreakItem
   label="AI Confidence"
   value={`${breakdown.aiPriceConfidence}/100`}
   theme={theme}
 />
-        <BreakItem
-          label="AI Confidence"
-          value={`${breakdown.aiPriceConfidence}/100`}
-          theme={theme}
-        />
 
         <TouchableOpacity
           onPress={onClose}

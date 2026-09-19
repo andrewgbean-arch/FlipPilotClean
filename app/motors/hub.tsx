@@ -1,69 +1,41 @@
 import { ScrollView, TouchableOpacity, Text, View } from "react-native";
 import { useRouter } from "expo-router";
-import React, { useEffect } from "react";
+import React from "react";
 
 import { useTheme } from "@/styles/ThemeContext";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
+import {
+  motAttentionList,
+  motExpiryPhrase,
+} from "@/features/vehicles/utils/motDates";
+import {
+  barPercent,
+  formatMoney,
+  formatScore,
+  monthlyProfit,
+  realisedProfit,
+  summariseVehicles,
+} from "@/features/vehicles/utils/vehicleStats";
 
 export default function MotorsHub() {
   const theme = useTheme();
   const router = useRouter();
 
-  const { dealerMode, setDealerMode, setFlashTrigger, vehicles } =
-    useVehicleHistory();
+  const { vehicles: records } = useVehicleHistory();
 
-  useEffect(() => {
-    if (!dealerMode && vehicles.length > 0) {
-      setDealerMode(true);
-      setFlashTrigger(Date.now());
-    }
-  }, [dealerMode, vehicles.length]);
+  // Scans share the store with vehicles but are not vehicles, so only records
+  // with MOT data are counted or listed here.
+  const { vehicles, total: totalFlips, totalProfit, avgScore, ranked } =
+    summariseVehicles(records);
 
   const recentVehicles = [...vehicles]
     .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
     .slice(0, 3);
 
-  const activeVehicle: FlipRecord | null =
-    recentVehicles[0] || vehicles[0] || null;
+  const bestFlip: FlipRecord | null = ranked[0]?.vehicle ?? null;
 
-  const totalFlips = vehicles.length;
-
-  const totalProfit = vehicles.reduce((sum: number, v: FlipRecord) => {
-    const sell = v.sellPrice ?? v.valuation ?? 0;
-    const buy = v.buyPrice ?? 0;
-    return sum + (sell - buy);
-  }, 0);
-
-  const avgScore =
-    totalFlips > 0
-      ? Math.round(
-          vehicles.reduce(
-            (sum: number, v: FlipRecord) => sum + (v.flipScore ?? 0),
-            0
-          ) / totalFlips
-        )
-      : null;
-
-  const bestFlip: FlipRecord | null =
-    vehicles.length > 0
-      ? [...vehicles].sort((a, b) => {
-          const profitA =
-            (a.sellPrice ?? a.valuation ?? 0) - (a.buyPrice ?? 0);
-          const profitB =
-            (b.sellPrice ?? b.valuation ?? 0) - (b.buyPrice ?? 0);
-          return profitB - profitA;
-        })[0]
-      : null;
-
-  const motAttention = vehicles.filter((v: FlipRecord) => {
-    const expiry = v.mot?.motExpiry ?? v.mot?.expiryDate;
-    if (!expiry) return false;
-    const days = Math.ceil(
-      (new Date(expiry).getTime() - Date.now()) / 86400000
-    );
-    return days <= 30;
-  });
+  const motAttention = motAttentionList(vehicles);
 
   const highScore = vehicles
     .filter((v: FlipRecord) => (v.flipScore ?? 0) >= 75)
@@ -99,15 +71,15 @@ export default function MotorsHub() {
 
       {/* VEHICLE STATS */}
       <Card title="Vehicle Stats" theme={theme}>
-        <Stat label="Vehicles Flipped" value={totalFlips} theme={theme} />
+        <Stat label="Total Vehicles" value={totalFlips} theme={theme} />
         <Stat
           label="Total Profit"
-          value={`£${totalProfit.toFixed(2)}`}
+          value={formatMoney(totalProfit)}
           theme={theme}
         />
         <Stat
           label="Avg Flip Score"
-          value={`${avgScore ?? "?"}/100`}
+          value={formatScore(avgScore)}
           theme={theme}
         />
         <Stat label="Best Flip" value={bestFlip?.title ?? "-"} theme={theme} />
@@ -128,14 +100,14 @@ export default function MotorsHub() {
           </Text>
         ) : (
           <Text style={{ color: theme.muted, marginTop: 8 }}>
-            No vehicle flips yet. Start your first one.
+            No completed flips yet.
           </Text>
         )}
       </Card>
 
       {/* Top Performing Cars */}
       <Card title="Top Performing Cars" theme={theme}>
-        <TopPerformers vehicles={vehicles} theme={theme} router={router} />
+        <TopPerformers ranked={ranked} theme={theme} router={router} />
       </Card>
 
       {/* Quick Actions */}
@@ -183,7 +155,7 @@ export default function MotorsHub() {
       {/* MOT Attention */}
       <SectionList
         title="MOT Attention"
-        items={motAttention}
+        items={motAttention.map((entry) => entry.vehicle)}
         theme={theme}
         router={router}
       />
@@ -337,8 +309,8 @@ function SectionList({
               {v.title}
             </Text>
             <Text style={{ color: theme.muted }}>
-              Score: {v.flipScore ?? "?"}/100 • Profit: £
-              {(v.sellPrice ?? v.valuation ?? 0) - (v.buyPrice ?? 0)}
+              Score: {formatScore(v.flipScore)} • Profit:{" "}
+              {formatMoney(realisedProfit(v))}
             </Text>
           </TouchableOpacity>
         ))
@@ -354,29 +326,18 @@ function MonthlyProfitTimeline({
   vehicles: FlipRecord[];
   theme: any;
 }) {
-  const monthly: Record<string, number> = {};
-
-  vehicles.forEach((v: FlipRecord) => {
-    const month = new Date(v.timestamp).toLocaleString("en-GB", {
-      month: "short",
-    });
-    const profit =
-      (v.sellPrice ?? v.valuation ?? 0) - (v.buyPrice ?? 0);
-
-    monthly[month] = (monthly[month] ?? 0) + profit;
-  });
-
-  const entries = Object.entries(monthly) as [string, number][];
+  const entries = monthlyProfit(vehicles);
+  const maxProfit = Math.max(...entries.map((entry) => entry.profit), 1);
 
   return (
     <View style={{ marginTop: 10 }}>
       {entries.length === 0 ? (
         <Text style={{ color: theme.muted }}>No data yet.</Text>
       ) : (
-        entries.map(([month, profit]) => (
-          <View key={month} style={{ marginBottom: 8 }}>
+        entries.map(({ key, label, profit }) => (
+          <View key={key} style={{ marginBottom: 8 }}>
             <Text style={{ color: theme.white }}>
-              {month}: £{profit.toFixed(0)}
+              {label}: {formatMoney(profit)}
             </Text>
             <View
               style={{
@@ -389,7 +350,7 @@ function MonthlyProfitTimeline({
             >
               <View
                 style={{
-                  width: Math.min(100, profit / 10),
+                  width: `${barPercent(profit, maxProfit)}%`,
                   height: "100%",
                   backgroundColor:
                     profit > 500
@@ -408,51 +369,40 @@ function MonthlyProfitTimeline({
 }
 
 function TopPerformers({
-  vehicles,
+  ranked,
   theme,
   router,
 }: {
-  vehicles: FlipRecord[];
+  ranked: { vehicle: FlipRecord; profit: number }[];
   theme: any;
   router: ReturnType<typeof useRouter>;
 }) {
-  const sorted = [...vehicles]
-    .sort((a, b) => {
-      const profitA =
-        (a.sellPrice ?? a.valuation ?? 0) - (a.buyPrice ?? 0);
-      const profitB =
-        (b.sellPrice ?? b.valuation ?? 0) - (b.buyPrice ?? 0);
-      return profitB - profitA;
-    })
-    .slice(0, 3);
+  const top = ranked.slice(0, 3);
 
-  if (sorted.length === 0)
-    return <Text style={{ color: theme.muted }}>No flips yet.</Text>;
+  if (top.length === 0)
+    return <Text style={{ color: theme.muted }}>No completed flips yet.</Text>;
 
-  return sorted.map((v: FlipRecord) => {
-    const profit =
-      (v.sellPrice ?? v.valuation ?? 0) - (v.buyPrice ?? 0);
-
-    return (
-      <TouchableOpacity
-        key={v.id}
-        onPress={() => router.push(`/vehicles/overview/${v.id}`)}
-        style={{
-          marginTop: 12,
-          padding: 12,
-          backgroundColor: theme.black,
-          borderRadius: theme.radius.md,
-          borderWidth: 1,
-          borderColor: theme.goldSoftGlow,
-        }}
-      >
-        <Text style={{ color: theme.white, fontWeight: "700" }}>
-          {v.title}
-        </Text>
-        <Text style={{ color: theme.accent }}>Profit: £{profit}</Text>
-      </TouchableOpacity>
-    );
-  });
+  return top.map(({ vehicle: v, profit }) => (
+    <TouchableOpacity
+      key={v.id}
+      onPress={() => router.push(`/vehicles/overview/${v.id}`)}
+      style={{
+        marginTop: 12,
+        padding: 12,
+        backgroundColor: theme.black,
+        borderRadius: theme.radius.md,
+        borderWidth: 1,
+        borderColor: theme.goldSoftGlow,
+      }}
+    >
+      <Text style={{ color: theme.white, fontWeight: "700" }}>
+        {v.title}
+      </Text>
+      <Text style={{ color: theme.accent }}>
+        Profit: {formatMoney(profit)}
+      </Text>
+    </TouchableOpacity>
+  ));
 }
 
 function MotExpiryList({
@@ -460,25 +410,16 @@ function MotExpiryList({
   theme,
   router,
 }: {
-  items: FlipRecord[];
+  items: { vehicle: FlipRecord; days: number }[];
   theme: any;
   router: ReturnType<typeof useRouter>;
 }) {
   if (items.length === 0)
     return <Text style={{ color: theme.muted }}>No MOT issues.</Text>;
 
-  return items.map((v: FlipRecord) => {
-    const rawExpiry = v.mot?.motExpiry ?? v.mot?.expiryDate ?? null;
-    if (!rawExpiry) return null;
-
-    const expiry = new Date(rawExpiry);
-
-    const daysLeft = Math.ceil(
-      (expiry.getTime() - Date.now()) / 86400000
-    );
-
+  return items.map(({ vehicle: v, days }) => {
     const color =
-      daysLeft <= 7 ? "#FF4444" : daysLeft <= 30 ? "#FFD966" : theme.white;
+      days <= 7 ? "#FF4444" : days <= 30 ? "#FFD966" : theme.white;
 
     return (
       <TouchableOpacity
@@ -496,9 +437,7 @@ function MotExpiryList({
         <Text style={{ color: theme.white, fontWeight: "700" }}>
           {v.title}
         </Text>
-        <Text style={{ color }}>
-          MOT expires in {daysLeft} days
-        </Text>
+        <Text style={{ color }}>MOT {motExpiryPhrase(days)}</Text>
       </TouchableOpacity>
     );
   });
