@@ -1,25 +1,44 @@
 import { Tabs } from "expo-router";
 
 import {
-  Clock,
-  CompassRose,
+  Car,
+  ClockCounterClockwise,
+  Compass,
   Heart,
   House,
   Scan as ScanIcon,
 } from "phosphor-react-native";
+import type { Icon as PhosphorIcon } from "phosphor-react-native";
 
-import { View, Text } from "react-native";
+import { StyleSheet, type ColorValue } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-// ⭐ Motors notifications
 import { useDealerNotifications } from "@/features/vehicles/context/DealerNotificationsContext";
+import { useTheme } from "@/styles/ThemeContext";
+
+const ICON_SIZE = 24;
+
+// The navigator passes the tint as a ColorValue; a platform colour object can't be handed to
+// Phosphor (it needs a string), and the tab bar only ever supplies string tints here.
+const tabIcon =
+  (Icon: PhosphorIcon) =>
+  ({ focused, color }: { focused: boolean; color: ColorValue }) => (
+    <Icon
+      size={ICON_SIZE}
+      weight={focused ? "fill" : "regular"}
+      color={typeof color === "string" ? color : undefined}
+    />
+  );
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
 
-  // ⭐ unread count (Motors only)
   const { notifications } = useDealerNotifications();
   const unread = notifications.filter((n) => !n.read).length;
+
+  // Room for a 24pt icon and an 11pt label between the padding, whatever the bottom inset is.
+  const bottomPadding = Math.max(insets.bottom, 8);
 
   return (
     <Tabs
@@ -27,157 +46,68 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: true,
+        tabBarActiveTintColor: theme.gold,
+        tabBarInactiveTintColor: theme.muted,
 
         tabBarStyle: {
-          backgroundColor: "rgba(10, 25, 49, 0.96)",
-          height: 128,
-          paddingBottom: insets.bottom + 34,
-          paddingTop: 12,
-          borderTopWidth: 0,
-          elevation: 12,
-          shadowColor: "#000",
-          shadowOpacity: 0.25,
-          shadowRadius: 12,
+          backgroundColor: theme.background,
+          borderTopColor: "rgba(255, 255, 255, 0.08)",
+          borderTopWidth: StyleSheet.hairlineWidth,
+          height: 56 + bottomPadding,
+          paddingTop: 6,
+          paddingBottom: bottomPadding,
         },
 
         tabBarLabelStyle: {
-          fontSize: 13,
+          fontSize: 11,
+          lineHeight: 14,
+          fontWeight: "600",
+        },
+
+        tabBarBadgeStyle: {
+          backgroundColor: theme.gold,
+          color: theme.background,
+          fontSize: 11,
           fontWeight: "700",
-          color: "#FFD700",
         },
       }}
     >
-
-      {/* HOME */}
       <Tabs.Screen
         name="home"
-        options={{
-          tabBarLabel: "Home",
-          tabBarIcon: ({ focused }) => (
-            <House
-              size={30}
-              weight={focused ? "bold" : "regular"}
-              color={focused ? "#FFD700" : "rgba(255, 215, 0, 0.45)"}
-            />
-          ),
-        }}
+        options={{ tabBarLabel: "Home", tabBarIcon: tabIcon(House) }}
       />
 
-      {/* SCAN */}
       <Tabs.Screen
         name="scan"
-        options={{
-          tabBarLabel: "Scan",
-          tabBarIcon: ({ focused }) => (
-            <ScanIcon
-              size={30}
-              weight={focused ? "bold" : "regular"}
-              color={focused ? "#FFD700" : "rgba(255, 215, 0, 0.45)"}
-            />
-          ),
-        }}
+        options={{ tabBarLabel: "Scan", tabBarIcon: tabIcon(ScanIcon) }}
       />
 
-      {/* HISTORY */}
       <Tabs.Screen
         name="history"
         options={{
           tabBarLabel: "History",
-          tabBarIcon: ({ focused }) => (
-            <Clock
-              size={30}
-              weight={focused ? "bold" : "regular"}
-              color={focused ? "#FFD700" : "rgba(255, 215, 0, 0.45)"}
-            />
-          ),
+          tabBarIcon: tabIcon(ClockCounterClockwise),
         }}
       />
 
-      {/* FAVOURITES */}
       <Tabs.Screen
         name="favourites"
-        options={{
-          tabBarLabel: "Favourites",
-          tabBarIcon: ({ focused }) => (
-            <Heart
-              size={30}
-              weight={focused ? "bold" : "regular"}
-              color={focused ? "#FFD700" : "rgba(255, 215, 0, 0.45)"}
-            />
-          ),
-        }}
+        options={{ tabBarLabel: "Favourites", tabBarIcon: tabIcon(Heart) }}
       />
 
-      {/* ⭐ MOTORS (with unread badge) */}
       <Tabs.Screen
         name="motors"
         options={{
           tabBarLabel: "Motors",
-          tabBarIcon: ({ focused }) => (
-            <BadgeWrapper unread={unread}>
-              <CompassRose
-                size={30}
-                weight={focused ? "bold" : "regular"}
-                color={focused ? "#FFD700" : "rgba(255, 215, 0, 0.45)"}
-              />
-            </BadgeWrapper>
-          ),
+          tabBarIcon: tabIcon(Car),
+          tabBarBadge: unread > 0 ? unread : undefined,
         }}
       />
 
-      {/* EXPLORE */}
       <Tabs.Screen
         name="explore"
-        options={{
-          tabBarLabel: "Explore",
-          tabBarIcon: ({ focused }) => (
-            <CompassRose
-              size={30}
-              weight={focused ? "bold" : "regular"}
-              color={focused ? "#FFD700" : "rgba(255, 215, 0, 0.45)"}
-            />
-          ),
-        }}
+        options={{ tabBarLabel: "Explore", tabBarIcon: tabIcon(Compass) }}
       />
-
     </Tabs>
-  );
-}
-
-function BadgeWrapper({
-  children,
-  unread,
-}: {
-  children: React.ReactNode;
-  unread: number;
-}) {
-  return (
-    <View style={{ position: "relative" }}>
-      {children}
-
-      {unread > 0 && (
-        <View
-          style={{
-            position: "absolute",
-            top: -6,
-            right: -10,
-            backgroundColor: "#FFD700",
-            borderRadius: 999,
-            paddingHorizontal: 6,
-            paddingVertical: 2,
-          }}
-        >
-          <Text
-            style={{
-              color: "#000",
-              fontWeight: "800",
-              fontSize: 12,
-            }}
-          >
-            {unread}
-          </Text>
-        </View>
-      )}
-    </View>
   );
 }

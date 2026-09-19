@@ -35,8 +35,6 @@ import FlipDifficultyScore from "@/components/core/FlipDifficultyScore";
 
 import { calculateFlipScore } from "@/utils/flipScorePredictor";
 
-// ⭐ Unified Dealer Mode
-import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { BASE_URL } from "@/utils/api";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -74,18 +72,6 @@ export default function ListingDetails() {
       useNativeDriver: true,
     }).start(() => setShowAI(false));
   };
-
-  // ⭐ Dealer Mode
-  const { dealerMode, setDealerMode, setFlashTrigger, vehicles } =
-    useVehicleHistory();
-
-  // ⭐ Auto‑activate Dealer Mode when vehicles exist (safe)
-  useEffect(() => {
-    if (!dealerMode && vehicles.length > 0) {
-      setDealerMode(true);
-      setFlashTrigger(Date.now());
-    }
-  }, [dealerMode, vehicles]);
 
   // Fade‑in animation
   useEffect(() => {

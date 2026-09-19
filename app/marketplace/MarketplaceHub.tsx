@@ -11,26 +11,12 @@ import { router } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/styles/ThemeContext";
 
-// ⭐ Unified Dealer Mode
-import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { BASE_URL } from "@/utils/api";
 import { findBestDeals } from "@/utils/dealFinder";
 import GoldParticles from "@/components/ui/GoldParticles";
 
 export default function MarketplaceHub() {
   const theme = useTheme();
-
-  // ⭐ Dealer Mode
-  const { dealerMode, setDealerMode, setFlashTrigger, vehicles } =
-    useVehicleHistory();
-
-  // ⭐ Auto‑activate Dealer Mode when vehicles exist
-  useEffect(() => {
-    if (!dealerMode && vehicles.length > 0) {
-      setDealerMode(true);
-      setFlashTrigger(Date.now());
-    }
-  }, [dealerMode, vehicles]);
 
   const [trending, setTrending] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

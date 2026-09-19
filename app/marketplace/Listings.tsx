@@ -11,8 +11,6 @@ import {
 import { router } from "expo-router";
 import { useTheme } from "@/styles/ThemeContext";
 
-// ⭐ Unified Dealer Mode
-import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { BASE_URL } from "@/utils/api";
 
 const CATEGORIES = [
@@ -27,18 +25,6 @@ const CATEGORIES = [
 
 export default function Listings() {
   const theme = useTheme();
-
-  // ⭐ Dealer Mode
-  const { dealerMode, setDealerMode, setFlashTrigger, vehicles } =
-    useVehicleHistory();
-
-  // ⭐ Auto‑activate Dealer Mode when vehicles exist
-  useEffect(() => {
-    if (!dealerMode && vehicles.length > 0) {
-      setDealerMode(true);
-      setFlashTrigger(Date.now());
-    }
-  }, [dealerMode, vehicles, setDealerMode, setFlashTrigger]);
 
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

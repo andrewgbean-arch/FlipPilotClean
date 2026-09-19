@@ -1,5 +1,7 @@
-import { Stack } from "expo-router";
+import { DarkTheme, Stack, ThemeProvider as NavigationThemeProvider } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
+import * as SystemUI from "expo-system-ui";
 import { useEffect } from "react";
 import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -110,28 +112,52 @@ const SCREEN_TITLES: Record<string, string> = {
 function ThemedStack() {
   const theme = useTheme();
 
+  // The app is dark-only. Give the native root view and the navigator the same
+  // background so nothing flashes white while a screen mounts or a transition runs.
+  useEffect(() => {
+    SystemUI.setBackgroundColorAsync(theme.background).catch(() => {});
+  }, [theme.background]);
+
+  const navigationTheme = {
+    ...DarkTheme,
+    colors: {
+      ...DarkTheme.colors,
+      primary: theme.gold,
+      background: theme.background,
+      card: theme.background,
+      text: theme.text,
+      border: "rgba(255, 255, 255, 0.08)",
+      notification: theme.gold,
+    },
+  };
+
   return (
-    <Stack
-      screenOptions={({ route }) => ({
-        title: SCREEN_TITLES[route.name],
-        headerStyle: { backgroundColor: theme.background },
-        headerTintColor: theme.accent,
-        headerTitleStyle: { fontWeight: "800", color: theme.text },
-        contentStyle: { backgroundColor: theme.background },
-      })}
-    >
-      {/* Core */}
-      <Stack.Screen name="index" options={{ headerShown: false }} />
+    <NavigationThemeProvider value={navigationTheme}>
+      <StatusBar style="light" />
+      <Stack
+        screenOptions={({ route }) => ({
+          title: SCREEN_TITLES[route.name],
+          headerStyle: { backgroundColor: theme.background },
+          headerTintColor: theme.gold,
+          headerTitleStyle: { fontWeight: "700", fontSize: 17, color: theme.text },
+          headerShadowVisible: false,
+          headerBackButtonDisplayMode: "minimal",
+          contentStyle: { backgroundColor: theme.background },
+        })}
+      >
+        {/* Core */}
+        <Stack.Screen name="index" options={{ headerShown: false }} />
 
-      {/* ⭐ Tabs — this loads app/(tabs)/_layout.tsx */}
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        {/* Tabs: this loads app/(tabs)/_layout.tsx */}
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 
-      {/* Core non-tab screens */}
-      <Stack.Screen name="ai-camera" options={{ headerShown: false }} />
-      <Stack.Screen name="upgrade" options={{ title: "Upgrade" }} />
-      <Stack.Screen name="manage-subscription" options={{ title: "Manage Subscription" }} />
-      <Stack.Screen name="pro-success" options={{ headerShown: false }} />
-    </Stack>
+        {/* Core non-tab screens */}
+        <Stack.Screen name="ai-camera" options={{ headerShown: false }} />
+        <Stack.Screen name="upgrade" options={{ title: "Upgrade" }} />
+        <Stack.Screen name="manage-subscription" options={{ title: "Manage Subscription" }} />
+        <Stack.Screen name="pro-success" options={{ headerShown: false }} />
+      </Stack>
+    </NavigationThemeProvider>
   );
 }
 
