@@ -170,7 +170,7 @@ export default function HomeScreen() {
         </View>
 
         {/* WEATHER */}
-        <WeatherCard theme={theme} />
+        <WeatherCard theme={theme} style={styles.weatherCard} />
 
         {/* STATS */}
         <View style={[styles.statsCard, card]}>
@@ -350,6 +350,8 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 170,
   },
+
+  weatherCard: { marginHorizontal: 16, marginTop: 8 },
 
   sectionTitle: { fontSize: 18, fontWeight: "700", marginBottom: 12 },
   sectionWrapper: { marginTop: 26, marginHorizontal: 16 },

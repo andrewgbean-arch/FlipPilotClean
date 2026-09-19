@@ -11,6 +11,7 @@ import {
   ImageBroken,
   PencilSimple,
   WarningCircle,
+  X,
 } from "phosphor-react-native";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -62,10 +63,13 @@ function PriceTile({
   label,
   value,
   onPress,
+  locked,
 }: {
   label: string;
   value: number | null;
   onPress: () => void;
+  // Once the flip is saved the prices are part of the record, so they can no longer be edited here.
+  locked?: boolean;
 }) {
   const theme = useTheme();
   const valueText = value != null ? `£${value.toFixed(2)}` : "Tap to set";
@@ -74,7 +78,9 @@ function PriceTile({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${label}, ${value != null ? valueText : "not set"}`}
-      accessibilityHint="Opens the keypad to change this price"
+      accessibilityHint={locked ? undefined : "Opens the keypad to change this price"}
+      accessibilityState={{ disabled: !!locked }}
+      disabled={locked}
       onPress={onPress}
       style={({ pressed }) => [
         styles.tile,
@@ -84,7 +90,7 @@ function PriceTile({
     >
       <View style={styles.tileTop}>
         <Text style={[styles.tileLabel, { color: theme.muted }]}>{label}</Text>
-        <PencilSimple size={16} color={theme.muted} />
+        {locked ? null : <PencilSimple size={16} color={theme.muted} />}
       </View>
       <Text
         style={[
@@ -187,13 +193,18 @@ export default function ScanResultsScreen() {
     setCalcValue((p) => (p === "0" && key !== "." ? key : p + key));
   };
 
+  const closeCalculator = () => {
+    setCalcVisible(false);
+    setCalcMode(null);
+  };
+
   const confirmCalc = () => {
-    const num = parseFloat(calcValue || "0");
+    // An emptied keypad clears the price (it shows "Tap to set"); it does not mean £0.
+    const num = calcValue === "" ? NaN : parseFloat(calcValue);
     if (calcMode === "buy") setBuyPrice(isNaN(num) ? null : num);
     if (calcMode === "sell") setSellPrice(isNaN(num) ? null : num);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setCalcVisible(false);
-    setCalcMode(null);
+    closeCalculator();
   };
 
   const saveToHistory = async () => {
@@ -412,8 +423,8 @@ export default function ScanResultsScreen() {
 
         {/* BUY + SELL */}
         <View style={styles.tilesRow}>
-          <PriceTile label="Buy price" value={buyPrice} onPress={() => openCalculator("buy")} />
-          <PriceTile label="Sell price" value={sellPrice} onPress={() => openCalculator("sell")} />
+          <PriceTile label="Buy price" value={buyPrice} locked={saved} onPress={() => openCalculator("buy")} />
+          <PriceTile label="Sell price" value={sellPrice} locked={saved} onPress={() => openCalculator("sell")} />
         </View>
 
         {/* FLIP SCORE */}
@@ -533,9 +544,16 @@ export default function ScanResultsScreen() {
         visible={calcVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setCalcVisible(false)}
+        onRequestClose={closeCalculator}
       >
         <View style={styles.modalBackdrop}>
+          {/* Tapping outside the sheet closes it (onRequestClose only covers Android's back button). */}
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            accessibilityRole="button"
+            accessibilityLabel="Close keypad"
+            onPress={closeCalculator}
+          />
           <View
             style={[
               styles.sheet,
@@ -548,9 +566,21 @@ export default function ScanResultsScreen() {
           >
             <View style={[styles.grabber, { backgroundColor: theme.muted }]} />
 
-            <Text style={[styles.calcTitle, { color: theme.text }]} accessibilityRole="header">
-              {calcMode === "buy" ? "Set buy price" : "Set sell price"}
-            </Text>
+            <View style={styles.calcHeader}>
+              <Text style={[styles.calcTitle, { color: theme.text }]} accessibilityRole="header">
+                {calcMode === "buy" ? "Set buy price" : "Set sell price"}
+              </Text>
+
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Close keypad"
+                hitSlop={8}
+                style={({ pressed }) => [styles.calcClose, pressed && styles.pressed]}
+                onPress={closeCalculator}
+              >
+                <X size={22} color={theme.muted} />
+              </Pressable>
+            </View>
 
             <View style={[styles.calcDisplay, { backgroundColor: theme.background }]}>
               <Text
@@ -852,6 +882,8 @@ const styles = StyleSheet.create({
     opacity: 0.5,
     marginBottom: 14,
   },
+  calcHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  calcClose: { width: 44, height: 44, alignItems: "center", justifyContent: "center", marginRight: -10 },
   calcTitle: { fontSize: 18, fontWeight: "700" },
   calcDisplay: {
     marginTop: 12,
