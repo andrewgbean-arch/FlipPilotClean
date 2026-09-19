@@ -1,3 +1,6 @@
+// Under this much once sold, an item isn't worth the time, petrol and postage.
+export const WORTH_SELLING_MIN = 10;
+
 export function buildFlipMeta(market: any) {
   // Use the averaged sell estimate, not the raw highest price found — a
   // single expensive outlier in a noisy search shouldn't inflate profit.
@@ -16,6 +19,10 @@ export function buildFlipMeta(market: any) {
   if (market?.soldCount > 5) flipScore += 10;
   if (market?.soldCount === 0) flipScore -= 10;
 
+  // Under £10 to resell is not worth a punt, however good the margin looks.
+  const notWorthIt = sellEstimate != null && sellEstimate < WORTH_SELLING_MIN;
+  if (notWorthIt) flipScore = Math.min(flipScore, 35);
+
   return {
     flipScore,
     flipPotential:
@@ -27,8 +34,9 @@ export function buildFlipMeta(market: any) {
         ? "Normal"
         : "Slow",
     rarity: "Common",
-    insights:
-      "Based on current retail and used prices, this item has moderate flip potential.",
+    insights: notWorthIt
+      ? "Under £10 once sold, so probably not worth the trip."
+      : "Based on current retail and used prices, this item has moderate flip potential.",
     predictedProfit: profit,
   };
 }

@@ -53,6 +53,9 @@ const keepPhoto = async (uri: string): Promise<string> => {
 const CALC_KEYS = ["7", "8", "9", "4", "5", "6", "1", "2", "3", "0", ".", "DEL"];
 const CALC_ROWS = [0, 3, 6, 9].map((start) => CALC_KEYS.slice(start, start + 3));
 
+// Under this much once sold, an item isn't worth the time, petrol and postage.
+const WORTH_SELLING_MIN = 10;
+
 // Where the item is being bought decides how much of its resale price is worth paying.
 // Charity shops are the base case (half of what it should sell for, which leaves room for
 // fees, postage and profit); a car boot is where you can haggle harder; a shop or online
@@ -448,6 +451,10 @@ export default function ScanResultsScreen() {
           {profit == null ? (
             <Text style={[styles.heroHint, { color: theme.muted }]}>
               Set a buy and a sell price to see your profit.
+            </Text>
+          ) : sellPrice != null && sellPrice < WORTH_SELLING_MIN ? (
+            <Text style={[styles.heroHint, { color: theme.warning }]}>
+              Under £{WORTH_SELLING_MIN} to resell: usually not worth the trip.
             </Text>
           ) : null}
 

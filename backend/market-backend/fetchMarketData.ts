@@ -3,7 +3,7 @@ import fetchAmazonMarket from "./amazonMarket";
 import fetchEbayMarket, { EbayMarketResult } from "./ebayMarket";
 import fetchEbayBrowseMarket from "./ebayBrowseApi";
 import { extractPackCount, isNotTheItem, matchesQuery, priceForPack } from "./bulkListingFilter";
-import { decidePrices } from "./priceModel";
+import { decidePrices, type Grade } from "./priceModel";
 
 // Read this at call time, not at module load — server.ts imports this
 // module (via search.ts/searchImage.ts) BEFORE it calls dotenv.config(),
@@ -263,12 +263,17 @@ function cacheSet(key: string, value: UnifiedMarketResult) {
 -------------------------------------------------- */
 export default async function fetchMarketData(
   query: string,
-  options: { packCount?: number | null; condition?: "new" | "used" | null } = {}
+  options: {
+    packCount?: number | null;
+    condition?: "new" | "used" | null;
+    grade?: Grade | null;
+  } = {}
 ): Promise<UnifiedMarketResult> {
   const wantedCount = options.packCount ?? extractPackCount(query);
   const condition = options.condition ?? null;
   const usedMode = condition === "used";
-  const cacheKey = `${query.trim().toLowerCase()}|${wantedCount ?? ""}|${condition ?? ""}`;
+  const grade = options.grade ?? "good";
+  const cacheKey = `${query.trim().toLowerCase()}|${wantedCount ?? ""}|${condition ?? ""}|${grade}`;
   const cached = query ? cacheGet(cacheKey) : null;
   if (cached) return cached;
 
@@ -310,6 +315,12 @@ export default async function fetchMarketData(
       6500,
       null
     );
+    // For a used item, what the same thing sells for NEW on eBay: with Google's
+    // shelf price, that gives the new price a used price is worked out from.
+    const ebayNewPromise =
+      usedMode && hasEbayBrowseCreds()
+        ? withDeadline(fetchEbayBrowseMarket(query, wantedCount, "new"), 6500, null)
+        : Promise.resolve(null);
     // The AI's idea of the new price and the used range, asked alongside the
     // searches: the cross-check if what the searches found is far off.
     const aiEstimatePromise = withDeadline(fetchAiPriceEstimate(query, wantedCount), 5000, null);
@@ -325,6 +336,7 @@ export default async function fetchMarketData(
     const googleGraceMs = Math.max(300, Math.min(2000, 5000 - (Date.now() - startedAt)));
     const google = await withDeadline(googlePromise, googleGraceMs, null);
     const aiEstimate = await aiEstimatePromise;
+    const ebayNew = await ebayNewPromise;
 
     // 4️⃣ AI estimate (new price + used range)
     const aiPriceMin = safeNumber(aiEstimate?.min);
@@ -336,6 +348,8 @@ export default async function fetchMarketData(
 
     const decision = decidePrices({
       used: usedMode,
+      grade,
+      ebayNew: safeNumber(ebayNew?.average ?? null),
       ebay: usedPrice,
       amazonNew: safeNumber(amazon?.newPrice),
       googleNew: safeNumber(google?.avg),

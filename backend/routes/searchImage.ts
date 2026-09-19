@@ -156,7 +156,15 @@ router.post("/search-image", rateLimit(2), async (req, res) => {
     const marketPromise = fetchMarketData(String(identified.title), {
       packCount: Number.isFinite(packCount) && packCount >= 1 ? Math.round(packCount) : null,
       // Sealed/new items are priced against new listings; anything else against used ones.
-      condition: /^new$/i.test(String(identified.condition ?? "").trim()) ? "new" : "used"
+      condition: /^new$/i.test(String(identified.condition ?? "").trim()) ? "new" : "used",
+      // How good it is decides what share of the new price a used one sells for.
+      grade: /like new/i.test(String(identified.condition ?? ""))
+        ? "like new"
+        : /poor/i.test(String(identified.condition ?? ""))
+        ? "poor"
+        : /fair/i.test(String(identified.condition ?? ""))
+        ? "fair"
+        : "good"
     });
 
     const [details, market] = await Promise.all([describing, marketPromise]);

@@ -57,7 +57,7 @@ const none = { ebay: null, amazonNew: null, googleNew: null, aiNew: null, aiUsed
 // Only the AI knows
 {
   const d = decidePrices({ ...none, used: true, aiNew: 100, aiUsedMin: 30, aiUsedMax: 50 });
-  eq("ai only sell", d.sell, 40);
+  eq("ai only sell", d.sell, 45);
 }
 
 
@@ -66,6 +66,23 @@ const none = { ebay: null, amazonNew: null, googleNew: null, aiNew: null, aiUsed
   const d = decidePrices({ ...none, used: false, aiNew: 5.99, amazonNew: 2.75, ebay: 3.0 });
   between("lozenge new between", d.newPrice, 3.5, 4.5);
   eq("lozenge sell from ebay", d.sell, 3);
+}
+
+
+// Used price worked out from the new price: nothing on used listings at all.
+{
+  const d = decidePrices({ ...none, used: true, grade: "good", googleNew: 130, ebayNew: 120, aiNew: 125 });
+  between("from new: good is about half", d.sell, 55, 70);
+  const poor = decidePrices({ ...none, used: true, grade: "poor", googleNew: 130, ebayNew: 120, aiNew: 125 });
+  between("from new: poor is lower", poor.sell, 20, 30);
+  const likeNew = decidePrices({ ...none, used: true, grade: "like new", googleNew: 130, ebayNew: 120, aiNew: 125 });
+  between("from new: like new is higher", likeNew.sell, 80, 95);
+}
+
+// Used listings polluted with new ones: new price and the AI outvote them.
+{
+  const d = decidePrices({ ...none, used: true, grade: "good", ebay: 150, googleNew: 130, ebayNew: 125, aiNew: 120, aiUsedMin: 40, aiUsedMax: 60 });
+  between("polluted used listings", d.sell, 50, 65);
 }
 
 // Same product, not the next model up
