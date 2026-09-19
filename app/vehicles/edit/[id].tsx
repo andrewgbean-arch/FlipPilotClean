@@ -315,13 +315,11 @@ function EditFlipForm({
     setMotLoading(true);
     setMotError(null);
 
-    const data = await fetchMOT(lookupReg);
+    const { data, error } = await fetchMOT(lookupReg);
     setMotLoading(false);
 
     if (!data) {
-      setMotError(
-        "Couldn't look up that registration. Check the number and your connection, then try again."
-      );
+      setMotError(error);
       return;
     }
 
