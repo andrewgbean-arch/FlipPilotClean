@@ -1,16 +1,28 @@
 import React, { useMemo } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Pressable,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { router } from "expo-router";
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import {
+  Bell,
+  Car,
+  CaretRight,
+  ChartLineUp,
+  CheckCircle,
+  CurrencyGbp,
+  List,
+  MagnifyingGlass,
+  PencilSimple,
+  Plus,
+  SquaresFour,
+  Star,
+  Trophy,
+  WarningCircle,
+} from "phosphor-react-native";
+import type { Icon as PhosphorIcon } from "phosphor-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { useDealerNotifications } from "@/features/vehicles/context/DealerNotificationsContext";
+import { useTheme } from "@/styles/ThemeContext";
 import {
   motAttentionList,
   motExpiryPhrase,
@@ -24,423 +36,406 @@ import {
   summariseVehicles,
 } from "@/features/vehicles/utils/vehicleStats";
 
-const NAVY = "#0A1128";
-const GOLD = "#FFD700";
-const SILVER = "#AAB4C3";
-const CARD = "#111827";
+function StatTile({
+  Icon,
+  label,
+  value,
+  color,
+}: {
+  Icon: PhosphorIcon;
+  label: string;
+  value: string;
+  color?: string;
+}) {
+  const theme = useTheme();
+
+  return (
+    <View style={[styles.statTile, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
+      <Icon size={18} color={theme.muted} />
+      <Text
+        style={[styles.statValue, { color: color ?? theme.text }]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+      >
+        {value}
+      </Text>
+      <Text style={[styles.statLabel, { color: theme.muted }]}>{label}</Text>
+    </View>
+  );
+}
+
+function SectionTitle({ children }: { children: string }) {
+  const theme = useTheme();
+
+  return (
+    <Text style={[styles.sectionTitle, { color: theme.text }]} accessibilityRole="header">
+      {children}
+    </Text>
+  );
+}
+
+// A tappable row with an icon, a title, an optional second line and a chevron.
+function Row({
+  Icon,
+  iconColor,
+  title,
+  subtitle,
+  trailing,
+  onPress,
+  divider,
+}: {
+  Icon?: PhosphorIcon;
+  iconColor?: string;
+  title: string;
+  subtitle?: string;
+  trailing?: React.ReactNode;
+  onPress: () => void;
+  divider?: boolean;
+}) {
+  const theme = useTheme();
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={subtitle ? `${title}. ${subtitle}` : title}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.row,
+        divider && { borderTopWidth: 1, borderTopColor: theme.hairline },
+        pressed && styles.pressed,
+      ]}
+    >
+      {Icon ? <Icon size={22} color={iconColor ?? theme.muted} /> : null}
+
+      <View style={styles.rowText}>
+        <Text style={[styles.rowTitle, { color: theme.text }]} numberOfLines={1}>
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text style={[styles.rowSubtitle, { color: theme.muted }]} numberOfLines={1}>
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
+
+      {trailing}
+      <CaretRight size={16} color={theme.muted} />
+    </Pressable>
+  );
+}
 
 export default function MotorsDashboard() {
+  const theme = useTheme();
+  const insets = useSafeAreaInsets();
+
   const { vehicles: records } = useVehicleHistory();
   const { notifications } = useDealerNotifications();
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  /* -------------------------------------------------------
-     ⭐ STATS
-     Scans share the store with vehicles but are not vehicles, so only
-     records with MOT data are counted or listed here.
-  ------------------------------------------------------- */
+  // Scans share the store with vehicles but are not vehicles, so only records
+  // with MOT data are counted or listed here.
   const { vehicles, total, totalProfit, avgScore, ranked } = useMemo(
     () => summariseVehicles(records),
     [records]
   );
 
   const latest = vehicles[0] ?? null;
-
-  /* -------------------------------------------------------
-     ⭐ MOT ATTENTION
-  ------------------------------------------------------- */
   const motAttention = useMemo(() => motAttentionList(vehicles), [vehicles]);
-
-  /* -------------------------------------------------------
-     ⭐ TOP PERFORMERS
-  ------------------------------------------------------- */
   const topPerformers = ranked.slice(0, 3);
-
-  /* -------------------------------------------------------
-     ⭐ MONTHLY PROFIT TIMELINE
-  ------------------------------------------------------- */
   const monthly = useMemo(() => monthlyProfit(vehicles), [vehicles]);
   const maxMonthly = Math.max(...monthly.map((m) => m.profit), 1);
 
+  const profitColor =
+    totalProfit > 0 ? theme.success : totalProfit < 0 ? theme.danger : theme.text;
+
+  const card = { backgroundColor: theme.card, borderColor: theme.hairline };
+
   return (
-    <View style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
+      >
         {/* HEADER */}
-        <View style={styles.headerWrapper}>
-          <View style={styles.headerCard}>
-            <Text style={styles.headerTitle}>FlipPilot Motors</Text>
-            <Text style={styles.headerSubtitle}>
-              Your vehicle dashboard
+        <View style={styles.header}>
+          <View style={styles.headerText}>
+            <Text style={[styles.title, { color: theme.text }]} accessibilityRole="header">
+              Motors
             </Text>
+            <Text style={[styles.subtitle, { color: theme.muted }]}>Your vehicle dashboard</Text>
           </View>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"
+            }
+            style={({ pressed }) => [styles.bellButton, pressed && styles.pressed]}
+            onPress={() => router.push("/motors/notifications")}
+          >
+            <Bell size={24} color={theme.text} />
+            {unreadCount > 0 ? (
+              <View style={[styles.badge, { backgroundColor: theme.gold }]}>
+                <Text style={[styles.badgeText, { color: theme.background }]}>{unreadCount}</Text>
+              </View>
+            ) : null}
+          </Pressable>
         </View>
 
         {/* STATS */}
-        <View style={styles.statsCard}>
-          <Text style={styles.sectionTitle}>
-            <Feather name="bar-chart-2" size={20} color={GOLD} /> Vehicle Stats
-          </Text>
+        <View style={styles.statsRow}>
+          <StatTile Icon={Car} label="Vehicles" value={String(total)} />
+          <StatTile Icon={CurrencyGbp} label="Profit" value={formatMoney(totalProfit)} color={profitColor} />
+          <StatTile Icon={Star} label="Avg score" value={avgScore == null ? "-" : String(avgScore)} />
+        </View>
 
-          <View style={styles.statsRow}>
-            <View style={styles.statsBlock}>
-              <Text style={styles.statsLabel}>Total Vehicles</Text>
-              <Text style={styles.statsValue}>
-                <Feather name="layers" size={18} color={GOLD} /> {total}
-              </Text>
-            </View>
+        {/* PRIMARY ACTIONS */}
+        <View style={styles.actionsRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Add vehicle"
+            style={({ pressed }) => [
+              styles.primaryButton,
+              { backgroundColor: theme.gold },
+              pressed && styles.pressed,
+            ]}
+            onPress={() => router.push("/vehicles/new")}
+          >
+            <Plus size={20} color={theme.black} weight="bold" />
+            <Text style={[styles.primaryLabel, { color: theme.black }]}>Add vehicle</Text>
+          </Pressable>
 
-            <View style={styles.statsBlock}>
-              <Text style={styles.statsLabel}>Total Profit</Text>
-              <Text style={styles.statsValue}>
-                <Feather name="dollar-sign" size={18} color={GOLD} />{" "}
-                {formatMoney(totalProfit)}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.statsRow}>
-            <View style={styles.statsBlock}>
-              <Text style={styles.statsLabel}>Avg Flip Score</Text>
-              <Text style={styles.statsValue}>
-                <Feather name="star" size={18} color={GOLD} />{" "}
-                {formatScore(avgScore)}
-              </Text>
-            </View>
-          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="MOT lookup"
+            style={({ pressed }) => [
+              styles.secondaryButton,
+              { borderColor: theme.hairline, backgroundColor: theme.card },
+              pressed && styles.pressed,
+            ]}
+            onPress={() => router.push("/vehicles/mot-lookup")}
+          >
+            <MagnifyingGlass size={20} color={theme.text} />
+            <Text style={[styles.secondaryLabel, { color: theme.text }]}>MOT lookup</Text>
+          </Pressable>
         </View>
 
         {/* LATEST VEHICLE */}
-        <View style={styles.sectionWrapper}>
-          <Text style={styles.sectionTitle}>
-            <Feather name="zap" size={20} color={GOLD} /> Latest Vehicle
-          </Text>
-
-          {latest ? (
-            <Pressable
-              style={styles.spotlightCard}
+        <SectionTitle>Latest vehicle</SectionTitle>
+        {latest ? (
+          <View style={[styles.group, card]}>
+            <Row
+              Icon={Car}
+              title={latest.title}
+              subtitle={`Profit ${formatMoney(realisedProfit(latest))} · Score ${formatScore(latest.flipScore)}`}
               onPress={() => router.push(`/vehicles/overview/${latest.id}`)}
-            >
-              <Text style={styles.spotlightTitle}>{latest.title}</Text>
-
-              <Text style={styles.spotlightMeta}>
-                <Feather name="dollar-sign" size={16} color={GOLD} /> Profit:{" "}
-                {formatMoney(realisedProfit(latest))}
-              </Text>
-
-              <Text style={styles.spotlightMeta}>
-                <Feather name="star" size={16} color={GOLD} /> Score:{" "}
-                {formatScore(latest.flipScore)}
-              </Text>
-
-              <Pressable
-                style={styles.historyButton}
-                onPress={() => router.push("/vehicles/list")}
-              >
-                <Feather name="clock" size={18} color={SILVER} />
-                <Text style={styles.historyLabel}>View All Vehicles</Text>
-              </Pressable>
-            </Pressable>
-          ) : (
-            <Text style={styles.emptyText}>
-              No vehicles yet. Add your first one.
+            />
+            <Row
+              Icon={List}
+              title="View all vehicles"
+              onPress={() => router.push("/vehicles/list")}
+              divider
+            />
+          </View>
+        ) : (
+          <View style={[styles.emptyCard, card]}>
+            <Text style={[styles.emptyText, { color: theme.muted }]}>
+              No vehicles yet. Add your first one to track its MOT and profit.
             </Text>
-          )}
-        </View>
+          </View>
+        )}
 
         {/* MOT ATTENTION */}
-        <View style={styles.sectionWrapper}>
-          <Text style={styles.sectionTitle}>
-            <Feather name="alert-triangle" size={20} color={GOLD} /> MOT
-            Attention
-          </Text>
-
-          {motAttention.length === 0 ? (
-            <Text style={styles.emptyText}>No MOT issues.</Text>
-          ) : (
-            motAttention.map(({ vehicle: v, days }) => (
-              <Pressable
+        <SectionTitle>MOT attention</SectionTitle>
+        {motAttention.length === 0 ? (
+          <View style={[styles.emptyCard, styles.emptyRow, card]}>
+            <CheckCircle size={20} color={theme.success} />
+            <Text style={[styles.emptyText, { color: theme.muted }]}>No MOT issues.</Text>
+          </View>
+        ) : (
+          <View style={[styles.group, card]}>
+            {motAttention.map(({ vehicle: v, days }, i) => (
+              <Row
                 key={v.id}
-                style={styles.motCard}
+                Icon={WarningCircle}
+                iconColor={days != null && days < 0 ? theme.danger : theme.warning}
+                title={v.title}
+                subtitle={`MOT ${motExpiryPhrase(days)}`}
                 onPress={() => router.push(`/vehicles/overview/${v.id}`)}
-              >
-                <Text style={styles.motTitle}>{v.title}</Text>
-                <Text style={styles.motMeta}>
-                  MOT {motExpiryPhrase(days)}
-                </Text>
-              </Pressable>
-            ))
-          )}
-        </View>
+                divider={i > 0}
+              />
+            ))}
+          </View>
+        )}
 
         {/* TOP PERFORMERS */}
-        <View style={styles.sectionWrapper}>
-          <Text style={styles.sectionTitle}>
-            <Feather name="award" size={20} color={GOLD} /> Top Performers
-          </Text>
-
-          {topPerformers.length === 0 ? (
-            <Text style={styles.emptyText}>No completed flips yet.</Text>
-          ) : (
-            topPerformers.map(({ vehicle: v, profit }) => (
-              <Pressable
+        <SectionTitle>Top performers</SectionTitle>
+        {topPerformers.length === 0 ? (
+          <View style={[styles.emptyCard, card]}>
+            <Text style={[styles.emptyText, { color: theme.muted }]}>
+              Add a buy and sell price to a vehicle to see it here.
+            </Text>
+          </View>
+        ) : (
+          <View style={[styles.group, card]}>
+            {topPerformers.map(({ vehicle: v, profit }, i) => (
+              <Row
                 key={v.id}
-                style={styles.topCard}
+                Icon={Trophy}
+                iconColor={i === 0 ? theme.gold : theme.muted}
+                title={v.title}
+                subtitle={`Profit ${formatMoney(profit)}`}
                 onPress={() => router.push(`/vehicles/overview/${v.id}`)}
-              >
-                <Text style={styles.topTitle}>{v.title}</Text>
-                <Text style={styles.topMeta}>
-                  Profit: {formatMoney(profit)}
-                </Text>
-              </Pressable>
-            ))
-          )}
-        </View>
+                divider={i > 0}
+              />
+            ))}
+          </View>
+        )}
 
-        {/* MONTHLY PROFIT TIMELINE */}
-        <View style={styles.sectionWrapper}>
-          <Text style={styles.sectionTitle}>
-            <Feather name="trending-up" size={20} color={GOLD} /> Monthly
-            Profit Timeline
-          </Text>
-
-          {monthly.length === 0 ? (
-            <Text style={styles.emptyText}>No data yet.</Text>
-          ) : (
-            monthly.map(({ key, label, profit }) => (
-              <View key={key} style={{ marginBottom: 10 }}>
-                <Text style={{ color: SILVER }}>
-                  {label}: {formatMoney(profit)}
-                </Text>
-
-                <View style={styles.timelineBar}>
+        {/* MONTHLY PROFIT */}
+        <SectionTitle>Monthly profit</SectionTitle>
+        {monthly.length === 0 ? (
+          <View style={[styles.emptyCard, styles.emptyRow, card]}>
+            <ChartLineUp size={20} color={theme.muted} />
+            <Text style={[styles.emptyText, { color: theme.muted }]}>No sales recorded yet.</Text>
+          </View>
+        ) : (
+          <View style={[styles.emptyCard, card]}>
+            {monthly.map(({ key, label, profit }, i) => (
+              <View key={key} style={i > 0 && styles.monthGap}>
+                <View style={styles.monthHeader}>
+                  <Text style={[styles.monthLabel, { color: theme.muted }]}>{label}</Text>
+                  <Text
+                    style={[
+                      styles.monthValue,
+                      { color: profit >= 0 ? theme.success : theme.danger },
+                    ]}
+                  >
+                    {formatMoney(profit)}
+                  </Text>
+                </View>
+                <View style={[styles.track, { backgroundColor: theme.background }]}>
                   <View
                     style={[
-                      styles.timelineFill,
+                      styles.fill,
                       {
                         width: `${barPercent(profit, maxMonthly)}%`,
-                        backgroundColor:
-                          profit > 500
-                            ? GOLD
-                            : profit > 200
-                            ? "#FFD966"
-                            : "#FF6666",
+                        backgroundColor: profit >= 0 ? theme.success : theme.danger,
                       },
                     ]}
                   />
                 </View>
               </View>
-            ))
-          )}
-        </View>
-
-        {/* QUICK ACTIONS */}
-        <View style={styles.sectionWrapper}>
-          <Text style={styles.sectionTitle}>
-            <Feather name="tool" size={20} color={GOLD} /> Quick Actions
-          </Text>
-
-          <View style={styles.toolsRow}>
-            <Pressable
-              style={styles.toolCard}
-              onPress={() => router.push("/vehicles/new")}
-            >
-              <Feather name="plus-circle" size={26} color={SILVER} />
-              <Text style={styles.toolLabel}>Add Vehicle</Text>
-            </Pressable>
-
-            <Pressable
-              style={styles.toolCard}
-              onPress={() => router.push("/vehicles/mot-lookup")}
-            >
-              <MaterialCommunityIcons
-                name="car-wrench"
-                size={26}
-                color={SILVER}
-              />
-              <Text style={styles.toolLabel}>MOT Lookup</Text>
-            </Pressable>
-
-            <Pressable
-              style={styles.toolCard}
-              onPress={() => router.push("/vehicles/edit-lookup")}
-            >
-              <Feather name="edit" size={26} color={SILVER} />
-              <Text style={styles.toolLabel}>Edit Vehicle</Text>
-            </Pressable>
-
-            <Pressable
-              style={styles.toolCard}
-              onPress={() => router.push("/vehicles/list")}
-            >
-              <Feather name="list" size={26} color={SILVER} />
-              <Text style={styles.toolLabel}>Vehicle List</Text>
-            </Pressable>
-
-            <Pressable
-              style={styles.toolCard}
-              onPress={() => router.push("/motors/hub")}
-            >
-              <MaterialCommunityIcons name="view-dashboard-outline" size={26} color={SILVER} />
-              <Text style={styles.toolLabel}>Motors Hub</Text>
-            </Pressable>
-
-            <Pressable
-              style={styles.toolCard}
-              onPress={() => router.push("/motors/notifications")}
-            >
-              <View>
-                <Feather name="bell" size={26} color={SILVER} />
-                {unreadCount > 0 && (
-                  <View style={styles.notifBadge}>
-                    <Text style={styles.notifBadgeText}>{unreadCount}</Text>
-                  </View>
-                )}
-              </View>
-              <Text style={styles.toolLabel}>Notifications</Text>
-            </Pressable>
+            ))}
           </View>
-        </View>
+        )}
 
-        <View style={{ height: 80 }} />
+        {/* MORE */}
+        <SectionTitle>More</SectionTitle>
+        <View style={[styles.group, card]}>
+          <Row Icon={PencilSimple} title="Edit a vehicle" onPress={() => router.push("/vehicles/edit-lookup")} />
+          <Row Icon={SquaresFour} title="Motors hub" onPress={() => router.push("/motors/hub")} divider />
+        </View>
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: NAVY },
+  container: { flex: 1 },
+  content: { paddingHorizontal: 16, paddingBottom: 40 },
 
-  headerWrapper: { paddingHorizontal: 16, marginTop: 20 },
-  headerCard: {
-    backgroundColor: CARD,
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: GOLD,
-    alignItems: "center",
-  },
-  headerTitle: { color: GOLD, fontSize: 26, fontWeight: "900" },
-  headerSubtitle: { color: SILVER, fontSize: 14, marginTop: 4 },
-
-  statsCard: {
-    marginTop: 20,
-    marginHorizontal: 16,
-    padding: 18,
-    borderRadius: 18,
-    backgroundColor: CARD,
-    borderWidth: 1,
-    borderColor: GOLD,
-  },
-  sectionTitle: {
-    color: GOLD,
-    fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 12,
-  },
-  statsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 8,
-  },
-  statsBlock: { flex: 1 },
-  statsLabel: { color: SILVER, fontSize: 13 },
-  statsValue: {
-    color: GOLD,
-    fontSize: 18,
-    fontWeight: "800",
-    marginTop: 2,
-  },
-
-  sectionWrapper: { marginTop: 24, marginHorizontal: 16 },
-
-  spotlightCard: {
-    backgroundColor: CARD,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: GOLD,
-  },
-  spotlightTitle: { color: GOLD, fontSize: 18, fontWeight: "700" },
-  spotlightMeta: { color: SILVER, fontSize: 13, marginTop: 4 },
-  emptyText: { color: SILVER, fontSize: 13, marginTop: 6 },
-
-  historyButton: {
-    marginTop: 12,
+  header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-  },
-  historyLabel: { color: SILVER, fontSize: 14, fontWeight: "600" },
-
-  motCard: {
-    backgroundColor: CARD,
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: GOLD,
-    marginBottom: 12,
-  },
-  motTitle: { color: GOLD, fontSize: 16, fontWeight: "700" },
-  motMeta: { color: SILVER, fontSize: 13, marginTop: 4 },
-
-  topCard: {
-    backgroundColor: CARD,
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: GOLD,
-    marginBottom: 12,
-  },
-  topTitle: { color: GOLD, fontSize: 16, fontWeight: "700" },
-  topMeta: { color: SILVER, fontSize: 13, marginTop: 4 },
-
-  timelineBar: {
-    height: 8,
-    backgroundColor: NAVY,
-    borderRadius: 8,
-    overflow: "hidden",
-    marginTop: 4,
-  },
-  timelineFill: {
-    height: "100%",
-    borderRadius: 8,
-  },
-
-  toolsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
     justifyContent: "space-between",
   },
-  toolCard: {
-    width: "48%",
-    backgroundColor: CARD,
-    borderRadius: 16,
-    padding: 14,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: GOLD,
+  headerText: { flex: 1 },
+  title: { fontSize: 28, fontWeight: "700" },
+  subtitle: { fontSize: 14, marginTop: 2 },
+  bellButton: {
+    width: 44,
+    height: 44,
     alignItems: "center",
+    justifyContent: "center",
   },
-  toolLabel: {
-    color: SILVER,
-    fontSize: 14,
-    fontWeight: "700",
-    marginTop: 6,
-  },
-  notifBadge: {
+  badge: {
     position: "absolute",
-    top: -6,
-    right: -10,
-    backgroundColor: GOLD,
-    borderRadius: 999,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    minWidth: 16,
+    top: 4,
+    right: 2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
     alignItems: "center",
+    justifyContent: "center",
   },
-  notifBadgeText: {
-    color: NAVY,
-    fontWeight: "800",
-    fontSize: 11,
+  badgeText: { fontSize: 11, fontWeight: "700" },
+
+  statsRow: { flexDirection: "row", gap: 10, marginTop: 16 },
+  statTile: {
+    flex: 1,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    gap: 4,
   },
+  statValue: {
+    fontSize: 22,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
+  statLabel: { fontSize: 12 },
+
+  actionsRow: { flexDirection: "row", gap: 10, marginTop: 16 },
+  primaryButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  primaryLabel: { fontSize: 16, fontWeight: "700" },
+  secondaryButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  secondaryLabel: { fontSize: 16, fontWeight: "600" },
+
+  sectionTitle: { fontSize: 18, fontWeight: "700", marginTop: 28, marginBottom: 10 },
+
+  group: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
+  row: {
+    minHeight: 56,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  rowText: { flex: 1 },
+  rowTitle: { fontSize: 16, fontWeight: "600" },
+  rowSubtitle: { fontSize: 13, marginTop: 2 },
+
+  emptyCard: { borderRadius: 16, borderWidth: 1, padding: 16 },
+  emptyRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  emptyText: { fontSize: 14, lineHeight: 20, flexShrink: 1 },
+
+  monthGap: { marginTop: 14 },
+  monthHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
+  monthLabel: { fontSize: 13 },
+  monthValue: { fontSize: 14, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  track: { height: 8, borderRadius: 4, overflow: "hidden", marginTop: 6 },
+  fill: { height: "100%", borderRadius: 4 },
+
+  pressed: { opacity: 0.7 },
 });

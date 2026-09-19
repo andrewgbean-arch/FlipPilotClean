@@ -19,6 +19,9 @@ export interface Theme {
 
   success: string;
   danger: string;
+  warning: string;
+  // Borders on cards and rows: a faint line instead of a bright outline.
+  hairline: string;
   muted: string;
   secondary: string;
 
@@ -146,6 +149,8 @@ export const freeTheme: Theme = {
 
   success: "#4CAF50",
   danger: "#FF4D4D",
+  warning: "#FFB547",
+  hairline: "rgba(255, 255, 255, 0.08)",
   muted: "#9CA3AF",
   secondary: "#3C87F7",
 
@@ -209,6 +214,8 @@ export const proTheme: Theme = {
 
   success: "#4CAF50",
   danger: "#FF4D4D",
+  warning: "#FFB547",
+  hairline: "rgba(255, 255, 255, 0.08)",
   muted: "#A0A0A0",
   secondary: "#4FA3FF",
 
