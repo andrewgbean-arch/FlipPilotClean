@@ -22,6 +22,21 @@ export type MotLookup =
 
 const LOOKUP_TIMEOUT_MS = 20_000;
 
+// DVLA sends "FORD", "FIESTA", "BLUE". Show "Ford", "Fiesta", "Blue". Short
+// words stay in capitals (BMW, MG, GTI, TDI) when `keepShort` is set, which suits
+// makes and models but not colours.
+export function tidyName(value: unknown, keepShort = false): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^\s-]+/g, (word) =>
+      keepShort && word.length <= 3
+        ? word.toUpperCase()
+        : word.charAt(0).toUpperCase() + word.slice(1)
+    );
+}
+
 const GENERIC_ERROR =
   "Couldn't look up that registration. Check the number and your connection, then try again.";
 
@@ -59,10 +74,10 @@ export async function fetchMOT(reg: string): Promise<MotLookup> {
     return {
       data: {
         reg: plate,
-        make: v.make ?? null,
-        model: v.model ?? null,
+        make: tidyName(v.make, true),
+        model: tidyName(v.model, true),
         year: v.year ?? null,
-        colour: v.colour ?? null,
+        colour: tidyName(v.colour),
         mileage: v.mileage ?? null,
         expiry: v.motExpiry ?? null,
         motExpiry: v.motExpiry ?? null,

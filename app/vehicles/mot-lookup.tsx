@@ -22,6 +22,7 @@ import type { Icon as PhosphorIcon } from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/styles/ThemeContext";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
+import { tidyName } from "@/features/vehicles/api/mot";
 import { BASE_URL } from "@/utils/api";
 
 // One line of the "what you will see" list: an icon, a name and a short explanation.
@@ -94,17 +95,19 @@ export default function MotLookupScreen() {
       }
 
       const v = data.vehicle ?? {};
+      const make = tidyName(v.make, true);
+      const model = tidyName(v.model, true);
 
       const newVehicle = addVehicle({
-        title: `${v.make ?? ""} ${v.model ?? ""}`.trim() || plate,
+        title: `${make ?? ""} ${model ?? ""}`.trim() || plate,
         buyPrice: null,
         sellPrice: null,
         mot: {
           reg: plate,
-          make: v.make ?? null,
-          model: v.model ?? null,
+          make,
+          model,
           year: v.year ?? null,
-          colour: v.colour ?? null,
+          colour: tidyName(v.colour),
           taxStatus: v.taxStatus ?? null,
           motExpiry: v.motExpiry ?? null,
           expiryDate: v.motExpiry ?? null,
