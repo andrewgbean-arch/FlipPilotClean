@@ -13,6 +13,7 @@ import type { Icon as PhosphorIcon } from "phosphor-react-native";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
+import { formatMoney, formatSignedMoney } from "@/features/vehicles/utils/vehicleStats";
 import { useTheme } from "@/styles/ThemeContext";
 import { shareFlip } from "@/utils/share/shareFlip";
 
@@ -24,12 +25,20 @@ const HAIRLINE = "rgba(255, 255, 255, 0.08)";
 // prices at all.
 const hasOwnPrices = (f: FlipRecord) =>
   f.buyPrice != null || f.sellPrice != null || f.profit != null;
-export const getBuyPrice = (f: FlipRecord) =>
-  Number((hasOwnPrices(f) ? f.buyPrice : f.pricing?.recommendedBuyPrice) ?? 0);
-export const getSellPrice = (f: FlipRecord) =>
-  Number((hasOwnPrices(f) ? f.sellPrice : f.pricing?.recommendedSellPrice) ?? 0);
-export const getProfit = (f: FlipRecord) =>
-  Number((hasOwnPrices(f) ? f.profit : f.pricing?.predictedProfit) ?? 0);
+const rawBuy = (f: FlipRecord) => (hasOwnPrices(f) ? f.buyPrice : f.pricing?.recommendedBuyPrice);
+const rawSell = (f: FlipRecord) =>
+  hasOwnPrices(f) ? f.sellPrice : f.pricing?.recommendedSellPrice;
+const rawProfit = (f: FlipRecord) => (hasOwnPrices(f) ? f.profit : f.pricing?.predictedProfit);
+
+export const getBuyPrice = (f: FlipRecord) => Number(rawBuy(f) ?? 0);
+export const getSellPrice = (f: FlipRecord) => Number(rawSell(f) ?? 0);
+export const getProfit = (f: FlipRecord) => Number(rawProfit(f) ?? 0);
+
+// getProfit counts a missing figure as 0 so totals still add up. These say
+// whether there was a real figure, so a card can show "-" instead of £0.00.
+export const hasBuyPrice = (f: FlipRecord) => rawBuy(f) != null;
+export const hasSellPrice = (f: FlipRecord) => rawSell(f) != null;
+export const hasProfit = (f: FlipRecord) => rawProfit(f) != null;
 
 // Small icon + text pill used for the facts on a flip card.
 const MetaChip = ({
@@ -77,7 +86,9 @@ export default function FlipCard({ item, onOpen, onToggleFavourite, onDelete }: 
   const buy = getBuyPrice(item);
   const sell = getSellPrice(item);
   const profit = getProfit(item);
-  const roi = buy > 0 ? (profit / buy) * 100 : 0;
+  const profitKnown = hasProfit(item);
+  const roiKnown = profitKnown && buy > 0;
+  const roi = roiKnown ? (profit / buy) * 100 : 0;
   const roiColor = roi > 50 ? theme.success : roi > 0 ? theme.gold : theme.danger;
 
   const thumb =
@@ -85,8 +96,8 @@ export default function FlipCard({ item, onOpen, onToggleFavourite, onDelete }: 
       ? item.images[0]
       : null;
 
-  const profitColor = profit >= 0 ? theme.success : theme.danger;
-  const profitText = `${profit >= 0 ? "+" : "-"}£${Math.abs(profit).toFixed(2)}`;
+  const profitColor = !profitKnown ? theme.muted : profit >= 0 ? theme.success : theme.danger;
+  const profitText = profitKnown ? formatSignedMoney(profit) : "-";
 
   const share = () =>
     shareFlip({
@@ -110,7 +121,11 @@ export default function FlipCard({ item, onOpen, onToggleFavourite, onDelete }: 
       <Pressable
         onPress={onOpen}
         accessibilityRole="button"
-        accessibilityLabel={`${item.title}, ${profit >= 0 ? "profit" : "loss"} of £${Math.abs(profit).toFixed(2)}. Open details`}
+        accessibilityLabel={
+          profitKnown
+            ? `${item.title}, ${profit >= 0 ? "profit" : "loss"} of ${formatMoney(Math.abs(profit))}. Open details`
+            : `${item.title}. Open details`
+        }
         style={({ pressed }) => pressed && styles.pressed}
       >
         <View style={styles.top}>
@@ -130,8 +145,11 @@ export default function FlipCard({ item, onOpen, onToggleFavourite, onDelete }: 
             </Text>
             <Text style={[styles.profit, { color: profitColor }]}>{profitText}</Text>
             <Text style={[styles.summary, { color: theme.muted }]} numberOfLines={1}>
-              Buy £{buy.toFixed(2)} · Sell £{sell.toFixed(2)} ·{" "}
-              <Text style={{ color: roiColor }}>ROI {roi.toFixed(0)}%</Text>
+              Buy {hasBuyPrice(item) ? formatMoney(buy) : "-"} · Sell{" "}
+              {hasSellPrice(item) ? formatMoney(sell) : "-"} ·{" "}
+              <Text style={{ color: roiKnown ? roiColor : theme.muted }}>
+                ROI {roiKnown ? `${roi.toFixed(0)}%` : "-"}
+              </Text>
             </Text>
           </View>
         </View>

@@ -1,3 +1,4 @@
+import * as Haptics from "expo-haptics";
 import { Tabs } from "expo-router";
 
 import {
@@ -43,6 +44,12 @@ export default function TabsLayout() {
   return (
     <Tabs
       initialRouteName="home"
+      // A light tick when switching tabs, like a native tab bar.
+      screenListeners={{
+        tabPress: () => {
+          Haptics.selectionAsync().catch(() => {});
+        },
+      }}
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: true,

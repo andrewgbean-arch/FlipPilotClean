@@ -23,15 +23,14 @@ import {
   Car,
   Stack,
   Star,
-  Storefront,
   Tent,
 } from "phosphor-react-native";
 import type { Icon as PhosphorIcon } from "phosphor-react-native";
 import { useTheme } from "@/styles/useTheme";
 
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
-import { getProfit } from "@/components/FlipCard";
-import { formatMoney } from "@/features/vehicles/utils/vehicleStats";
+import { getProfit, hasProfit } from "@/components/FlipCard";
+import { formatMoney, formatSignedMoney } from "@/features/vehicles/utils/vehicleStats";
 import WeatherCard from "@/components/WeatherCard";
 import FeedbackSheet from "@/components/sheets/FeedbackSheet";
 
@@ -39,7 +38,6 @@ const TOOLS: { key: string; label: string; Icon: PhosphorIcon; route: string; ti
   { key: "scan", label: "AI Scan", Icon: Camera, route: "/scan", tint: "#FFD700" },
   { key: "barcode", label: "Barcode Lookup", Icon: Barcode, route: "/scan", tint: "#4FA3FF" },
   { key: "flips", label: "Your Flips", Icon: Stack, route: "/history", tint: "#4CAF50" },
-  { key: "market", label: "Marketplace", Icon: Storefront, route: "/marketplace", tint: "#FF9F43" },
   { key: "vehicles", label: "Vehicles Hub", Icon: Car, route: "/vehicles", tint: "#B78CFF" },
 ];
 
@@ -49,8 +47,6 @@ const INSIGHTS: { key: string; title: string; meta: string; Icon: PhosphorIcon; 
   { key: "reviews", title: "Reviews", meta: "Rate FlipPilot", Icon: Star, route: "/rate" },
 ];
 
-const signedMoney = (value: number) =>
-  `${value >= 0 ? "+" : "-"}£${Math.abs(value).toFixed(2)}`;
 
 function StatBlock({
   Icon,
@@ -149,6 +145,7 @@ export default function HomeScreen() {
 
   const latestFlip = flips[0] ?? null;
   const latestProfit = latestFlip ? getProfit(latestFlip) : 0;
+  const latestProfitKnown = latestFlip ? hasProfit(latestFlip) : false;
   const profitColor =
     stats.totalProfit > 0 ? theme.success : stats.totalProfit < 0 ? theme.danger : theme.text;
 
@@ -220,7 +217,11 @@ export default function HomeScreen() {
             <View style={[styles.latestCard, card]}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`${latestFlip.title}, ${latestProfit >= 0 ? "profit" : "loss"} of £${Math.abs(latestProfit).toFixed(2)}. Open details`}
+                accessibilityLabel={
+                  latestProfitKnown
+                    ? `${latestFlip.title}, ${latestProfit >= 0 ? "profit" : "loss"} of ${formatMoney(Math.abs(latestProfit))}. Open details`
+                    : `${latestFlip.title}. Open details`
+                }
                 style={({ pressed }) => [styles.latestMain, pressed && styles.pressed]}
                 onPress={() => router.push(`/flip/${latestFlip.id}`)}
               >
@@ -231,10 +232,16 @@ export default function HomeScreen() {
                   <Text
                     style={[
                       styles.latestProfit,
-                      { color: latestProfit >= 0 ? theme.success : theme.danger },
+                      {
+                        color: !latestProfitKnown
+                          ? theme.muted
+                          : latestProfit >= 0
+                          ? theme.success
+                          : theme.danger,
+                      },
                     ]}
                   >
-                    {signedMoney(latestProfit)}
+                    {latestProfitKnown ? formatSignedMoney(latestProfit) : "-"}
                   </Text>
                   <Text style={[styles.latestMeta, { color: theme.muted }]}>
                     Score {latestFlip.flipScore ?? "-"}/100

@@ -1,5 +1,5 @@
-import { Feather } from "@expo/vector-icons";
 import { Stack, router } from "expo-router";
+import { Compass } from "phosphor-react-native";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useTheme } from "@/styles/useTheme";
@@ -11,8 +11,8 @@ export default function NotFoundScreen() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.container, { backgroundColor: theme.background }]}>
-        <View style={[styles.iconWrap, { backgroundColor: theme.card, borderColor: theme.goldSoftGlow }]}>
-          <Feather name="compass" size={32} color={theme.gold} />
+        <View style={[styles.iconWrap, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
+          <Compass size={32} color={theme.gold} />
         </View>
 
         <Text style={[styles.title, { color: theme.text }]}>Page not found</Text>
@@ -51,7 +51,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 22,
-    fontWeight: "800",
+    fontWeight: "700",
     textAlign: "center",
   },
   body: {
@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: "700",
   },
   pressed: {
     opacity: 0.75,

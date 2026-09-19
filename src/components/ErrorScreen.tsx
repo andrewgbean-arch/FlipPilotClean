@@ -1,5 +1,5 @@
-import { Feather } from "@expo/vector-icons";
 import { router, type ErrorBoundaryProps } from "expo-router";
+import { WarningCircle } from "phosphor-react-native";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { freeTheme as theme } from "@/styles/theme";
@@ -15,7 +15,7 @@ export function RouteErrorScreen({ error, retry }: ErrorBoundaryProps) {
   return (
     <View style={styles.container}>
       <View style={styles.iconWrap}>
-        <Feather name="alert-triangle" size={32} color={theme.gold} />
+        <WarningCircle size={32} color={theme.gold} />
       </View>
 
       <Text style={styles.title}>Something went wrong</Text>
@@ -66,13 +66,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: theme.card,
     borderWidth: 1,
-    borderColor: theme.goldSoftGlow,
+    borderColor: theme.hairline,
     marginBottom: 20,
   },
   title: {
     color: theme.text,
     fontSize: 22,
-    fontWeight: "800",
+    fontWeight: "700",
     textAlign: "center",
   },
   body: {
@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
   primaryText: {
     color: theme.black,
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: "700",
   },
   secondary: {
     minWidth: 220,

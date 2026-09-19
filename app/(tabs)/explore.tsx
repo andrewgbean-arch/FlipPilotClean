@@ -13,7 +13,7 @@ import {
   AirplaneTilt,
   Barcode,
   CaretRight,
-  ChartLineUp,
+  ClipboardText,
   ClockCounterClockwise,
   CurrencyGbp,
   FloppyDisk,
@@ -217,10 +217,10 @@ const QUICK_ACCESS: QuickAccessItem[] = [
     Icon: Storefront,
   },
   {
-    title: "Market Tools",
-    desc: "Real resale value & trends",
-    href: "/marketplace",
-    Icon: ChartLineUp,
+    title: "MOT Checker",
+    desc: "Look up any UK vehicle",
+    href: "/vehicles/mot-lookup",
+    Icon: ClipboardText,
   },
 ];
 

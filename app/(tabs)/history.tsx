@@ -20,6 +20,7 @@ import { useTheme } from "@/styles/ThemeContext";
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import FlipCard, { getBuyPrice, getProfit, getSellPrice } from "@/components/FlipCard";
+import { formatMoney, formatSignedMoney } from "@/features/vehicles/utils/vehicleStats";
 
 // Ids are uuids, so recency has to come from the timestamp.
 const savedAt = (f: FlipRecord) => Date.parse(f.timestamp) || 0;
@@ -427,15 +428,8 @@ export default function HistoryScreen() {
         }
         ListHeaderComponent={
           <>
-      {/* DIVIDER */}
-      <View
-        style={{
-          height: 2,
-          backgroundColor: theme.goldDeep,
-          marginVertical: 12,
-          opacity: 0.4,
-        }}
-      />
+      {/* SPACER */}
+      <View style={{ height: 12 }} />
 
       {/* STATS */}
       <View style={styles.statsRow}>
@@ -454,8 +448,11 @@ export default function HistoryScreen() {
               textVariants.h3,
               { color: theme.text, textAlign: "center" },
             ]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.6}
           >
-            £{totalProfit.toFixed(2)}
+            {formatMoney(totalProfit)}
           </Text>
           <Text
             style={[
@@ -463,7 +460,7 @@ export default function HistoryScreen() {
               { color: theme.muted, textAlign: "center" },
             ]}
           >
-            Profit
+            Total profit
           </Text>
         </View>
 
@@ -491,7 +488,7 @@ export default function HistoryScreen() {
               { color: theme.muted, textAlign: "center" },
             ]}
           >
-            Items
+            Flips
           </Text>
         </View>
 
@@ -510,8 +507,11 @@ export default function HistoryScreen() {
               textVariants.h3,
               { color: theme.text, textAlign: "center" },
             ]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.6}
           >
-            £{avgProfit.toFixed(2)}
+            {formatMoney(avgProfit)}
           </Text>
           <Text
             style={[
@@ -519,7 +519,7 @@ export default function HistoryScreen() {
               { color: theme.muted, textAlign: "center" },
             ]}
           >
-            Avg
+            Avg profit
           </Text>
         </View>
       </View>
@@ -566,14 +566,14 @@ export default function HistoryScreen() {
               { color: theme.muted, marginTop: 4 },
             ]}
           >
-            £{getProfit(bestFlip).toFixed(2)} •{" "}
+            {formatSignedMoney(getProfit(bestFlip))}
             {(() => {
               const safeBuy = getBuyPrice(bestFlip);
               const safeProfit = getProfit(bestFlip);
-              const roi = safeBuy > 0 ? (safeProfit / safeBuy) * 100 : 0;
-              return roi.toFixed(0);
+              return safeBuy > 0
+                ? ` · ROI ${((safeProfit / safeBuy) * 100).toFixed(0)}%`
+                : "";
             })()}
-            %
           </Text>
         </AnimatedPressable>
       )}
@@ -680,7 +680,7 @@ export default function HistoryScreen() {
                 onPress={() => deleteFlipHard(confirmDelete)}
               >
                 <Text
-                  style={{ color: theme.white, fontWeight: "900" }}
+                  style={{ color: theme.white, fontWeight: "700" }}
                 >
                   Delete
                 </Text>
@@ -753,7 +753,7 @@ export default function HistoryScreen() {
                 onPress={clearAllFlips}
               >
                 <Text
-                  style={{ color: theme.white, fontWeight: "900" }}
+                  style={{ color: theme.white, fontWeight: "700" }}
                 >
                   Clear
                 </Text>
