@@ -1,11 +1,18 @@
-import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
-
-import type { FlipRecord } from "@/features/vehicles/models/FlipRecord";
-
-
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ArrowLeft,
+  CheckCircle,
+  MagnifyingGlassPlus,
+  MapPin,
+  Package,
+  ShareNetwork,
+  Sparkle,
+  WarningCircle,
+  X,
+} from "phosphor-react-native";
+import type { Icon as PhosphorIcon } from "phosphor-react-native";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -13,36 +20,160 @@ import {
   Modal,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
+import type { FlipRecord } from "@/features/vehicles/models/FlipRecord";
+import { useTheme } from "@/styles/ThemeContext";
 import { shareFlip } from "@/utils/share/shareFlip";
 
-/* THEME */
-const NAVY = "#0A1128";
-const GOLD = "#FFD700";
-const SLATE = "#1a2440";
-const ELECTRIC_BLUE = "#1e90ff";
-const RED = "#FF5252";
-const GREEN = "#00E676";
-const SILVER = "#AAB4C3";
+// Scrims that sit over a photo; the theme has no translucent black.
+const SCRIM = "rgba(0, 0, 0, 0.6)";
+const LIGHTBOX = "rgba(0, 0, 0, 0.92)";
+const LIGHTBOX_CLOSE = "rgba(255, 255, 255, 0.14)";
 
 /* HELPERS */
-const formatMoney = (n: number | null | undefined) =>
-  n == null ? "-" : "£" + Number(n).toFixed(2);
-
-const getRoiColor = (roi: number | null | undefined) => {
-  const value = roi ?? 0;
-  if (value <= 0) return RED;
-  if (value < 30) return SILVER;
-  return GREEN;
+const toNumber = (n: number | null | undefined) => {
+  if (n == null) return null;
+  const v = Number(n);
+  return Number.isFinite(v) ? v : null;
 };
 
+// "£12.50", "-£3.00" for a negative, "-" when there is no value.
+const formatMoney = (n: number | null | undefined) => {
+  const v = toNumber(n);
+  if (v == null) return "-";
+  return `${v < 0 ? "-" : ""}£${Math.abs(v).toFixed(2)}`;
+};
+
+// Profit and loss always carry a sign: "+£12.50" / "-£3.00".
+const formatSigned = (n: number | null | undefined) => {
+  const v = toNumber(n);
+  if (v == null) return "-";
+  return `${v >= 0 ? "+" : "-"}£${Math.abs(v).toFixed(2)}`;
+};
+
+/* SMALL LOCAL COMPONENTS */
+function SectionTitle({ children }: { children: string }) {
+  const theme = useTheme();
+
+  return (
+    <Text style={[styles.sectionTitle, { color: theme.text }]} accessibilityRole="header">
+      {children}
+    </Text>
+  );
+}
+
+// A card that holds rows and blocks; the rows inside are split by hairlines.
+function Group({ children }: { children: React.ReactNode }) {
+  const theme = useTheme();
+
+  return (
+    <View style={[styles.group, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
+      {children}
+    </View>
+  );
+}
+
+function DataRow({
+  label,
+  value,
+  valueColor,
+  strong,
+  divider,
+}: {
+  label: string;
+  value: string;
+  valueColor?: string;
+  strong?: boolean;
+  divider?: boolean;
+}) {
+  const theme = useTheme();
+
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${label}: ${value}`}
+      style={[styles.dataRow, divider && { borderTopWidth: 1, borderTopColor: theme.hairline }]}
+    >
+      <Text style={[styles.dataLabel, { color: theme.muted }]}>{label}</Text>
+      <Text
+        style={[
+          styles.dataValue,
+          strong && styles.dataValueStrong,
+          { color: valueColor ?? theme.text },
+        ]}
+      >
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+// Free text inside a group, with an optional small heading above it.
+function TextBlock({
+  text,
+  muted,
+  label,
+  divider,
+}: {
+  text: string;
+  muted?: boolean;
+  label?: string;
+  divider?: boolean;
+}) {
+  const theme = useTheme();
+
+  return (
+    <View style={[styles.textBlock, divider && { borderTopWidth: 1, borderTopColor: theme.hairline }]}>
+      {label ? <Text style={[styles.textBlockLabel, { color: theme.muted }]}>{label}</Text> : null}
+      <Text style={[styles.textBlockText, { color: muted ? theme.muted : theme.text }]}>{text}</Text>
+    </View>
+  );
+}
+
+function Chip({ Icon, label }: { Icon: PhosphorIcon; label: string }) {
+  const theme = useTheme();
+
+  return (
+    <View style={[styles.chip, { backgroundColor: theme.background }]}>
+      <Icon size={14} color={theme.muted} />
+      <Text style={[styles.chipText, { color: theme.text }]} numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+// Lowest-to-highest price track with a marker where the average sits.
+function RangeBar({ position }: { position: number | null }) {
+  const theme = useTheme();
+
+  return (
+    <View style={styles.rangeWrap}>
+      <View style={[styles.rangeTrack, { backgroundColor: theme.background }]} />
+      {position != null ? (
+        <View
+          style={[
+            styles.rangeMarker,
+            {
+              left: `${position * 100}%`,
+              backgroundColor: theme.text,
+              borderColor: theme.card,
+            },
+          ]}
+        />
+      ) : null}
+    </View>
+  );
+}
+
 export default function FlipDetails() {
+  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { vehicles: flips, loaded, loadError } = useVehicleHistory();
 
@@ -58,22 +189,13 @@ export default function FlipDetails() {
   const [imageModalVisible, setImageModalVisible] = useState(false);
 
   const heroFade = useRef(new Animated.Value(0)).current;
-  const heroTranslate = useRef(new Animated.Value(40)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(heroFade, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.spring(heroTranslate, {
-        toValue: 0,
-        useNativeDriver: true,
-        speed: 1,
-        bounciness: 12,
-      }),
-    ]).start();
+    Animated.timing(heroFade, {
+      toValue: 1,
+      duration: 250,
+      useNativeDriver: true,
+    }).start();
   }, []);
 
   const showSavedToast = () => {
@@ -101,24 +223,42 @@ export default function FlipDetails() {
     // before that has finished.
     if (!loaded) {
       return (
-        <View style={[styles.container, styles.center]}>
-          <ActivityIndicator size="large" color={GOLD} />
+        <View style={[styles.container, styles.center, { backgroundColor: theme.background }]}>
+          <ActivityIndicator size="large" color={theme.muted} />
+          <Text style={[styles.stateBody, { color: theme.muted }]}>Loading your saved flip</Text>
         </View>
       );
     }
 
     return (
-      <View style={[styles.container, styles.center]}>
-        <Text style={styles.notFoundTitle}>Flip not found</Text>
-        <Text style={styles.notFoundBody}>
+      <View style={[styles.container, styles.center, { backgroundColor: theme.background }]}>
+        <View
+          style={[styles.stateIcon, { backgroundColor: theme.card, borderColor: theme.hairline }]}
+        >
+          {loadError ? (
+            <WarningCircle size={30} color={theme.warning} />
+          ) : (
+            <Package size={30} color={theme.muted} />
+          )}
+        </View>
+        <Text style={[styles.stateTitle, { color: theme.text }]} accessibilityRole="header">
+          {loadError ? "Couldn't load your flips" : "Flip not found"}
+        </Text>
+        <Text style={[styles.stateBody, { color: theme.muted }]}>
           {loadError ?? "It may have been deleted from your history."}
         </Text>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Back to History"
+          style={({ pressed }) => [
+            styles.primaryButton,
+            styles.stateButton,
+            { backgroundColor: theme.gold },
+            pressed && styles.pressed,
+          ]}
           onPress={() => router.replace("/history")}
         >
-          <Text style={{ color: GOLD, fontSize: 16 }}>Back to History</Text>
+          <Text style={[styles.primaryLabel, { color: theme.black }]}>Back to History</Text>
         </Pressable>
       </View>
     );
@@ -129,7 +269,6 @@ export default function FlipDetails() {
   ============================ */
   const {
     title,
-    favourite,
     ai,
     pricing,
     flipScore,
@@ -139,6 +278,8 @@ export default function FlipDetails() {
     insights,
     images,
   } = flip;
+
+  const photo = images?.[0] ? images[0] : null;
 
   const origin = ai?.origin ?? null;
   const description = ai?.description ?? null;
@@ -184,9 +325,79 @@ export default function FlipDetails() {
       ? Math.round((profit / buyPrice) * 100)
       : null;
 
-  const roiColor = getRoiColor(effectiveRoi);
+  /* DISPLAY VALUES */
+  const profitValue = toNumber(profit);
+  const profitColor =
+    profitValue == null ? theme.muted : profitValue >= 0 ? theme.success : theme.danger;
+  const profitLabel =
+    profitValue == null
+      ? "Profit not available"
+      : `${profitValue >= 0 ? "Profit" : "Loss"} of £${Math.abs(profitValue).toFixed(2)}`;
 
-  const onFakeSave = () => {
+  const roiText =
+    effectiveRoi == null ? "-" : `${effectiveRoi > 0 ? "+" : ""}${effectiveRoi}%`;
+  const roiColor =
+    effectiveRoi == null
+      ? theme.muted
+      : effectiveRoi < 0
+      ? theme.danger
+      : effectiveRoi >= 30
+      ? theme.success
+      : theme.text;
+
+  const scoreValue = toNumber(flipScore);
+  const scorePercent = scoreValue == null ? 0 : Math.min(100, Math.max(0, scoreValue));
+  const scoreRows = (
+    [
+      ["Potential", flipPotential],
+      ["Sell speed", sellSpeed],
+      ["Rarity", rarity],
+    ] as [string, string | null | undefined][]
+  ).filter((row): row is [string, string] => !!row[1]);
+  const showScore = flipScore != null || scoreRows.length > 0;
+
+  const showSmartPricing =
+    smartPrice != null ||
+    buyPrice != null ||
+    sellPrice != null ||
+    profit != null ||
+    aiPriceConfidence != null;
+
+  // Where the average sits between the lowest and highest price.
+  const lowestValue = toNumber(lowest);
+  const highestValue = toNumber(highest);
+  const averageValue = toNumber(average);
+  const averagePosition =
+    lowestValue != null &&
+    highestValue != null &&
+    averageValue != null &&
+    highestValue > lowestValue
+      ? Math.min(1, Math.max(0, (averageValue - lowestValue) / (highestValue - lowestValue)))
+      : null;
+  const hasRange = lowest != null || highest != null || average != null;
+
+  const marketRows: { label: string; value: string }[] = [];
+  if (googlePriceMin != null || googlePriceMax != null) {
+    marketRows.push({
+      label: "Google price range",
+      value: `${formatMoney(googlePriceMin)} – ${formatMoney(googlePriceMax)}`,
+    });
+  }
+  if (soldCount != null) {
+    marketRows.push({ label: "Sold count", value: String(soldCount) });
+  }
+  if (demandScore != null) {
+    marketRows.push({ label: "Demand score", value: `${demandScore}%` });
+  }
+  if (aiPriceMin != null && aiPriceMax != null) {
+    marketRows.push({
+      label: "AI price range",
+      value: `${formatMoney(aiPriceMin)} – ${formatMoney(aiPriceMax)}`,
+    });
+  }
+
+  // The flip is already stored in History; this only confirms that to the user.
+  const onConfirmSaved = () => {
     if (saving) return;
     setSaving(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -194,9 +405,10 @@ export default function FlipDetails() {
     setTimeout(() => setSaving(false), 400);
   };
 
-  // null confidence/origin/ROI are left out of the shared text rather than
-  // printed as "0%" / "Unknown".
-  const shareText = () => {
+  // Opens the share sheet with a text summary of the flip. Null
+  // confidence/origin/ROI are left out of the shared text rather than printed
+  // as "0%" / "Unknown".
+  const shareSummary = () => {
     shareFlip({
       title,
       buyPrice: buyPrice ?? 0,
@@ -232,335 +444,347 @@ export default function FlipDetails() {
      RENDER
   ============================ */
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: insets.bottom + 160 }}
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
         {/* HERO */}
-        <Animated.View
-          style={{
-            opacity: heroFade,
-            transform: [{ translateY: heroTranslate }],
-            paddingTop: insets.top + 10,
-          }}
-        >
-          <View style={styles.heroCard}>
-            <View style={styles.heroImageWrapper}>
-              <Pressable
-                style={styles.noImageBox}
-                disabled={!images?.[0]}
-                onPress={() => setImageModalVisible(true)}
-              >
-                {images?.[0] ? (
-                  <Image
-                    source={{ uri: images[0] }}
-                    style={{ width: "100%", height: "100%" }}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <Text style={styles.noImageText}>No Image</Text>
-                )}
-              </Pressable>
-            </View>
-
-            <Text style={styles.heroTitle}>{title}</Text>
-
-            <View style={styles.badgeRow}>
-              {origin && <Text style={styles.badge}>Origin: {origin}</Text>}
-              {confidence != null && (
-                <Text style={styles.badgeBlue}>
-                  Confidence: {confidence.toFixed(0)}%
-                </Text>
+        <Animated.View style={{ opacity: heroFade }}>
+          <View style={[styles.heroCard, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
+            <View style={styles.heroRow}>
+              {photo ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="View photo full size"
+                  style={({ pressed }) => [styles.heroThumb, pressed && styles.pressed]}
+                  onPress={() => setImageModalVisible(true)}
+                >
+                  <Image source={{ uri: photo }} style={styles.heroImage} resizeMode="cover" />
+                  <View style={[styles.zoomBadge, { backgroundColor: SCRIM }]}>
+                    <MagnifyingGlassPlus size={14} color={theme.white} />
+                  </View>
+                </Pressable>
+              ) : (
+                <View
+                  accessibilityLabel="No photo saved"
+                  style={[styles.heroThumb, styles.heroPlaceholder, { backgroundColor: theme.background }]}
+                >
+                  <Package size={32} color={theme.muted} />
+                </View>
               )}
-              {/* barcode removed */}
+
+              <View style={styles.heroText}>
+                <Text
+                  style={[styles.heroTitle, { color: theme.text }]}
+                  accessibilityRole="header"
+                >
+                  {title}
+                </Text>
+                <Text style={[styles.heroDate, { color: theme.muted }]}>{prettyDate}</Text>
+              </View>
             </View>
 
-            <Text style={styles.dateText}>{prettyDate}</Text>
+            {origin || confidence != null ? (
+              <View style={styles.chips}>
+                {origin ? <Chip Icon={MapPin} label={`Origin: ${origin}`} /> : null}
+                {confidence != null ? (
+                  <Chip Icon={Sparkle} label={`Confidence: ${confidence.toFixed(0)}%`} />
+                ) : null}
+              </View>
+            ) : null}
           </View>
         </Animated.View>
 
         {/* PROFIT SUMMARY */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Profit Summary</Text>
+        <View style={[styles.summaryCard, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
+          <View style={styles.summaryTop}>
+            <View accessible accessibilityLabel={profitLabel} style={styles.summaryMain}>
+              <Text style={[styles.smallLabel, { color: theme.muted }]}>Profit</Text>
+              <Text
+                style={[styles.profitFigure, { color: profitColor }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                {formatSigned(profit)}
+              </Text>
+            </View>
 
-          <View style={styles.row}>
-            <Text style={styles.cardLabel}>Buy</Text>
-            <Text style={styles.cardValue}>{formatMoney(buyPrice)}</Text>
-          </View>
-
-          <View style={styles.row}>
-            <Text style={styles.cardLabel}>Sell</Text>
-            <Text style={styles.cardValue}>{formatMoney(sellPrice)}</Text>
-          </View>
-
-          <View style={styles.row}>
-            <Text style={styles.cardLabel}>Profit</Text>
-            <Text
-              style={[
-                styles.cardValue,
-                { color: (profit ?? 0) >= 0 ? GREEN : RED },
-              ]}
+            <View
+              accessible
+              accessibilityLabel={
+                effectiveRoi != null
+                  ? `Return on investment ${effectiveRoi} percent`
+                  : "Return on investment not available"
+              }
+              style={styles.summaryRoi}
             >
-              {formatMoney(profit)}
-            </Text>
+              <Text style={[styles.smallLabel, { color: theme.muted }]}>ROI</Text>
+              <Text style={[styles.roiFigure, { color: roiColor }]}>{roiText}</Text>
+            </View>
           </View>
 
-          <View style={styles.row}>
-            <Text style={styles.cardLabel}>ROI</Text>
-            <Text style={[styles.cardValue, { color: roiColor }]}>
-              {effectiveRoi != null ? `${effectiveRoi}%` : "-"}
-            </Text>
-          </View>
+          <DataRow label="Buy" value={formatMoney(buyPrice)} divider />
+          <DataRow label="Sell" value={formatMoney(sellPrice)} divider />
         </View>
 
         {/* FLIP SCORE */}
-        {(flipScore != null || flipPotential || sellSpeed || rarity) && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Flip Score</Text>
+        {showScore ? (
+          <>
+            <SectionTitle>Flip score</SectionTitle>
+            <Group>
+              {flipScore != null ? (
+                <View
+                  accessible
+                  accessibilityLabel={`Flip score ${flipScore} out of 100`}
+                  style={styles.scoreBlock}
+                >
+                  <View style={styles.scoreHeader}>
+                    <Text style={[styles.scoreNumber, { color: theme.text }]}>
+                      {String(flipScore)}
+                    </Text>
+                    <Text style={[styles.scoreMax, { color: theme.muted }]}>/ 100</Text>
+                  </View>
+                  <View style={[styles.scoreTrack, { backgroundColor: theme.background }]}>
+                    <View
+                      style={[
+                        styles.scoreFill,
+                        {
+                          width: `${scorePercent}%`,
+                          // The same bands as the scan result screen.
+                          backgroundColor:
+                            scorePercent >= 70
+                              ? theme.success
+                              : scorePercent >= 40
+                              ? theme.warning
+                              : theme.danger,
+                        },
+                      ]}
+                    />
+                  </View>
+                </View>
+              ) : null}
 
-            <View style={styles.flipScoreRow}>
-              <View style={styles.flipScoreCircle}>
-                <Text style={styles.flipScoreNumber}>
-                  {flipScore != null ? flipScore : "?"}
-                </Text>
-                <Text style={styles.flipScoreMax}>/100</Text>
-              </View>
-
-              <View style={styles.flipScoreMeta}>
-                {flipPotential && (
-                  <Text style={styles.flipScoreTag}>
-                    Potential: {flipPotential}
-                  </Text>
-                )}
-                {sellSpeed && (
-                  <Text style={styles.flipScoreTag}>
-                    Sell Speed: {sellSpeed}
-                  </Text>
-                )}
-                {rarity && (
-                  <Text style={styles.flipScoreTag}>Rarity: {rarity}</Text>
-                )}
-                {insights && (
-                  <Text style={styles.flipScoreInsight}>{insights}</Text>
-                )}
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* MARKET TREND */}
-        {(lowest != null || highest != null || average != null) && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Market Trend</Text>
-
-            <View style={styles.trendLine}>
-              <View style={styles.trendTrack} />
-
-              <View style={[styles.trendDot, { left: "10%" }]} />
-              <View style={[styles.trendDot, { left: "50%" }]} />
-              <View style={[styles.trendDot, { left: "90%" }]} />
-            </View>
-
-            <View style={styles.trendLabelsRow}>
-              <View style={styles.trendLabelBlock}>
-                <Text style={styles.trendLabelTitle}>Lowest</Text>
-                <Text style={styles.trendLabelValue}>
-                  {formatMoney(lowest)}
-                </Text>
-              </View>
-              <View style={styles.trendLabelBlock}>
-                <Text style={styles.trendLabelTitle}>Average</Text>
-                <Text style={styles.trendLabelValue}>
-                  {formatMoney(average)}
-                </Text>
-              </View>
-              <View style={styles.trendLabelBlock}>
-                <Text style={styles.trendLabelTitle}>Highest</Text>
-                <Text style={styles.trendLabelValue}>
-                  {formatMoney(highest)}
-                </Text>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* SMART PRICING */}
-        {(smartPrice != null ||
-          buyPrice != null ||
-          sellPrice != null ||
-          profit != null ||
-          aiPriceConfidence != null) && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Smart Pricing</Text>
-
-            <View style={styles.row}>
-              <Text style={styles.cardLabel}>Recommended Buy</Text>
-              <Text style={styles.cardValue}>{formatMoney(buyPrice)}</Text>
-            </View>
-
-            <View style={styles.row}>
-              <Text style={styles.cardLabel}>Recommended Sell</Text>
-              <Text style={styles.cardValue}>{formatMoney(sellPrice)}</Text>
-            </View>
-
-            <View style={styles.row}>
-              <Text style={styles.cardLabel}>Predicted Profit</Text>
-              <Text style={styles.cardValue}>{formatMoney(profit)}</Text>
-            </View>
-
-            {smartPrice != null && (
-              <Text style={styles.smartHighlight}>
-                Smart Price: {formatMoney(smartPrice)}
-              </Text>
-            )}
-
-            {aiPriceConfidence != null && (
-              <Text style={styles.cardLine}>
-                AI Confidence: {aiPriceConfidence}%
-              </Text>
-            )}
-          </View>
-        )}
+              {scoreRows.map(([label, value], i) => (
+                <DataRow
+                  key={label}
+                  label={label}
+                  value={String(value)}
+                  divider={i > 0 || flipScore != null}
+                />
+              ))}
+            </Group>
+          </>
+        ) : null}
 
         {/* AI INSIGHTS */}
-        {insights && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>AI Insights</Text>
-            <Text style={styles.cardLine}>{insights}</Text>
-          </View>
-        )}
+        {insights ? (
+          <>
+            <SectionTitle>AI insights</SectionTitle>
+            <Group>
+              <TextBlock text={insights} />
+            </Group>
+          </>
+        ) : null}
+
+        {/* SMART PRICING */}
+        {showSmartPricing ? (
+          <>
+            <SectionTitle>Smart pricing</SectionTitle>
+            <Group>
+              <DataRow label="Recommended buy" value={formatMoney(buyPrice)} />
+              <DataRow label="Recommended sell" value={formatMoney(sellPrice)} divider />
+              <DataRow
+                label="Predicted profit"
+                value={formatSigned(profit)}
+                valueColor={profitColor}
+                divider
+              />
+              {smartPrice != null ? (
+                <DataRow label="Smart price" value={formatMoney(smartPrice)} strong divider />
+              ) : null}
+              {aiPriceConfidence != null ? (
+                <DataRow label="AI confidence" value={`${aiPriceConfidence}%`} divider />
+              ) : null}
+            </Group>
+          </>
+        ) : null}
+
+        {/* MARKET */}
+        <SectionTitle>Market</SectionTitle>
+        <Group>
+          {hasRange ? (
+            <View
+              accessible
+              accessibilityLabel={`Market prices. Lowest ${formatMoney(lowest)}, average ${formatMoney(
+                average
+              )}, highest ${formatMoney(highest)}`}
+              style={styles.rangeBlock}
+            >
+              <RangeBar position={averagePosition} />
+              <View style={styles.rangeLabels}>
+                <View style={styles.rangeColStart}>
+                  <Text style={[styles.rangeLabel, { color: theme.muted }]}>Lowest</Text>
+                  <Text style={[styles.rangeValue, { color: theme.text }]}>
+                    {formatMoney(lowest)}
+                  </Text>
+                </View>
+                <View style={styles.rangeColMid}>
+                  <Text style={[styles.rangeLabel, { color: theme.muted }]}>Average</Text>
+                  <Text style={[styles.rangeValue, { color: theme.text }]}>
+                    {formatMoney(average)}
+                  </Text>
+                </View>
+                <View style={styles.rangeColEnd}>
+                  <Text style={[styles.rangeLabel, { color: theme.muted }]}>Highest</Text>
+                  <Text style={[styles.rangeValue, { color: theme.text }]}>
+                    {formatMoney(highest)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          ) : null}
+
+          {marketRows.map((row, i) => (
+            <DataRow
+              key={row.label}
+              label={row.label}
+              value={row.value}
+              divider={hasRange || i > 0}
+            />
+          ))}
+
+          {!hasRange && marketRows.length === 0 ? (
+            <TextBlock text="No market data was saved with this flip." muted />
+          ) : null}
+        </Group>
 
         {/* DESCRIPTION */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Description</Text>
-          <Text style={styles.cardLine}>
-            {description || "No description saved"}
-          </Text>
-
-          {fullDescription ? (
-            <>
-              <Text style={styles.sectionHeader}>Details</Text>
-              <Text style={styles.cardLine}>{fullDescription}</Text>
-            </>
-          ) : null}
-        </View>
+        <SectionTitle>Description</SectionTitle>
+        <Group>
+          <TextBlock text={description || "No description saved"} muted={!description} />
+          {fullDescription ? <TextBlock label="Details" text={fullDescription} divider /> : null}
+        </Group>
 
         {/* CONDITION */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Condition</Text>
-          <Text style={styles.cardLine}>
-            {condition || "No condition recorded"}
-          </Text>
-          {conditionScore != null && (
-            <Text style={styles.cardLine}>
-              Condition Score: {conditionScore}%
-            </Text>
-          )}
-        </View>
-
-        {/* MARKET INTELLIGENCE */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Market Intelligence</Text>
-
-          <Text style={styles.cardLine}>
-            Google Price Range:{" "}
-            {googlePriceMin != null || googlePriceMax != null
-              ? `${formatMoney(googlePriceMin)} – ${formatMoney(
-                  googlePriceMax
-                )}`
-              : "-"}
-          </Text>
-
-          <Text style={styles.cardLine}>
-            Market Range:{" "}
-            {lowest != null || highest != null
-              ? `${formatMoney(lowest)} – ${formatMoney(highest)}`
-              : "-"}
-          </Text>
-
-          <Text style={styles.cardLine}>
-            Average Price: {formatMoney(average)}
-          </Text>
-
-          {smartPrice != null && (
-            <Text style={styles.cardLine}>
-              Smart Price: {formatMoney(smartPrice)}
-            </Text>
-          )}
-
-          {soldCount != null && (
-            <Text style={styles.cardLine}>Sold Count: {soldCount}</Text>
-          )}
-
-          {demandScore != null && (
-            <Text style={styles.cardLine}>
-              Demand Score: {demandScore}%
-            </Text>
-          )}
-
-          {aiPriceMin != null && aiPriceMax != null && (
-            <Text style={styles.cardLine}>
-              AI Price Range: {formatMoney(aiPriceMin)} –{" "}
-              {formatMoney(aiPriceMax)}
-            </Text>
-          )}
-
-          {aiPriceConfidence != null && (
-            <Text style={styles.cardLine}>
-              AI Confidence: {aiPriceConfidence}%
-            </Text>
-          )}
-        </View>
+        <SectionTitle>Condition</SectionTitle>
+        <Group>
+          <TextBlock text={condition || "No condition recorded"} muted={!condition} />
+          {conditionScore != null ? (
+            <DataRow label="Condition score" value={`${conditionScore}%`} divider />
+          ) : null}
+        </Group>
 
         {/* SHARE CARD */}
-        <View style={styles.shareCard}>
-          <View style={styles.shareInner}>
-            <View style={styles.sharePlaceholder}>
-              {images?.[0] ? (
-                <Image
-                  source={{ uri: images[0] }}
-                  style={{ width: "100%", height: "100%" }}
-                  resizeMode="cover"
-                />
-              ) : (
-                <Text style={{ color: "#AFC6FF" }}>No Image</Text>
-              )}
-            </View>
+        <SectionTitle>Share card</SectionTitle>
+        <View style={[styles.shareCard, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
+          {photo ? (
+            <Image source={{ uri: photo }} style={styles.shareImage} resizeMode="cover" />
+          ) : null}
 
-            <Text style={styles.shareTitle}>{title}</Text>
-            <Text style={styles.shareLine}>
-              Profit: {formatMoney(profit)}
-            </Text>
-            <Text style={styles.shareLine}>
-              ROI: {effectiveRoi != null ? `${effectiveRoi}%` : "-"}
-            </Text>
-            {origin && (
-              <Text style={styles.shareLineSmall}>Origin: {origin}</Text>
-            )}
-            <Text style={styles.logo}>FlipPilot</Text>
-          </View>
+          <Text style={[styles.shareTitle, { color: theme.text }]}>{title}</Text>
+          <Text style={[styles.shareProfit, { color: profitColor }]}>{formatSigned(profit)}</Text>
+          <Text style={[styles.shareMeta, { color: theme.muted }]}>Profit · ROI {roiText}</Text>
+          {origin ? (
+            <Text style={[styles.shareMeta, { color: theme.muted }]}>Origin: {origin}</Text>
+          ) : null}
+          <Text style={[styles.shareLogo, { color: theme.gold }]}>FlipPilot</Text>
         </View>
       </ScrollView>
 
-      {/* ACTION BAR */}
-      <View style={[styles.actionBar, { paddingBottom: insets.bottom + 10 }]}>
-        <Pressable style={styles.actionButton} onPress={onFakeSave}>
-          <Text style={styles.actionText}>
-            {saving ? "Saving..." : "Saved Flip"}
-          </Text>
-        </Pressable>
+      {/* ACTIONS */}
+      <View
+        style={[
+          styles.footer,
+          {
+            backgroundColor: theme.background,
+            borderTopColor: theme.hairline,
+            paddingBottom: insets.bottom + 12,
+          },
+        ]}
+      >
+        <View style={styles.actionsRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            style={({ pressed }) => [
+              styles.secondaryButton,
+              { borderColor: theme.hairline, backgroundColor: theme.card },
+              pressed && styles.pressed,
+            ]}
+            onPress={goBack}
+          >
+            <ArrowLeft size={18} color={theme.text} />
+            <Text style={[styles.secondaryLabel, { color: theme.text }]} numberOfLines={1}>
+              Back
+            </Text>
+          </Pressable>
 
-        <Pressable style={styles.actionButton} onPress={shareText}>
-          <Text style={styles.actionText}>Share Text</Text>
-        </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Saved to history"
+            accessibilityHint="Confirms this flip is already saved"
+            accessibilityState={{ disabled: saving }}
+            style={({ pressed }) => [
+              styles.secondaryButton,
+              { borderColor: theme.hairline, backgroundColor: theme.card },
+              pressed && styles.pressed,
+            ]}
+            onPress={onConfirmSaved}
+          >
+            <CheckCircle size={18} color={theme.success} weight="fill" />
+            <Text style={[styles.secondaryLabel, { color: theme.text }]} numberOfLines={1}>
+              Saved
+            </Text>
+          </Pressable>
 
-        <Pressable
-          style={[styles.actionButton, { backgroundColor: "#333" }]}
-          onPress={goBack}
-        >
-          <Text style={styles.actionText}>Back</Text>
-        </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Share flip summary"
+            style={({ pressed }) => [
+              styles.primaryButton,
+              styles.shareButton,
+              { backgroundColor: theme.gold },
+              pressed && styles.pressed,
+            ]}
+            onPress={shareSummary}
+          >
+            <ShareNetwork size={18} color={theme.black} weight="bold" />
+            <Text style={[styles.primaryLabel, { color: theme.black }]} numberOfLines={1}>
+              Share
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* TOAST: sits just above the action bar */}
+        {savedVisible ? (
+          <Animated.View
+            accessibilityRole="alert"
+            accessibilityLiveRegion="polite"
+            style={[
+              styles.toast,
+              {
+                backgroundColor: theme.cardElevated,
+                borderColor: theme.hairline,
+                opacity: savedAnim,
+                transform: [
+                  {
+                    translateY: savedAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [12, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <CheckCircle size={20} color={theme.success} weight="fill" />
+            <Text style={[styles.toastText, { color: theme.text }]}>
+              Already saved in your history
+            </Text>
+          </Animated.View>
+        ) : null}
       </View>
 
       {/* IMAGE MODAL */}
@@ -570,273 +794,369 @@ export default function FlipDetails() {
         animationType="fade"
         onRequestClose={() => setImageModalVisible(false)}
       >
-        <View style={styles.imageModalBackdrop}>
-          <Pressable
-            style={styles.imageModalBackdrop}
-            onPress={() => setImageModalVisible(false)}
-          >
-            <View style={styles.imageModalContent}>
-              {images?.[0] ? (
-                <Image
-                  source={{ uri: images[0] }}
-                  style={styles.imageModalImage}
-                  resizeMode="contain"
-                />
-              ) : (
-                <Text style={styles.noImageText}>No Image</Text>
-              )}
-            </View>
-          </Pressable>
-        </View>
-      </Modal>
-
-      {/* TOAST */}
-      {savedVisible && (
-        <Animated.View
-          style={[
-            styles.toast,
-            {
-              opacity: savedAnim,
-              transform: [
-                {
-                  translateY: savedAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [40, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close photo"
+          style={styles.lightbox}
+          onPress={() => setImageModalVisible(false)}
         >
-          <Text style={styles.toastText}>✓ Flip already saved</Text>
-        </Animated.View>
-      )}
+          {photo ? (
+            <Image source={{ uri: photo }} style={styles.lightboxImage} resizeMode="contain" />
+          ) : null}
+
+          <View style={[styles.lightboxClose, { top: insets.top + 12 }]}>
+            <X size={22} color={theme.white} />
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: NAVY },
+  container: { flex: 1 },
+  scroll: { flex: 1 },
+  content: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 },
 
+  /* LOADING / NOT FOUND */
   center: {
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 32,
   },
-  notFoundTitle: {
-    color: "white",
-    fontSize: 18,
-    marginBottom: 8,
+  stateIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
   },
-  notFoundBody: {
-    color: SILVER,
-    fontSize: 14,
+  stateTitle: {
+    fontSize: 20,
+    fontWeight: "700",
     textAlign: "center",
-    marginBottom: 16,
+  },
+  stateBody: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "center",
+    marginTop: 8,
+  },
+  stateButton: {
+    alignSelf: "center",
+    paddingHorizontal: 28,
+    marginTop: 24,
   },
 
   /* HERO */
   heroCard: {
-    marginHorizontal: 16,
-    marginTop: 10,
-    padding: 18,
-    borderRadius: 20,
-    backgroundColor: "#111827",
-    borderWidth: 1,
-    borderColor: GOLD,
-    shadowColor: GOLD,
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    alignItems: "center",
-  },
-  heroImageWrapper: {
-    width: "100%",
-    height: 220,
     borderRadius: 16,
-    overflow: "hidden",
-    backgroundColor: "#0F172A",
+    borderWidth: 1,
+    padding: 16,
   },
-  noImageBox: {
-    flex: 1,
-    backgroundColor: "#0F172A",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  noImageText: { color: SILVER, fontSize: 18 },
-
-  heroTitle: {
-    color: GOLD,
-    fontSize: 24,
-    fontWeight: "800",
-    textAlign: "center",
-    marginTop: 14,
-  },
-
-  badgeRow: {
+  heroRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 14,
+  },
+  heroThumb: {
+    width: 88,
+    height: 88,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  heroImage: {
+    width: "100%",
+    height: "100%",
+  },
+  heroPlaceholder: {
+    alignItems: "center",
     justifyContent: "center",
-    marginTop: 10,
-    gap: 8,
   },
-  badge: {
-    backgroundColor: "#111827",
-    color: GOLD,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    fontWeight: "700",
-    fontSize: 12,
-    borderWidth: 1,
-    borderColor: GOLD,
+  zoomBadge: {
+    position: "absolute",
+    right: 6,
+    bottom: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  badgeBlue: {
-    backgroundColor: ELECTRIC_BLUE,
-    color: "white",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    fontWeight: "700",
-    fontSize: 12,
+  heroText: {
+    flex: 1,
+    gap: 4,
   },
-  dateText: {
-    marginTop: 8,
-    color: SILVER,
-    fontSize: 12,
-  },
-
-  /* CARD */
-  card: {
-    backgroundColor: "#111827",
-    padding: 18,
-    borderRadius: 16,
-    marginTop: 20,
-    marginHorizontal: 16,
-    borderWidth: 1,
-    borderColor: GOLD,
-    shadowColor: GOLD,
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-  },
-  cardTitle: {
-    color: GOLD,
+  heroTitle: {
     fontSize: 20,
     fontWeight: "700",
-    marginBottom: 10,
-    textAlign: "center",
+    lineHeight: 26,
   },
-  cardLine: {
-    color: SILVER,
-    fontSize: 15,
-    marginBottom: 6,
-    textAlign: "center",
+  heroDate: {
+    fontSize: 13,
   },
-  sectionHeader: {
-    color: GOLD,
-    fontSize: 16,
-    fontWeight: "700",
-    marginTop: 10,
-    marginBottom: 4,
-    textAlign: "center",
+  chips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 14,
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  chipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    flexShrink: 1,
   },
 
-  row: {
+  /* PROFIT SUMMARY */
+  summaryCard: {
+    marginTop: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  summaryTop: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    gap: 16,
+    padding: 16,
+  },
+  summaryMain: {
+    flex: 1,
+  },
+  summaryRoi: {
+    alignItems: "flex-end",
+  },
+  smallLabel: {
+    fontSize: 13,
+  },
+  profitFigure: {
+    fontSize: 36,
+    fontWeight: "700",
+    lineHeight: 42,
+    fontVariant: ["tabular-nums"],
+  },
+  roiFigure: {
+    fontSize: 22,
+    fontWeight: "700",
+    lineHeight: 28,
+    fontVariant: ["tabular-nums"],
+  },
+
+  /* SECTIONS */
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginTop: 24,
+    marginBottom: 12,
+  },
+  group: {
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  dataRow: {
+    minHeight: 52,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+  },
+  dataLabel: {
+    fontSize: 15,
+  },
+  dataValue: {
+    fontSize: 16,
+    fontWeight: "600",
+    flexShrink: 1,
+    textAlign: "right",
+    fontVariant: ["tabular-nums"],
+  },
+  dataValueStrong: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  textBlock: {
+    padding: 16,
+  },
+  textBlockLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  textBlockText: {
+    fontSize: 16,
+    lineHeight: 23,
+  },
+
+  /* FLIP SCORE */
+  scoreBlock: {
+    padding: 16,
+  },
+  scoreHeader: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 6,
+  },
+  scoreNumber: {
+    fontSize: 36,
+    fontWeight: "700",
+    lineHeight: 42,
+    fontVariant: ["tabular-nums"],
+  },
+  scoreMax: {
+    fontSize: 15,
+    fontVariant: ["tabular-nums"],
+  },
+  scoreTrack: {
+    height: 8,
+    borderRadius: 4,
+    overflow: "hidden",
+    marginTop: 10,
+  },
+  scoreFill: {
+    height: "100%",
+    borderRadius: 4,
+  },
+
+  /* MARKET RANGE */
+  rangeBlock: {
+    padding: 16,
+  },
+  rangeWrap: {
+    height: 16,
+    justifyContent: "center",
+  },
+  rangeTrack: {
+    height: 6,
+    borderRadius: 3,
+  },
+  rangeMarker: {
+    position: "absolute",
+    top: 0,
+    width: 16,
+    height: 16,
+    marginLeft: -8,
+    borderRadius: 8,
+    borderWidth: 3,
+  },
+  rangeLabels: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 6,
+    marginTop: 12,
   },
-  cardLabel: {
-    color: SILVER,
-    fontSize: 15,
+  rangeColStart: {
+    alignItems: "flex-start",
   },
-  cardValue: {
-    color: GOLD,
-    fontSize: 15,
-    fontWeight: "700",
+  rangeColMid: {
+    alignItems: "center",
+  },
+  rangeColEnd: {
+    alignItems: "flex-end",
+  },
+  rangeLabel: {
+    fontSize: 13,
+  },
+  rangeValue: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginTop: 2,
+    fontVariant: ["tabular-nums"],
   },
 
   /* SHARE CARD */
   shareCard: {
-    marginTop: 30,
     alignSelf: "center",
-    backgroundColor: "#111827",
-    borderRadius: 24,
-    overflow: "hidden",
-    width: 300,
-    height: 420,
-    borderWidth: 1,
-    borderColor: GOLD,
-    shadowColor: GOLD,
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-  },
-  shareInner: {
-    flex: 1,
-    alignItems: "center",
-    paddingTop: 20,
-    paddingHorizontal: 16,
-  },
-  sharePlaceholder: {
-    width: 260,
-    height: 220,
+    width: "100%",
+    maxWidth: 320,
     borderRadius: 16,
-    backgroundColor: "#0F172A",
-    justifyContent: "center",
+    borderWidth: 1,
+    padding: 16,
     alignItems: "center",
+  },
+  shareImage: {
+    width: "100%",
+    height: 160,
+    borderRadius: 12,
+    marginBottom: 14,
   },
   shareTitle: {
-    color: GOLD,
-    fontSize: 20,
-    fontWeight: "800",
-    marginTop: 12,
+    fontSize: 18,
+    fontWeight: "700",
+    lineHeight: 24,
     textAlign: "center",
   },
-  shareLine: {
-    color: SILVER,
-    fontSize: 15,
+  shareProfit: {
+    fontSize: 28,
+    fontWeight: "700",
+    marginTop: 8,
+    fontVariant: ["tabular-nums"],
+  },
+  shareMeta: {
+    fontSize: 13,
     marginTop: 4,
     textAlign: "center",
   },
-  shareLineSmall: {
-    color: SILVER,
-    fontSize: 13,
-    marginTop: 2,
-    textAlign: "center",
-  },
-  logo: {
-    color: GOLD,
-    fontSize: 20,
-    fontWeight: "900",
-    marginTop: 10,
+  shareLogo: {
+    fontSize: 15,
+    fontWeight: "700",
+    marginTop: 16,
   },
 
-  /* ACTION BAR */
-  actionBar: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    backgroundColor: NAVY,
-    paddingVertical: 16,
-    justifyContent: "space-around",
+  /* ACTIONS */
+  footer: {
+    paddingTop: 12,
+    paddingHorizontal: 16,
     borderTopWidth: 1,
-    borderTopColor: GOLD,
   },
-  actionButton: {
-    backgroundColor: GOLD,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    shadowColor: GOLD,
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
+  actionsRow: {
+    flexDirection: "row",
+    gap: 8,
   },
-  actionText: {
-    color: "#000",
-    fontSize: 13,
+  secondaryButton: {
+    flex: 1,
+    minHeight: 48,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  secondaryLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    flexShrink: 1,
+  },
+  primaryButton: {
+    minHeight: 48,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  shareButton: {
+    flex: 1.5,
+  },
+  primaryLabel: {
+    fontSize: 16,
     fontWeight: "700",
+    flexShrink: 1,
   },
 
   /* TOAST */
@@ -844,135 +1164,47 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 16,
     right: 16,
-    bottom: 120,
+    bottom: "100%",
+    marginBottom: 12,
+    minHeight: 48,
     paddingVertical: 12,
-    paddingHorizontal: 18,
-    borderRadius: 999,
-    backgroundColor: GOLD,
-    justifyContent: "center",
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
     alignItems: "center",
-    shadowColor: GOLD,
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
+    gap: 10,
+    pointerEvents: "none",
   },
   toastText: {
-    color: "#000",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-
-  /* SMART PRICE */
-  smartHighlight: {
-    color: GOLD,
-    fontSize: 18,
-    fontWeight: "800",
-    marginTop: 10,
-    textAlign: "center",
+    flexShrink: 1,
+    fontSize: 15,
+    fontWeight: "600",
   },
 
   /* IMAGE MODAL */
-  imageModalBackdrop: {
+  lightbox: {
     flex: 1,
-    backgroundColor: "rgba(10,17,40,0.9)",
-    justifyContent: "center",
+    backgroundColor: LIGHTBOX,
     alignItems: "center",
-  },
-  imageModalContent: {
-    width: "90%",
-    height: "70%",
-    borderRadius: 16,
-    backgroundColor: "#000",
-    overflow: "hidden",
     justifyContent: "center",
-    alignItems: "center",
   },
-  imageModalImage: {
+  lightboxImage: {
     width: "100%",
-    height: "100%",
+    height: "80%",
   },
-
-  /* FLIP SCORE */
-  flipScoreRow: {
-    flexDirection: "row",
+  lightboxClose: {
+    position: "absolute",
+    right: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: LIGHTBOX_CLOSE,
     alignItems: "center",
-    marginTop: 8,
-  },
-  flipScoreCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 999,
-    borderWidth: 4,
-    borderColor: GOLD,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 16,
-    backgroundColor: "#111827",
-  },
-  flipScoreNumber: {
-    color: GOLD,
-    fontSize: 26,
-    fontWeight: "900",
-  },
-  flipScoreMax: {
-    color: SILVER,
-    fontSize: 12,
-    marginTop: -2,
-  },
-  flipScoreMeta: {
-    flex: 1,
-  },
-  flipScoreTag: {
-    color: SILVER,
-    fontSize: 13,
-    marginBottom: 4,
-  },
-  flipScoreInsight: {
-    color: SILVER,
-    fontSize: 13,
-    marginTop: 4,
-  },
-
-  /* MARKET TREND */
-  trendLine: {
-    height: 40,
-    marginTop: 10,
-    marginBottom: 12,
     justifyContent: "center",
   },
-  trendTrack: {
-    position: "absolute",
-    left: "10%",
-    right: "10%",
-    height: 3,
-    backgroundColor: "rgba(255,215,0,0.4)",
-    borderRadius: 999,
-  },
-  trendDot: {
-    position: "absolute",
-    width: 12,
-    height: 12,
-    borderRadius: 999,
-    backgroundColor: GOLD,
-    marginTop: -6,
-  },
-  trendLabelsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 4,
-  },
-  trendLabelBlock: {
-    flex: 1,
-    alignItems: "center",
-  },
-  trendLabelTitle: {
-    color: SILVER,
-    fontSize: 12,
-    marginBottom: 2,
-  },
-  trendLabelValue: {
-    color: GOLD,
-    fontSize: 14,
-    fontWeight: "700",
+
+  pressed: {
+    opacity: 0.75,
   },
 });
-

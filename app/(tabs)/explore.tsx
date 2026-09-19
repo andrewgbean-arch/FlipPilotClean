@@ -1,21 +1,43 @@
-import { styles } from "../../src/styles/explore.styles";
 import * as Haptics from "expo-haptics";
-import { router, useFocusEffect } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { router, useFocusEffect, type Href } from "expo-router";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
-  Animated,
   Pressable,
   ScrollView,
+  StyleSheet,
+  Text,
   TextInput,
   View,
-  Text,
 } from "react-native";
+import {
+  AirplaneTilt,
+  Barcode,
+  CaretRight,
+  ChartLineUp,
+  ClockCounterClockwise,
+  CurrencyGbp,
+  FloppyDisk,
+  GearSix,
+  Heart,
+  Lightbulb,
+  Lightning,
+  MagnifyingGlass,
+  Megaphone,
+  Sparkle,
+  Storefront,
+  XCircle,
+} from "phosphor-react-native";
+import type { Icon as PhosphorIcon } from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useTheme } from "@/styles/useTheme";
+import { useTheme } from "@/styles/ThemeContext";
 
 type Feature = {
-  icon: string;
+  // What this screen draws for the feature.
+  Icon: PhosphorIcon;
+  // Handed to /feature/[slug] as its `icon` route param exactly as before,
+  // because that screen still renders it. It is never drawn on this screen.
+  emoji: string;
   title: string;
   desc: string;
   category: string;
@@ -25,7 +47,8 @@ type Feature = {
 
 const FEATURES: Feature[] = [
   {
-    icon: "💰",
+    Icon: CurrencyGbp,
+    emoji: "💰",
     title: "Market Check",
     desc: "See real resale value.",
     category: "Market Tools",
@@ -40,7 +63,8 @@ Pro Tips:
 `,
   },
   {
-    icon: "💾",
+    Icon: FloppyDisk,
+    emoji: "💾",
     title: "Save Flip",
     desc: "Track profit and ROI.",
     category: "Tools",
@@ -54,7 +78,8 @@ Pro Tips:
 `,
   },
   {
-    icon: "⭐",
+    Icon: Heart,
+    emoji: "⭐",
     title: "Favourites",
     desc: "Quick access to top flips.",
     category: "Tools",
@@ -67,7 +92,8 @@ Pro Tips:
 `,
   },
   {
-    icon: "📊",
+    Icon: ClockCounterClockwise,
+    emoji: "📊",
     title: "History",
     desc: "Your flipping stats.",
     category: "Tools",
@@ -81,7 +107,8 @@ Pro Tips:
 `,
   },
   {
-    icon: "📢",
+    Icon: Megaphone,
+    emoji: "📢",
     title: "Advertising Hub",
     desc: "Promote your stall.",
     category: "Pro Features",
@@ -95,7 +122,8 @@ Pro Tips:
 `,
   },
   {
-    icon: "⚡",
+    Icon: Lightning,
+    emoji: "⚡",
     title: "Supernova AI Pricing",
     desc: "True market value.",
     category: "AI Tools",
@@ -109,7 +137,8 @@ Pro Tips:
 `,
   },
   {
-    icon: "✈️",
+    Icon: AirplaneTilt,
+    emoji: "✈️",
     title: "FlipPilot Method",
     desc: "Your flipping blueprint.",
     category: "Guides",
@@ -127,7 +156,8 @@ Includes:
 `,
   },
   {
-    icon: "💡",
+    Icon: Lightbulb,
+    emoji: "💡",
     title: "Pro Tips",
     desc: "Level up your flips.",
     category: "Guides",
@@ -143,7 +173,8 @@ Includes:
 `,
   },
   {
-    icon: "⚙️",
+    Icon: GearSix,
+    emoji: "⚙️",
     title: "Advanced Rules",
     desc: "For serious flippers.",
     category: "Guides",
@@ -159,7 +190,235 @@ Includes:
   },
 ];
 
-const SUPER_NOVA_TITLE = "Supernova AI Pricing";
+type QuickAccessItem = {
+  title: string;
+  desc: string;
+  href: Href;
+  Icon: PhosphorIcon;
+};
+
+const QUICK_ACCESS: QuickAccessItem[] = [
+  {
+    title: "AI Lookup",
+    desc: "Identify any item instantly",
+    href: "/ai-camera",
+    Icon: Sparkle,
+  },
+  {
+    title: "Barcode Scanner",
+    desc: "Fastest way to check value",
+    href: "/scan",
+    Icon: Barcode,
+  },
+  {
+    title: "Boot Fairs",
+    desc: "Find local boot fairs",
+    href: "/bootfairs",
+    Icon: Storefront,
+  },
+  {
+    title: "Market Tools",
+    desc: "Real resale value & trends",
+    href: "/marketplace",
+    Icon: ChartLineUp,
+  },
+];
+
+// Two tiles to a row.
+const QUICK_ACCESS_ROWS = [QUICK_ACCESS.slice(0, 2), QUICK_ACCESS.slice(2, 4)];
+
+// Category names double as search keys, so they stay as written in FEATURES.
+// This only changes how a section heading reads.
+const CATEGORY_LABELS: Record<string, string> = {
+  "Market Tools": "Market tools",
+  "Pro Features": "Pro features",
+  "AI Tools": "AI tools",
+};
+
+const NEUTRAL_TINT = "rgba(255, 255, 255, 0.07)";
+
+// The soft fill behind an icon: a theme colour at low opacity. Falls back to a
+// neutral tint if the colour is not a plain #RRGGBB value.
+const softTint = (color: string, alpha: number) => {
+  const match = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(color);
+  if (!match) return NEUTRAL_TINT;
+  const [r, g, b] = [match[1], match[2], match[3]].map((h) => parseInt(h, 16));
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+function SectionTitle({ children }: { children: string }) {
+  const theme = useTheme();
+
+  return (
+    <Text
+      style={[styles.sectionTitle, { color: theme.text }]}
+      accessibilityRole="header"
+    >
+      {children}
+    </Text>
+  );
+}
+
+function IconCircle({
+  Icon,
+  size,
+  iconColor,
+  background,
+}: {
+  Icon: PhosphorIcon;
+  size: number;
+  iconColor: string;
+  background: string;
+}) {
+  return (
+    <View
+      style={[
+        styles.iconCircle,
+        {
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: background,
+        },
+      ]}
+    >
+      <Icon size={Math.round(size * 0.5)} color={iconColor} />
+    </View>
+  );
+}
+
+function ProBadge() {
+  const theme = useTheme();
+
+  return (
+    <View
+      style={[styles.proBadge, { backgroundColor: softTint(theme.gold, 0.14) }]}
+    >
+      <Text style={[styles.proBadgeText, { color: theme.gold }]}>PRO</Text>
+    </View>
+  );
+}
+
+function QuickTile({
+  item,
+  onOpen,
+}: {
+  item: QuickAccessItem;
+  onOpen: (item: QuickAccessItem) => void;
+}) {
+  const theme = useTheme();
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${item.title}. ${item.desc}`}
+      onPress={() => onOpen(item)}
+      style={({ pressed }) => [
+        styles.tile,
+        { backgroundColor: theme.card, borderColor: theme.hairline },
+        pressed && styles.pressed,
+      ]}
+    >
+      <IconCircle
+        Icon={item.Icon}
+        size={44}
+        iconColor={theme.secondary}
+        background={softTint(theme.secondary, 0.16)}
+      />
+      <View>
+        <Text
+          style={[styles.tileTitle, { color: theme.text }]}
+          numberOfLines={2}
+        >
+          {item.title}
+        </Text>
+        <Text
+          style={[styles.tileDesc, { color: theme.muted }]}
+          numberOfLines={2}
+        >
+          {item.desc}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
+// One tappable feature: icon, title, one line of description, a PRO marker
+// where it applies, and a chevron.
+function FeatureRow({
+  feature,
+  onOpen,
+  divider,
+}: {
+  feature: Feature;
+  onOpen: (feature: Feature) => void;
+  divider?: boolean;
+}) {
+  const theme = useTheme();
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${feature.title}. ${feature.desc}${
+        feature.premium ? " Pro feature." : ""
+      }`}
+      onPress={() => onOpen(feature)}
+      style={({ pressed }) => [
+        styles.row,
+        divider && { borderTopWidth: 1, borderTopColor: theme.hairline },
+        pressed && styles.pressed,
+      ]}
+    >
+      <IconCircle
+        Icon={feature.Icon}
+        size={40}
+        iconColor={theme.text}
+        background={NEUTRAL_TINT}
+      />
+
+      <View style={styles.rowText}>
+        <Text
+          style={[styles.rowTitle, { color: theme.text }]}
+          numberOfLines={2}
+        >
+          {feature.title}
+        </Text>
+        <Text
+          style={[styles.rowDesc, { color: theme.muted }]}
+          numberOfLines={2}
+        >
+          {feature.desc}
+        </Text>
+      </View>
+
+      {feature.premium ? <ProBadge /> : null}
+      <CaretRight size={16} color={theme.muted} />
+    </Pressable>
+  );
+}
+
+function FeatureGroup({
+  features,
+  onOpen,
+}: {
+  features: Feature[];
+  onOpen: (feature: Feature) => void;
+}) {
+  const theme = useTheme();
+
+  return (
+    <View
+      style={[
+        styles.group,
+        { backgroundColor: theme.card, borderColor: theme.hairline },
+      ]}
+    >
+      {features.map((f, i) => (
+        <FeatureRow key={f.title} feature={f} onOpen={onOpen} divider={i > 0} />
+      ))}
+    </View>
+  );
+}
 
 export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
@@ -169,10 +428,6 @@ export default function ExploreScreen() {
   const [search, setSearch] = useState("");
   const [recent, setRecent] = useState<string[]>([]);
 
-  const headerAnim = useRef(new Animated.Value(0)).current;
-  const cardAnim = useRef(new Animated.Value(0)).current;
-  const searchAnim = useRef(new Animated.Value(0)).current;
-
   useFocusEffect(
     useCallback(() => {
       setSearch("");
@@ -180,27 +435,6 @@ export default function ExploreScreen() {
       scrollRef.current?.scrollTo({ y: 0, animated: false });
     }, [])
   );
-
-  useEffect(() => {
-    Animated.timing(headerAnim, {
-      toValue: 1,
-      duration: 550,
-      useNativeDriver: true,
-    }).start();
-
-    Animated.timing(cardAnim, {
-      toValue: 1,
-      duration: 600,
-      useNativeDriver: true,
-    }).start();
-
-    Animated.timing(searchAnim, {
-      toValue: 1,
-      duration: 500,
-      delay: 150,
-      useNativeDriver: true,
-    }).start();
-  }, []);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return FEATURES;
@@ -226,17 +460,9 @@ export default function ExploreScreen() {
     ).slice(0, 3);
   }, []);
 
-  const getCardStyle = (index: number) => ({
-    opacity: cardAnim,
-    transform: [
-      {
-        translateY: cardAnim.interpolate({
-          inputRange: [0, 1],
-          outputRange: [20 + index * 3, 0],
-        }),
-      },
-    ],
-  });
+  const recentFeatures = recent
+    .map((title) => FEATURES.find((x) => x.title === title))
+    .filter((f): f is Feature => !!f);
 
   const handleOpenFeature = (f: Feature) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -249,393 +475,233 @@ export default function ExploreScreen() {
       params: {
         slug: f.title,
         content: f.content,
-        icon: f.icon,
+        icon: f.emoji,
       },
     });
   };
 
-  const getCardBaseStyle = (f: Feature) =>
-    f.premium ? styles.cardDark : styles.cardLight;
-
-  const getCardExtraStyle = (f: Feature, isAISuggested = false) => {
-    const extras: any[] = [];
-    if (f.premium) extras.push(styles.glowCard);
-    if (f.title === SUPER_NOVA_TITLE) extras.push(styles.supernova);
-    if (isAISuggested) extras.push(styles.aiGlow);
-    return extras;
+  const handleOpenQuickAccess = (item: QuickAccessItem) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(item.href);
   };
 
-  const renderProBadge = (f: Feature) =>
-    f.premium ? (
-      <View style={styles.proBadge}>
-        <Text style={styles.proBadgeText}>PRO</Text>
-      </View>
-    ) : null;
+  const browsing = !search;
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: theme.background }}
       ref={scrollRef}
-      scrollEventThrottle={16}
-      contentContainerStyle={[
-        styles.container,
-        {
-          paddingTop: insets.top + 10,
-          paddingBottom: insets.bottom + 40,
-        },
-      ]}
+      style={{ flex: 1, backgroundColor: theme.background }}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
+      showsVerticalScrollIndicator={false}
     >
       {/* HEADER */}
-      <Animated.View
-        style={{
-          opacity: headerAnim,
-          transform: [
-            {
-              translateY: headerAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [20, 0],
-              }),
-            },
-          ],
-        }}
+      <Text
+        style={[styles.title, { color: theme.text }]}
+        accessibilityRole="header"
       >
-        <Text style={styles.title}>FlipPilot Academy</Text>
-        <Text style={styles.subtitle}>
-          Your hub for tools, guides, AI features, and flipping mastery.
-        </Text>
-      </Animated.View>
+        Explore
+      </Text>
+      <Text style={[styles.subtitle, { color: theme.muted }]}>
+        Tools, guides and AI features for flippers
+      </Text>
 
       {/* SEARCH */}
-      <Animated.View
-        style={{
-          opacity: searchAnim,
-          transform: [
-            {
-              translateY: searchAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [10, 0],
-              }),
-            },
-          ],
-          marginTop: 12,
-        }}
+      <View
+        style={[
+          styles.search,
+          { backgroundColor: theme.card, borderColor: theme.hairline },
+        ]}
       >
-        <View>
-          <TextInput
-            placeholder="Search tools, features, guides..."
-            placeholderTextColor={theme.muted}
-            value={search}
-            onChangeText={setSearch}
-            style={[
-              styles.search,
-              {
-                color: theme.text,
-                borderColor: theme.goldDeep,
-                backgroundColor: theme.card,
-              },
+        <MagnifyingGlass size={20} color={theme.muted} />
+        <TextInput
+          placeholder="Search tools, features, guides..."
+          placeholderTextColor={theme.muted}
+          value={search}
+          onChangeText={setSearch}
+          accessibilityLabel="Search tools, features and guides"
+          selectionColor={theme.gold}
+          style={[styles.searchInput, { color: theme.text }]}
+        />
+        {search.length > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Clear search"
+            onPress={() => setSearch("")}
+            style={({ pressed }) => [
+              styles.clearButton,
+              pressed && styles.pressed,
             ]}
-          />
-          {search.length > 0 && (
-            <Pressable
-              onPress={() => setSearch("")}
-              style={{
-                position: "absolute",
-                right: 20,
-                top: 18,
-              }}
-            >
-              <Text
-                style={{ color: theme.accent, fontSize: 14, fontWeight: "700" }}
-              >
-                Clear
-              </Text>
-            </Pressable>
-          )}
-        </View>
-      </Animated.View>
+          >
+            <XCircle size={20} weight="fill" color={theme.muted} />
+          </Pressable>
+        ) : null}
+      </View>
 
       {/* QUICK ACCESS */}
-      {!search && (
-        <View style={{ marginTop: 26 }}>
-          <View
-            style={{
-              padding: 16,
-              borderRadius: 16,
-              borderWidth: 3,
-              borderColor: theme.goldDeep,
-              backgroundColor: theme.card,
-            }}
-          >
-            <Text style={styles.sectionTitle}>Quick Access</Text>
-
-            <View style={{ gap: 14, marginTop: 14 }}>
-              {/* AI Lookup */}
-              <Pressable
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push("/ai-camera");
-                }}
-                style={({ pressed }) => [
-                  styles.cardDark,
-                  styles.glowCard,
-                  styles.aiGlow,
-                  {
-                    borderColor: theme.goldDeep,
-                    shadowOpacity: pressed ? 0.35 : 0.2,
-                    transform: [{ scale: pressed ? 0.97 : 1 }],
-                  },
-                ]}
-              >
-                <Text style={styles.cardTitleDark}>🔍 AI Lookup</Text>
-                <Text style={styles.cardTextDark}>
-                  Identify any item instantly
-                </Text>
-              </Pressable>
-
-              {/* Barcode Scanner */}
-              <Pressable
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push("/scan");
-                }}
-                style={({ pressed }) => [
-                  styles.cardDark,
-                  styles.glowCard,
-                  {
-                    borderColor: theme.goldDeep,
-                    shadowOpacity: pressed ? 0.35 : 0.2,
-                    transform: [{ scale: pressed ? 0.97 : 1 }],
-                  },
-                ]}
-              >
-                <Text style={styles.cardTitleDark}>📸 Barcode Scanner</Text>
-                <Text style={styles.cardTextDark}>
-                  Fastest way to check value
-                </Text>
-              </Pressable>
-
-              {/* Boot Fairs */}
-              <Pressable
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push("/bootfairs");
-                }}
-                style={({ pressed }) => [
-                  styles.cardDark,
-                  {
-                    borderColor: theme.goldDeep,
-                    shadowOpacity: pressed ? 0.35 : 0.2,
-                    transform: [{ scale: pressed ? 0.97 : 1 }],
-                  },
-                ]}
-              >
-                <Text style={styles.cardTitleDark}>🛒 Boot Fairs</Text>
-                <Text style={styles.cardTextDark}>Find local boot fairs</Text>
-              </Pressable>
-
-              {/* Market Tools */}
-              <Pressable
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  router.push("/marketplace");
-                }}
-                style={({ pressed }) => [
-                  styles.cardDark,
-                  {
-                    borderColor: theme.goldDeep,
-                    shadowOpacity: pressed ? 0.35 : 0.2,
-                    transform: [{ scale: pressed ? 0.97 : 1 }],
-                  },
-                ]}
-              >
-                <Text style={styles.cardTitleDark}>📊 Market Tools</Text>
-                <Text style={styles.cardTextDark}>
-                  Real resale value & trends
-                </Text>
-              </Pressable>
-            </View>
+      {browsing ? (
+        <>
+          <SectionTitle>Quick access</SectionTitle>
+          <View style={styles.tileGrid}>
+            {QUICK_ACCESS_ROWS.map((pair) => (
+              <View key={pair[0].title} style={styles.tileRow}>
+                {pair.map((item) => (
+                  <QuickTile
+                    key={item.title}
+                    item={item}
+                    onOpen={handleOpenQuickAccess}
+                  />
+                ))}
+              </View>
+            ))}
           </View>
-        </View>
-      )}
+        </>
+      ) : null}
 
-      {/* WHAT’S NEW */}
-      {!search && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>What’s New</Text>
-
-          {FEATURES.slice(0, 1).map((f, i) => (
-            <View key={f.title}>
-              <Animated.View style={getCardStyle(i)}>
-                <Pressable
-                  style={({ pressed }) => [
-                    getCardBaseStyle(f),
-                    ...getCardExtraStyle(f),
-                    {
-                      transform: [{ scale: pressed ? 0.96 : 1 }],
-                      shadowOpacity: pressed ? 0.1 : 0.25,
-                    },
-                  ]}
-                  onPress={() => handleOpenFeature(f)}
-                >
-                  {renderProBadge(f)}
-                  <Text
-                    style={
-                      f.premium ? styles.cardTitleDark : styles.cardTitle
-                    }
-                  >
-                    {f.icon} {f.title}
-                  </Text>
-                  <Text
-                    style={
-                      f.premium ? styles.cardTextDark : styles.cardText
-                    }
-                  >
-                    {f.desc}
-                  </Text>
-                </Pressable>
-              </Animated.View>
-            </View>
-          ))}
-        </View>
-      )}
+      {/* WHAT'S NEW */}
+      {browsing ? (
+        <>
+          <SectionTitle>What’s new</SectionTitle>
+          <FeatureGroup
+            features={FEATURES.slice(0, 1)}
+            onOpen={handleOpenFeature}
+          />
+        </>
+      ) : null}
 
       {/* SUGGESTED FOR YOU */}
-      {!search && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Suggested for You</Text>
-
-          {smartSuggestions.map((f, i) => (
-            <View key={f.title}>
-              <Animated.View style={getCardStyle(i)}>
-                <Pressable
-                  style={({ pressed }) => [
-                    getCardBaseStyle(f),
-                    ...getCardExtraStyle(f, true),
-                    {
-                      transform: [{ scale: pressed ? 0.96 : 1 }],
-                      shadowOpacity: pressed ? 0.1 : 0.25,
-                    },
-                  ]}
-                  onPress={() => handleOpenFeature(f)}
-                >
-                  {renderProBadge(f)}
-                  <Text
-                    style={
-                      f.premium ? styles.cardTitleDark : styles.cardTitle
-                    }
-                  >
-                    {f.icon} {f.title}
-                  </Text>
-                  <Text
-                    style={
-                      f.premium ? styles.cardTextDark : styles.cardText
-                    }
-                  >
-                    {f.desc}
-                  </Text>
-                </Pressable>
-              </Animated.View>
-            </View>
-          ))}
-        </View>
-      )}
+      {browsing ? (
+        <>
+          <SectionTitle>Suggested for you</SectionTitle>
+          <FeatureGroup features={smartSuggestions} onOpen={handleOpenFeature} />
+        </>
+      ) : null}
 
       {/* RECENTLY VIEWED */}
-      {!search && recent.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recently Viewed</Text>
-
-          {recent.map((title, i) => {
-            const f = FEATURES.find((x) => x.title === title);
-            if (!f) return null;
-
-            return (
-              <View key={f.title}>
-                <Animated.View style={getCardStyle(i)}>
-                  <Pressable
-                    style={({ pressed }) => [
-                      getCardBaseStyle(f),
-                      ...getCardExtraStyle(f),
-                      {
-                        transform: [{ scale: pressed ? 0.96 : 1 }],
-                        shadowOpacity: pressed ? 0.1 : 0.25,
-                      },
-                    ]}
-                    onPress={() => handleOpenFeature(f)}
-                  >
-                    {renderProBadge(f)}
-                    <Text
-                      style={
-                        f.premium ? styles.cardTitleDark : styles.cardTitle
-                      }
-                    >
-                      {f.icon} {f.title}
-                    </Text>
-                    <Text
-                      style={
-                        f.premium ? styles.cardTextDark : styles.cardText
-                      }
-                    >
-                      {f.desc}
-                    </Text>
-                  </Pressable>
-                </Animated.View>
-              </View>
-            );
-          })}
-        </View>
-      )}
+      {browsing && recentFeatures.length > 0 ? (
+        <>
+          <SectionTitle>Recently viewed</SectionTitle>
+          <FeatureGroup features={recentFeatures} onOpen={handleOpenFeature} />
+        </>
+      ) : null}
 
       {/* GROUPED SECTIONS */}
-      {Object.keys(grouped).map((category, sectionIndex) => (
-        <View key={category} style={styles.section}>
-          {sectionIndex > 0 && <View style={styles.divider} />}
-
-          <Animated.Text
-            style={[styles.sectionTitle, getCardStyle(sectionIndex)]}
-          >
-            {category}
-          </Animated.Text>
-
-          {grouped[category].map((f, i) => (
-            <View key={f.title}>
-              <Animated.View style={getCardStyle(i)}>
-                <Pressable
-                  style={({ pressed }) => [
-                    getCardBaseStyle(f),
-                    ...getCardExtraStyle(f),
-                    {
-                      transform: [{ scale: pressed ? 0.96 : 1 }],
-                      shadowOpacity: pressed ? 0.1 : 0.25,
-                    },
-                  ]}
-                  onPress={() => handleOpenFeature(f)}
-                >
-                  {renderProBadge(f)}
-                  <Text
-                    style={
-                      f.premium ? styles.cardTitleDark : styles.cardTitle
-                    }
-                  >
-                    {f.icon} {f.title}
-                  </Text>
-                  <Text
-                    style={
-                      f.premium ? styles.cardTextDark : styles.cardText
-                    }
-                  >
-                    {f.desc}
-                  </Text>
-                </Pressable>
-              </Animated.View>
-            </View>
-          ))}
+      {Object.keys(grouped).map((category) => (
+        <View key={category}>
+          <SectionTitle>{CATEGORY_LABELS[category] ?? category}</SectionTitle>
+          <FeatureGroup features={grouped[category]} onOpen={handleOpenFeature} />
         </View>
       ))}
 
-      {filtered.length === 0 && (
-        <Text style={styles.empty}>No results found.</Text>
-      )}
+      {/* NO RESULTS */}
+      {filtered.length === 0 ? (
+        <View style={styles.empty}>
+          <View
+            style={[
+              styles.emptyIcon,
+              { backgroundColor: theme.card, borderColor: theme.hairline },
+            ]}
+          >
+            <MagnifyingGlass size={28} color={theme.muted} />
+          </View>
+          <Text style={[styles.emptyTitle, { color: theme.text }]}>
+            No matches
+          </Text>
+          <Text style={[styles.emptyBody, { color: theme.muted }]}>
+            {`Nothing matched "${search.trim()}". Try a shorter word, or clear the search to browse everything.`}
+          </Text>
+        </View>
+      ) : null}
     </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  content: { paddingHorizontal: 16, paddingBottom: 40 },
+
+  title: { fontSize: 28, fontWeight: "700" },
+  subtitle: { fontSize: 14, marginTop: 2 },
+
+  search: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    minHeight: 48,
+    marginTop: 20,
+    paddingLeft: 14,
+    paddingRight: 4,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  searchInput: {
+    flex: 1,
+    alignSelf: "stretch",
+    fontSize: 16,
+    paddingVertical: 0,
+    paddingRight: 10,
+  },
+  clearButton: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginTop: 28,
+    marginBottom: 10,
+  },
+
+  tileGrid: { gap: 12 },
+  tileRow: { flexDirection: "row", gap: 12 },
+  tile: {
+    flex: 1,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    gap: 12,
+  },
+  tileTitle: { fontSize: 16, fontWeight: "600" },
+  tileDesc: { fontSize: 13, lineHeight: 18, marginTop: 2 },
+
+  iconCircle: { alignItems: "center", justifyContent: "center" },
+
+  group: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
+  row: {
+    minHeight: 64,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  rowText: { flex: 1 },
+  rowTitle: { fontSize: 16, fontWeight: "600" },
+  rowDesc: { fontSize: 13, marginTop: 2 },
+
+  proBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  proBadgeText: { fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
+
+  empty: { alignItems: "center", paddingTop: 40, paddingHorizontal: 24 },
+  emptyIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  emptyTitle: { fontSize: 20, fontWeight: "700", textAlign: "center" },
+  emptyBody: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "center",
+    marginTop: 8,
+  },
+
+  pressed: { opacity: 0.7 },
+});
