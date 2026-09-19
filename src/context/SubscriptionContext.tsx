@@ -5,11 +5,13 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
-import { Platform } from "react-native";
+import { Alert, Platform } from "react-native";
 import Purchases, {
   CustomerInfo,
+  LOG_LEVEL,
   PurchasesOfferings,
 } from "react-native-purchases";
 
@@ -18,6 +20,12 @@ type SubscriptionContextType = {
   offerings: PurchasesOfferings | null;
   purchase: (pkg: any) => Promise<void>;
   restore: () => Promise<void>;
+
+  // True once RevenueCat is set up and usable. It stays false on web, in Expo
+  // Go, and in builds that have no RevenueCat key.
+  available: boolean;
+  // True while a purchase or a restore is in progress.
+  busy: boolean;
 };
 
 const SubscriptionContext = createContext<SubscriptionContextType | null>(null);
@@ -28,68 +36,158 @@ const SubscriptionContext = createContext<SubscriptionContextType | null>(null);
 const REVENUECAT_SUPPORTED =
   Platform.OS !== "web" && Constants.appOwnership !== "expo";
 
+// RevenueCat SDK keys are per platform. The old single key is still read as a
+// fallback. EXPO_PUBLIC_ variables are swapped in at build time, so each one
+// has to be written out in full here.
+const REVENUECAT_KEY =
+  (
+    Platform.select({
+      ios: process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY,
+      android: process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY,
+    }) ?? process.env.EXPO_PUBLIC_REVENUECAT_KEY
+  )?.trim() || undefined;
+
+const isProActive = (info: CustomerInfo) => !!info.entitlements.active["pro"];
+
+const notifyUnavailable = () =>
+  Alert.alert(
+    "Purchases unavailable",
+    "Purchases can't be started from this version of the app right now. Please try again later."
+  );
+
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const [offerings, setOfferings] = useState<PurchasesOfferings | null>(null);
   const [isPro, setIsPro] = useState(false);
-
-  // ⭐ Update Pro status
-  const updateProStatus = (info: CustomerInfo) => {
-    const active = info.entitlements.active;
-    setIsPro(!!active["pro"]);
-  };
+  const [available, setAvailable] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const inFlight = useRef(false);
 
   // ⭐ Initialize RevenueCat
   useEffect(() => {
     if (!REVENUECAT_SUPPORTED) return;
 
-    async function init() {
+    const apiKey = REVENUECAT_KEY;
+    if (!apiKey) {
+      console.log("RevenueCat is not set up: no API key for this platform.");
+      return;
+    }
+
+    let cancelled = false;
+
+    // Keeps isPro right when a renewal, expiry or refund happens, or the
+    // same account buys or restores on another device.
+    const onCustomerInfo = (info: CustomerInfo) => setIsPro(isProActive(info));
+
+    async function init(key: string) {
       try {
-        await Purchases.setDebugLogsEnabled(true);
+        await Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.WARN);
 
-        await Purchases.configure({
-          apiKey: process.env.EXPO_PUBLIC_REVENUECAT_KEY!,
-        });
-
-        // Load customer info
-        const customerInfo = await Purchases.getCustomerInfo();
-        updateProStatus(customerInfo);
-
-        // Load offerings
-        const offs = await Purchases.getOfferings();
-        setOfferings(offs);
+        // Fast Refresh runs this again; RevenueCat should only be set up once.
+        if (!(await Purchases.isConfigured())) {
+          Purchases.configure({ apiKey: key });
+        }
       } catch (err) {
         console.log("RevenueCat init error:", err);
+        return;
+      }
+
+      if (cancelled) return;
+      setAvailable(true);
+      Purchases.addCustomerInfoUpdateListener(onCustomerInfo);
+
+      // Separate requests, so one failing does not stop the other.
+      try {
+        const customerInfo = await Purchases.getCustomerInfo();
+        if (!cancelled) setIsPro(isProActive(customerInfo));
+      } catch (err) {
+        console.log("RevenueCat customer info error:", err);
+      }
+
+      try {
+        const offs = await Purchases.getOfferings();
+        if (!cancelled) setOfferings(offs);
+      } catch (err) {
+        console.log("RevenueCat offerings error:", err);
       }
     }
 
-    init();
+    init(apiKey);
+
+    return () => {
+      cancelled = true;
+      Purchases.removeCustomerInfoUpdateListener(onCustomerInfo);
+    };
   }, []);
 
   // ⭐ Purchase handler
   const purchase = async (pkg: any) => {
-    if (!REVENUECAT_SUPPORTED) return;
+    if (!available) {
+      notifyUnavailable();
+      return;
+    }
+    // A second tap while a purchase is open must not start another one.
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+
     try {
       const { customerInfo } = await Purchases.purchasePackage(pkg);
-      updateProStatus(customerInfo);
+      const active = isProActive(customerInfo);
+      setIsPro(active);
 
-      // ⭐ Redirect to success animation
-      router.push("/pro-success");
-
-    } catch (err: any) {
-      if (!err.userCancelled) {
-        console.log("Purchase error:", err);
+      if (active) {
+        // ⭐ Redirect to success animation
+        router.push("/pro-success");
+      } else {
+        Alert.alert(
+          "Pro isn't showing yet",
+          "Your purchase went through, but Pro hasn't unlocked yet. Try Restore Purchases in a moment."
+        );
       }
+    } catch (err: any) {
+      if (!err?.userCancelled) {
+        console.log("Purchase error:", err);
+        Alert.alert(
+          "Purchase didn't complete",
+          "Something went wrong while completing your purchase. Please try again. If you were charged, tap Restore Purchases."
+        );
+      }
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
     }
   };
 
   // ⭐ Restore purchases
   const restore = async () => {
-    if (!REVENUECAT_SUPPORTED) return;
+    if (!available) {
+      notifyUnavailable();
+      return;
+    }
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+
     try {
       const info = await Purchases.restorePurchases();
-      updateProStatus(info);
+      const active = isProActive(info);
+      setIsPro(active);
+
+      Alert.alert(
+        active ? "Purchases restored" : "Nothing to restore",
+        active
+          ? "FlipPilot Pro is unlocked on this device."
+          : "We couldn't find an active FlipPilot Pro subscription for this account."
+      );
     } catch (err) {
       console.log("Restore error:", err);
+      Alert.alert(
+        "Couldn't restore purchases",
+        "Please check your connection and try again."
+      );
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
     }
   };
 
@@ -100,6 +198,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         offerings,
         purchase,
         restore,
+        available,
+        busy,
       }}
     >
       {children}

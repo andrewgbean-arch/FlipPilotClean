@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, Animated } from "react-native";
 import { useTheme } from "@/styles/ThemeContext";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
@@ -12,33 +12,40 @@ export default function SettingsScreen() {
   /* ---------------------------------------------
      ⭐ GOLD BORDER PULSE ANIMATION
   --------------------------------------------- */
-  const pulse = useRef(new Animated.Value(0)).current;
+  const [pulse] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
-    if (dealerMode) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulse, {
-            toValue: 1,
-            duration: 900,
-            useNativeDriver: false,
-          }),
-          Animated.timing(pulse, {
-            toValue: 0,
-            duration: 900,
-            useNativeDriver: false,
-          }),
-        ])
-      ).start();
-    } else {
+    if (!dealerMode) {
       pulse.stopAnimation();
       pulse.setValue(0);
+      return;
     }
-  }, [dealerMode]);
 
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 900,
+          useNativeDriver: false,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 900,
+          useNativeDriver: false,
+        }),
+      ])
+    );
+    loop.start();
+
+    // Without this the loop keeps running after leaving the screen.
+    return () => loop.stop();
+  }, [dealerMode, pulse]);
+
+  // Both ends have to be valid colours; goldSoftGlow is already an rgba()
+  // string, so tacking "55" onto it made the interpolation throw.
   const pulseBorder = pulse.interpolate({
     inputRange: [0, 1],
-    outputRange: [theme.goldSoftGlow + "55", theme.goldDeep],
+    outputRange: [theme.goldSoftGlow, theme.goldDeep],
   });
 
   /* ---------------------------------------------

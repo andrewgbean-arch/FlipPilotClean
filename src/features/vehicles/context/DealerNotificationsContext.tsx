@@ -28,6 +28,10 @@ type DealerNotificationsContextValue = {
 const DealerNotificationsContext =
   createContext<DealerNotificationsContextValue | null>(null);
 
+// Notifications only live for the session, so keep the list from growing
+// without limit.
+const MAX_NOTIFICATIONS = 100;
+
 export function DealerNotificationsProvider({
   children,
 }: {
@@ -38,15 +42,28 @@ export function DealerNotificationsProvider({
   const addNotification: DealerNotificationsContextValue["addNotification"] = (
     n
   ) => {
-    setNotifications((prev) => [
-      {
-        id: Math.random().toString(36).slice(2),
-        createdAt: new Date().toISOString(),
-        read: false,
-        ...n,
-      },
-      ...prev,
-    ]);
+    const entry: DealerNotification = {
+      id: Math.random().toString(36).slice(2),
+      createdAt: new Date().toISOString(),
+      read: false,
+      ...n,
+    };
+
+    setNotifications((prev) => {
+      // Something already saying exactly this is still waiting to be read
+      // (for example the MOT alerts screen adds its notifications every time
+      // it opens), so there is nothing new to tell the user.
+      const repeat = prev.some(
+        (x) =>
+          !x.read &&
+          x.type === entry.type &&
+          x.title === entry.title &&
+          x.message === entry.message
+      );
+      if (repeat) return prev;
+
+      return [entry, ...prev].slice(0, MAX_NOTIFICATIONS);
+    });
   };
 
   const markRead = (id: string) => {
