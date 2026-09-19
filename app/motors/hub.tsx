@@ -1,6 +1,31 @@
-import { ScrollView, TouchableOpacity, Text, View } from "react-native";
-import { useRouter } from "expo-router";
 import React from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useRouter } from "expo-router";
+import {
+  Car,
+  CaretRight,
+  ChartLineUp,
+  CheckCircle,
+  CurrencyGbp,
+  List,
+  MagnifyingGlass,
+  PencilSimple,
+  Plus,
+  Star,
+  TrendUp,
+  Trophy,
+  Warning,
+  WarningCircle,
+} from "phosphor-react-native";
+import type { Icon as PhosphorIcon } from "phosphor-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/styles/ThemeContext";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
@@ -18,11 +43,25 @@ import {
   summariseVehicles,
 } from "@/features/vehicles/utils/vehicleStats";
 
+type AppTheme = ReturnType<typeof useTheme>;
+
+// Profit and loss always carry a sign: "+£300" / "-£45", or "-" when unknown.
+function signedMoney(value: number | null | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "-";
+  return value > 0 ? `+${formatMoney(value)}` : formatMoney(value);
+}
+
+function profitColor(theme: AppTheme, value: number | null | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return theme.muted;
+  return value > 0 ? theme.success : value < 0 ? theme.danger : theme.text;
+}
+
 export default function MotorsHub() {
   const theme = useTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
-  const { vehicles: records } = useVehicleHistory();
+  const { vehicles: records, loaded, loadError } = useVehicleHistory();
 
   // Scans share the store with vehicles but are not vehicles, so only records
   // with MOT data are counted or listed here.
@@ -49,396 +88,582 @@ export default function MotorsHub() {
     })
     .slice(0, 3);
 
+  const topPerformers = ranked.slice(0, 3);
+  const monthly = monthlyProfit(vehicles);
+  const maxMonthly = Math.max(...monthly.map((entry) => entry.profit), 1);
+
+  const openVehicle = (id: string) => router.push(`/vehicles/overview/${id}`);
+
+  // Saved vehicles are read from storage after launch; do not call the list
+  // empty before that has finished.
+  if (!loaded) {
+    return (
+      <View style={[styles.container, styles.center, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={theme.muted} />
+        <Text style={[styles.stateBody, { color: theme.muted }]}>Loading your vehicles</Text>
+      </View>
+    );
+  }
+
+  const hasVehicles = vehicles.length > 0;
+
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: theme.black }}
-      contentContainerStyle={{ padding: 16 }}
+      style={[styles.container, { backgroundColor: theme.background }]}
+      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+      showsVerticalScrollIndicator={false}
     >
-      {/* HEADER */}
-      <Text
-        style={{
-          fontSize: 32,
-          fontWeight: "800",
-          color: theme.goldDeep,
-          marginBottom: 12,
-          textShadowColor: theme.goldSoftGlow,
-          textShadowOffset: { width: 0, height: 0 },
-          textShadowRadius: 8,
-        }}
-      >
-        FlipPilot Motors
+      <Text style={[styles.subtitle, { color: theme.muted }]}>
+        Profit, flip scores and MOT dates across your vehicles.
       </Text>
 
-      {/* VEHICLE STATS */}
-      <Card title="Vehicle Stats" theme={theme}>
-        <Stat label="Total Vehicles" value={totalFlips} theme={theme} />
-        <Stat
-          label="Total Profit"
-          value={formatMoney(totalProfit)}
-          theme={theme}
-        />
-        <Stat
-          label="Avg Flip Score"
-          value={formatScore(avgScore)}
-          theme={theme}
-        />
-        <Stat label="Best Flip" value={bestFlip?.title ?? "-"} theme={theme} />
-        <Stat label="MOT Attention" value={motAttention.length} theme={theme} />
-      </Card>
+      {/* STATS */}
+      {hasVehicles ? (
+        <View style={styles.statsRow}>
+          <StatTile Icon={Car} label="Vehicles" value={String(totalFlips)} />
+          <StatTile
+            Icon={CurrencyGbp}
+            label="Profit"
+            value={signedMoney(totalProfit)}
+            color={profitColor(theme, totalProfit)}
+          />
+          <StatTile
+            Icon={Star}
+            label="Avg score"
+            value={formatScore(avgScore)}
+          />
+        </View>
+      ) : null}
 
-
-      {/* Monthly Profit Timeline */}
-      <Card title="Monthly Profit Timeline" theme={theme}>
-        <MonthlyProfitTimeline vehicles={vehicles} theme={theme} />
-      </Card>
-
-      {/* Spotlight */}
-      <Card title="Spotlight" theme={theme}>
-        {bestFlip ? (
-          <Text style={{ color: theme.accent, marginTop: 8 }}>
-            {bestFlip.title} is your top performer.
-          </Text>
-        ) : (
-          <Text style={{ color: theme.muted, marginTop: 8 }}>
-            No completed flips yet.
-          </Text>
-        )}
-      </Card>
-
-      {/* Top Performing Cars */}
-      <Card title="Top Performing Cars" theme={theme}>
-        <TopPerformers ranked={ranked} theme={theme} router={router} />
-      </Card>
-
-      {/* Quick Actions */}
-      <Card title="Quick Actions" theme={theme}>
-        <QuickButton
-          label="New Flip"
+      {/* PRIMARY ACTIONS */}
+      <View style={styles.actionsRow}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="New flip"
+          style={({ pressed }) => [
+            styles.primaryButton,
+            { backgroundColor: theme.gold },
+            pressed && styles.pressed,
+          ]}
           onPress={() => router.push("/vehicles/new")}
-          theme={theme}
-        />
-        <QuickButton
-          label="MOT Lookup"
+        >
+          <Plus size={20} color={theme.black} weight="bold" />
+          <Text style={[styles.primaryLabel, { color: theme.black }]}>New flip</Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="MOT lookup"
+          style={({ pressed }) => [
+            styles.secondaryButton,
+            { borderColor: theme.hairline, backgroundColor: theme.card },
+            pressed && styles.pressed,
+          ]}
           onPress={() => router.push("/vehicles/mot-lookup")}
-          theme={theme}
-        />
-        <QuickButton
-          label="Vehicle List"
-          onPress={() => router.push("/vehicles/list")}
-          theme={theme}
-        />
-        <QuickButton
-          label="Edit Flip"
+        >
+          <MagnifyingGlass size={20} color={theme.text} />
+          <Text style={[styles.secondaryLabel, { color: theme.text }]}>MOT lookup</Text>
+        </Pressable>
+      </View>
+
+      {!hasVehicles ? (
+        <View style={styles.emptyBox}>
+          <View
+            style={[styles.emptyIcon, { backgroundColor: theme.card, borderColor: theme.hairline }]}
+          >
+            {loadError ? (
+              <Warning size={30} color={theme.warning} />
+            ) : (
+              <Car size={30} color={theme.muted} />
+            )}
+          </View>
+          <Text style={[styles.emptyTitle, { color: theme.text }]}>
+            {loadError ? "Couldn't load your vehicles" : "No vehicles yet"}
+          </Text>
+          <Text style={[styles.emptyBody, { color: theme.muted }]}>
+            {loadError ?? "Add your first vehicle to track its MOT, profit and flip score."}
+          </Text>
+        </View>
+      ) : (
+        <>
+          {/* SPOTLIGHT */}
+          <SectionTitle>Spotlight</SectionTitle>
+          {bestFlip ? (
+            <Group>
+              <Row
+                Icon={Trophy}
+                iconColor={theme.gold}
+                title={bestFlip.title}
+                subtitle="Your top performer"
+              />
+            </Group>
+          ) : (
+            <EmptyCard
+              text="No completed flips yet. Add a buy and sell price to a vehicle to see it here."
+            />
+          )}
+
+          {/* TOP PERFORMERS */}
+          <SectionTitle>Top performers</SectionTitle>
+          {topPerformers.length === 0 ? (
+            <EmptyCard text="No completed flips yet." />
+          ) : (
+            <Group>
+              {topPerformers.map(({ vehicle: v, profit }, i) => (
+                <Row
+                  key={v.id}
+                  Icon={Trophy}
+                  title={v.title}
+                  label={`${v.title}. Profit ${signedMoney(profit)}`}
+                  trailing={<ProfitFigure value={profit} />}
+                  onPress={() => openVehicle(v.id)}
+                  divider={i > 0}
+                />
+              ))}
+            </Group>
+          )}
+
+          {/* MONTHLY PROFIT */}
+          <SectionTitle>Monthly profit</SectionTitle>
+          {monthly.length === 0 ? (
+            <EmptyCard Icon={ChartLineUp} text="No sales recorded yet." />
+          ) : (
+            <View style={[styles.emptyCard, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
+              {monthly.map(({ key, label, profit }, i) => (
+                <View
+                  key={key}
+                  accessible
+                  accessibilityLabel={`${label}: ${signedMoney(profit)}`}
+                  style={i > 0 && styles.monthGap}
+                >
+                  <View style={styles.monthHeader}>
+                    <Text style={[styles.monthLabel, { color: theme.muted }]}>{label}</Text>
+                    <Text
+                      style={[
+                        styles.monthValue,
+                        { color: profit >= 0 ? theme.success : theme.danger },
+                      ]}
+                    >
+                      {signedMoney(profit)}
+                    </Text>
+                  </View>
+                  <View style={[styles.track, { backgroundColor: theme.background }]}>
+                    <View
+                      style={[
+                        styles.fill,
+                        {
+                          width: `${barPercent(profit, maxMonthly)}%`,
+                          backgroundColor: profit >= 0 ? theme.success : theme.danger,
+                        },
+                      ]}
+                    />
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* RECENT VEHICLES */}
+          <SectionTitle>Recent vehicles</SectionTitle>
+          <VehicleList
+            items={recentVehicles}
+            Icon={Car}
+            emptyText="No vehicles yet."
+            onOpen={openVehicle}
+          />
+
+          {/* MOT ATTENTION (expired or due within 30 days, most urgent first) */}
+          <SectionTitle
+            meta={
+              motAttention.length > 0
+                ? `${motAttention.length} ${motAttention.length === 1 ? "vehicle" : "vehicles"}`
+                : undefined
+            }
+          >
+            MOT attention
+          </SectionTitle>
+          {motAttention.length === 0 ? (
+            <EmptyCard Icon={CheckCircle} iconColor={theme.success} text="No MOT issues." />
+          ) : (
+            <Group>
+              {motAttention.map(({ vehicle: v, days }, i) => {
+                const color = days < 0 ? theme.danger : theme.warning;
+                return (
+                  <Row
+                    key={v.id}
+                    Icon={WarningCircle}
+                    iconColor={color}
+                    title={v.title}
+                    subtitle={`MOT ${motExpiryPhrase(days)}`}
+                    subtitleColor={color}
+                    onPress={() => openVehicle(v.id)}
+                    divider={i > 0}
+                  />
+                );
+              })}
+            </Group>
+          )}
+
+          {/* HIGH SCORE */}
+          <SectionTitle>High score vehicles</SectionTitle>
+          <VehicleList
+            items={highScore}
+            Icon={Star}
+            emptyText="No vehicles scoring 75 or more yet."
+            onOpen={openVehicle}
+          />
+
+          {/* UNDERVALUED */}
+          <SectionTitle>Undervalued vehicles</SectionTitle>
+          <VehicleList
+            items={undervalued}
+            Icon={TrendUp}
+            emptyText="No vehicles valued £1,000 or more above their buy price."
+            onOpen={openVehicle}
+          />
+        </>
+      )}
+
+      {/* MORE */}
+      <SectionTitle>More</SectionTitle>
+      <Group>
+        <Row Icon={List} title="Vehicle list" onPress={() => router.push("/vehicles/list")} />
+        <Row
+          Icon={PencilSimple}
+          title="Edit flip"
           onPress={() => router.push("/vehicles/edit-lookup")}
-          theme={theme}
+          divider
         />
-        <QuickButton
-          label="Marketplace"
-          onPress={() => router.push("/marketplace")}
-          theme={theme}
-        />
-        <QuickButton
-          label="Create Listing"
-          onPress={() => router.push("/marketplace/create")}
-          theme={theme}
-        />
-      </Card>
-
-      {/* Recent Vehicles */}
-      <SectionList
-        title="Recent Vehicles"
-        items={recentVehicles}
-        theme={theme}
-        router={router}
-      />
-
-      {/* MOT Attention */}
-      <SectionList
-        title="MOT Attention"
-        items={motAttention.map((entry) => entry.vehicle)}
-        theme={theme}
-        router={router}
-      />
-
-      {/* Upcoming MOT Expiries */}
-      <Card title="Upcoming MOT Expiries" theme={theme}>
-        <MotExpiryList items={motAttention} theme={theme} router={router} />
-      </Card>
-
-      {/* High Score */}
-      <SectionList
-        title="High Score Vehicles"
-        items={highScore}
-        theme={theme}
-        router={router}
-      />
-
-      {/* Undervalued */}
-      <SectionList
-        title="Undervalued Vehicles"
-        items={undervalued}
-        theme={theme}
-        router={router}
-      />
-
+      </Group>
     </ScrollView>
   );
 }
 
-/* ⭐ Fully Typed Helper Components */
+/* SMALL LOCAL COMPONENTS */
 
-function Card({
-  title,
-  children,
-  theme,
+function StatTile({
+  Icon,
+  label,
+  value,
+  color,
 }: {
-  title: string;
-  children: React.ReactNode;
-  theme: any;
+  Icon: PhosphorIcon;
+  label: string;
+  value: string;
+  color?: string;
 }) {
+  const theme = useTheme();
+
   return (
     <View
-      style={{
-        backgroundColor: theme.card,
-        padding: 16,
-        borderRadius: theme.radius.lg,
-        borderWidth: 1,
-        borderColor: theme.goldSoftGlow,
-        marginBottom: 20,
-      }}
+      accessible
+      accessibilityLabel={`${label}: ${value}`}
+      style={[styles.statTile, { backgroundColor: theme.card, borderColor: theme.hairline }]}
     >
-      <Text style={{ color: theme.white, fontSize: 18, fontWeight: "700" }}>
-        {title}
+      <Icon size={18} color={theme.muted} />
+      <Text
+        style={[styles.statValue, { color: color ?? theme.text }]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.6}
+      >
+        {value}
       </Text>
+      <Text style={[styles.statLabel, { color: theme.muted }]}>{label}</Text>
+    </View>
+  );
+}
+
+function SectionTitle({ children, meta }: { children: string; meta?: string }) {
+  const theme = useTheme();
+
+  return (
+    <View style={styles.sectionHeader}>
+      <Text style={[styles.sectionTitle, { color: theme.text }]} accessibilityRole="header">
+        {children}
+      </Text>
+      {meta ? <Text style={[styles.sectionMeta, { color: theme.muted }]}>{meta}</Text> : null}
+    </View>
+  );
+}
+
+// A card that holds rows; the rows inside are split by hairlines.
+function Group({ children }: { children: React.ReactNode }) {
+  const theme = useTheme();
+
+  return (
+    <View style={[styles.group, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
       {children}
     </View>
   );
 }
 
-function Stat({
-  label,
-  value,
-  theme,
+// A calm one-line message for a section with nothing in it yet.
+function EmptyCard({
+  text,
+  Icon,
+  iconColor,
 }: {
-  label: string;
-  value: string | number;
-  theme: any;
+  text: string;
+  Icon?: PhosphorIcon;
+  iconColor?: string;
 }) {
-  return (
-    <Text style={{ color: theme.muted, marginTop: 6 }}>
-      {label}: {value}
-    </Text>
-  );
-}
+  const theme = useTheme();
 
-function QuickButton({
-  label,
-  onPress,
-  theme,
-}: {
-  label: string;
-  onPress: () => void;
-  theme: any;
-}) {
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      style={{
-        backgroundColor: theme.goldDeep,
-        padding: 12,
-        borderRadius: theme.radius.md,
-        marginTop: 10,
-      }}
-    >
-      <Text
-        style={{
-          color: theme.black,
-          fontWeight: "700",
-          textAlign: "center",
-        }}
-      >
-        {label}
-      </Text>
-    </TouchableOpacity>
-  );
-}
-
-function SectionList({
-  title,
-  items,
-  theme,
-  router,
-}: {
-  title: string;
-  items: FlipRecord[];
-  theme: any;
-  router: ReturnType<typeof useRouter>;
-}) {
   return (
     <View
-      style={{
-        backgroundColor: theme.card,
-        padding: 16,
-        borderRadius: theme.radius.lg,
-        borderWidth: 1,
-        borderColor: theme.goldSoftGlow,
-        marginBottom: 20,
-      }}
+      style={[
+        styles.emptyCard,
+        Icon ? styles.emptyRow : null,
+        { backgroundColor: theme.card, borderColor: theme.hairline },
+      ]}
     >
-      <Text style={{ color: theme.white, fontSize: 18, fontWeight: "700" }}>
-        {title}
-      </Text>
-
-      {items.length === 0 ? (
-        <Text style={{ color: theme.muted, marginTop: 8 }}>None found.</Text>
-      ) : (
-        items.map((v: FlipRecord) => (
-          <TouchableOpacity
-            key={v.id}
-            onPress={() => router.push(`/vehicles/overview/${v.id}`)}
-            style={{
-              marginTop: 12,
-              padding: 12,
-              backgroundColor: theme.black,
-              borderRadius: theme.radius.md,
-              borderWidth: 1,
-              borderColor: theme.goldSoftGlow,
-            }}
-          >
-            <Text style={{ color: theme.white, fontWeight: "700" }}>
-              {v.title}
-            </Text>
-            <Text style={{ color: theme.muted }}>
-              Score: {formatScore(v.flipScore)} • Profit:{" "}
-              {formatMoney(realisedProfit(v))}
-            </Text>
-          </TouchableOpacity>
-        ))
-      )}
+      {Icon ? <Icon size={20} color={iconColor ?? theme.muted} /> : null}
+      <Text style={[styles.emptyText, { color: theme.muted }]}>{text}</Text>
     </View>
   );
 }
 
-function MonthlyProfitTimeline({
-  vehicles,
-  theme,
+// An icon, a title, an optional second line and a chevron. With no onPress it
+// is a plain (non-tappable) row.
+function Row({
+  Icon,
+  iconColor,
+  title,
+  subtitle,
+  subtitleColor,
+  label,
+  trailing,
+  onPress,
+  divider,
 }: {
-  vehicles: FlipRecord[];
-  theme: any;
+  Icon?: PhosphorIcon;
+  iconColor?: string;
+  title: string;
+  subtitle?: string;
+  subtitleColor?: string;
+  label?: string;
+  trailing?: React.ReactNode;
+  onPress?: () => void;
+  divider?: boolean;
 }) {
-  const entries = monthlyProfit(vehicles);
-  const maxProfit = Math.max(...entries.map((entry) => entry.profit), 1);
+  const theme = useTheme();
+
+  const dividerStyle = divider
+    ? { borderTopWidth: 1, borderTopColor: theme.hairline }
+    : null;
+
+  const body = (
+    <>
+      {Icon ? <Icon size={22} color={iconColor ?? theme.muted} /> : null}
+
+      <View style={styles.rowText}>
+        <Text style={[styles.rowTitle, { color: theme.text }]} numberOfLines={1}>
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text
+            style={[styles.rowSubtitle, { color: subtitleColor ?? theme.muted }]}
+            numberOfLines={1}
+          >
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
+
+      {trailing}
+      {onPress ? <CaretRight size={16} color={theme.muted} /> : null}
+    </>
+  );
+
+  if (!onPress) {
+    return (
+      <View
+        accessible
+        accessibilityLabel={subtitle ? `${title}. ${subtitle}` : title}
+        style={[styles.row, dividerStyle]}
+      >
+        {body}
+      </View>
+    );
+  }
 
   return (
-    <View style={{ marginTop: 10 }}>
-      {entries.length === 0 ? (
-        <Text style={{ color: theme.muted }}>No data yet.</Text>
-      ) : (
-        entries.map(({ key, label, profit }) => (
-          <View key={key} style={{ marginBottom: 8 }}>
-            <Text style={{ color: theme.white }}>
-              {label}: {formatMoney(profit)}
-            </Text>
-            <View
-              style={{
-                height: 8,
-                backgroundColor: theme.black,
-                borderRadius: theme.radius.full,
-                overflow: "hidden",
-                marginTop: 4,
-              }}
-            >
-              <View
-                style={{
-                  width: `${barPercent(profit, maxProfit)}%`,
-                  height: "100%",
-                  backgroundColor:
-                    profit > 500
-                      ? theme.goldDeep
-                      : profit > 200
-                      ? "#FFD966"
-                      : "#FF6666",
-                }}
-              />
-            </View>
-          </View>
-        ))
-      )}
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label ?? (subtitle ? `${title}. ${subtitle}` : title)}
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, dividerStyle, pressed && styles.pressed]}
+    >
+      {body}
+    </Pressable>
+  );
+}
+
+// Profit on the right of a row, with its sign and colour.
+function ProfitFigure({ value }: { value: number | null }) {
+  const theme = useTheme();
+
+  return (
+    <View style={styles.figure}>
+      <Text style={[styles.figureValue, { color: profitColor(theme, value) }]}>
+        {signedMoney(value)}
+      </Text>
+      <Text style={[styles.figureLabel, { color: theme.muted }]}>Profit</Text>
     </View>
   );
 }
 
-function TopPerformers({
-  ranked,
-  theme,
-  router,
-}: {
-  ranked: { vehicle: FlipRecord; profit: number }[];
-  theme: any;
-  router: ReturnType<typeof useRouter>;
-}) {
-  const top = ranked.slice(0, 3);
-
-  if (top.length === 0)
-    return <Text style={{ color: theme.muted }}>No completed flips yet.</Text>;
-
-  return top.map(({ vehicle: v, profit }) => (
-    <TouchableOpacity
-      key={v.id}
-      onPress={() => router.push(`/vehicles/overview/${v.id}`)}
-      style={{
-        marginTop: 12,
-        padding: 12,
-        backgroundColor: theme.black,
-        borderRadius: theme.radius.md,
-        borderWidth: 1,
-        borderColor: theme.goldSoftGlow,
-      }}
-    >
-      <Text style={{ color: theme.white, fontWeight: "700" }}>
-        {v.title}
-      </Text>
-      <Text style={{ color: theme.accent }}>
-        Profit: {formatMoney(profit)}
-      </Text>
-    </TouchableOpacity>
-  ));
-}
-
-function MotExpiryList({
+// Up to three vehicles, each with its flip score and profit.
+function VehicleList({
   items,
-  theme,
-  router,
+  Icon,
+  emptyText,
+  onOpen,
 }: {
-  items: { vehicle: FlipRecord; days: number }[];
-  theme: any;
-  router: ReturnType<typeof useRouter>;
+  items: FlipRecord[];
+  Icon: PhosphorIcon;
+  emptyText: string;
+  onOpen: (id: string) => void;
 }) {
-  if (items.length === 0)
-    return <Text style={{ color: theme.muted }}>No MOT issues.</Text>;
+  if (items.length === 0) return <EmptyCard text={emptyText} />;
 
-  return items.map(({ vehicle: v, days }) => {
-    const color =
-      days <= 7 ? "#FF4444" : days <= 30 ? "#FFD966" : theme.white;
-
-    return (
-      <TouchableOpacity
-        key={v.id}
-        onPress={() => router.push(`/vehicles/overview/${v.id}`)}
-        style={{
-          marginTop: 12,
-          padding: 12,
-          backgroundColor: theme.black,
-          borderRadius: theme.radius.md,
-          borderWidth: 1,
-          borderColor: theme.goldSoftGlow,
-        }}
-      >
-        <Text style={{ color: theme.white, fontWeight: "700" }}>
-          {v.title}
-        </Text>
-        <Text style={{ color }}>MOT {motExpiryPhrase(days)}</Text>
-      </TouchableOpacity>
-    );
-  });
+  return (
+    <Group>
+      {items.map((v: FlipRecord, i) => {
+        const profit = realisedProfit(v);
+        return (
+          <Row
+            key={v.id}
+            Icon={Icon}
+            title={v.title}
+            subtitle={`Score ${formatScore(v.flipScore)}`}
+            label={`${v.title}. Score ${formatScore(v.flipScore)}. Profit ${signedMoney(profit)}`}
+            trailing={<ProfitFigure value={profit} />}
+            onPress={() => onOpen(v.id)}
+            divider={i > 0}
+          />
+        );
+      })}
+    </Group>
+  );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  content: { paddingHorizontal: 16, paddingTop: 16 },
+
+  center: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+  },
+  stateBody: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "center",
+    marginTop: 12,
+  },
+
+  subtitle: { fontSize: 14 },
+
+  statsRow: { flexDirection: "row", gap: 10, marginTop: 16 },
+  statTile: {
+    flex: 1,
+    minWidth: 0,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    gap: 4,
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
+  statLabel: { fontSize: 12 },
+
+  actionsRow: { flexDirection: "row", gap: 10, marginTop: 16 },
+  primaryButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  primaryLabel: { fontSize: 16, fontWeight: "700" },
+  secondaryButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  secondaryLabel: { fontSize: 16, fontWeight: "600" },
+
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    gap: 12,
+    marginTop: 28,
+    marginBottom: 10,
+  },
+  sectionTitle: { fontSize: 18, fontWeight: "700", flexShrink: 1 },
+  sectionMeta: { fontSize: 13 },
+
+  group: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
+  row: {
+    minHeight: 56,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  rowText: { flex: 1, minWidth: 0 },
+  rowTitle: { fontSize: 16, fontWeight: "600" },
+  rowSubtitle: { fontSize: 13, marginTop: 2 },
+
+  figure: { alignItems: "flex-end", flexShrink: 0 },
+  figureValue: { fontSize: 15, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  figureLabel: { fontSize: 12, marginTop: 1 },
+
+  emptyCard: { borderRadius: 16, borderWidth: 1, padding: 16 },
+  emptyRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  emptyText: { fontSize: 14, lineHeight: 20, flexShrink: 1 },
+
+  monthGap: { marginTop: 14 },
+  monthHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" },
+  monthLabel: { fontSize: 13 },
+  monthValue: { fontSize: 14, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  track: { height: 8, borderRadius: 4, overflow: "hidden", marginTop: 6 },
+  fill: { height: "100%", borderRadius: 4 },
+
+  emptyBox: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    paddingTop: 40,
+    paddingBottom: 8,
+  },
+  emptyIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  emptyTitle: { fontSize: 20, fontWeight: "700", textAlign: "center" },
+  emptyBody: { fontSize: 15, lineHeight: 22, textAlign: "center", marginTop: 8 },
+
+  pressed: { opacity: 0.7 },
+});

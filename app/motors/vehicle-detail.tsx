@@ -1,7 +1,17 @@
 import React from "react";
-import { ScrollView, Text, View, TouchableOpacity, Image } from "react-native";
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { Feather } from "@expo/vector-icons";
+import { Car, Images, PencilSimple, Warning } from "phosphor-react-native";
+import type { Icon as PhosphorIcon } from "phosphor-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/styles/ThemeContext";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
@@ -19,20 +29,50 @@ import {
   realisedProfit,
 } from "@/features/vehicles/utils/vehicleStats";
 
+type AppTheme = ReturnType<typeof useTheme>;
+
+// Profit and loss always carry a sign: "+£300" / "-£45", or "-" when unknown.
+function signedMoney(value: number | null): string {
+  if (value === null) return "-";
+  return value > 0 ? `+${formatMoney(value)}` : formatMoney(value);
+}
+
 export default function MotorsVehicleDetail() {
   const theme = useTheme();
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
   const vehicleId = Array.isArray(id) ? id[0] : id;
 
-  const { vehicles } = useVehicleHistory();
+  const { vehicles, loaded, loadError } = useVehicleHistory();
   const vehicle = vehicles.find((v) => v.id === vehicleId);
 
   if (!vehicle) {
+    // Saved vehicles are read from storage after launch; do not call one
+    // missing before that has finished.
+    if (!loaded) {
+      return (
+        <View style={[styles.container, styles.center, { backgroundColor: theme.background }]}>
+          <ActivityIndicator size="large" color={theme.muted} />
+          <Text style={[styles.stateBody, { color: theme.muted }]}>Loading your vehicle</Text>
+        </View>
+      );
+    }
+
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme.background, padding: 20 }}>
-        <Text style={{ color: theme.white, fontSize: 18, fontWeight: "700" }}>Vehicle not found</Text>
-        <Text style={{ color: theme.muted, marginTop: 8, textAlign: "center" }}>
-          This vehicle no longer exists in your history.
+      <View style={[styles.container, styles.center, { backgroundColor: theme.background }]}>
+        <View
+          style={[styles.stateIcon, { backgroundColor: theme.card, borderColor: theme.hairline }]}
+        >
+          {loadError ? (
+            <Warning size={30} color={theme.warning} />
+          ) : (
+            <Car size={30} color={theme.muted} />
+          )}
+        </View>
+        <Text style={[styles.stateTitle, { color: theme.text }]} accessibilityRole="header">
+          {loadError ? "Couldn't load your vehicles" : "Vehicle not found"}
+        </Text>
+        <Text style={[styles.stateBody, { color: theme.muted }]}>
+          {loadError ?? "This vehicle no longer exists in your history."}
         </Text>
       </View>
     );
@@ -41,169 +81,277 @@ export default function MotorsVehicleDetail() {
   return <MotorsVehicleDetailContent vehicle={vehicle} theme={theme} />;
 }
 
-function MotorsVehicleDetailContent({ vehicle, theme }: { vehicle: FlipRecord; theme: any }) {
+function MotorsVehicleDetailContent({
+  vehicle,
+  theme,
+}: {
+  vehicle: FlipRecord;
+  theme: AppTheme;
+}) {
+  const insets = useSafeAreaInsets();
+
   const profit = realisedProfit(vehicle);
   const motExpiry = motExpiryOf(vehicle);
   const daysLeft = motDaysLeft(vehicle);
   const makeModel = [vehicle.mot?.make, vehicle.mot?.model].filter(Boolean).join(" ");
-  const subtitle = [makeModel, vehicle.mot?.year].filter(Boolean).join(" • ");
+  const subtitle = [makeModel, vehicle.mot?.year].filter(Boolean).join(" · ");
   const expiryPhrase = motExpiryPhrase(daysLeft);
+
+  const profitColor =
+    profit === null ? theme.muted : profit >= 0 ? theme.success : theme.danger;
+
+  // Red once expired, amber when it runs out within 30 days.
+  const statusColor =
+    daysLeft === null
+      ? theme.text
+      : daysLeft < 0
+      ? theme.danger
+      : daysLeft <= 30
+      ? theme.warning
+      : theme.text;
 
   return (
     <ScrollView
-      style={{ flex: 1, backgroundColor: theme.background }}
-      contentContainerStyle={{ padding: 16, paddingBottom: 60 }}
+      style={[styles.container, { backgroundColor: theme.background }]}
+      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+      showsVerticalScrollIndicator={false}
     >
-      {/* BACK */}
-      <TouchableOpacity
-        onPress={() => router.back()}
-        style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}
-        hitSlop={10}
-      >
-        <Feather name="chevron-left" size={22} color={theme.muted} />
-        <Text style={{ color: theme.muted, fontSize: 15, fontWeight: "600" }}>Back</Text>
-      </TouchableOpacity>
-
       {/* THUMBNAIL */}
       {vehicle.images?.[0] && (
         <Image
           source={{ uri: vehicle.images[0] }}
-          style={{ width: "100%", height: 200, borderRadius: theme.radius.lg, marginBottom: 16 }}
+          accessibilityLabel={`Photo of ${vehicle.title}`}
+          style={[styles.thumbnail, { backgroundColor: theme.card }]}
           resizeMode="cover"
         />
       )}
 
       {/* TITLE */}
-      <Text style={{ color: theme.goldDeep, fontSize: 26, fontWeight: "800" }}>
+      <Text
+        style={[styles.title, vehicle.images?.[0] ? styles.titleAfterPhoto : null, { color: theme.text }]}
+        numberOfLines={3}
+        accessibilityRole="header"
+      >
         {vehicle.title}
       </Text>
       {subtitle !== "" && (
-        <Text style={{ color: theme.muted, marginTop: 4 }}>{subtitle}</Text>
+        <Text style={[styles.subtitle, { color: theme.muted }]}>{subtitle}</Text>
       )}
 
       {/* QUICK ACTIONS */}
-      <View style={{ flexDirection: "row", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
-        <ActionChip
-          icon="image"
+      <View style={styles.actionsRow}>
+        <ActionButton
+          Icon={Images}
           label="Photos"
-          theme={theme}
           onPress={() => router.push(`/motors/gallery/${vehicle.id}`)}
         />
-        <ActionChip
-          icon="edit-2"
+        <ActionButton
+          Icon={PencilSimple}
           label="Edit"
-          theme={theme}
           onPress={() => router.push(`/motors/edit-vehicle?id=${vehicle.id}`)}
         />
       </View>
 
       {/* STATS */}
-      <View
-        style={{
-          marginTop: 20,
-          backgroundColor: theme.card,
-          borderRadius: theme.radius.lg,
-          borderWidth: 1,
-          borderColor: theme.goldSoftGlow,
-          padding: 16,
-        }}
-      >
-        <Text style={{ color: theme.white, fontSize: 18, fontWeight: "700", marginBottom: 10 }}>
-          Flip Stats
-        </Text>
-        <StatRow label="Buy Price" value={formatMoney(vehicle.buyPrice)} theme={theme} />
-        <StatRow label="Sell Price" value={formatMoney(vehicle.sellPrice)} theme={theme} />
-        <StatRow
-          label="Profit"
-          value={formatMoney(profit)}
-          valueColor={profit === null ? undefined : profit >= 0 ? theme.success : theme.danger}
-          theme={theme}
+      <SectionTitle>Flip stats</SectionTitle>
+      <View style={[styles.group, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
+        <View
+          accessible
+          accessibilityLabel={`Profit ${signedMoney(profit)}`}
+          style={styles.profitBlock}
+        >
+          <Text style={[styles.smallLabel, { color: theme.muted }]}>Profit</Text>
+          <Text
+            style={[styles.profitFigure, { color: profitColor }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.6}
+          >
+            {signedMoney(profit)}
+          </Text>
+        </View>
+
+        <DataRow label="Buy price" value={formatMoney(vehicle.buyPrice)} divider />
+        <DataRow label="Sell price" value={formatMoney(vehicle.sellPrice)} divider />
+        <DataRow label="Flip score" value={formatScore(vehicle.flipScore)} divider />
+        <DataRow
+          label="Mileage"
+          value={formatMiles(vehicle.mileage ?? vehicle.mot?.mileage)}
+          divider
         />
-        <StatRow label="FlipScore" value={formatScore(vehicle.flipScore)} theme={theme} />
-        <StatRow label="Mileage" value={formatMiles(vehicle.mileage ?? vehicle.mot?.mileage)} theme={theme} />
       </View>
 
       {/* MOT */}
-      <View
-        style={{
-          marginTop: 20,
-          backgroundColor: theme.card,
-          borderRadius: theme.radius.lg,
-          borderWidth: 1,
-          borderColor: theme.goldSoftGlow,
-          padding: 16,
-        }}
-      >
-        <Text style={{ color: theme.white, fontSize: 18, fontWeight: "700", marginBottom: 10 }}>
-          MOT
-        </Text>
+      <SectionTitle>MOT</SectionTitle>
+      <View style={[styles.group, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
         {motExpiry ? (
           <>
-            <StatRow label="Expiry" value={formatDate(motExpiry)} theme={theme} />
+            <DataRow label="Expiry" value={formatDate(motExpiry)} />
             {daysLeft !== null && (
-              <StatRow
+              <DataRow
                 label="Status"
                 value={expiryPhrase.charAt(0).toUpperCase() + expiryPhrase.slice(1)}
-                valueColor={daysLeft <= 30 ? theme.danger : theme.white}
-                theme={theme}
+                valueColor={statusColor}
+                divider
               />
             )}
           </>
         ) : (
-          <Text style={{ color: theme.muted }}>No MOT data on file.</Text>
+          <View style={styles.textBlock}>
+            <Text style={[styles.textBlockText, { color: theme.muted }]}>No MOT data on file.</Text>
+          </View>
         )}
       </View>
     </ScrollView>
   );
 }
 
-function StatRow({
+/* SMALL LOCAL COMPONENTS */
+
+function SectionTitle({ children }: { children: string }) {
+  const theme = useTheme();
+
+  return (
+    <Text style={[styles.sectionTitle, { color: theme.text }]} accessibilityRole="header">
+      {children}
+    </Text>
+  );
+}
+
+function DataRow({
   label,
   value,
   valueColor,
-  theme,
+  divider,
 }: {
   label: string;
   value: string;
   valueColor?: string;
-  theme: any;
+  divider?: boolean;
 }) {
+  const theme = useTheme();
+
   return (
-    <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6 }}>
-      <Text style={{ color: theme.muted }}>{label}</Text>
-      <Text style={{ color: valueColor ?? theme.white, fontWeight: "700" }}>{value}</Text>
+    <View
+      accessible
+      accessibilityLabel={`${label}: ${value}`}
+      style={[styles.dataRow, divider && { borderTopWidth: 1, borderTopColor: theme.hairline }]}
+    >
+      <Text style={[styles.dataLabel, { color: theme.muted }]}>{label}</Text>
+      <Text style={[styles.dataValue, { color: valueColor ?? theme.text }]}>{value}</Text>
     </View>
   );
 }
 
-function ActionChip({
-  icon,
+function ActionButton({
+  Icon,
   label,
-  theme,
   onPress,
 }: {
-  icon: keyof typeof Feather.glyphMap;
+  Icon: PhosphorIcon;
   label: string;
-  theme: any;
   onPress: () => void;
 }) {
+  const theme = useTheme();
+
   return (
-    <TouchableOpacity
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
       onPress={onPress}
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 6,
-        backgroundColor: theme.card,
-        paddingVertical: 8,
-        paddingHorizontal: 14,
-        borderRadius: theme.radius.full,
-        borderWidth: 1,
-        borderColor: theme.goldSoftGlow,
-      }}
+      style={({ pressed }) => [
+        styles.secondaryButton,
+        { borderColor: theme.hairline, backgroundColor: theme.card },
+        pressed && styles.pressed,
+      ]}
     >
-      <Feather name={icon} size={14} color={theme.goldDeep} />
-      <Text style={{ color: theme.white, fontWeight: "600", fontSize: 13 }}>{label}</Text>
-    </TouchableOpacity>
+      <Icon size={20} color={theme.text} />
+      <Text style={[styles.secondaryLabel, { color: theme.text }]} numberOfLines={1}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  content: { paddingHorizontal: 16, paddingTop: 16 },
+
+  center: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+  },
+  stateIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  stateTitle: { fontSize: 20, fontWeight: "700", textAlign: "center" },
+  stateBody: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "center",
+    marginTop: 8,
+  },
+
+  thumbnail: {
+    width: "100%",
+    height: 200,
+    borderRadius: 16,
+  },
+  title: { fontSize: 28, fontWeight: "700" },
+  titleAfterPhoto: { marginTop: 16 },
+  subtitle: { fontSize: 14, marginTop: 2 },
+
+  actionsRow: { flexDirection: "row", gap: 10, marginTop: 16 },
+  secondaryButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  secondaryLabel: { fontSize: 16, fontWeight: "600", flexShrink: 1 },
+
+  sectionTitle: { fontSize: 18, fontWeight: "700", marginTop: 28, marginBottom: 10 },
+
+  group: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
+  profitBlock: { padding: 16 },
+  smallLabel: { fontSize: 13 },
+  profitFigure: {
+    fontSize: 36,
+    fontWeight: "700",
+    lineHeight: 42,
+    fontVariant: ["tabular-nums"],
+  },
+  dataRow: {
+    minHeight: 52,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+  },
+  dataLabel: { fontSize: 15 },
+  dataValue: {
+    fontSize: 16,
+    fontWeight: "600",
+    flexShrink: 1,
+    textAlign: "right",
+    fontVariant: ["tabular-nums"],
+  },
+  textBlock: { padding: 16 },
+  textBlockText: { fontSize: 16, lineHeight: 23 },
+
+  pressed: { opacity: 0.75 },
+});

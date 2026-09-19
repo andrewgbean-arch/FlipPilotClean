@@ -56,6 +56,7 @@ function StatTile({
         style={[styles.statValue, { color: color ?? theme.text }]}
         numberOfLines={1}
         adjustsFontSizeToFit
+        minimumFontScale={0.6}
       >
         {value}
       </Text>
@@ -382,7 +383,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   statValue: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "700",
     fontVariant: ["tabular-nums"],
   },

@@ -1,10 +1,28 @@
-import { View, Text, ScrollView, TouchableOpacity, TextInput } from "react-native";
+import React, { useState } from "react";
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { Car, Warning } from "phosphor-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import { useTheme } from "@/styles/ThemeContext";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
 import { daysUntilDate } from "@/features/vehicles/utils/motDates";
-import { useState } from "react";
+
+type AppTheme = ReturnType<typeof useTheme>;
+
+const NUMBERS_ERROR = "Mileage, buy price and valuation need to be numbers.";
+const EXPIRY_ERROR = "Enter the MOT expiry as YYYY-MM-DD, for example 2026-11-04.";
 
 // A blank box means "not set" (null), not zero. Undefined means it isn't a number.
 function readNumber(text: string): number | null | undefined {
@@ -19,21 +37,41 @@ export default function EditVehicle() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  const { vehicles, updateVehicle } = useVehicleHistory();
+  const { vehicles, updateVehicle, loaded, loadError } = useVehicleHistory();
 
   const vehicle = vehicles.find((v) => String(v.id) === String(id));
 
   /* ---------------------------------------------
-     ⭐ Vehicle not found
+     Vehicle not found
   --------------------------------------------- */
   if (!vehicle) {
+    // Saved vehicles are read from storage after launch; do not call one
+    // missing before that has finished.
+    if (!loaded) {
+      return (
+        <View style={[styles.flex, styles.center, { backgroundColor: theme.background }]}>
+          <ActivityIndicator size="large" color={theme.muted} />
+          <Text style={[styles.stateBody, { color: theme.muted }]}>Loading your vehicle</Text>
+        </View>
+      );
+    }
+
     return (
-      <View style={{ padding: 20 }}>
-        <Text style={{ color: theme.white, fontSize: 22, fontWeight: "700" }}>
-          Vehicle not found
+      <View style={[styles.flex, styles.center, { backgroundColor: theme.background }]}>
+        <View
+          style={[styles.stateIcon, { backgroundColor: theme.card, borderColor: theme.hairline }]}
+        >
+          {loadError ? (
+            <Warning size={30} color={theme.warning} />
+          ) : (
+            <Car size={30} color={theme.muted} />
+          )}
+        </View>
+        <Text style={[styles.stateTitle, { color: theme.text }]} accessibilityRole="header">
+          {loadError ? "Couldn't load your vehicles" : "Vehicle not found"}
         </Text>
-        <Text style={{ color: theme.muted, marginTop: 10 }}>
-          This vehicle no longer exists in your history.
+        <Text style={[styles.stateBody, { color: theme.muted }]}>
+          {loadError ?? "This vehicle no longer exists in your history."}
         </Text>
       </View>
     );
@@ -53,9 +91,11 @@ function EditVehicleForm({
   vehicle: FlipRecord;
   updateVehicle: (id: string, data: Partial<FlipRecord>) => void;
   router: ReturnType<typeof useRouter>;
-  theme: any;
+  theme: AppTheme;
 }) {
-  // ⭐ Local editable state
+  const insets = useSafeAreaInsets();
+
+  // Local editable state
   const [mileage, setMileage] = useState(String(vehicle.mileage ?? ""));
   const [buyPrice, setBuyPrice] = useState(String(vehicle.buyPrice ?? ""));
   const [valuation, setValuation] = useState(String(vehicle.valuation ?? ""));
@@ -74,13 +114,13 @@ function EditVehicleForm({
       newBuyPrice === undefined ||
       newValuation === undefined
     ) {
-      setError("Mileage, buy price and valuation need to be numbers.");
+      setError(NUMBERS_ERROR);
       return;
     }
 
     const expiry = motExpiry.trim();
     if (expiry !== "" && daysUntilDate(expiry) === null) {
-      setError("Enter the MOT expiry as YYYY-MM-DD, for example 2026-11-04.");
+      setError(EXPIRY_ERROR);
       return;
     }
 
@@ -104,104 +144,111 @@ function EditVehicleForm({
     router.back();
   };
 
+  // The one error message is shown under the field it is about. A number
+  // problem is outlined on every box that still isn't a number and worded once,
+  // under the first of them.
+  const numbersProblem = error === NUMBERS_ERROR;
+  const mileageBad = numbersProblem && readNumber(mileage) === undefined;
+  const buyBad = numbersProblem && readNumber(buyPrice) === undefined;
+  const valuationBad = numbersProblem && readNumber(valuation) === undefined;
+
+  const expiryText = motExpiry.trim();
+  const expiryBad =
+    error === EXPIRY_ERROR && expiryText !== "" && daysUntilDate(expiryText) === null;
+
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: theme.black }}
-      contentContainerStyle={{ padding: 16 }}
-      keyboardShouldPersistTaps="handled"
+    <KeyboardAvoidingView
+      style={[styles.flex, { backgroundColor: theme.background }]}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 44 : 0}
     >
-      {/* HEADER */}
-      <TouchableOpacity onPress={() => router.back()}>
-        <Text style={{ color: theme.goldDeep, marginBottom: 10 }}>
-          ← Back to Vehicle
-        </Text>
-      </TouchableOpacity>
-
-      <Text
-        style={{
-          fontSize: 32,
-          fontWeight: "800",
-          color: theme.goldDeep,
-          marginBottom: 12,
-          textShadowColor: theme.goldSoftGlow,
-          textShadowOffset: { width: 0, height: 0 },
-          textShadowRadius: 8,
-        }}
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 24 }]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+        showsVerticalScrollIndicator={false}
       >
-        Edit Vehicle
-      </Text>
-      <Text style={{ color: theme.muted, marginBottom: 20 }}>
-        {vehicle.title}
-      </Text>
-
-      {/* FORM */}
-      <EditField
-        label="Mileage"
-        value={mileage}
-        onChange={setMileage}
-        theme={theme}
-        keyboard="numeric"
-      />
-
-      <EditField
-        label="Buy Price"
-        value={buyPrice}
-        onChange={setBuyPrice}
-        theme={theme}
-        keyboard="numeric"
-      />
-
-      <EditField
-        label="Valuation"
-        value={valuation}
-        onChange={setValuation}
-        theme={theme}
-        keyboard="numeric"
-      />
-
-      <EditField
-        label="MOT Expiry (YYYY-MM-DD)"
-        value={motExpiry}
-        onChange={setMotExpiry}
-        theme={theme}
-      />
-
-      <EditField
-        label="Notes"
-        value={notes}
-        onChange={setNotes}
-        theme={theme}
-        multiline
-      />
-
-      {error && (
-        <Text style={{ color: theme.danger, marginTop: 4 }}>{error}</Text>
-      )}
-
-      {/* SAVE BUTTON */}
-      <TouchableOpacity
-        style={{
-          backgroundColor: theme.goldDeep,
-          padding: 16,
-          borderRadius: theme.radius.md,
-          marginTop: 20,
-        }}
-        onPress={handleSave}
-      >
+        {/* HEADER */}
         <Text
-          style={{
-            color: theme.black,
-            fontWeight: "700",
-            textAlign: "center",
-            fontSize: 18,
-          }}
+          style={[styles.title, { color: theme.text }]}
+          numberOfLines={2}
+          accessibilityRole="header"
         >
-          Save Changes
+          {vehicle.title}
         </Text>
-      </TouchableOpacity>
+        <Text style={[styles.subtitle, { color: theme.muted }]}>
+          Update the details for this vehicle.
+        </Text>
 
-      <View style={{ height: 40 }} />
-    </ScrollView>
+        {/* FORM */}
+        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
+          <EditField
+            label="Mileage"
+            value={mileage}
+            onChange={setMileage}
+            theme={theme}
+            keyboard="numeric"
+            invalid={mileageBad}
+            error={mileageBad ? NUMBERS_ERROR : null}
+          />
+
+          <EditField
+            label="Buy price"
+            value={buyPrice}
+            onChange={setBuyPrice}
+            theme={theme}
+            keyboard="numeric"
+            prefix="£"
+            invalid={buyBad}
+            error={buyBad && !mileageBad ? NUMBERS_ERROR : null}
+          />
+
+          <EditField
+            label="Valuation"
+            value={valuation}
+            onChange={setValuation}
+            theme={theme}
+            keyboard="numeric"
+            prefix="£"
+            invalid={valuationBad}
+            error={valuationBad && !mileageBad && !buyBad ? NUMBERS_ERROR : null}
+          />
+
+          <EditField
+            label="MOT expiry (YYYY-MM-DD)"
+            value={motExpiry}
+            onChange={setMotExpiry}
+            theme={theme}
+            placeholder="2026-11-04"
+            invalid={expiryBad}
+            error={expiryBad ? EXPIRY_ERROR : null}
+          />
+
+          <EditField
+            label="Notes"
+            value={notes}
+            onChange={setNotes}
+            theme={theme}
+            multiline
+          />
+        </View>
+
+        {/* SAVE BUTTON */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Save changes"
+          style={({ pressed }) => [
+            styles.primaryButton,
+            { backgroundColor: theme.gold },
+            pressed && styles.pressed,
+          ]}
+          onPress={handleSave}
+        >
+          <Text style={[styles.primaryLabel, { color: theme.black }]}>Save changes</Text>
+        </Pressable>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -209,6 +256,7 @@ function EditVehicleForm({
    EDIT FIELD COMPONENT
 ------------------------------------------------------- */
 
+// A label over a 48pt input, with its error (if any) directly underneath.
 function EditField({
   label,
   value,
@@ -216,36 +264,140 @@ function EditField({
   theme,
   keyboard,
   multiline,
+  placeholder,
+  prefix,
+  error,
+  invalid,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
-  theme: any;
-  keyboard?: any;
+  theme: AppTheme;
+  keyboard?: "default" | "numeric";
   multiline?: boolean;
+  placeholder?: string;
+  prefix?: string;
+  error?: string | null;
+  invalid?: boolean;
 }) {
-  return (
-    <View style={{ marginBottom: 20 }}>
-      <Text style={{ color: theme.white, marginBottom: 6, fontWeight: "600" }}>
-        {label}
-      </Text>
+  const [focused, setFocused] = useState(false);
 
-      <TextInput
-        style={{
-          backgroundColor: theme.card,
-          color: theme.white,
-          padding: 12,
-          borderRadius: theme.radius.md,
-          borderWidth: 1,
-          borderColor: theme.goldSoftGlow,
-          minHeight: multiline ? 100 : undefined,
-        }}
-        value={value}
-        onChangeText={onChange}
-        keyboardType={keyboard}
-        multiline={multiline}
-        placeholderTextColor={theme.muted}
-      />
+  const borderColor = error || invalid ? theme.danger : focused ? theme.gold : theme.hairline;
+
+  return (
+    <View style={styles.field}>
+      <Text style={[styles.label, { color: theme.muted }]}>{label}</Text>
+
+      <View
+        style={[
+          styles.inputBox,
+          multiline ? styles.inputBoxMulti : styles.inputBoxSingle,
+          { backgroundColor: theme.background, borderColor },
+        ]}
+      >
+        {prefix ? <Text style={[styles.prefix, { color: theme.muted }]}>{prefix}</Text> : null}
+
+        <TextInput
+          style={[
+            styles.input,
+            multiline ? styles.inputMulti : styles.inputSingle,
+            keyboard === "numeric" && styles.tabular,
+            { color: theme.text },
+          ]}
+          value={value}
+          onChangeText={onChange}
+          keyboardType={keyboard}
+          multiline={multiline}
+          placeholder={placeholder}
+          placeholderTextColor={theme.muted}
+          accessibilityLabel={prefix === "£" ? `${label} in pounds` : label}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+        />
+      </View>
+
+      {error ? (
+        <Text style={[styles.error, { color: theme.danger }]} accessibilityLiveRegion="polite">
+          {error}
+        </Text>
+      ) : null}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  content: { paddingHorizontal: 16, paddingTop: 16 },
+
+  center: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+  },
+  stateIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  stateTitle: { fontSize: 20, fontWeight: "700", textAlign: "center" },
+  stateBody: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "center",
+    marginTop: 8,
+  },
+
+  title: { fontSize: 28, fontWeight: "700" },
+  subtitle: { fontSize: 14, marginTop: 2 },
+
+  card: {
+    marginTop: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    gap: 16,
+  },
+
+  field: { gap: 6 },
+  label: { fontSize: 13, fontWeight: "600" },
+  inputBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "stretch",
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+  },
+  inputBoxSingle: { height: 48 },
+  inputBoxMulti: { minHeight: 112, alignItems: "flex-start" },
+  prefix: { fontSize: 16, marginRight: 6 },
+  input: {
+    flex: 1,
+    minWidth: 0,
+    padding: 0,
+    fontSize: 16,
+  },
+  inputSingle: { height: "100%" },
+  inputMulti: {
+    paddingVertical: 12,
+    minHeight: 110,
+    textAlignVertical: "top",
+  },
+  tabular: { fontVariant: ["tabular-nums"] },
+  error: { fontSize: 13, lineHeight: 18 },
+
+  primaryButton: {
+    minHeight: 52,
+    marginTop: 24,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  primaryLabel: { fontSize: 16, fontWeight: "700" },
+  pressed: { opacity: 0.75 },
+});
