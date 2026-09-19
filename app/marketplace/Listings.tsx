@@ -33,9 +33,9 @@ export default function Listings() {
 
   useEffect(() => {
     fetch(`${BASE_URL}/published-listings`)
-      .then((res) => res.json())
+      .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
-        setListings(data || []);
+        setListings(Array.isArray(data) ? data : []);
         setLoading(false);
       })
       .catch(() => setLoading(false));

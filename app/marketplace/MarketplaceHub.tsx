@@ -23,9 +23,9 @@ export default function MarketplaceHub() {
 
   useEffect(() => {
     fetch(`${BASE_URL}/published-listings`)
-      .then((res) => res.json())
+      .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
-        const listings = data || [];
+        const listings = Array.isArray(data) ? data : [];
         // Rank by deal strength (price vs score vs mileage) instead of showing raw insertion order
         const ranked = findBestDeals(
           listings.map((l: any) => ({ ...l, score: l.flipScore ?? l.score ?? 0 }))

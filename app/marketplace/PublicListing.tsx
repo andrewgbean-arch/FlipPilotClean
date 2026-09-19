@@ -41,9 +41,10 @@ export default function PublicListing() {
   /** Fetch listing */
   useEffect(() => {
     fetch(`${BASE_URL}/published-listings/${id}`)
-      .then((res) => res.json())
+      // An unknown id comes back as a 404 with an error object, which is not a listing.
+      .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        setListing(data);
+        setListing(data && typeof data === "object" && !Array.isArray(data) ? data : null);
         setLoading(false);
       })
       .catch(() => setLoading(false));
