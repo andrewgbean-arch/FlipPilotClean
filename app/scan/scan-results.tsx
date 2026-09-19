@@ -1,8 +1,11 @@
+import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  DeviceEventEmitter,
   Image,
   Modal,
   Pressable,
@@ -14,16 +17,34 @@ import {
 
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { useTheme } from "@/styles/ThemeContext";
+import { SCAN_AGAIN_EVENT } from "@/utils/scanTransform";
+
+// A photo scan's picture sits in the cache folder, which the OS can clear at any time.
+// Keep a copy in the documents folder so a saved flip doesn't lose its photo.
+const keepPhoto = async (uri: string): Promise<string> => {
+  const dir = FileSystem.documentDirectory;
+  if (!dir || !uri.startsWith("file://") || uri.startsWith(dir)) return uri;
+
+  try {
+    const dest = `${dir}flip-photo-${Date.now()}.jpg`;
+    await FileSystem.copyAsync({ from: uri, to: dest });
+    return dest;
+  } catch (err) {
+    console.log("Couldn't keep a copy of the scan photo:", err);
+    return uri;
+  }
+};
 
 export default function ScanResultsScreen() {
   const params = useLocalSearchParams();
-  const { addVehicle } = useVehicleHistory();
+  const { addVehicle, loadError } = useVehicleHistory();
   const theme = useTheme();
   const isPro = theme.mode === "pro";
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
 
   const [buyPrice, setBuyPrice] = useState<number | null>(null);
   const [sellPrice, setSellPrice] = useState<number | null>(null);
@@ -94,17 +115,29 @@ export default function ScanResultsScreen() {
     setCalcMode(null);
   };
 
-  const saveToHistory = () => {
+  const saveToHistory = async () => {
     if (!data || saved) return;
 
+    // Saving is switched off when the stored History couldn't be read; say so rather than show "Saved".
+    if (loadError) {
+      Alert.alert("Can't save this flip", loadError);
+      return;
+    }
+
+    // Mark it saved straight away so a second tap can't save it twice while the photo is copied.
+    setSaved(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    const image = data.image ? await keepPhoto(data.image) : null;
 
     addVehicle({
       title: data.title ?? data.product?.title ?? "Unknown Item",
       barcode: data.barcode ?? data.product?.barcode ?? null,
-      images: data.image ? [data.image] : null,
+      images: image ? [image] : null,
       buyPrice,
       sellPrice,
+      flipScore: typeof data.ai?.flip_score === "number" ? data.ai.flip_score : undefined,
+      category: data.ai?.category ?? null,
       pricing: {
         recommendedBuyPrice: buyPrice,
         recommendedSellPrice: sellPrice,
@@ -113,23 +146,71 @@ export default function ScanResultsScreen() {
       ai: {
         condition: data.ai?.condition ?? null,
         description: data.ai?.description ?? null,
-        conditionScore: data.ai?.confidence ?? null,
-        fullDescription: null,
-        origin: null,
+        conditionScore: Number(data.ai?.conditionScore) || null,
+        fullDescription: data.ai?.fullDescription ?? null,
+        origin: data.ai?.origin ?? null,
         photos: null,
       },
+      market: data.market ?? null,
+      sellSpeed: data.sellSpeed ?? null,
+      rarity: data.rarity ?? null,
+      flipPotential: data.flipPotential ?? null,
+      insights: data.insights ?? null,
+      aiPriceMin: data.aiPriceMin ?? null,
+      aiPriceMax: data.aiPriceMax ?? null,
+      aiPriceConfidence: data.aiPriceConfidence ?? null,
     });
-
-    setSaved(true);
   };
 
-  if (loading || !data) {
+  const scanAgain = () => {
+    // The Scan tab pauses barcode scanning after each lookup; this tells it to resume.
+    DeviceEventEmitter.emit(SCAN_AGAIN_EVENT);
+    router.dismissTo("/(tabs)/scan");
+  };
+
+  if (loading) {
     return (
       <View style={[styles.center, { backgroundColor: theme.background }]}>
         <ActivityIndicator size="large" color={theme.gold} />
         <Text style={{ marginTop: 16, color: theme.gold, fontWeight: "700" }}>
           Loading scan…
         </Text>
+      </View>
+    );
+  }
+
+  if (!data) {
+    return (
+      <View
+        style={[
+          styles.center,
+          { backgroundColor: theme.background, paddingHorizontal: 32 },
+        ]}
+      >
+        <Text style={[styles.title, { color: theme.text, textAlign: "center" }]}>
+          Couldn't load this result
+        </Text>
+        <Text style={[styles.subtitle, { color: theme.muted, textAlign: "center" }]}>
+          This scan isn't available any more. Go back and scan the item again.
+        </Text>
+        <Pressable
+          style={[
+            styles.actionButton,
+            {
+              backgroundColor: theme.gold,
+              borderColor: theme.goldSoftGlow,
+              marginTop: 20,
+              paddingHorizontal: 32,
+            },
+          ]}
+          onPress={() =>
+            router.canGoBack() ? router.back() : router.replace("/(tabs)/scan")
+          }
+        >
+          <Text style={[styles.actionButtonText, { color: theme.black }]}>
+            Go back
+          </Text>
+        </Pressable>
       </View>
     );
   }
@@ -192,11 +273,18 @@ export default function ScanResultsScreen() {
               { backgroundColor: theme.card, borderColor: theme.goldSoftGlow },
             ]}
           >
-            <Image
-              source={{ uri: data.image }}
-              style={styles.image}
-              resizeMode="contain"
-            />
+            {imageFailed ? (
+              <View style={styles.center}>
+                <Text style={{ color: theme.muted }}>Photo no longer available</Text>
+              </View>
+            ) : (
+              <Image
+                source={{ uri: data.image }}
+                style={styles.image}
+                resizeMode="contain"
+                onError={() => setImageFailed(true)}
+              />
+            )}
           </View>
         )}
 
@@ -343,7 +431,7 @@ export default function ScanResultsScreen() {
               styles.actionButton,
               { backgroundColor: theme.gold, borderColor: theme.goldSoftGlow },
             ]}
-            onPress={() => router.push("/(tabs)/scan")}
+            onPress={scanAgain}
           >
             <Text
               style={[styles.actionButtonText, { color: theme.black }]}

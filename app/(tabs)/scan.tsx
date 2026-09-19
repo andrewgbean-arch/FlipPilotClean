@@ -1,57 +1,70 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
+  AppState,
+  DeviceEventEmitter,
+  Linking,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 
+import { PermissionStatus } from "expo";
 import { CameraView, useCameraPermissions } from "expo-camera";
-import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
+import { router, useFocusEffect, useIsFocused } from "expo-router";
 
 import { useTheme } from "@/styles/ThemeContext";
-import { searchBarcode, aiLookup } from "@/utils/api";
-import { transformScanResult } from "@/utils/scanTransform";
+import { aiLookup, describeApiError, searchBarcode } from "@/utils/api";
+import { SCAN_AGAIN_EVENT, transformScanResult } from "@/utils/scanTransform";
 
 // Laser + AI Tips
 const LASER_COLOR = "#FF3B3B";
 const AI_TIPS = [
-  "Target acquired… stabilising.",
-  "Analyzing object surface…",
-  "Scanning thermal signature…",
   "Hold device steady…",
-  "Optimizing focus…",
+  "Line the barcode up inside the frame.",
+  "No barcode? Use SCAN PHOTO instead.",
   "Check for scratches before listing.",
   "Bundles sell faster — consider grouping items.",
   "Compare SOLD prices, not active listings.",
   "Good photos increase sale speed.",
   "Check item weight — affects postage profit.",
-  "High demand detected.",
-  "Strong resale potential.",
-  "Market volatility low.",
-  "Trending category — good timing.",
-  "Resale margin looks promising.",
 ];
+
+// expo-camera unbinds the shared camera when any camera view is destroyed, so give the
+// previous screen's camera a moment to go away before this one mounts.
+const CAMERA_SETTLE_MS = 300;
+// Photos travel to the server as base64; this keeps them well under its 10mb body limit.
+const PHOTO_QUALITY = 0.5;
+const TOAST_MS = 4000;
 
 export default function ScanScreen() {
   const theme = useTheme();
   const { mode } = useTheme();
   const isPro = mode === "pro";
+  const isFocused = useIsFocused();
 
   // Camera
-  const [permission, requestPermission] = useCameraPermissions();
+  const [permission, requestPermission, getPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView | null>(null);
+  const [cameraOn, setCameraOn] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
+  const [cameraFailed, setCameraFailed] = useState(false);
+  const [cameraKey, setCameraKey] = useState(0);
   const [cameraFacing, setCameraFacing] = useState<"back" | "front">("back");
   const [torch, setTorch] = useState(false);
 
   // Scan state
   const [loading, setLoading] = useState(false);
-  const [barcodeLocked, setBarcodeLocked] = useState(false);
+  // Barcode scanning switches off after every lookup and only resumes when the user asks
+  // (SCAN BARCODE, or Scan Again on the results), so a code still in view can't repeat lookups.
+  const [barcodeArmed, setBarcodeArmed] = useState(true);
+  // Set synchronously so two camera events in the same frame can't start two lookups.
+  const busyRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
 
   // Flash animation
   const flashOpacity = useRef(new Animated.Value(0)).current;
@@ -60,6 +73,7 @@ export default function ScanScreen() {
   // Success animation
   const successScale = useRef(new Animated.Value(0)).current;
   const [showSuccess, setShowSuccess] = useState(false);
+  const successTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Frame pulse
   const framePulse = useRef(new Animated.Value(0)).current;
@@ -74,6 +88,7 @@ export default function ScanScreen() {
   // Toast
   const [toastMessage, setToastMessage] = useState("");
   const [toastVisible, setToastVisible] = useState(false);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ============================
   // Modernized Helpers
@@ -82,7 +97,8 @@ export default function ScanScreen() {
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setToastVisible(true);
-    setTimeout(() => setToastVisible(false), 2500);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToastVisible(false), TOAST_MS);
   };
 
   const triggerFlash = () => {
@@ -105,7 +121,7 @@ export default function ScanScreen() {
       tension: 120,
       useNativeDriver: true,
     }).start(() => {
-      setTimeout(() => {
+      successTimer.current = setTimeout(() => {
         Animated.timing(successScale, {
           toValue: 0,
           duration: 250,
@@ -122,24 +138,6 @@ export default function ScanScreen() {
       duration: 600,
       useNativeDriver: false,
     }).start(() => framePulse.setValue(0));
-  };
-
-  const startLaser = () => {
-    laserY.setValue(0);
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(laserY, {
-          toValue: 1,
-          duration: isPro ? 1400 : 1800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(laserY, {
-          toValue: 0,
-          duration: isPro ? 1400 : 1800,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
   };
 
   const rotateTip = () => {
@@ -164,65 +162,161 @@ export default function ScanScreen() {
   // Effects
   // ============================
 
+  // Ask the first time only. Once the OS has been asked and refused, it may not show the
+  // prompt again, so the permission screen offers Settings instead.
   useEffect(() => {
-    requestPermission();
+    if (permission?.status === PermissionStatus.UNDETERMINED) {
+      requestPermission();
+    }
+  }, [permission?.status]);
+
+  // The permission can be changed in Settings; look again when the user comes back to the app.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") getPermission();
+    });
+    return () => sub.remove();
+  }, []);
+
+  // Only one screen should hold the camera. Mount it while this tab is in front, and drop it
+  // as soon as the tab is covered or left so nothing scans in the background.
+  useEffect(() => {
+    if (!isFocused || !permission?.granted) {
+      setCameraOn(false);
+      setCameraReady(false);
+      setCameraFailed(false);
+      return;
+    }
+
+    const timer = setTimeout(() => setCameraOn(true), CAMERA_SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, [isFocused, permission?.granted]);
+
+  // Leaving the tab (or the screen) cancels any lookup still in flight.
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        abortRef.current?.abort();
+      };
+    }, [])
+  );
+
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener(SCAN_AGAIN_EVENT, () =>
+      setBarcodeArmed(true)
+    );
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {
-    if (permission?.granted) {
-      setTimeout(() => {
-        setCameraReady(true);
-        startLaser();
-      }, 150);
-    }
-  }, [permission?.granted]);
+    if (!cameraOn) return;
+
+    const duration = isPro ? 1400 : 1800;
+    laserY.setValue(0);
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(laserY, { toValue: 1, duration, useNativeDriver: true }),
+        Animated.timing(laserY, { toValue: 0, duration, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [cameraOn, isPro]);
 
   useEffect(() => {
+    if (!cameraOn) return;
+
     const interval = setInterval(rotateTip, 3000);
     return () => clearInterval(interval);
+  }, [cameraOn]);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      if (successTimer.current) clearTimeout(successTimer.current);
+    };
   }, []);
 
   // ============================
-  // Transform backend → UI
+  // Scan flow
   // ============================
-  // `/search` and `/search-image` return { ai, market, pricing, flipScore, image, title, barcode, ... }.
-  // scan-results.tsx expects { product: { title, barcode }, ai: { fair_price, suggested_buy, suggested_sell, flip_score }, image }.
 
-  const transform = transformScanResult;
+  const beginScan = () => {
+    busyRef.current = true;
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setLoading(true);
+    return controller;
+  };
+
+  const endScan = (controller: AbortController) => {
+    if (abortRef.current === controller) abortRef.current = null;
+    busyRef.current = false;
+    setLoading(false);
+  };
+
+  const cancelScan = () => {
+    abortRef.current?.abort();
+  };
+
+  const failScan = (err: unknown, controller: AbortController, label: string) => {
+    // Cancelled by the user, or they left the screen: nothing to report.
+    if (controller.signal.aborted) return;
+
+    console.log(label, err);
+    showToast(describeApiError(err));
+  };
+
+  const openResults = (payload: ReturnType<typeof transformScanResult>) => {
+    triggerSuccess();
+    triggerFramePulse();
+    triggerFlash();
+
+    router.push({
+      pathname: "/scan/scan-results",
+      params: { data: JSON.stringify(payload) },
+    });
+  };
+
+  const handleCameraError = (event: { message: string }) => {
+    console.log("Camera failed to start:", event?.message);
+    setCameraReady(false);
+    setCameraFailed(true);
+  };
+
+  const retryCamera = () => {
+    setCameraFailed(false);
+    setCameraKey((k) => k + 1);
+  };
+
+  const openSettings = () => {
+    Linking.openSettings().catch(() =>
+      Alert.alert(
+        "Couldn't open Settings",
+        "Open your phone's Settings, find FlipPilot and allow Camera access."
+      )
+    );
+  };
 
   // ============================
   // Barcode Scan
   // ============================
 
   const handleBarcode = async ({ data }: { data: string }) => {
-    if (barcodeLocked || loading) return;
+    if (busyRef.current || !barcodeArmed) return;
 
-    setBarcodeLocked(true);
-    setLoading(true);
+    setBarcodeArmed(false);
+    const controller = beginScan();
 
     try {
-      const res = await searchBarcode(data);
+      const res = await searchBarcode(data, controller.signal);
+      if (controller.signal.aborted) return;
 
-      if (!res || res.error) {
-        throw new Error(res?.error ?? "Search failed");
-      }
-
-      const finalObj = transform(res);
-
-      triggerSuccess();
-      triggerFramePulse();
-      triggerFlash();
-
-      router.push({
-        pathname: "/scan/scan-results",
-        params: { data: JSON.stringify(finalObj) },
-      });
+      openResults(transformScanResult(res));
     } catch (err) {
-      console.log("Barcode scan error:", err);
-      showToast("Scan failed — try again");
+      failScan(err, controller, "Barcode scan error:");
     } finally {
-      setLoading(false);
-      setTimeout(() => setBarcodeLocked(false), 800);
+      endScan(controller);
     }
   };
 
@@ -231,38 +325,46 @@ export default function ScanScreen() {
   // ============================
 
   const takePhoto = async () => {
+    if (busyRef.current) return;
+
+    if (!cameraRef.current || !cameraReady) {
+      showToast("The camera is still starting. Try again in a moment.");
+      return;
+    }
+
+    setBarcodeArmed(false);
+    const controller = beginScan();
+
     try {
-      if (!cameraRef.current || loading || !cameraReady) return;
-
-      const photo = await cameraRef.current.takePictureAsync();
-
-      const base64 = await FileSystem.readAsStringAsync(photo.uri, {
-        encoding: "base64",
-      });
-
-      setLoading(true);
-
-      const res = await aiLookup(base64);
-
-      if (!res || res.error) {
-        throw new Error(res?.error ?? "AI lookup failed");
+      let photo;
+      try {
+        photo = await cameraRef.current.takePictureAsync({
+          quality: PHOTO_QUALITY,
+          base64: true,
+        });
+      } catch (err) {
+        console.log("Photo capture error:", err);
+        if (!controller.signal.aborted) {
+          showToast("The camera couldn't take that photo. Please try again.");
+        }
+        return;
       }
 
-      const finalObj = transform(res, photo.uri);
+      if (controller.signal.aborted) return;
 
-      triggerSuccess();
-      triggerFramePulse();
-      triggerFlash();
+      if (!photo?.base64) {
+        showToast("Couldn't read that photo. Please try again.");
+        return;
+      }
 
-      router.push({
-        pathname: "/scan/scan-results",
-        params: { data: JSON.stringify(finalObj) },
-      });
+      const res = await aiLookup(photo.base64, controller.signal);
+      if (controller.signal.aborted) return;
+
+      openResults(transformScanResult(res, photo.uri));
     } catch (err) {
-      console.log("Photo scan error:", err);
-      showToast("Scan failed — try again");
+      failScan(err, controller, "Photo scan error:");
     } finally {
-      setLoading(false);
+      endScan(controller);
     }
   };
 
@@ -281,7 +383,9 @@ export default function ScanScreen() {
     );
   }
 
-  if (!permission?.granted) {
+  if (!permission.granted) {
+    const canAskAgain = permission.canAskAgain;
+
     return (
       <View style={[styles.center, { backgroundColor: theme.background, paddingHorizontal: 32 }]}>
         <View style={[styles.permissionIconBadge, { backgroundColor: theme.goldSoftGlow }]}>
@@ -291,15 +395,17 @@ export default function ScanScreen() {
           Camera access needed
         </Text>
         <Text style={{ color: theme.muted, fontSize: 14, textAlign: "center", marginTop: 8 }}>
-          FlipPilot uses your camera to scan barcodes and identify items for flipping.
+          {canAskAgain
+            ? "FlipPilot uses your camera to scan barcodes and identify items for flipping."
+            : "Camera access is turned off for FlipPilot. Turn it on in Settings to scan barcodes and identify items for flipping."}
         </Text>
 
         <Pressable
           style={[styles.permissionButton, { backgroundColor: theme.gold }]}
-          onPress={requestPermission}
+          onPress={canAskAgain ? requestPermission : openSettings}
         >
           <Text style={{ color: theme.black, fontWeight: "900", fontSize: 18 }}>
-            Enable Camera
+            {canAskAgain ? "Enable Camera" : "Open Settings"}
           </Text>
         </Pressable>
       </View>
@@ -312,141 +418,187 @@ export default function ScanScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {!loading && (
-        <View style={{ flex: 1 }}>
-          {cameraReady && (
-            <CameraView
-              ref={cameraRef}
-              style={StyleSheet.absoluteFill}
-              facing={cameraFacing}
-              enableTorch={torch}
-              barcodeScannerSettings={{
-                barcodeTypes: ["qr", "ean13", "ean8", "upc_a", "upc_e", "code128"],
-              }}
-              onBarcodeScanned={barcodeLocked || loading ? undefined : handleBarcode}
-            />
-          )}
+      <View style={{ flex: 1 }}>
+        {cameraOn && !cameraFailed && (
+          <CameraView
+            key={cameraKey}
+            ref={cameraRef}
+            style={StyleSheet.absoluteFill}
+            facing={cameraFacing}
+            enableTorch={torch}
+            barcodeScannerSettings={{
+              barcodeTypes: ["qr", "ean13", "ean8", "upc_a", "upc_e", "code128"],
+            }}
+            onBarcodeScanned={handleBarcode}
+            onCameraReady={() => setCameraReady(true)}
+            onMountError={handleCameraError}
+          />
+        )}
 
-          {/* TOP RIGHT BUTTONS */}
-          <View style={styles.topRight}>
-            <Pressable
-              style={[styles.utilityButton, { backgroundColor: theme.card }]}
-              onPress={() => setTorch((t) => !t)}
-            >
-              <Text style={{ color: theme.text, fontWeight: "900" }}>
-                {torch ? "🔦" : "💡"}
-              </Text>
-            </Pressable>
+        {/* TOP RIGHT BUTTONS */}
+        <View style={styles.topRight}>
+          <Pressable
+            style={[styles.utilityButton, { backgroundColor: theme.card }]}
+            onPress={() => setTorch((t) => !t)}
+          >
+            <Text style={{ color: theme.text, fontWeight: "900" }}>
+              {torch ? "🔦" : "💡"}
+            </Text>
+          </Pressable>
 
-            <Pressable
-              style={[styles.utilityButton, { backgroundColor: theme.card }]}
-              onPress={() =>
-                setCameraFacing((f) => (f === "back" ? "front" : "back"))
-              }
-            >
-              <Text style={{ color: theme.text, fontWeight: "900" }}>🔄</Text>
-            </Pressable>
-          </View>
-
-          {/* SCAN FRAME */}
-          <View style={styles.frameContainer}>
-            <Animated.View
-              style={[
-                styles.frame,
-                {
-                  borderColor: framePulse.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [theme.gold, "green"],
-                  }),
-                },
-              ]}
-            />
-
-            {/* LASER */}
-            <Animated.View
-              style={[
-                styles.laser,
-                {
-                  backgroundColor: LASER_COLOR,
-                  transform: [
-                    {
-                      translateY: laserY.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0, 220],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            />
-          </View>
-
-          {/* AI TIP */}
-          <Animated.View style={[styles.holoTip, { opacity: tipOpacity }]}>
-            <Text style={styles.holoText}>{currentTip}</Text>
-          </Animated.View>
-
-          {/* SUCCESS CHECKMARK */}
-          {showSuccess && (
-            <Animated.View
-              style={[
-                styles.successCheck,
-                {
-                  transform: [{ scale: successScale }],
-                },
-              ]}
-            >
-              <Text style={styles.successText}>✔</Text>
-            </Animated.View>
-          )}
-
-          {/* BUTTONS */}
-          <View style={styles.bottomButtons}>
-            <Pressable
-              style={[styles.scanButton, { backgroundColor: theme.gold }]}
-              onPress={() => setBarcodeLocked(false)}
-            >
-              <Text style={{ color: theme.black, fontWeight: "900", fontSize: 18 }}>
-                SCAN BARCODE
-              </Text>
-            </Pressable>
-
-            <Pressable
-              style={[styles.scanButton, { backgroundColor: theme.gold }]}
-              onPress={takePhoto}
-            >
-              <Text style={{ color: theme.black, fontWeight: "900", fontSize: 18 }}>
-                SCAN PHOTO
-              </Text>
-            </Pressable>
-          </View>
-
-          {/* FLASH */}
-          {flashVisible && (
-            <Animated.View
-              style={[
-                StyleSheet.absoluteFill,
-                { backgroundColor: "rgba(255,255,255,0.4)", opacity: flashOpacity },
-              ]}
-            />
-          )}
+          <Pressable
+            style={[styles.utilityButton, { backgroundColor: theme.card }]}
+            onPress={() =>
+              setCameraFacing((f) => (f === "back" ? "front" : "back"))
+            }
+          >
+            <Text style={{ color: theme.text, fontWeight: "900" }}>🔄</Text>
+          </Pressable>
         </View>
-      )}
+
+        {/* SCAN FRAME */}
+        <View style={styles.frameContainer}>
+          <Animated.View
+            style={[
+              styles.frame,
+              {
+                borderColor: framePulse.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [theme.gold, "green"],
+                }),
+              },
+            ]}
+          />
+
+          {/* LASER */}
+          <Animated.View
+            style={[
+              styles.laser,
+              {
+                backgroundColor: LASER_COLOR,
+                transform: [
+                  {
+                    translateY: laserY.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 254],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          />
+        </View>
+
+        {/* AI TIP */}
+        <Animated.View style={[styles.holoTip, { opacity: tipOpacity }]}>
+          <Text style={styles.holoText}>
+            {barcodeArmed
+              ? currentTip
+              : "Barcode scanning is paused. Tap SCAN BARCODE to scan again."}
+          </Text>
+        </Animated.View>
+
+        {/* SUCCESS CHECKMARK */}
+        {showSuccess && (
+          <Animated.View
+            style={[
+              styles.successCheck,
+              {
+                transform: [{ scale: successScale }],
+              },
+            ]}
+          >
+            <Text style={styles.successText}>✔</Text>
+          </Animated.View>
+        )}
+
+        {/* CAMERA COULD NOT START */}
+        {cameraFailed && (
+          <View
+            style={[
+              styles.cameraFailed,
+              { backgroundColor: theme.card, borderColor: theme.goldSoftGlow },
+            ]}
+          >
+            <Text style={{ color: theme.text, fontSize: 18, fontWeight: "900", textAlign: "center" }}>
+              The camera couldn't start
+            </Text>
+            <Text style={{ color: theme.muted, fontSize: 14, textAlign: "center", marginTop: 8 }}>
+              It may be in use by another app. Close other apps that use the camera, then try again.
+            </Text>
+            <Pressable
+              style={[styles.permissionButton, { backgroundColor: theme.gold }]}
+              onPress={retryCamera}
+            >
+              <Text style={{ color: theme.black, fontWeight: "900", fontSize: 16 }}>
+                Try again
+              </Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* BUTTONS */}
+        <View style={styles.bottomButtons}>
+          <Pressable
+            style={[
+              styles.scanButton,
+              { backgroundColor: theme.gold },
+              barcodeArmed && styles.scanButtonActive,
+            ]}
+            onPress={() => setBarcodeArmed(true)}
+            disabled={barcodeArmed}
+          >
+            <Text style={{ color: theme.black, fontWeight: "900", fontSize: 18 }}>
+              {barcodeArmed ? "SCANNING FOR BARCODE" : "SCAN BARCODE"}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.scanButton, { backgroundColor: theme.gold }]}
+            onPress={takePhoto}
+          >
+            <Text style={{ color: theme.black, fontWeight: "900", fontSize: 18 }}>
+              SCAN PHOTO
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* FLASH */}
+        {flashVisible && (
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFill,
+              { backgroundColor: "rgba(255,255,255,0.4)", opacity: flashOpacity },
+            ]}
+          />
+        )}
+      </View>
 
       {/* LOADING */}
       {loading && (
-        <View style={styles.center}>
+        <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={theme.gold} />
           <Text style={{ marginTop: 20, color: theme.gold, fontWeight: "900" }}>
             Analyzing…
           </Text>
+          <Pressable
+            style={[styles.cancelButton, { borderColor: theme.gold }]}
+            onPress={cancelScan}
+          >
+            <Text style={{ color: theme.gold, fontWeight: "800", fontSize: 16 }}>
+              Cancel
+            </Text>
+          </Pressable>
         </View>
       )}
 
       {/* TOAST */}
       {toastVisible && (
-        <Animated.View style={[styles.toast, { borderColor: theme.gold }]}>
-          <Text style={{ color: theme.gold, fontWeight: "800" }}>
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.toast, { borderColor: theme.gold }]}
+        >
+          <Text style={{ color: theme.gold, fontWeight: "800", textAlign: "center" }}>
             {toastMessage}
           </Text>
         </Animated.View>
@@ -512,6 +664,7 @@ const styles = StyleSheet.create({
 
   laser: {
     position: "absolute",
+    top: 0,
     width: "100%",
     height: 4,
     borderRadius: 4,
@@ -522,6 +675,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: "60%",
     alignSelf: "center",
+    maxWidth: "88%",
     paddingVertical: 8,
     paddingHorizontal: 16,
     backgroundColor: "rgba(255,255,255,0.06)",
@@ -534,6 +688,7 @@ holoText: {
   color: "rgba(255,255,255,0.85)",
   fontSize: 15,
   fontWeight: "700",
+  textAlign: "center",
   textShadowColor: "rgba(255,0,0,0.4)",
   textShadowOffset: { width: 0, height: 0 },
   textShadowRadius: 6,
@@ -576,6 +731,10 @@ scanButton: {
   shadowOffset: { width: 0, height: 0 },
 },
 
+scanButtonActive: {
+  opacity: 0.6,
+},
+
 permissionButton: {
   marginTop: 20,
   paddingVertical: 16,
@@ -583,14 +742,44 @@ permissionButton: {
   borderRadius: 14,
 },
 
+cameraFailed: {
+  position: "absolute",
+  top: "30%",
+  alignSelf: "center",
+  width: "84%",
+  padding: 20,
+  borderRadius: 16,
+  borderWidth: 1,
+  alignItems: "center",
+  zIndex: 30,
+},
+
+loadingOverlay: {
+  ...StyleSheet.absoluteFill,
+  backgroundColor: "rgba(0,0,0,0.7)",
+  justifyContent: "center",
+  alignItems: "center",
+  zIndex: 40,
+},
+
+cancelButton: {
+  marginTop: 28,
+  paddingVertical: 12,
+  paddingHorizontal: 32,
+  borderRadius: 14,
+  borderWidth: 1.5,
+},
+
 toast: {
   position: "absolute",
   bottom: 120,
   alignSelf: "center",
+  maxWidth: "88%",
   backgroundColor: "rgba(10,17,40,0.95)",
   paddingVertical: 12,
   paddingHorizontal: 22,
   borderRadius: 14,
   borderWidth: 2,
+  zIndex: 50,
 },
 });
