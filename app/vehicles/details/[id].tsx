@@ -1,29 +1,365 @@
-import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  ScrollView,
-  Image,
-  StyleSheet,
-  Modal,
-} from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import {
+  Car,
+  CaretRight,
+  CheckCircle,
+  ChartLineUp,
+  ClockCounterClockwise,
+  Diamond,
+  Heart,
+  Images,
+  Info,
+  Lightbulb,
+  Lightning,
+  MagnifyingGlassPlus,
+  PencilSimple,
+  Tag,
+  ShieldCheck,
+  Sparkle,
+  Trash,
+  WarningCircle,
+  X,
+  XCircle,
+} from "phosphor-react-native";
+import type { Icon as PhosphorIcon } from "phosphor-react-native";
+import React, { useState } from "react";
+import {
+  ActivityIndicator,
+  Image,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-} from "react-native-reanimated";
-import { FadeIn } from "react-native-reanimated";
-
-import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
-import { useTheme } from "@/styles/useTheme";
+import type { FlipRecord } from "@/features/vehicles/models/FlipRecord";
+import {
+  formatDate,
+  motDaysLeft,
+  motExpiryOf,
+  motExpiryPhrase,
+} from "@/features/vehicles/utils/motDates";
+import {
+  formatMiles,
+  formatMoney,
+  realisedProfit,
+} from "@/features/vehicles/utils/vehicleStats";
 import { buildVehicleTimeline } from "@/features/vehicles/utils/vehicleUtils";
+import { useTheme } from "@/styles/ThemeContext";
+import type { Theme } from "@/styles/theme";
 
-import { Theme } from "@/styles/theme";
+// Scrims that sit over a photo or a screen; the theme has no translucent black.
+const SCRIM = "rgba(0, 0, 0, 0.6)";
+const LIGHTBOX = "rgba(0, 0, 0, 0.92)";
+const LIGHTBOX_CLOSE = "rgba(255, 255, 255, 0.14)";
+
+/* HELPERS */
+
+// "+£1,200", "-£45.50", "£0" for nothing, "-" when there is no value.
+const formatSigned = (n: number | null | undefined) => {
+  if (n == null || !Number.isFinite(n)) return "-";
+  const rounded = Math.round(n * 100) / 100;
+  if (rounded === 0) return formatMoney(0);
+  return `${rounded > 0 ? "+" : "-"}${formatMoney(Math.abs(rounded))}`;
+};
+
+// The same bands as the scan result and flip screens.
+const bandColour = (theme: Theme, percent: number) =>
+  percent >= 70 ? theme.success : percent >= 40 ? theme.warning : theme.danger;
+
+const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+const plural = (count: number, one: string, many: string) =>
+  `${count} ${count === 1 ? one : many}`;
+
+const pad = (n: number) => String(n).padStart(2, "0");
+
+// Timeline dates are either a plain calendar day or a full timestamp; both
+// read as "18 Sep 2026" (a timestamp on the phone's own calendar).
+const eventDate = (value: string) => {
+  if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(value.trim())) return formatDate(value);
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return formatDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+};
+
+/* SMALL LOCAL COMPONENTS */
+function SectionTitle({ children }: { children: string }) {
+  const theme = useTheme();
+
+  return (
+    <Text style={[styles.sectionTitle, { color: theme.text }]} accessibilityRole="header">
+      {children}
+    </Text>
+  );
+}
+
+// A card that holds rows and blocks; the rows inside are split by hairlines.
+function Group({ children }: { children: React.ReactNode }) {
+  const theme = useTheme();
+
+  return (
+    <View style={[styles.group, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
+      {children}
+    </View>
+  );
+}
+
+function DataRow({
+  label,
+  value,
+  valueColor,
+  strong,
+  Icon,
+  divider,
+}: {
+  label: string;
+  value: string;
+  valueColor?: string;
+  strong?: boolean;
+  Icon?: PhosphorIcon;
+  divider?: boolean;
+}) {
+  const theme = useTheme();
+
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${label}: ${value}`}
+      style={[styles.dataRow, divider && { borderTopWidth: 1, borderTopColor: theme.hairline }]}
+    >
+      {Icon ? <Icon size={20} color={theme.muted} /> : null}
+      <Text style={[styles.dataLabel, Icon && styles.dataLabelWithIcon, { color: theme.muted }]}>
+        {label}
+      </Text>
+      <Text
+        style={[
+          styles.dataValue,
+          strong && styles.dataValueStrong,
+          { color: valueColor ?? theme.text },
+        ]}
+      >
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+// Free text inside a group, with an optional small heading above it.
+function TextBlock({
+  text,
+  muted,
+  label,
+  divider,
+}: {
+  text: string;
+  muted?: boolean;
+  label?: string;
+  divider?: boolean;
+}) {
+  const theme = useTheme();
+
+  return (
+    <View style={[styles.textBlock, divider && { borderTopWidth: 1, borderTopColor: theme.hairline }]}>
+      {label ? <Text style={[styles.textBlockLabel, { color: theme.muted }]}>{label}</Text> : null}
+      <Text style={[styles.textBlockText, { color: muted ? theme.muted : theme.text }]}>{text}</Text>
+    </View>
+  );
+}
+
+// A label with a value on the right and a filled bar underneath.
+function MeterBlock({
+  label,
+  value,
+  percent,
+  divider,
+}: {
+  label: string;
+  value: string;
+  percent: number;
+  divider?: boolean;
+}) {
+  const theme = useTheme();
+  const safe = Math.max(0, Math.min(100, percent));
+
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${label}: ${value}`}
+      style={[styles.meterBlock, divider && { borderTopWidth: 1, borderTopColor: theme.hairline }]}
+    >
+      <View style={styles.meterHeader}>
+        <Text style={[styles.dataLabel, { color: theme.muted }]}>{label}</Text>
+        <Text style={[styles.meterValue, { color: theme.text }]}>{value}</Text>
+      </View>
+      <View style={[styles.meterTrack, { backgroundColor: theme.background }]}>
+        <View
+          style={[
+            styles.meterFill,
+            { width: `${safe}%`, backgroundColor: bandColour(theme, safe) },
+          ]}
+        />
+      </View>
+    </View>
+  );
+}
+
+// One advisory, failure or tip: an icon and the text.
+function ListRow({
+  Icon,
+  color,
+  text,
+  divider,
+}: {
+  Icon: PhosphorIcon;
+  color: string;
+  text: string;
+  divider?: boolean;
+}) {
+  const theme = useTheme();
+
+  return (
+    <View style={[styles.listRow, divider && { borderTopWidth: 1, borderTopColor: theme.hairline }]}>
+      <Icon size={20} color={color} />
+      <Text style={[styles.listText, { color: theme.text }]}>{text}</Text>
+    </View>
+  );
+}
+
+// A tappable row with an icon, a title, a second line and a chevron.
+function ActionRow({
+  Icon,
+  title,
+  subtitle,
+  onPress,
+  divider,
+}: {
+  Icon: PhosphorIcon;
+  title: string;
+  subtitle: string;
+  onPress: () => void;
+  divider?: boolean;
+}) {
+  const theme = useTheme();
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${title}. ${subtitle}`}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.actionRow,
+        divider && { borderTopWidth: 1, borderTopColor: theme.hairline },
+        pressed && styles.pressed,
+      ]}
+    >
+      <Icon size={22} color={theme.muted} />
+      <View style={styles.actionText}>
+        <Text style={[styles.actionTitle, { color: theme.text }]} numberOfLines={1}>
+          {title}
+        </Text>
+        <Text style={[styles.actionSubtitle, { color: theme.muted }]} numberOfLines={1}>
+          {subtitle}
+        </Text>
+      </View>
+      <CaretRight size={16} color={theme.muted} />
+    </Pressable>
+  );
+}
+
+// The AI price rows, used on the page and in the advisor sheet.
+function AiRows({ vehicle }: { vehicle: FlipRecord }) {
+  const theme = useTheme();
+
+  const ai = vehicle.aiPrice;
+  const recommended = ai?.recommendedSellPrice ?? null;
+  const risk = ai?.riskLevel ?? null;
+  const confidence = ai?.confidence ?? null;
+  const notes = ai?.notes ?? null;
+  const planned = vehicle.sellPrice ?? null;
+
+  const riskColour =
+    risk === "low"
+      ? theme.success
+      : risk === "medium"
+      ? theme.warning
+      : risk === "high"
+      ? theme.danger
+      : theme.muted;
+
+  return (
+    <>
+      <DataRow
+        label="Recommended sell price"
+        value={recommended ? formatMoney(recommended) : "-"}
+        strong
+      />
+      <DataRow
+        label="Risk level"
+        value={risk ? capitalise(risk) : "Unknown"}
+        valueColor={riskColour}
+        divider
+      />
+      {confidence != null ? (
+        <MeterBlock label="AI confidence" value={`${confidence}/100`} percent={confidence} divider />
+      ) : (
+        <DataRow label="AI confidence" value="-" divider />
+      )}
+      <TextBlock
+        label="Your price against the AI's"
+        text={
+          recommended
+            ? planned != null
+              ? `You planned ${formatMoney(planned)}, AI suggests ${formatMoney(recommended)}.`
+              : `AI suggests ${formatMoney(recommended)}.`
+            : "No AI price has been saved yet."
+        }
+        muted={!recommended}
+        divider
+      />
+      {notes ? <TextBlock label="AI notes" text={notes} divider /> : null}
+    </>
+  );
+}
+
+// Loading and missing-vehicle screens: an icon in a circle and a calm line.
+function StateView({
+  loading,
+  Icon,
+  iconColor,
+  title,
+  body,
+}: {
+  loading?: boolean;
+  Icon?: PhosphorIcon;
+  iconColor?: string;
+  title?: string;
+  body: string;
+}) {
+  const theme = useTheme();
+
+  return (
+    <View style={[styles.container, styles.center, { backgroundColor: theme.background }]}>
+      {loading ? (
+        <ActivityIndicator size="large" color={theme.muted} />
+      ) : Icon ? (
+        <View style={[styles.stateIcon, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
+          <Icon size={30} color={iconColor ?? theme.muted} />
+        </View>
+      ) : null}
+      {title ? (
+        <Text style={[styles.stateTitle, { color: theme.text }]} accessibilityRole="header">
+          {title}
+        </Text>
+      ) : null}
+      <Text style={[styles.stateBody, { color: theme.muted }]}>{body}</Text>
+    </View>
+  );
+}
 
 /* ============================================================
    VEHICLE DETAILS SCREEN
@@ -32,37 +368,31 @@ export default function VehicleDetails() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const theme = useTheme();
-  const { vehicles, deleteVehicle, toggleFavourite } = useVehicleHistory();
+  const insets = useSafeAreaInsets();
+  const { vehicles, deleteVehicle, toggleFavourite, updateVehicle, loaded, loadError } =
+    useVehicleHistory();
 
   const vehicle = vehicles.find((v: FlipRecord) => v.id === id);
   const [advisorVisible, setAdvisorVisible] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [viewerUri, setViewerUri] = useState<string | null>(null);
 
   if (!vehicle) {
+    // Saved vehicles are read from storage after launch; don't call one
+    // missing before that has finished.
+    if (!loaded) {
+      return <StateView loading body="Loading your vehicle" />;
+    }
+
     return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-          backgroundColor: theme.background,
-        }}
-      >
-        <Text style={{ color: theme.white, fontSize: 20 }}>
-          Vehicle not found
-        </Text>
-      </View>
+      <StateView
+        Icon={loadError ? WarningCircle : Car}
+        iconColor={loadError ? theme.warning : theme.muted}
+        title={loadError ? "Couldn't load your vehicles" : "Vehicle not found"}
+        body={loadError ?? "It may have been deleted from your list."}
+      />
     );
   }
-
-  /* SAFE VALUES */
-  const flipScore = vehicle.flipScore ?? 0;
-  const demandScore = vehicle.market?.demandScore ?? 0;
-  // Flips added by hand keep the confidence under aiPrice; ones from a market scan keep it on the record.
-  const aiConfidence =
-    vehicle.aiPriceConfidence ?? vehicle.aiPrice?.confidence ?? 0;
-
-  const profit = (vehicle.sellPrice ?? 0) - (vehicle.buyPrice ?? 0);
 
   const handleDelete = () => {
     setConfirmDelete(false);
@@ -73,997 +403,1192 @@ export default function VehicleDetails() {
       router.replace("/vehicles/list");
     }
   };
-  const margin =
-    vehicle.buyPrice && vehicle.buyPrice > 0
-      ? (profit / vehicle.buyPrice) * 100
-      : 0;
 
-  const aiPrice = vehicle.aiPrice?.recommendedSellPrice ?? null;
-  const aiRisk = vehicle.aiPrice?.riskLevel ?? null;
-  const aiNotes = vehicle.aiPrice?.notes ?? null;
-  const aiConfidence2 = vehicle.aiPrice?.confidence ?? null;
+  /* HERO */
+  const images: string[] = vehicle.images ?? [];
+  const photo = images[0] ?? null;
+  const mot = vehicle.mot ?? null;
+  const reg = mot?.reg?.trim() ? mot.reg.trim() : null;
+
+  /* SOLD: nothing else in the app sets a sale date, so this is where it happens */
+  const isSold = !!vehicle.sellDate;
+  const soldOn = vehicle.sellDate ? eventDate(vehicle.sellDate) : null;
+  // A sale is recorded against the sell price, so it has to be there first.
+  const canMarkSold = isSold || vehicle.sellPrice != null;
+  const toggleSold = () => {
+    if (!canMarkSold) return;
+    updateVehicle(vehicle.id, { sellDate: isSold ? null : new Date().toISOString() });
+  };
+
+  /* PROFIT: only once both prices are known */
+  const profit = realisedProfit(vehicle);
+  const buyPrice = vehicle.buyPrice ?? null;
+  const sellPrice = vehicle.sellPrice ?? null;
+  const profitColor = profit == null ? theme.muted : profit >= 0 ? theme.success : theme.danger;
+  const profitLabel =
+    profit == null
+      ? "Profit not available"
+      : `${profit >= 0 ? "Profit" : "Loss"} of ${formatMoney(Math.abs(profit))}`;
+  const roi = profit != null && buyPrice != null && buyPrice > 0 ? (profit / buyPrice) * 100 : null;
+  const roiText = roi == null ? "-" : `${roi > 0 ? "+" : ""}${roi.toFixed(1)}%`;
+  const roiColor = roi == null ? theme.muted : roi < 0 ? theme.danger : theme.text;
+
+  /* MOT EXPIRY: valid, due within 30 days, or expired */
+  const motExpiry = motExpiryOf(vehicle);
+  const expiryDays = motDaysLeft(vehicle);
+  const isExpired = expiryDays != null && expiryDays < 0;
+  const isExpiringSoon = expiryDays != null && expiryDays >= 0 && expiryDays <= 30;
+  const motTone =
+    expiryDays == null
+      ? theme.muted
+      : isExpired
+      ? theme.danger
+      : isExpiringSoon
+      ? theme.warning
+      : theme.success;
+  const MotIcon: PhosphorIcon =
+    expiryDays == null ? Info : isExpired ? XCircle : isExpiringSoon ? WarningCircle : CheckCircle;
+  const motHeadline = capitalise(motExpiryPhrase(expiryDays));
+  const advisories = mot?.advisories ?? [];
+  const failures = mot?.failures ?? [];
+
+  /* SCORES AND MARKET */
+  const flipScore =
+    typeof vehicle.flipScore === "number" && Number.isFinite(vehicle.flipScore)
+      ? vehicle.flipScore
+      : null;
+  const flipPercent = flipScore == null ? 0 : Math.max(0, Math.min(100, flipScore));
+  const demandScore = vehicle.market?.demandScore ?? null;
+  // Flips added by hand keep the confidence under aiPrice; ones from a market scan keep it on the record.
+  const aiConfidence = vehicle.aiPriceConfidence ?? vehicle.aiPrice?.confidence ?? null;
+
+  const market = vehicle.market ?? null;
+  const marketRows: { label: string; value: string }[] = [];
+  if (market?.lowest != null) marketRows.push({ label: "Lowest price", value: formatMoney(market.lowest) });
+  if (market?.average != null) marketRows.push({ label: "Average price", value: formatMoney(market.average) });
+  if (market?.highest != null) marketRows.push({ label: "Highest price", value: formatMoney(market.highest) });
+  if (market?.smartPrice != null) marketRows.push({ label: "Smart price", value: formatMoney(market.smartPrice) });
+  if (market?.googlePriceMin != null || market?.googlePriceMax != null) {
+    marketRows.push({
+      label: "Google price range",
+      value: `${formatMoney(market?.googlePriceMin)} – ${formatMoney(market?.googlePriceMax)}`,
+    });
+  }
+  if (market?.soldCount != null) marketRows.push({ label: "Sold count", value: String(market.soldCount) });
+  // With no AI price section, the confidence would not show anywhere else.
+  const showMarketConfidence = aiConfidence != null && !vehicle.aiPrice;
+  const hasMarket = demandScore != null || marketRows.length > 0 || showMarketConfidence;
+
+  const valuationRows: { label: string; value: string }[] = [];
+  if (vehicle.valuation != null) valuationRows.push({ label: "Valuation", value: formatMoney(vehicle.valuation) });
+  if (vehicle.tradeValue != null) valuationRows.push({ label: "Trade value", value: formatMoney(vehicle.tradeValue) });
+  if (vehicle.aiValuation?.estimatedValue != null) {
+    valuationRows.push({ label: "AI estimated value", value: formatMoney(vehicle.aiValuation.estimatedValue) });
+  }
 
   const timeline = buildVehicleTimeline(vehicle);
+  const tips = vehicle.proTips ?? [];
 
+  const openScreen = (path: string) => router.push(path);
+
+  /* ============================
+     RENDER
+  ============================ */
   return (
-    <View style={{ flex: 1 }}>
-      <SparkleDust theme={theme} />
-
-      {/* GOLD HALO */}
-      <View style={{ position: "absolute", top: 0, left: 0, right: 0 }}>
-        <View
-          style={{
-            height: 140,
-            backgroundColor: theme.goldDeep,
-            opacity: 0.12,
-            borderRadius: 200,
-          }}
-        />
-      </View>
-
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView
-        style={{ flex: 1, backgroundColor: theme.background }}
-        contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
       >
-        {/* HEADER */}
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <Text style={[styles.heading, { color: theme.goldDeep }]}>
-            {vehicle.title}
-          </Text>
-
-          <TouchableOpacity onPress={() => toggleFavourite(vehicle.id)}>
-            <Text style={{ fontSize: 32 }}>
-              {vehicle.favourite ? "⭐" : "☆"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* QUICK ACTIONS */}
-        <QuickActions
-          vehicle={vehicle}
-          theme={theme}
-          router={router}
-          onOpenAdvisor={() => setAdvisorVisible(true)}
-        />
-
-        {/* AI INSIGHTS SUMMARY */}
-        {vehicle.aiPrice && (
-          <AIInsights
-            theme={theme}
-            aiPrice={aiPrice}
-            aiRisk={aiRisk}
-            aiConfidence={aiConfidence2}
-            aiNotes={aiNotes}
-            profit={profit}
-            sellPrice={vehicle.sellPrice ?? 0}
-          />
-        )}
-
-        {/* IMAGE GALLERY */}
-        {vehicle.images && vehicle.images.length > 0 && (
-          <ScrollView
-            horizontal
-            style={{ marginVertical: 20 }}
-            showsHorizontalScrollIndicator={false}
-          >
-            {vehicle.images.map((uri: string, i: number) => (
-              <Image
-                key={i}
-                source={{ uri }}
-                style={{
-                  width: 200,
-                  height: 200,
-                  borderRadius: theme.radius.md,
-                  marginRight: 12,
-                  borderWidth: 1,
-                  borderColor: theme.goldSoftGlow,
-                }}
-              />
-            ))}
-          </ScrollView>
-        )}
-
-        {/* FLIPSCORE */}
-        <Section title="FlipScore" theme={theme}>
-          <Text
-            style={{
-              color: theme.goldDeep,
-              fontSize: 40,
-              fontWeight: "900",
-              textShadowColor: theme.goldDeep,
-              textShadowRadius: 12,
-              marginBottom: 10,
-            }}
-          >
-            {flipScore}
-          </Text>
-
-          <Bar value={flipScore} theme={theme} />
-        </Section>
-
-        {/* PROFIT BREAKDOWN */}
-        <Section title="Profit Breakdown" theme={theme}>
-          <BreakItem
-            label="Buy Price"
-            value={`£${vehicle.buyPrice ?? 0}`}
-            theme={theme}
-          />
-          <BreakItem
-            label="Sell Price"
-            value={`£${vehicle.sellPrice ?? 0}`}
-            theme={theme}
-          />
-          <BreakItem
-            label="Profit"
-            value={`£${Math.round(profit * 100) / 100}`}
-            theme={theme}
-          />
-          <BreakItem
-            label="Margin"
-            value={`${margin.toFixed(1)}%`}
-            theme={theme}
-          />
-        </Section>
-
-        {/* ATTRIBUTES */}
-        <Section title="Attributes" theme={theme}>
-          <IconItem
-            label="Rarity"
-            value={vehicle.rarity ?? "Unknown"}
-            icon={rarityIcon(vehicle.rarity ?? undefined)}
-            theme={theme}
-          />
-          <IconItem
-            label="Condition"
-            value={vehicle.ai?.condition ?? "Unknown"}
-            icon={conditionIcon(vehicle.ai?.condition ?? undefined)}
-            theme={theme}
-          />
-          <IconItem
-            label="Sell Speed"
-            value={vehicle.sellSpeed ?? "Unknown"}
-            icon={speedIcon(vehicle.sellSpeed ?? undefined)}
-            theme={theme}
-          />
-        </Section>
-
-        {/* MARKET DATA */}
-        <Section title="Market Data" theme={theme}>
-          <BreakItem
-            label="Demand Score"
-            value={`${demandScore}/100`}
-            theme={theme}
-          />
-          <Bar value={demandScore} theme={theme} />
-
-          <BreakItem
-            label="AI Confidence"
-            value={`${aiConfidence}/100`}
-            theme={theme}
-          />
-          <Bar value={aiConfidence} theme={theme} />
-        </Section>
-
-        {/* TIMELINE */}
-        {timeline.length > 0 && (
-          <Section title="Timeline" theme={theme}>
-            {timeline.map((event, i) => (
-              <View key={i} style={{ marginBottom: 10 }}>
-                <Text style={{ color: theme.muted, fontSize: 12 }}>
-                  {new Date(event.date).toLocaleDateString()}
-                </Text>
-                <Text style={{ color: theme.white, fontSize: 14, fontWeight: "600" }}>
-                  {event.label}
-                </Text>
-              </View>
-            ))}
-          </Section>
-        )}
-
-        {/* AI PRO TIPS */}
-        {vehicle.proTips && vehicle.proTips.length > 0 && (
-          <Section title="AI Pro Tips" theme={theme}>
-            {vehicle.proTips.map((tip: string, i: number) => (
-              <Animated.View
-                key={i}
-                entering={FadeIn.duration(400).delay(i * 120)}
-                style={{
-                  backgroundColor: theme.card,
-                  borderRadius: theme.radius.md,
-                  padding: 12,
-                  marginBottom: 10,
-                  borderWidth: 1,
-                  borderColor: theme.goldSoftGlow,
-                  flexDirection: "row",
-                  alignItems: "flex-start",
-                  gap: 10,
-                }}
+        {/* HERO */}
+        <View style={[styles.heroCard, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
+          <View style={styles.heroRow}>
+            {photo ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="View photo full size"
+                style={({ pressed }) => [styles.heroThumb, pressed && styles.pressed]}
+                onPress={() => setViewerUri(photo)}
               >
-                <Text
-                  style={{
-                    fontSize: 20,
-                    color: theme.goldDeep,
-                    marginTop: -2,
-                  }}
-                >
-                  ⚡
-                </Text>
-
-                <Text
-                  style={{
-                    color: theme.white,
-                    fontSize: 15,
-                    lineHeight: 20,
-                    flex: 1,
-                  }}
-                >
-                  {tip}
-                </Text>
-              </Animated.View>
-            ))}
-          </Section>
-        )}
-
-        {/* MOT SECTION */}
-        {vehicle.mot && (
-          <Section title="MOT & Tax Status" theme={theme}>
-            <BreakItem
-              label="Make"
-              value={vehicle.mot.make ?? "N/A"}
-              theme={theme}
-            />
-            <BreakItem
-              label="Model"
-              value={vehicle.mot.model ?? "N/A"}
-              theme={theme}
-            />
-            <BreakItem
-              label="Year"
-              value={vehicle.mot.year ?? "N/A"}
-              theme={theme}
-            />
-            <BreakItem
-              label="Registration"
-              value={vehicle.mot.reg ?? "N/A"}
-              theme={theme}
-            />
-            <BreakItem
-              label="MOT Status"
-              value={vehicle.mot.motStatus ?? "Unknown"}
-              theme={theme}
-            />
-            <BreakItem
-              label="MOT Expiry"
-              value={vehicle.mot.motExpiry ?? "N/A"}
-              theme={theme}
-            />
-            <BreakItem
-              label="Mileage"
-              value={vehicle.mot.mileage ?? "N/A"}
-              theme={theme}
-            />
-            <BreakItem
-              label="Tax Status"
-              value={vehicle.mot.taxStatus ?? "Unknown"}
-              theme={theme}
-            />
-
-            {vehicle.mot.advisories && vehicle.mot.advisories.length > 0 && (
-              <View style={{ marginTop: 10 }}>
-                <Text
-                  style={{
-                    color: theme.white,
-                    fontSize: 16,
-                    fontWeight: "600",
-                    marginBottom: 6,
-                  }}
-                >
-                  Advisories
-                </Text>
-
-                {vehicle.mot.advisories.map((adv: string, i: number) => (
-                  <Text
-                    key={i}
-                    style={{ color: theme.muted, marginBottom: 4 }}
-                  >
-                    • {adv}
-                  </Text>
-                ))}
+                <Image source={{ uri: photo }} style={styles.heroImage} resizeMode="cover" />
+                <View style={[styles.zoomBadge, { backgroundColor: SCRIM }]}>
+                  <MagnifyingGlassPlus size={14} color={theme.white} />
+                </View>
+              </Pressable>
+            ) : (
+              <View
+                accessibilityLabel="No photo saved"
+                style={[styles.heroThumb, styles.heroPlaceholder, { backgroundColor: theme.background }]}
+              >
+                <Car size={32} color={theme.muted} />
               </View>
             )}
-          </Section>
-        )}
 
-        {/* ACTION BUTTONS */}
-        <TouchableOpacity
-          style={[
-            styles.button,
-            { backgroundColor: theme.goldDeep, borderRadius: theme.radius.md },
-          ]}
-          onPress={() => router.push(`/vehicles/edit/${vehicle.id}`)}
-        >
-          <Text style={[styles.buttonText, { color: theme.black }]}>
-            Edit Flip
-          </Text>
-        </TouchableOpacity>
+            <View style={styles.heroText}>
+              <Text style={[styles.heroTitle, { color: theme.text }]} accessibilityRole="header">
+                {vehicle.title}
+              </Text>
+              {reg ? (
+                <View
+                  accessible
+                  accessibilityLabel={`Registration ${reg}`}
+                  style={[styles.regPill, { backgroundColor: theme.background, borderColor: theme.hairline }]}
+                >
+                  <Text style={[styles.regText, { color: theme.text }]}>{reg}</Text>
+                </View>
+              ) : null}
+            </View>
 
-        <TouchableOpacity
-          style={[
-            styles.deleteButton,
-            { borderColor: theme.goldDeep, borderRadius: theme.radius.md },
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={vehicle.favourite ? "Remove from favourites" : "Add to favourites"}
+              accessibilityState={{ selected: !!vehicle.favourite }}
+              style={({ pressed }) => [styles.favouriteButton, pressed && styles.pressed]}
+              onPress={() => toggleFavourite(vehicle.id)}
+            >
+              <Heart
+                size={24}
+                weight={vehicle.favourite ? "fill" : "regular"}
+                color={vehicle.favourite ? theme.gold : theme.muted}
+              />
+            </Pressable>
+          </View>
+        </View>
+
+        {/* PROFIT SUMMARY */}
+        <View style={[styles.summaryCard, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
+          <View style={styles.summaryTop}>
+            <View accessible accessibilityLabel={profitLabel} style={styles.summaryMain}>
+              <Text style={[styles.smallLabel, { color: theme.muted }]}>Profit</Text>
+              <Text
+                style={[styles.profitFigure, { color: profitColor }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                {formatSigned(profit)}
+              </Text>
+            </View>
+
+            <View
+              accessible
+              accessibilityLabel={
+                roi != null
+                  ? `Return on investment ${roi.toFixed(1)} percent`
+                  : "Return on investment not available"
+              }
+              style={styles.summaryRoi}
+            >
+              <Text style={[styles.smallLabel, { color: theme.muted }]}>ROI</Text>
+              <Text style={[styles.roiFigure, { color: roiColor }]}>{roiText}</Text>
+            </View>
+          </View>
+
+          <DataRow label="Buy" value={formatMoney(buyPrice)} divider />
+          <DataRow label="Sell" value={formatMoney(sellPrice)} divider />
+          <DataRow
+            label="Status"
+            value={isSold ? (soldOn ? `Sold ${soldOn}` : "Sold") : "In stock"}
+            valueColor={isSold ? theme.success : undefined}
+            divider
+          />
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={isSold ? "Mark as unsold" : "Mark as sold"}
+          accessibilityState={{ disabled: !canMarkSold }}
+          disabled={!canMarkSold}
+          onPress={toggleSold}
+          style={({ pressed }) => [
+            styles.soldButton,
+            { borderColor: theme.hairline, backgroundColor: theme.card },
+            !canMarkSold && styles.disabled,
+            pressed && styles.pressed,
           ]}
-          onPress={() => setConfirmDelete(true)}
         >
-          <Text style={[styles.buttonText, { color: theme.goldDeep }]}>
-            Delete Flip
+          <Tag size={18} color={theme.text} />
+          <Text style={[styles.secondaryLabel, { color: theme.text }]} numberOfLines={1}>
+            {isSold ? "Mark as unsold" : "Mark as sold"}
           </Text>
-        </TouchableOpacity>
+        </Pressable>
+        {!canMarkSold ? (
+          <Text style={[styles.note, { color: theme.muted }]}>
+            Add the price it sold for in Edit flip, then mark it as sold.
+          </Text>
+        ) : null}
+
+        {profit == null ? (
+          <Text style={[styles.note, { color: theme.muted }]}>
+            Add a buy and a sell price to see this vehicle's profit.
+          </Text>
+        ) : null}
+
+        {/* MOT STATUS */}
+        {mot ? (
+          <>
+            <SectionTitle>MOT and tax</SectionTitle>
+            <Group>
+              <View
+                accessible
+                accessibilityLabel={`MOT ${motExpiryPhrase(expiryDays)}`}
+                style={styles.statusHeader}
+              >
+                <View style={[styles.statusIcon, { backgroundColor: theme.background }]}>
+                  <MotIcon size={26} color={motTone} weight="fill" />
+                </View>
+                <View style={styles.statusText}>
+                  <Text style={[styles.smallLabel, { color: theme.muted }]}>Current MOT</Text>
+                  <Text style={[styles.statusHeadline, { color: motTone }]}>{motHeadline}</Text>
+                </View>
+              </View>
+
+              <DataRow label="Expiry date" value={motExpiry ? formatDate(motExpiry) : "-"} divider />
+              <DataRow label="MOT status" value={mot.motStatus ?? "Unknown"} divider />
+              <DataRow label="Tax status" value={mot.taxStatus ?? "Unknown"} divider />
+            </Group>
+          </>
+        ) : null}
+
+        {/* ACTIONS */}
+        <SectionTitle>Explore</SectionTitle>
+        <Group>
+          <ActionRow
+            Icon={Images}
+            title="Gallery"
+            subtitle={images.length > 0 ? plural(images.length, "photo", "photos") : "View and manage photos"}
+            onPress={() => openScreen(`/vehicles/gallery/${vehicle.id}`)}
+          />
+          <ActionRow
+            Icon={ClockCounterClockwise}
+            title="MOT timeline"
+            subtitle="Past tests and mileage"
+            onPress={() => openScreen(`/mot/${vehicle.id}`)}
+            divider
+          />
+          <ActionRow
+            Icon={ChartLineUp}
+            title="Market scan"
+            subtitle="Price range, demand and similar listings"
+            onPress={() => openScreen(`/vehicles/market/${vehicle.id}`)}
+            divider
+          />
+          {vehicle.aiPrice ? (
+            <ActionRow
+              Icon={Sparkle}
+              title="AI advisor"
+              subtitle="Suggested sell price and risk"
+              onPress={() => setAdvisorVisible(true)}
+              divider
+            />
+          ) : null}
+        </Group>
+
+        {/* PHOTOS */}
+        {images.length > 1 ? (
+          <>
+            <SectionTitle>Photos</SectionTitle>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.photoStrip}
+              contentContainerStyle={styles.photoStripContent}
+            >
+              {images.map((uri, i) => (
+                <Pressable
+                  key={`${uri}-${i}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View photo ${i + 1} of ${images.length}`}
+                  style={({ pressed }) => [pressed && styles.pressed]}
+                  onPress={() => setViewerUri(uri)}
+                >
+                  <Image
+                    source={{ uri }}
+                    style={[styles.photoThumb, { backgroundColor: theme.card, borderColor: theme.hairline }]}
+                    resizeMode="cover"
+                  />
+                </Pressable>
+              ))}
+            </ScrollView>
+          </>
+        ) : null}
+
+        {/* AI INSIGHTS */}
+        {vehicle.aiPrice ? (
+          <>
+            <SectionTitle>AI insights</SectionTitle>
+            <Group>
+              <AiRows vehicle={vehicle} />
+            </Group>
+          </>
+        ) : null}
+
+        {/* FLIP SCORE */}
+        {flipScore != null ? (
+          <>
+            <SectionTitle>Flip score</SectionTitle>
+            <Group>
+              <View
+                accessible
+                accessibilityLabel={`Flip score ${flipScore} out of 100`}
+                style={styles.scoreBlock}
+              >
+                <View style={styles.scoreHeader}>
+                  <Text style={[styles.scoreNumber, { color: theme.text }]}>{String(flipScore)}</Text>
+                  <Text style={[styles.scoreMax, { color: theme.muted }]}>/ 100</Text>
+                </View>
+                <View style={[styles.meterTrack, { backgroundColor: theme.background }]}>
+                  <View
+                    style={[
+                      styles.meterFill,
+                      { width: `${flipPercent}%`, backgroundColor: bandColour(theme, flipPercent) },
+                    ]}
+                  />
+                </View>
+              </View>
+            </Group>
+          </>
+        ) : null}
+
+        {/* VEHICLE */}
+        {mot ? (
+          <>
+            <SectionTitle>Vehicle</SectionTitle>
+            <Group>
+              <DataRow label="Make" value={mot.make ?? "-"} />
+              <DataRow label="Model" value={mot.model ?? "-"} divider />
+              <DataRow label="Year" value={mot.year != null ? String(mot.year) : "-"} divider />
+              <DataRow label="Registration" value={reg ?? "-"} divider />
+              <DataRow label="Mileage" value={formatMiles(mot.mileage)} divider />
+              {mot.colour ? <DataRow label="Colour" value={mot.colour} divider /> : null}
+              {mot.keepers != null ? (
+                <DataRow label="Keepers" value={String(mot.keepers)} divider />
+              ) : null}
+            </Group>
+          </>
+        ) : null}
+
+        {/* ATTRIBUTES */}
+        <SectionTitle>Attributes</SectionTitle>
+        <Group>
+          <DataRow Icon={Diamond} label="Rarity" value={vehicle.rarity ?? "Unknown"} />
+          <DataRow
+            Icon={ShieldCheck}
+            label="Condition"
+            value={vehicle.ai?.condition ?? "Unknown"}
+            divider
+          />
+          <DataRow Icon={Lightning} label="Sell speed" value={vehicle.sellSpeed ?? "Unknown"} divider />
+        </Group>
+
+        {/* MARKET */}
+        <SectionTitle>Market</SectionTitle>
+        <Group>
+          {demandScore != null ? (
+            <MeterBlock label="Demand score" value={`${demandScore}/100`} percent={demandScore} />
+          ) : null}
+          {showMarketConfidence && aiConfidence != null ? (
+            <MeterBlock
+              label="AI confidence"
+              value={`${aiConfidence}/100`}
+              percent={aiConfidence}
+              divider={demandScore != null}
+            />
+          ) : null}
+          {marketRows.map((row, i) => (
+            <DataRow
+              key={row.label}
+              label={row.label}
+              value={row.value}
+              divider={demandScore != null || showMarketConfidence || i > 0}
+            />
+          ))}
+          {!hasMarket ? (
+            <TextBlock text="No market data has been saved for this vehicle yet." muted />
+          ) : null}
+        </Group>
+
+        {/* VALUATION */}
+        {valuationRows.length > 0 ? (
+          <>
+            <SectionTitle>Valuation</SectionTitle>
+            <Group>
+              {valuationRows.map((row, i) => (
+                <DataRow key={row.label} label={row.label} value={row.value} divider={i > 0} />
+              ))}
+            </Group>
+          </>
+        ) : null}
+
+        {/* FAILURES */}
+        {failures.length > 0 ? (
+          <>
+            <SectionTitle>{`Failures (${failures.length})`}</SectionTitle>
+            <Group>
+              {failures.map((text, i) => (
+                <ListRow key={`f-${i}`} Icon={XCircle} color={theme.danger} text={text} divider={i > 0} />
+              ))}
+            </Group>
+          </>
+        ) : null}
+
+        {/* ADVISORIES */}
+        {advisories.length > 0 ? (
+          <>
+            <SectionTitle>{`Advisories (${advisories.length})`}</SectionTitle>
+            <Group>
+              {advisories.map((text, i) => (
+                <ListRow
+                  key={`a-${i}`}
+                  Icon={WarningCircle}
+                  color={theme.warning}
+                  text={text}
+                  divider={i > 0}
+                />
+              ))}
+            </Group>
+          </>
+        ) : null}
+
+        {/* TIMELINE */}
+        {timeline.length > 0 ? (
+          <>
+            <SectionTitle>Timeline</SectionTitle>
+            <Group>
+              <View style={styles.timeline}>
+                {timeline.map((event, i) => {
+                  const when = eventDate(event.date);
+                  const last = i === timeline.length - 1;
+
+                  return (
+                    <View
+                      key={`${event.type}-${i}`}
+                      accessible
+                      accessibilityLabel={when ? `${when}: ${event.label}` : event.label}
+                      style={styles.timelineRow}
+                    >
+                      <View style={styles.timelineRail}>
+                        <View style={[styles.timelineDot, { backgroundColor: theme.muted }]} />
+                        {!last ? (
+                          <View style={[styles.timelineLine, { backgroundColor: theme.hairline }]} />
+                        ) : null}
+                      </View>
+                      <View style={[styles.timelineText, !last && styles.timelineGap]}>
+                        {when ? (
+                          <Text style={[styles.timelineDate, { color: theme.muted }]}>{when}</Text>
+                        ) : null}
+                        <Text style={[styles.timelineLabel, { color: theme.text }]}>{event.label}</Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </Group>
+          </>
+        ) : null}
+
+        {/* AI PRO TIPS */}
+        {tips.length > 0 ? (
+          <>
+            <SectionTitle>AI pro tips</SectionTitle>
+            <Group>
+              {tips.map((tip, i) => (
+                <ListRow key={`t-${i}`} Icon={Lightbulb} color={theme.muted} text={tip} divider={i > 0} />
+              ))}
+            </Group>
+          </>
+        ) : null}
       </ScrollView>
+
+      {/* ACTIONS */}
+      <View
+        style={[
+          styles.footer,
+          {
+            backgroundColor: theme.background,
+            borderTopColor: theme.hairline,
+            paddingBottom: insets.bottom + 12,
+          },
+        ]}
+      >
+        <View style={styles.actionsRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Delete flip"
+            style={({ pressed }) => [
+              styles.secondaryButton,
+              { borderColor: theme.hairline, backgroundColor: theme.card },
+              pressed && styles.pressed,
+            ]}
+            onPress={() => setConfirmDelete(true)}
+          >
+            <Trash size={18} color={theme.danger} />
+            <Text style={[styles.secondaryLabel, { color: theme.danger }]} numberOfLines={1}>
+              Delete
+            </Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Edit flip"
+            style={({ pressed }) => [
+              styles.primaryButton,
+              { backgroundColor: theme.gold },
+              pressed && styles.pressed,
+            ]}
+            onPress={() => router.push(`/vehicles/edit/${vehicle.id}`)}
+          >
+            <PencilSimple size={18} color={theme.black} weight="bold" />
+            <Text style={[styles.primaryLabel, { color: theme.black }]} numberOfLines={1}>
+              Edit flip
+            </Text>
+          </Pressable>
+        </View>
+      </View>
 
       {/* DELETE CONFIRMATION */}
       <Modal
         visible={confirmDelete}
-        animationType="none"
+        animationType="fade"
         transparent
         onRequestClose={() => setConfirmDelete(false)}
       >
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.6)",
-            justifyContent: "center",
-            padding: 20,
-          }}
-        >
-          <View
-            style={{
-              backgroundColor: theme.card,
-              borderRadius: theme.radius.lg,
-              borderWidth: 1,
-              borderColor: theme.goldDeep,
-              padding: 20,
-            }}
-          >
-            <Text
-              style={{
-                color: theme.white,
-                fontSize: 20,
-                fontWeight: "700",
-                marginBottom: 8,
-              }}
-            >
+        <View style={styles.overlay}>
+          <View style={[styles.modal, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]} accessibilityRole="header">
               Delete this flip?
             </Text>
-            <Text style={{ color: theme.muted, marginBottom: 18 }}>
-              {vehicle.title} will be removed from your flips. This can't be
-              undone.
+            <Text style={[styles.modalText, { color: theme.muted }]}>
+              {vehicle.title} will be removed from your flips. This can't be undone.
             </Text>
 
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <TouchableOpacity
+            <View style={styles.modalButtons}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+                style={({ pressed }) => [
+                  styles.modalButton,
+                  { backgroundColor: theme.background },
+                  pressed && styles.pressed,
+                ]}
                 onPress={() => setConfirmDelete(false)}
-                style={{
-                  flex: 1,
-                  paddingVertical: 12,
-                  borderRadius: theme.radius.md,
-                  borderWidth: 1,
-                  borderColor: theme.goldSoftGlow,
-                  alignItems: "center",
-                }}
               >
-                <Text style={{ color: theme.white, fontWeight: "600" }}>
-                  Cancel
-                </Text>
-              </TouchableOpacity>
+                <Text style={[styles.modalButtonText, { color: theme.text }]}>Cancel</Text>
+              </Pressable>
 
-              <TouchableOpacity
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Delete flip"
+                style={({ pressed }) => [
+                  styles.modalButton,
+                  { backgroundColor: theme.danger },
+                  pressed && styles.pressed,
+                ]}
                 onPress={handleDelete}
-                style={{
-                  flex: 1,
-                  paddingVertical: 12,
-                  borderRadius: theme.radius.md,
-                  backgroundColor: theme.danger,
-                  alignItems: "center",
-                }}
               >
-                <Text style={{ color: theme.white, fontWeight: "700" }}>
-                  Delete
-                </Text>
-              </TouchableOpacity>
+                <Text style={[styles.modalButtonText, { color: theme.white }]}>Delete</Text>
+              </Pressable>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* AI ADVISOR MODAL */}
-      {vehicle.aiPrice && (
+      {/* AI ADVISOR */}
+      {vehicle.aiPrice ? (
         <Modal
           visible={advisorVisible}
           animationType="slide"
           transparent
           onRequestClose={() => setAdvisorVisible(false)}
         >
-          <View
-            style={{
-              flex: 1,
-              backgroundColor: "rgba(0,0,0,0.6)",
-              justifyContent: "center",
-              padding: 20,
-            }}
-          >
+          <View style={styles.sheetBackdrop}>
+            {/* Tapping outside the sheet closes it (onRequestClose only covers Android's back button). */}
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              accessibilityRole="button"
+              accessibilityLabel="Close AI advisor"
+              onPress={() => setAdvisorVisible(false)}
+            />
             <View
-              style={{
-                backgroundColor: theme.card,
-                borderRadius: 24,
-                borderWidth: 2,
-                borderColor: theme.goldDeep,
-                padding: 20,
-                maxHeight: "80%",
-              }}
+              style={[
+                styles.sheet,
+                {
+                  backgroundColor: theme.card,
+                  borderColor: theme.hairline,
+                  paddingBottom: Math.max(insets.bottom, 16) + 8,
+                },
+              ]}
             >
-              <ScrollView>
-                <Text
-                  style={{
-                    fontSize: 22,
-                    fontWeight: "700",
-                    color: theme.accent,
-                    marginBottom: 10,
-                  }}
-                >
-                  🤖 AI Advisor
+              <View style={[styles.grabber, { backgroundColor: theme.muted }]} />
+
+              <View style={styles.sheetHeader}>
+                <Text style={[styles.sheetTitle, { color: theme.text }]} accessibilityRole="header">
+                  AI advisor
                 </Text>
-
-                <BreakItem
-                  label="Recommended Sell Price"
-                  value={
-                    vehicle.aiPrice?.recommendedSellPrice
-                      ? `£${vehicle.aiPrice.recommendedSellPrice}`
-                      : "N/A"
-                  }
-                  theme={theme}
-                />
-
-                <BreakItem
-                  label="AI Confidence"
-                  value={
-                    vehicle.aiPrice?.confidence
-                      ? `${vehicle.aiPrice.confidence}/100`
-                      : "N/A"
-                  }
-                  theme={theme}
-                />
-                <Bar
-                  value={vehicle.aiPrice?.confidence ?? 0}
-                  theme={theme}
-                />
-
-                <BreakItem
-                  label="Risk Level"
-                  value={vehicle.aiPrice?.riskLevel ?? "Unknown"}
-                  theme={theme}
-                />
-
-                <BreakItem
-                  label="Planned vs AI Price"
-                  value={
-                    vehicle.aiPrice?.recommendedSellPrice
-                      ? `You planned £${vehicle.sellPrice ?? 0}, AI suggests £${
-                          vehicle.aiPrice.recommendedSellPrice
-                        }`
-                      : "N/A"
-                  }
-                  theme={theme}
-                />
-
-                {vehicle.aiPrice?.notes && (
-                  <View style={{ marginTop: 12 }}>
-                    <Text
-                      style={{
-                        color: theme.white,
-                        fontSize: 16,
-                        fontWeight: "600",
-                        marginBottom: 6,
-                      }}
-                    >
-                      AI Notes
-                    </Text>
-                    <Text style={{ color: theme.muted }}>
-                      {vehicle.aiPrice.notes}
-                    </Text>
-                  </View>
-                )}
-
-                <TouchableOpacity
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Close AI advisor"
+                  hitSlop={8}
+                  style={({ pressed }) => [styles.sheetClose, pressed && styles.pressed]}
                   onPress={() => setAdvisorVisible(false)}
-                  style={{
-                    marginTop: 18,
-                    paddingVertical: 12,
-                    borderRadius: 12,
-                    backgroundColor: theme.accent,
-                    borderWidth: 2,
-                    borderColor: theme.goldDeep,
-                    alignItems: "center",
-                  }}
                 >
-                  <Text
-                    style={{
-                      color: theme.black,
-                      fontWeight: "700",
-                      fontSize: 16,
-                    }}
-                  >
-                    Close Advisor
-                  </Text>
-                </TouchableOpacity>
+                  <X size={22} color={theme.muted} />
+                </Pressable>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false} style={styles.sheetScroll}>
+                <View
+                  style={[
+                    styles.group,
+                    { backgroundColor: theme.background, borderColor: theme.hairline },
+                  ]}
+                >
+                  <AiRows vehicle={vehicle} />
+                </View>
               </ScrollView>
             </View>
           </View>
         </Modal>
-      )}
-    </View>
-  );
-}
+      ) : null}
 
-/* ============================================================
-   QUICK ACTIONS
-============================================================ */
-function QuickActions({
-  vehicle,
-  theme,
-  router,
-  onOpenAdvisor,
-}: {
-  vehicle: FlipRecord;
-  theme: Theme;
-  router: any;
-  onOpenAdvisor: () => void;
-}) {
-  return (
-    <View
-      style={{
-        flexDirection: "row",
-        flexWrap: "wrap",
-        gap: 10,
-        marginBottom: 16,
-      }}
-    >
-      <ActionButton
-        label="📸 Gallery"
-        theme={theme}
-        onPress={() => router.push(`/vehicles/gallery/${vehicle.id}`)}
-      />
-
-      <ActionButton
-        label="🕒 MOT Timeline"
-        theme={theme}
-        onPress={() => router.push(`/mot/${vehicle.id}`)}
-      />
-
-      <ActionButton
-        label="📈 Market Scan"
-        theme={theme}
-        onPress={() => router.push(`/vehicles/market/${vehicle.id}`)}
-      />
-
-      {vehicle.aiPrice && (
-        <ActionButton
-          label="🤖 AI Advisor"
-          theme={theme}
-          gold
-          onPress={onOpenAdvisor}
-        />
-      )}
-    </View>
-  );
-}
-
-function ActionButton({
-  label,
-  onPress,
-  theme,
-  gold,
-}: {
-  label: string;
-  onPress: () => void;
-  theme: Theme;
-  gold?: boolean;
-}) {
-  return (
-    <TouchableOpacity
-      style={{
-        paddingVertical: 10,
-        paddingHorizontal: 14,
-        borderRadius: theme.radius.md,
-        backgroundColor: gold ? theme.goldDeep : theme.card,
-        borderWidth: 1,
-        borderColor: theme.goldSoftGlow,
-      }}
-      onPress={onPress}
-    >
-      <Text style={{ color: gold ? theme.black : theme.white }}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
-
-/* ============================================================
-   AI INSIGHTS HERO SECTION
-============================================================ */
-function AIInsights({
-  theme,
-  aiPrice,
-  aiRisk,
-  aiConfidence,
-  aiNotes,
-  profit,
-  sellPrice,
-}: {
-  theme: Theme;
-  aiPrice: number | null;
-  aiRisk: string | null;
-  aiConfidence: number | null;
-  aiNotes: string | null;
-  profit: number;
-  sellPrice: number;
-}) {
-  const glow = useSharedValue(0);
-
-  glow.value = withRepeat(withTiming(1, { duration: 2000 }), -1, true);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    shadowColor: theme.goldDeep,
-    shadowOpacity: glow.value * 0.4,
-    shadowRadius: glow.value * 20,
-  }));
-
-  const riskColor =
-    aiRisk === "low"
-      ? "#4CAF50"
-      : aiRisk === "medium"
-      ? "#FFD966"
-      : aiRisk === "high"
-      ? "#FF6666"
-      : theme.muted;
-
-  return (
-    <Animated.View
-      style={[
-        {
-          backgroundColor: theme.card,
-          padding: 18,
-          borderRadius: theme.radius.lg,
-          borderWidth: 1,
-          borderColor: theme.goldSoftGlow,
-          marginBottom: 20,
-        },
-        animatedStyle,
-      ]}
-    >
-      <Text
-        style={{
-          color: theme.white,
-          fontSize: 20,
-          fontWeight: "700",
-          marginBottom: 10,
-        }}
+      {/* PHOTO VIEWER */}
+      <Modal
+        visible={viewerUri !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setViewerUri(null)}
       >
-        AI Insights
-      </Text>
-
-      <BreakItem
-        label="Recommended Sell Price"
-        value={aiPrice ? `£${aiPrice}` : "N/A"}
-        theme={theme}
-      />
-
-      <View
-        style={{
-          marginTop: 10,
-          paddingVertical: 6,
-          paddingHorizontal: 12,
-          backgroundColor: riskColor,
-          borderRadius: theme.radius.md,
-          alignSelf: "flex-start",
-        }}
-      >
-        <Text
-          style={{
-            color: theme.black,
-            fontWeight: "700",
-            fontSize: 14,
-          }}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close photo"
+          style={styles.lightbox}
+          onPress={() => setViewerUri(null)}
         >
-          Risk Level: {aiRisk ?? "Unknown"}
-        </Text>
-      </View>
+          {viewerUri ? (
+            <Image source={{ uri: viewerUri }} style={styles.lightboxImage} resizeMode="contain" />
+          ) : null}
 
-      <BreakItem
-        label="AI Confidence"
-        value={aiConfidence ? `${aiConfidence}/100` : "N/A"}
-        theme={theme}
-      />
-      <Bar value={aiConfidence ?? 0} theme={theme} />
-
-      <BreakItem
-        label="Profit vs AI Price"
-        value={
-          aiPrice
-            ? `You planned £${sellPrice}, AI suggests £${aiPrice}`
-            : "N/A"
-        }
-        theme={theme}
-      />
-
-      {aiNotes && (
-        <View style={{ marginTop: 12 }}>
-          <Text
-            style={{
-              color: theme.white,
-              fontSize: 16,
-              fontWeight: "600",
-              marginBottom: 6,
-            }}
-          >
-            AI Notes
-          </Text>
-          <Text style={{ color: theme.muted }}>{aiNotes}</Text>
-        </View>
-      )}
-    </Animated.View>
-  );
-}
-
-/* ============================================================
-   SPARKLE DUST
-============================================================ */
-function SparkleDust({ theme }: { theme: Theme }) {
-  const particles = Array.from({ length: 12 });
-
-  return (
-    <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}>
-      {particles.map((_, i) => (
-        <SparkleParticle key={i} theme={theme} />
-      ))}
+          <View style={[styles.lightboxClose, { top: insets.top + 12 }]}>
+            <X size={22} color={theme.white} />
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
 
-function SparkleParticle({ theme }: { theme: Theme }) {
-  const x = useSharedValue(Math.random() * 300);
-  const y = useSharedValue(Math.random() * 600);
-
-  useEffect(() => {
-    x.value = withRepeat(
-      withTiming(Math.random() * 300, { duration: 6000 }),
-      -1,
-      true
-    );
-    y.value = withRepeat(
-      withTiming(Math.random() * 600, { duration: 8000 }),
-      -1,
-      true
-    );
-  }, []);
-
-  const style = useAnimatedStyle(() => ({
-    position: "absolute",
-    left: x.value,
-    top: y.value,
-    opacity: 0.4,
-  }));
-
-  return (
-    <Animated.Text style={[{ color: theme.goldDeep }, style]}>
-      ✨
-    </Animated.Text>
-  );
-}
-
-/* ============================================================
-   SECTION
-============================================================ */
-function Section({
-  title,
-  children,
-  theme,
-}: {
-  title: string;
-  children: React.ReactNode;
-  theme: Theme;
-}) {
-  const glow = useSharedValue(0);
-
-  glow.value = withRepeat(withTiming(1, { duration: 1800 }), -1, true);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    shadowColor: theme.goldDeep,
-    shadowOpacity: glow.value * 0.4,
-    shadowRadius: glow.value * 18,
-  }));
-
-  return (
-    <Animated.View
-      style={[
-        {
-          backgroundColor: theme.card,
-          padding: 16,
-          borderRadius: theme.radius.lg,
-          borderWidth: 1,
-          borderColor: theme.goldSoftGlow,
-          marginBottom: 20,
-        },
-        animatedStyle,
-      ]}
-    >
-      <Text
-        style={{
-          color: theme.white,
-          fontSize: 18,
-          fontWeight: "600",
-          marginBottom: 10,
-        }}
-      >
-        {title}
-      </Text>
-      {children}
-    </Animated.View>
-  );
-}
-
-/* ============================================================
-   BREAK ITEM
-============================================================ */
-function BreakItem({
-  label,
-  value,
-  theme,
-}: {
-  label: string;
-  value: string | number;
-  theme: Theme;
-}) {
-  return (
-    <View style={{ marginBottom: 10 }}>
-      <Text style={{ color: theme.muted, fontSize: 14 }}>{label}</Text>
-      <Text
-        style={{
-          color: theme.white,
-          fontSize: 16,
-          fontWeight: "600",
-        }}
-      >
-        {value}
-      </Text>
-    </View>
-  );
-}
-
-/* ============================================================
-   ICON ITEM
-============================================================ */
-function IconItem({
-  label,
-  value,
-  icon,
-  theme,
-}: {
-  label: string;
-  value: string;
-  icon: string;
-  theme: Theme;
-}) {
-  return (
-    <View
-      style={{
-        marginBottom: 12,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 10,
-      }}
-    >
-      <Text style={{ fontSize: 20 }}>{icon}</Text>
-      <View>
-        <Text style={{ color: theme.muted, fontSize: 14 }}>{label}</Text>
-        <Text
-          style={{
-            color: theme.white,
-            fontSize: 16,
-            fontWeight: "600",
-          }}
-        >
-          {value}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
-/* ============================================================
-   SAFE ICON HELPERS
-============================================================ */
-const rarityIcon = (r: string | undefined): string => {
-  if (r === "Ultra Rare") return "👑";
-  if (r === "Rare") return "💎";
-  if (r === "Uncommon") return "✨";
-  if (r === "Common") return "📦";
-  return "❓";
-};
-
-const conditionIcon = (c: string | undefined): string => {
-  if (c === "Excellent") return "🌟";
-  if (c === "Good") return "👍";
-  if (c === "Fair") return "🛠️";
-  if (c === "Poor") return "💔";
-  return "❓";
-};
-
-const speedIcon = (s: string | undefined): string => {
-  if (s === "Fast") return "⚡";
-  if (s === "Medium") return "🚶‍♂️";
-  if (s === "Slow") return "🐌";
-  return "❓";
-};
-
-/* ============================================================
-   FLEX BAR
-============================================================ */
-function Bar({ value, theme }: { value: number; theme: Theme }) {
-  const safe = Math.max(0, Math.min(100, value));
-
-  return (
-    <View
-      style={{
-        height: 12,
-        backgroundColor: theme.muted,
-        borderRadius: theme.radius.full,
-        overflow: "hidden",
-        marginTop: 6,
-        flexDirection: "row",
-      }}
-    >
-      <View
-        style={{
-          flex: safe,
-          backgroundColor:
-            safe > 75
-              ? theme.goldDeep
-              : safe > 50
-              ? "#FFD966"
-              : "#FF6666",
-        }}
-      />
-
-      <View style={{ flex: 100 - safe }} />
-    </View>
-  );
-}
-
-/* ============================================================
-   STYLES
-============================================================ */
 const styles = StyleSheet.create({
-  heading: {
-    fontSize: 28,
+  container: { flex: 1 },
+  scroll: { flex: 1 },
+  content: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 },
+
+  /* LOADING / NOT FOUND */
+  center: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 32,
+  },
+  stateIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  stateTitle: {
+    fontSize: 20,
     fontWeight: "700",
-    marginBottom: 10,
-  },
-  button: {
-    paddingVertical: 14,
-    marginTop: 10,
-  },
-  deleteButton: {
-    paddingVertical: 14,
-    marginTop: 10,
-    borderWidth: 2,
-  },
-  buttonText: {
-    fontSize: 18,
-    fontWeight: "600",
     textAlign: "center",
+  },
+  stateBody: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "center",
+    marginTop: 8,
+  },
+
+  /* HERO */
+  heroCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+  },
+  heroRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  heroThumb: {
+    width: 88,
+    height: 88,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  heroImage: {
+    width: "100%",
+    height: "100%",
+  },
+  heroPlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  zoomBadge: {
+    position: "absolute",
+    right: 6,
+    bottom: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  heroText: {
+    flex: 1,
+    gap: 8,
+    alignItems: "flex-start",
+  },
+  heroTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    lineHeight: 26,
+  },
+  regPill: {
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  regText: {
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+  favouriteButton: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "flex-start",
+    marginRight: -8,
+    marginTop: -8,
+  },
+
+  /* SECTIONS */
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginTop: 24,
+    marginBottom: 12,
+  },
+  group: {
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  smallLabel: {
+    fontSize: 13,
+  },
+  note: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginTop: 10,
+  },
+
+  /* PROFIT SUMMARY */
+  summaryCard: {
+    marginTop: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  summaryTop: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    gap: 16,
+    padding: 16,
+  },
+  summaryMain: {
+    flex: 1,
+  },
+  summaryRoi: {
+    alignItems: "flex-end",
+  },
+  profitFigure: {
+    fontSize: 36,
+    fontWeight: "700",
+    lineHeight: 42,
+    fontVariant: ["tabular-nums"],
+  },
+  roiFigure: {
+    fontSize: 22,
+    fontWeight: "700",
+    lineHeight: 28,
+    fontVariant: ["tabular-nums"],
+  },
+
+  /* ROWS */
+  dataRow: {
+    minHeight: 52,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  dataLabel: {
+    fontSize: 15,
+  },
+  dataLabelWithIcon: {
+    flex: 1,
+  },
+  dataValue: {
+    fontSize: 16,
+    fontWeight: "600",
+    flexShrink: 1,
+    textAlign: "right",
+    fontVariant: ["tabular-nums"],
+  },
+  dataValueStrong: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  textBlock: {
+    padding: 16,
+  },
+  textBlockLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  textBlockText: {
+    fontSize: 16,
+    lineHeight: 23,
+  },
+  listRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  listText: {
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 21,
+  },
+  actionRow: {
+    minHeight: 60,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  actionText: {
+    flex: 1,
+  },
+  actionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  actionSubtitle: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+
+  /* METERS */
+  meterBlock: {
+    padding: 16,
+  },
+  meterHeader: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    gap: 16,
+  },
+  meterValue: {
+    fontSize: 16,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
+  meterTrack: {
+    height: 8,
+    borderRadius: 4,
+    overflow: "hidden",
+    marginTop: 10,
+  },
+  meterFill: {
+    height: "100%",
+    borderRadius: 4,
+  },
+  scoreBlock: {
+    padding: 16,
+  },
+  scoreHeader: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 6,
+  },
+  scoreNumber: {
+    fontSize: 36,
+    fontWeight: "700",
+    lineHeight: 42,
+    fontVariant: ["tabular-nums"],
+  },
+  scoreMax: {
+    fontSize: 15,
+    fontVariant: ["tabular-nums"],
+  },
+
+  /* MOT STATUS */
+  statusHeader: {
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  statusIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  statusText: {
+    flex: 1,
+  },
+  statusHeadline: {
+    fontSize: 20,
+    fontWeight: "700",
+    lineHeight: 26,
+    marginTop: 2,
+  },
+
+  /* PHOTOS */
+  photoStrip: {
+    marginHorizontal: -16,
+  },
+  photoStripContent: {
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  photoThumb: {
+    width: 140,
+    height: 140,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+
+  /* TIMELINE */
+  timeline: {
+    padding: 16,
+  },
+  timelineRow: {
+    flexDirection: "row",
+    gap: 14,
+  },
+  timelineRail: {
+    width: 10,
+    alignItems: "center",
+  },
+  timelineDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginTop: 5,
+  },
+  timelineLine: {
+    flex: 1,
+    width: 2,
+    marginTop: 4,
+  },
+  timelineText: {
+    flex: 1,
+  },
+  timelineGap: {
+    paddingBottom: 18,
+  },
+  timelineDate: {
+    fontSize: 13,
+  },
+  timelineLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    lineHeight: 21,
+    marginTop: 2,
+  },
+
+  soldButton: {
+    minHeight: 48,
+    marginTop: 12,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  disabled: {
+    opacity: 0.45,
+  },
+
+  /* ACTIONS */
+  footer: {
+    paddingTop: 12,
+    paddingHorizontal: 16,
+    borderTopWidth: 1,
+  },
+  actionsRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  secondaryButton: {
+    flex: 1,
+    minHeight: 48,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  secondaryLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    flexShrink: 1,
+  },
+  primaryButton: {
+    flex: 1.5,
+    minHeight: 48,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  primaryLabel: {
+    fontSize: 16,
+    fontWeight: "700",
+    flexShrink: 1,
+  },
+
+  /* DELETE CONFIRMATION */
+  overlay: {
+    flex: 1,
+    backgroundColor: SCRIM,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  modal: {
+    width: "100%",
+    maxWidth: 420,
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  modalText: {
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "center",
+    marginTop: 8,
+  },
+  modalButtons: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 20,
+  },
+  modalButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+
+  /* AI ADVISOR SHEET */
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: SCRIM,
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    maxHeight: "85%",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: 1,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+  },
+  grabber: {
+    alignSelf: "center",
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    opacity: 0.5,
+    marginBottom: 14,
+  },
+  sheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  sheetTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  sheetClose: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: -10,
+  },
+  sheetScroll: {
+    flexGrow: 0,
+  },
+
+  /* PHOTO VIEWER */
+  lightbox: {
+    flex: 1,
+    backgroundColor: LIGHTBOX,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lightboxImage: {
+    width: "100%",
+    height: "80%",
+  },
+  lightboxClose: {
+    position: "absolute",
+    right: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: LIGHTBOX_CLOSE,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  pressed: {
+    opacity: 0.75,
   },
 });

@@ -1,30 +1,43 @@
 import React, { useState } from "react";
 
 import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Image,
   ActivityIndicator,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleProp,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  ViewStyle,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import { Feather } from "@expo/vector-icons";
-
-import ValuationEngine from "@/components/ai/ValuationEngine";
-import BreakdownModal from "@/components/core/BreakdownModal";
+import {
+  ArrowsClockwise,
+  Camera,
+  ClipboardText,
+  ImageSquare,
+  Info,
+  Package,
+  PencilSimple,
+  WarningCircle,
+} from "phosphor-react-native";
+import type { Icon as PhosphorIcon } from "phosphor-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
 import { fetchMOT } from "@/features/vehicles/api/mot";
 import { calculateFlipScore, FlipScoreInput } from "@/utils/flipScoreEngine";
-import { computeAiPrice } from "@/features/ai/priceengine";
+import { calculatePrice, computeAiPrice } from "@/features/ai/priceengine";
 
 import { useTheme } from "@/styles/useTheme";
 import { Theme } from "@/styles/theme";
-import { styles } from "@/styles/styles";
 
 /* -------------------------------------------------------
    HELPERS
@@ -50,13 +63,42 @@ function motStatusFor(expiry: string | null | undefined) {
   return end.getTime() >= Date.now() ? "Valid" : "Expired";
 }
 
+// "+£12.50" or "-£3.20". A profit of exactly zero carries no sign.
+const signedMoney = (n: number) =>
+  `${n > 0 ? "+" : n < 0 ? "-" : ""}£${Math.abs(n).toFixed(2)}`;
+const signedPercent = (n: number) =>
+  `${n > 0 ? "+" : n < 0 ? "-" : ""}${Math.abs(n).toFixed(1)}%`;
+const money = (n: number) => `£${n.toFixed(2)}`;
+const withCommas = (n: number) =>
+  String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
+// "2026-10-14" (or a full ISO string) -> "14 Oct 2026". Anything unreadable is shown as it came.
+function formatDate(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const d = new Date(`${value.slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return value;
+  try {
+    return d.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return value;
+  }
+}
+
+const RARITY_OPTIONS = ["Common", "Uncommon", "Rare", "Ultra Rare"];
+const SELL_SPEED_OPTIONS = ["Slow", "Medium", "Fast"];
+const CONDITION_OPTIONS = ["Poor", "Fair", "Good", "Excellent"];
+
 /* -------------------------------------------------------
    ROUTE
 ------------------------------------------------------- */
 
 export default function EditFlipRoute() {
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
-  const { vehicles, updateVehicle, loaded } = useVehicleHistory();
+  const { vehicles, updateVehicle, loaded, loadError } = useVehicleHistory();
   const router = useRouter();
   const theme = useTheme();
 
@@ -67,47 +109,42 @@ export default function EditFlipRoute() {
     // Flips load from storage after the first render, so only call it missing once they have.
     if (!loaded) {
       return (
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <ActivityIndicator size="large" color={theme.goldDeep} />
+        <View style={[styles.center, { backgroundColor: theme.background }]}>
+          <ActivityIndicator size="large" color={theme.muted} />
+          <Text style={[styles.stateLoading, { color: theme.muted }]}>Loading your flip</Text>
         </View>
       );
     }
 
     return (
-      <View
-        style={{
-          flex: 1,
-          justifyContent: "center",
-          alignItems: "center",
-          padding: 20,
-        }}
-      >
-        <Text
-          style={{
-            color: theme.white,
-            fontSize: 20,
-            fontWeight: "700",
-            marginBottom: 8,
-          }}
+      <View style={[styles.center, { backgroundColor: theme.background }]}>
+        <View
+          style={[styles.stateIcon, { backgroundColor: theme.card, borderColor: theme.hairline }]}
         >
-          Flip not found
+          {loadError ? (
+            <WarningCircle size={30} color={theme.warning} />
+          ) : (
+            <Package size={30} color={theme.muted} />
+          )}
+        </View>
+        <Text style={[styles.stateTitle, { color: theme.text }]} accessibilityRole="header">
+          {loadError ? "Couldn't load your flips" : "Flip not found"}
         </Text>
-        <Text style={{ color: theme.muted, textAlign: "center", marginBottom: 20 }}>
-          It may have been deleted.
+        <Text style={[styles.stateBody, { color: theme.muted }]}>
+          {loadError ?? "It may have been deleted."}
         </Text>
-        <TouchableOpacity
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back to your flips"
           onPress={() => router.replace("/vehicles/list")}
-          style={{
-            backgroundColor: theme.goldDeep,
-            paddingVertical: 12,
-            paddingHorizontal: 20,
-            borderRadius: theme.radius.md,
-          }}
+          style={({ pressed }) => [
+            styles.stateButton,
+            { backgroundColor: theme.gold },
+            pressed && styles.pressed,
+          ]}
         >
-          <Text style={{ color: theme.black, fontWeight: "700" }}>
-            Back to your flips
-          </Text>
-        </TouchableOpacity>
+          <Text style={[styles.primaryLabel, { color: theme.black }]}>Back to your flips</Text>
+        </Pressable>
       </View>
     );
   }
@@ -133,6 +170,8 @@ function EditFlipForm({
   router: ReturnType<typeof useRouter>;
   theme: Theme;
 }) {
+  const insets = useSafeAreaInsets();
+
   /* -------------------------------------------------------
        STATE
     ------------------------------------------------------- */
@@ -227,7 +266,7 @@ function EditFlipForm({
     : flip.flipScore ?? 0;
 
   /* -------------------------------------------------------
-       VALUATION ENGINE DATA
+       VALUATION PREVIEW DATA
     ------------------------------------------------------- */
   const flipScore = liveScore;
   const marketHeat = demandN ?? 0;
@@ -247,23 +286,36 @@ function EditFlipForm({
     ------------------------------------------------------- */
   // Prices are optional (an MOT-checked or unsold vehicle has none), but if typed
   // they must be numbers.
-  const problem = !title.trim()
-    ? "Add a title for this flip."
-    : buyN === undefined
-    ? "Buy price must be a number, for example 1800."
-    : sellN === undefined
-    ? "Sell price must be a number, for example 2600."
-    : mileageN === undefined
-    ? "Mileage must be a number, for example 82000."
-    : keepersN === undefined
-    ? "Keepers must be a number."
-    : engineN === undefined
-    ? "Engine size must be a number, for example 1242."
-    : confidenceN === undefined || (confidenceN != null && confidenceN > 100)
-    ? "AI price confidence must be a number from 0 to 100."
-    : demandN === undefined || (demandN != null && demandN > 100)
-    ? "Demand score must be a number from 0 to 100."
-    : null;
+  const errors = {
+    title: !title.trim() ? "Add a title for this flip." : null,
+    buy: buyN === undefined ? "Buy price must be a number, for example 1800." : null,
+    sell: sellN === undefined ? "Sell price must be a number, for example 2600." : null,
+    mileage:
+      mileageN === undefined ? "Mileage must be a number, for example 82000." : null,
+    keepers: keepersN === undefined ? "Keepers must be a number." : null,
+    engine:
+      engineN === undefined ? "Engine size must be a number, for example 1242." : null,
+    confidence:
+      confidenceN === undefined || (confidenceN != null && confidenceN > 100)
+        ? "AI price confidence must be a number from 0 to 100."
+        : null,
+    demand:
+      demandN === undefined || (demandN != null && demandN > 100)
+        ? "Demand score must be a number from 0 to 100."
+        : null,
+  };
+
+  // The first problem in form order, shown beside Save.
+  const problem =
+    errors.title ??
+    errors.buy ??
+    errors.sell ??
+    errors.mileage ??
+    errors.keepers ??
+    errors.engine ??
+    errors.confidence ??
+    errors.demand ??
+    null;
 
   const isValid = problem === null;
 
@@ -449,301 +501,393 @@ function EditFlipForm({
     };
   };
 
+  const profitPreview = Math.round(((sellN ?? 0) - (buyN ?? 0)) * 100) / 100;
+  const previewColor =
+    profitPreview > 0 ? theme.success : profitPreview < 0 ? theme.danger : theme.text;
+
   /* -------------------------------------------------------
        UI
     ------------------------------------------------------- */
   return (
-    <View style={{ flex: 1 }}>
+    <KeyboardAvoidingView
+      style={[styles.flex, { backgroundColor: theme.background }]}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
       <ScrollView
-        style={{ flex: 1, backgroundColor: theme.background }}
-        contentContainerStyle={{ padding: 20 }}
+        style={styles.flex}
+        contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        showsVerticalScrollIndicator={false}
       >
-        <Text style={[styles.heading, { color: theme.goldDeep }]}>
-          Edit Flip
+        {/* TITLE */}
+        <Text style={[styles.pageTitle, { color: theme.text }]} accessibilityRole="header">
+          Edit flip
         </Text>
-        <Text style={{ color: theme.muted, marginBottom: 10 }}>
-          Added: {new Date(flip.timestamp).toLocaleDateString()}
+        <Text style={[styles.pageSub, { color: theme.muted }]}>
+          Added {new Date(flip.timestamp).toLocaleDateString()}
         </Text>
-        {dirty && (
-          <Text style={{ color: theme.goldDeep, marginBottom: 10 }}>
-            You have unsaved changes
-          </Text>
-        )}
 
-        {/* IMAGE PICKER */}
-        <View style={{ flexDirection: "row", gap: 10, marginBottom: 20 }}>
-          <ButtonSmall label="Pick Image" icon="image" onPress={pickImage} theme={theme} />
-          <ButtonSmall label="Take Photo" icon="camera" onPress={takePhoto} theme={theme} />
-        </View>
+        {dirty ? (
+          <View
+            style={[styles.notice, { backgroundColor: theme.card, borderColor: theme.hairline }]}
+            accessibilityLiveRegion="polite"
+          >
+            <PencilSimple size={18} color={theme.muted} />
+            <Text style={[styles.noticeText, { color: theme.text }]}>
+              You have unsaved changes
+            </Text>
+          </View>
+        ) : null}
 
-        {photoError && (
-          <Text style={{ color: theme.danger, marginBottom: 20 }}>{photoError}</Text>
-        )}
+        {/* VEHICLE */}
+        <SectionTitle>Vehicle</SectionTitle>
+        <Card>
+          <View style={styles.stack}>
+            <View>
+              <Input
+                label="Registration"
+                value={registration}
+                onChangeText={(t) => {
+                  setDirty(true);
+                  setRegistration(t.toUpperCase().trim());
+                }}
+                autoCapitalize="characters"
+                autoCorrect={false}
+              />
+              <FieldError text={motError} />
+            </View>
 
-        {images.length > 0 && (
-          <ScrollView horizontal style={{ marginBottom: 20 }}>
-            {images.map((uri, i) => (
-              <Image
-                key={i}
-                source={{ uri }}
-                style={{
-                  width: 80,
-                  height: 80,
-                  borderRadius: theme.radius.md,
-                  marginRight: 10,
+            <View>
+              <ActionButton
+                label={motLoading ? "Looking up..." : "Refresh MOT data"}
+                Icon={ArrowsClockwise}
+                onPress={lookupMot}
+                loading={motLoading}
+              />
+              <Text style={[styles.caption, { color: theme.muted }]}>
+                Replaces the make, model, colour and mileage with the latest lookup.
+              </Text>
+            </View>
+
+            <PairRow>
+              <Input
+                style={styles.col}
+                label="Make"
+                value={make}
+                onChangeText={(t) => {
+                  setDirty(true);
+                  syncTitle({ make: t });
+                  setMake(t);
                 }}
               />
-            ))}
-          </ScrollView>
+              <Input
+                style={styles.col}
+                label="Model"
+                value={model}
+                onChangeText={(t) => {
+                  setDirty(true);
+                  syncTitle({ model: t });
+                  setModel(t);
+                }}
+              />
+            </PairRow>
+
+            <PairRow errors={[errors.mileage]}>
+              <Input
+                style={styles.col}
+                label="Mileage"
+                value={mileage}
+                onChangeText={(v) => {
+                  setDirty(true);
+                  setMileage(v);
+                }}
+                keyboardType="numeric"
+                invalid={!!errors.mileage}
+              />
+              <Input
+                style={styles.col}
+                label="Colour"
+                value={colour}
+                onChangeText={(t) => {
+                  setDirty(true);
+                  setColour(t);
+                }}
+              />
+            </PairRow>
+
+            <PairRow errors={[errors.keepers, errors.engine]}>
+              <Input
+                style={styles.col}
+                label="Keepers"
+                value={keepers}
+                onChangeText={(v) => {
+                  setDirty(true);
+                  setKeepers(v);
+                }}
+                keyboardType="numeric"
+                invalid={!!errors.keepers}
+              />
+              <Input
+                style={styles.col}
+                label="Engine size (cc)"
+                value={engineSize}
+                onChangeText={(v) => {
+                  setDirty(true);
+                  setEngineSize(v);
+                }}
+                keyboardType="numeric"
+                invalid={!!errors.engine}
+              />
+            </PairRow>
+
+            <View>
+              <Input
+                label="Title"
+                value={title}
+                onChangeText={(t) => {
+                  setDirty(true);
+                  setTitle(t);
+                }}
+                invalid={!!errors.title}
+              />
+              <FieldError text={errors.title} />
+            </View>
+          </View>
+        </Card>
+
+        {/* MOT */}
+        <SectionTitle>MOT</SectionTitle>
+        {motInfo ? (
+          <MotSummary mot={motInfo} />
+        ) : (
+          <Card>
+            <View style={styles.miniEmpty}>
+              <View
+                style={[
+                  styles.miniEmptyIcon,
+                  { backgroundColor: theme.background, borderColor: theme.hairline },
+                ]}
+              >
+                <ClipboardText size={22} color={theme.muted} />
+              </View>
+              <Text style={[styles.miniEmptyTitle, { color: theme.text }]}>
+                No MOT details yet
+              </Text>
+              <Text style={[styles.miniEmptyBody, { color: theme.muted }]}>
+                Enter a registration above and tap Refresh MOT data to fetch the MOT and tax
+                status.
+              </Text>
+            </View>
+          </Card>
         )}
 
-        <Input
-          label="Registration"
-          value={registration}
-          onChangeText={(t) => {
-            setDirty(true);
-            setRegistration(t.toUpperCase().trim());
-          }}
-          theme={theme}
-        />
+        {/* PRICING */}
+        <SectionTitle>Pricing</SectionTitle>
+        <Card>
+          <View style={styles.stack}>
+            <PairRow errors={[errors.buy, errors.sell]}>
+              <Input
+                style={styles.col}
+                label="Buy price (£)"
+                value={buyPrice}
+                onChangeText={(t) => {
+                  setDirty(true);
+                  setBuyPrice(t);
+                  setScoreEdited(true);
+                }}
+                keyboardType="numeric"
+                invalid={!!errors.buy}
+              />
+              <Input
+                style={styles.col}
+                label="Sell price (£)"
+                value={sellPrice}
+                onChangeText={(t) => {
+                  setDirty(true);
+                  setSellPrice(t);
+                  setScoreEdited(true);
+                }}
+                keyboardType="numeric"
+                invalid={!!errors.sell}
+              />
+            </PairRow>
 
-        <ButtonSmall
-          label={motLoading ? "Looking up..." : "Refresh MOT data"}
-          icon="refresh-cw"
-          onPress={lookupMot}
-          theme={theme}
-        />
+            <View
+              accessible
+              accessibilityLabel={`Profit preview, ${signedMoney(profitPreview)}`}
+              style={[styles.previewRow, { borderTopColor: theme.hairline }]}
+            >
+              <Text style={[styles.previewLabel, { color: theme.muted }]}>Profit preview</Text>
+              <Text
+                style={[styles.previewValue, { color: previewColor }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                {signedMoney(profitPreview)}
+              </Text>
+            </View>
+          </View>
+        </Card>
 
-        {motError && (
-          <Text style={{ color: theme.danger, marginBottom: 20 }}>{motError}</Text>
-        )}
+        <ValuationCard listing={listing} prediction={{ flipScore, marketHeat }} />
 
-        {motInfo && <MotSummary mot={motInfo} theme={theme} />}
+        {/* CONDITION AND SCORING */}
+        <SectionTitle>Condition and scoring</SectionTitle>
+        <Card>
+          <View style={styles.stack}>
+            <View>
+              <Tooltip
+                label="AI price confidence (0–100)"
+                hint="Higher confidence means AI believes the price estimate is accurate."
+                value={aiPriceConfidence}
+                onChangeText={(t) => {
+                  setDirty(true);
+                  setAiPriceConfidence(t);
+                  setScoreEdited(true);
+                }}
+                invalid={!!errors.confidence}
+              />
+              <FieldError text={errors.confidence} />
+            </View>
 
-        <Input
-          label="Make"
-          value={make}
-          onChangeText={(t) => {
-            setDirty(true);
-            syncTitle({ make: t });
-            setMake(t);
-          }}
-          theme={theme}
-        />
+            <ChoiceGroup
+              label="Rarity"
+              value={rarity}
+              onSelect={(v) => {
+                setDirty(true);
+                setRarity(v as FlipScoreInput["rarity"]);
+                setScoreEdited(true);
+              }}
+              options={RARITY_OPTIONS}
+            />
 
-        <Input
-          label="Model"
-          value={model}
-          onChangeText={(t) => {
-            setDirty(true);
-            syncTitle({ model: t });
-            setModel(t);
-          }}
-          theme={theme}
-        />
+            <ChoiceGroup
+              label="Sell speed"
+              value={sellSpeed}
+              onSelect={(v) => {
+                setDirty(true);
+                setSellSpeed(v as FlipScoreInput["sellSpeed"]);
+                setScoreEdited(true);
+              }}
+              options={SELL_SPEED_OPTIONS}
+            />
 
-        <Input
-          label="Mileage"
-          value={mileage}
-          onChangeText={(v) => {
-            setDirty(true);
-            setMileage(v);
-          }}
-          keyboardType="numeric"
-          theme={theme}
-        />
+            <ChoiceGroup
+              label="Condition"
+              value={condition}
+              onSelect={(v) => {
+                setDirty(true);
+                setCondition(v as FlipScoreInput["condition"]);
+                setScoreEdited(true);
+              }}
+              options={CONDITION_OPTIONS}
+            />
 
-        <Input
-          label="Colour"
-          value={colour}
-          onChangeText={(t) => {
-            setDirty(true);
-            setColour(t);
-          }}
-          theme={theme}
-        />
+            <View>
+              <Input
+                label="Demand score (0–100)"
+                value={demandScore}
+                onChangeText={(t) => {
+                  setDirty(true);
+                  setDemandScore(t);
+                  setScoreEdited(true);
+                }}
+                keyboardType="numeric"
+                invalid={!!errors.demand}
+              />
+              <FieldError text={errors.demand} />
+            </View>
+          </View>
+        </Card>
 
-        <Input
-          label="Keepers"
-          value={keepers}
-          onChangeText={(v) => {
-            setDirty(true);
-            setKeepers(v);
-          }}
-          keyboardType="numeric"
-          theme={theme}
-        />
+        <FlipScoreCard score={liveScore} onPress={() => setShowBreakdown(true)} />
 
-        <Input
-          label="Engine Size (cc)"
-          value={engineSize}
-          onChangeText={(v) => {
-            setDirty(true);
-            setEngineSize(v);
-          }}
-          keyboardType="numeric"
-          theme={theme}
-        />
+        {/* PHOTOS */}
+        <SectionTitle>Photos</SectionTitle>
+        <Card>
+          <View style={styles.stack}>
+            <View>
+              <View style={styles.pairRow}>
+                <ActionButton
+                  style={styles.col}
+                  label="Pick image"
+                  Icon={ImageSquare}
+                  onPress={pickImage}
+                />
+                <ActionButton
+                  style={styles.col}
+                  label="Take photo"
+                  Icon={Camera}
+                  onPress={takePhoto}
+                />
+              </View>
+              <FieldError text={photoError} />
+            </View>
 
-        <Input
-          label="Title"
-          value={title}
-          onChangeText={(t) => {
-            setDirty(true);
-            setTitle(t);
-          }}
-          theme={theme}
-        />
-
-        <Input
-          label="Buy Price (£)"
-          value={buyPrice}
-          onChangeText={(t) => {
-            setDirty(true);
-            setBuyPrice(t);
-            setScoreEdited(true);
-          }}
-          keyboardType="numeric"
-          theme={theme}
-        />
-
-        <Input
-          label="Sell Price (£)"
-          value={sellPrice}
-          onChangeText={(t) => {
-            setDirty(true);
-            setSellPrice(t);
-            setScoreEdited(true);
-          }}
-          keyboardType="numeric"
-          theme={theme}
-        />
-
-        <Text style={{ color: theme.goldDeep, marginBottom: 10 }}>
-          Profit Preview: £{Math.round(((sellN ?? 0) - (buyN ?? 0)) * 100) / 100}
-        </Text>
-
-        {/* 🔥 LIVE MARKET VALUATION PREVIEW */}
-        <ValuationEngine
-          key={listing.id}
-          listing={listing}
-          prediction={{ flipScore, marketHeat }}
-        />
-
-        <Tooltip
-          label="AI Price Confidence (0–100)"
-          hint="Higher confidence means AI believes the price estimate is accurate."
-          value={aiPriceConfidence}
-          onChangeText={(t) => {
-            setDirty(true);
-            setAiPriceConfidence(t);
-            setScoreEdited(true);
-          }}
-          theme={theme}
-        />
-
-        <Dropdown
-          label="Rarity"
-          value={rarity}
-          onSelect={(v) => {
-            setDirty(true);
-            setRarity(v as any);
-            setScoreEdited(true);
-          }}
-          options={[
-            { label: "Common", icon: "📦" },
-            { label: "Uncommon", icon: "✨" },
-            { label: "Rare", icon: "💎" },
-            { label: "Ultra Rare", icon: "👑" },
-          ]}
-          theme={theme}
-        />
-
-        <Dropdown
-          label="Sell Speed"
-          value={sellSpeed}
-          onSelect={(v) => {
-            setDirty(true);
-            setSellSpeed(v as any);
-            setScoreEdited(true);
-          }}
-          options={[
-            { label: "Slow", icon: "🐌" },
-            { label: "Medium", icon: "🚶‍♂️" },
-            { label: "Fast", icon: "⚡" },
-          ]}
-          theme={theme}
-        />
-
-        <Dropdown
-          label="Condition"
-          value={condition}
-          onSelect={(v) => {
-            setDirty(true);
-            setCondition(v as any);
-            setScoreEdited(true);
-          }}
-          options={[
-            { label: "Poor", icon: "💔" },
-            { label: "Fair", icon: "🛠️" },
-            { label: "Good", icon: "👍" },
-            { label: "Excellent", icon: "🌟" },
-          ]}
-          theme={theme}
-        />
-
-        <Input
-          label="Demand Score (0–100)"
-          value={demandScore}
-          onChangeText={(t) => {
-            setDirty(true);
-            setDemandScore(t);
-            setScoreEdited(true);
-          }}
-          keyboardType="numeric"
-          theme={theme}
-        />
-
-        {/* FLIP SCORE */}
-        <FlipScoreBar
-          score={liveScore}
-          theme={theme}
-          onPress={() => setShowBreakdown(true)}
-        />
-
-        {problem && (
-          <Text style={{ color: theme.danger, textAlign: "center", marginBottom: 10 }}>
-            {problem}
-          </Text>
-        )}
-
-        <TouchableOpacity
-          disabled={!isValid}
-          onPress={handleSave}
-          style={[
-            styles.button,
-            {
-              backgroundColor: isValid ? theme.goldDeep : theme.muted,
-              borderRadius: theme.radius.md,
-              opacity: isValid ? 1 : 0.6,
-            },
-          ]}
-        >
-          <Text style={[styles.buttonText, { color: theme.black }]}>
-            Save Changes
-          </Text>
-        </TouchableOpacity>
+            {images.length > 0 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.thumbRow}
+              >
+                {images.map((uri, i) => (
+                  <Image
+                    key={i}
+                    source={{ uri }}
+                    accessibilityLabel={`Photo ${i + 1} of ${images.length}`}
+                    style={[styles.thumb, { backgroundColor: theme.background }]}
+                  />
+                ))}
+              </ScrollView>
+            ) : (
+              <Text style={[styles.caption, { color: theme.muted, marginTop: 0 }]}>
+                No photos yet.
+              </Text>
+            )}
+          </View>
+        </Card>
       </ScrollView>
 
+      {/* SAVE */}
+      <View
+        style={[
+          styles.footer,
+          {
+            backgroundColor: theme.background,
+            borderTopColor: theme.hairline,
+            paddingBottom: Math.max(insets.bottom, 16),
+          },
+        ]}
+      >
+        {problem ? (
+          <View style={styles.problemRow} accessibilityLiveRegion="polite">
+            <WarningCircle size={16} weight="fill" color={theme.danger} />
+            <Text style={[styles.problemText, { color: theme.danger }]}>{problem}</Text>
+          </View>
+        ) : null}
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Save changes"
+          accessibilityState={{ disabled: !isValid }}
+          disabled={!isValid}
+          onPress={handleSave}
+          style={({ pressed }) => [
+            styles.primaryButton,
+            { backgroundColor: theme.gold, opacity: isValid ? 1 : 0.4 },
+            pressed && styles.pressed,
+          ]}
+        >
+          <Text style={[styles.primaryLabel, { color: theme.black }]}>Save changes</Text>
+        </Pressable>
+      </View>
+
       {showBreakdown && (
-        <BreakdownModal
-          theme={theme}
-          breakdown={getBreakdown()}
-          onClose={() => setShowBreakdown(false)}
-        />
+        <BreakdownSheet breakdown={getBreakdown()} onClose={() => setShowBreakdown(false)} />
       )}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -751,248 +895,373 @@ function EditFlipForm({
    COMPONENTS
 ------------------------------------------------------- */
 
-function ButtonSmall({
-  label,
-  onPress,
-  theme,
-  icon,
-}: {
-  label: string;
-  onPress: () => void;
-  theme: Theme;
-  icon?: keyof typeof Feather.glyphMap;
-}) {
+function SectionTitle({ children }: { children: string }) {
+  const theme = useTheme();
+
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 8,
-        backgroundColor: theme.card,
-        padding: 12,
-        borderRadius: theme.radius.md,
-        borderWidth: 1,
-        borderColor: theme.goldSoftGlow,
-        marginBottom: 20,
-      }}
-    >
-      {icon && <Feather name={icon} size={16} color={theme.goldDeep} />}
-      <Text style={{ color: theme.white, textAlign: "center", fontWeight: "600" }}>{label}</Text>
-    </TouchableOpacity>
+    <Text style={[styles.sectionTitle, { color: theme.text }]} accessibilityRole="header">
+      {children}
+    </Text>
   );
 }
 
-interface InputProps {
-  label: string;
-  theme: Theme;
-  value: string;
-  onChangeText: (text: string) => void;
-  keyboardType?: "default" | "numeric";
-}
+function Card({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
+  const theme = useTheme();
 
-function Input({ label, theme, ...props }: InputProps) {
   return (
-    <View style={{ marginBottom: 20 }}>
-      <Text style={{ color: theme.muted, marginBottom: 6 }}>{label}</Text>
-      <TextInput
-        {...props}
-        style={{
-          backgroundColor: theme.card,
-          color: theme.white,
-          padding: 12,
-          borderRadius: theme.radius.md,
-          borderWidth: 1,
-          borderColor: theme.goldSoftGlow,
-        }}
-        placeholderTextColor={theme.muted}
-      />
+    <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.hairline }, style]}>
+      {children}
     </View>
   );
 }
 
-function Dropdown({
-  label,
-  value,
-  onSelect,
-  options,
-  theme,
+// A validation or lookup message, shown in red directly under its field.
+function FieldError({ text }: { text: string | null }) {
+  const theme = useTheme();
+  if (!text) return null;
+
+  return (
+    <Text style={[styles.fieldError, { color: theme.danger }]} accessibilityLiveRegion="polite">
+      {text}
+    </Text>
+  );
+}
+
+// Two fields side by side. Their messages sit under the row, each in full width.
+function PairRow({
+  children,
+  errors,
 }: {
-  label: string;
-  value: string;
-  onSelect: (v: string) => void;
-  options: { label: string; icon?: string }[];
-  theme: Theme;
+  children: React.ReactNode;
+  errors?: (string | null)[];
 }) {
   return (
-    <View style={{ marginBottom: 20 }}>
-      <Text style={{ color: theme.muted, marginBottom: 6 }}>{label}</Text>
-
-      {options.map((opt) => (
-        <TouchableOpacity
-          key={opt.label}
-          onPress={() => onSelect(opt.label)}
-          style={{
-            padding: 12,
-            backgroundColor:
-              value === opt.label ? theme.goldSoftGlow : theme.card,
-            borderRadius: theme.radius.md,
-            marginBottom: 8,
-            borderWidth: 1,
-            borderColor: theme.goldSoftGlow,
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 10,
-          }}
-        >
-          <Text style={{ fontSize: 18 }}>{opt.icon}</Text>
-          <Text style={{ color: theme.white, fontSize: 16 }}>
-            {opt.label}
-          </Text>
-        </TouchableOpacity>
+    <View>
+      <View style={styles.pairRow}>{children}</View>
+      {errors?.map((message, i) => (
+        <FieldError key={i} text={message} />
       ))}
     </View>
   );
 }
 
+// A secondary (outlined) button used for the lookup and photo actions.
+function ActionButton({
+  label,
+  Icon,
+  onPress,
+  loading,
+  style,
+}: {
+  label: string;
+  Icon: PhosphorIcon;
+  onPress: () => void;
+  loading?: boolean;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const theme = useTheme();
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ busy: !!loading, disabled: !!loading }}
+      disabled={loading}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.secondaryButton,
+        { backgroundColor: theme.background, borderColor: theme.hairline },
+        style,
+        pressed && styles.pressed,
+      ]}
+    >
+      {loading ? (
+        <ActivityIndicator size="small" color={theme.text} />
+      ) : (
+        <Icon size={18} color={theme.text} />
+      )}
+      <Text style={[styles.secondaryLabel, { color: theme.text }]} numberOfLines={1}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+interface InputProps {
+  label: string;
+  value: string;
+  onChangeText: (text: string) => void;
+  keyboardType?: "default" | "numeric";
+  autoCapitalize?: "none" | "sentences" | "words" | "characters";
+  autoCorrect?: boolean;
+  // Outlines the field in red; the message itself is shown by FieldError.
+  invalid?: boolean;
+  style?: StyleProp<ViewStyle>;
+}
+
+// The bare text box, shared by Input and Tooltip.
+function TextField({
+  label,
+  invalid,
+  ...props
+}: Omit<InputProps, "style"> & { label: string }) {
+  const theme = useTheme();
+
+  return (
+    <TextInput
+      {...props}
+      accessibilityLabel={label}
+      placeholderTextColor={theme.muted}
+      selectionColor={theme.gold}
+      style={[
+        styles.input,
+        {
+          backgroundColor: theme.background,
+          color: theme.text,
+          borderColor: invalid ? theme.danger : theme.hairline,
+        },
+      ]}
+    />
+  );
+}
+
+function Input({ label, style, ...props }: InputProps) {
+  const theme = useTheme();
+
+  return (
+    <View style={style}>
+      <Text style={[styles.label, { color: theme.muted }]}>{label}</Text>
+      <TextField label={label} {...props} />
+    </View>
+  );
+}
+
+// One choice out of a short list, shown as tappable options.
+function ChoiceGroup({
+  label,
+  value,
+  onSelect,
+  options,
+}: {
+  label: string;
+  value: string;
+  onSelect: (v: string) => void;
+  options: string[];
+}) {
+  const theme = useTheme();
+  // Three options share one row; four sit two by two so every label fits a small phone.
+  const basis = options.length === 3 ? "30%" : "45%";
+
+  return (
+    <View>
+      <Text style={[styles.label, { color: theme.muted }]}>{label}</Text>
+
+      <View style={styles.choiceWrap} accessibilityRole="radiogroup" accessibilityLabel={label}>
+        {options.map((opt) => {
+          const active = value === opt;
+
+          return (
+            <Pressable
+              key={opt}
+              accessibilityRole="radio"
+              accessibilityLabel={opt}
+              accessibilityState={{ checked: active, selected: active }}
+              onPress={() => onSelect(opt)}
+              style={({ pressed }) => [
+                styles.choice,
+                {
+                  flexBasis: basis,
+                  backgroundColor: active ? theme.goldTint : theme.background,
+                  borderColor: active ? theme.gold : theme.hairline,
+                },
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text
+                style={[styles.choiceText, { color: active ? theme.gold : theme.text }]}
+                numberOfLines={1}
+              >
+                {opt}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+// A number field whose label has an info button that shows or hides a hint.
 function Tooltip({
   label,
   hint,
   value,
   onChangeText,
-  theme,
+  invalid,
 }: {
   label: string;
   hint: string;
   value: string;
   onChangeText: (t: string) => void;
-  theme: Theme;
+  invalid?: boolean;
 }) {
+  const theme = useTheme();
   const [showHint, setShowHint] = useState(false);
 
   return (
-    <View style={{ marginBottom: 20 }}>
-      <TouchableOpacity onPress={() => setShowHint(!showHint)}>
-        <Text style={{ color: theme.muted, marginBottom: 6 }}>
-          {label} <Text style={{ color: theme.goldDeep }}>ⓘ</Text>
-        </Text>
-      </TouchableOpacity>
+    <View>
+      <View style={styles.hintLabelRow}>
+        <Text style={[styles.labelInline, { color: theme.muted }]}>{label}</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`About ${label}`}
+          accessibilityState={{ expanded: showHint }}
+          hitSlop={14}
+          onPress={() => setShowHint(!showHint)}
+          style={({ pressed }) => pressed && styles.pressed}
+        >
+          <Info size={18} color={theme.muted} weight={showHint ? "fill" : "regular"} />
+        </Pressable>
+      </View>
 
-      {showHint && (
-        <Text style={{ color: theme.goldDeep, marginBottom: 6 }}>{hint}</Text>
-      )}
+      {showHint ? <Text style={[styles.hint, { color: theme.muted }]}>{hint}</Text> : null}
 
-      <TextInput
+      <TextField
+        label={label}
         value={value}
         onChangeText={(t: string) => onChangeText(t)}
         keyboardType="numeric"
-        style={{
-          backgroundColor: theme.card,
-          color: theme.white,
-          padding: 12,
-          borderRadius: theme.radius.md,
-          borderWidth: 1,
-          borderColor: theme.goldSoftGlow,
-        }}
-        placeholderTextColor={theme.muted}
+        invalid={invalid}
       />
     </View>
   );
 }
 
-function FlipScoreBar({
-  score,
-  theme,
-  onPress,
-}: {
-  score: number;
-  theme: Theme;
-  onPress: () => void;
-}) {
-  return (
-    <View
-      style={{
-        marginTop: 10,
-        marginBottom: 20,
-        padding: 16,
-        backgroundColor: theme.card,
-        borderRadius: theme.radius.lg,
-        borderWidth: 1,
-        borderColor: theme.goldSoftGlow,
-        shadowColor: theme.goldDeep,
-        shadowOpacity: 0.4,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 0 },
-      }}
-    >
-      <Text
-        style={{
-          color: theme.white,
-          fontSize: 18,
-          fontWeight: "600",
-          marginBottom: 10,
-        }}
-      >
-        Flip Score: {score}/100
-      </Text>
+// The FlipScore for the current inputs, with a way into the full breakdown.
+function FlipScoreCard({ score, onPress }: { score: number; onPress: () => void }) {
+  const theme = useTheme();
 
-      <View
-        style={{
-          height: 12,
-          backgroundColor: theme.muted,
-          borderRadius: theme.radius.full,
-          overflow: "hidden",
-          flexDirection: "row",
-        }}
-      >
-        <View
-          style={{
-            flex: Math.max(0, Math.min(100, score)),
-            backgroundColor:
-              score > 75
-                ? theme.goldDeep
-                : score > 50
-                ? "#FFD966"
-                : "#FF6666",
-          }}
-        />
-        <View
-          style={{
-            flex: 100 - Math.max(0, Math.min(100, score)),
-          }}
-        />
+  const scoreColor = score >= 70 ? theme.success : score >= 40 ? theme.warning : theme.danger;
+  const band = score >= 70 ? "Strong" : score >= 40 ? "Fair" : "Weak";
+  const percent = Math.max(0, Math.min(100, Number(score) || 0));
+
+  return (
+    <Card style={styles.gapTop}>
+      <View accessible accessibilityLabel={`FlipScore ${score} out of 100, ${band}`}>
+        <View style={styles.scoreTop}>
+          <Text style={[styles.scoreLabel, { color: theme.muted }]}>FlipScore</Text>
+          <Text style={[styles.scoreBand, { color: scoreColor }]}>{band}</Text>
+        </View>
+
+        <View style={styles.scoreNumberRow}>
+          <Text style={[styles.scoreValue, { color: theme.text }]}>{score}</Text>
+          <Text style={[styles.scoreMax, { color: theme.muted }]}>/ 100</Text>
+        </View>
+
+        <View style={[styles.meterTrack, { backgroundColor: theme.background }]}>
+          <View
+            style={[styles.meterFill, { width: `${percent}%`, backgroundColor: scoreColor }]}
+          />
+        </View>
       </View>
 
-      <TouchableOpacity
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="View score breakdown"
         onPress={onPress}
-        style={{
-          marginTop: 12,
-          paddingVertical: 10,
-          backgroundColor: theme.card,
-          borderRadius: theme.radius.md,
-          borderWidth: 1,
-          borderColor: theme.goldSoftGlow,
-        }}
+        style={({ pressed }) => [
+          styles.secondaryButton,
+          styles.breakdownButton,
+          { backgroundColor: theme.background, borderColor: theme.hairline },
+          pressed && styles.pressed,
+        ]}
       >
-        <Text
-          style={{
-            color: theme.goldDeep,
-            textAlign: "center",
-            fontSize: 16,
-            fontWeight: "600",
-          }}
-        >
-          View Score Breakdown
+        <Text style={[styles.secondaryLabel, { color: theme.text }]}>View score breakdown</Text>
+      </Pressable>
+    </Card>
+  );
+}
+
+// What FlipPilot's price engine makes of the vehicle as it is filled in right now.
+function ValuationCard({
+  listing,
+  prediction,
+}: {
+  listing: { price: number };
+  prediction: { flipScore: number; marketHeat: number };
+}) {
+  const theme = useTheme();
+
+  const valuation = calculatePrice(listing, prediction);
+  const price = listing.price ?? 0;
+  const difference = price - valuation;
+
+  const verdict =
+    difference < -1000
+      ? "Under market value"
+      : difference < -300
+      ? "Good price"
+      : difference < 300
+      ? "Fair price"
+      : "Above market value";
+
+  const verdictColor =
+    difference < -300 ? theme.success : difference < 300 ? theme.text : theme.warning;
+
+  // How the valuation compares with the price entered, kept visible even when it is tiny.
+  const percent = price > 0 ? Math.min(100, Math.max(5, (valuation / price) * 100)) : 100;
+
+  return (
+    <Card style={styles.gapTop}>
+      <View accessible accessibilityLabel={`Market valuation ${money(valuation)}, ${verdict}`}>
+        <Text style={[styles.scoreLabel, { color: theme.muted }]}>Market valuation</Text>
+        <Text style={[styles.valuationValue, { color: theme.text }]} numberOfLines={1} adjustsFontSizeToFit>
+          {money(valuation)}
         </Text>
-      </TouchableOpacity>
+
+        <View style={[styles.meterTrack, { backgroundColor: theme.background }]}>
+          <View style={[styles.meterFill, { width: `${percent}%`, backgroundColor: verdictColor }]} />
+        </View>
+
+        <Text style={[styles.verdict, { color: verdictColor }]}>{verdict}</Text>
+      </View>
+
+      <Text style={[styles.caption, { color: theme.muted }]}>
+        This valuation uses FlipPilot’s PriceEngine (age, mileage, condition, brand, engine size,
+        market heat).
+      </Text>
+    </Card>
+  );
+}
+
+// A label on the left and a value on the right, used inside a grouped card.
+function DataRow({
+  label,
+  value,
+  valueColor,
+  divider,
+}: {
+  label: string;
+  value: string;
+  valueColor?: string;
+  divider?: boolean;
+}) {
+  const theme = useTheme();
+
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${label}, ${value}`}
+      style={[styles.dataRow, divider && { borderTopWidth: 1, borderTopColor: theme.hairline }]}
+    >
+      <Text style={[styles.dataLabel, { color: theme.muted }]}>{label}</Text>
+      <Text style={[styles.dataValue, { color: valueColor ?? theme.text }]}>{value}</Text>
     </View>
   );
 }
 
 function MotSummary({
   mot,
-  theme,
 }: {
   mot: {
     reg?: string | null;
@@ -1007,60 +1276,408 @@ function MotSummary({
     motExpiry?: string | null;
     advisories?: string[] | null;
   };
-  theme: Theme;
 }) {
-  return (
-    <View
-      style={{
-        marginBottom: 20,
-        padding: 12,
-        backgroundColor: theme.card,
-        borderRadius: theme.radius.md,
-        borderWidth: 1,
-        borderColor: theme.goldSoftGlow,
-      }}
-    >
-      <Text style={{ color: theme.goldDeep, fontSize: 15, fontWeight: "800", letterSpacing: 0.5 }}>
-        MOT SUMMARY
-      </Text>
+  const theme = useTheme();
 
-      <View style={{ marginTop: 12, flexDirection: "row", flexWrap: "wrap" }}>
-        {[
-          { label: "Registration", value: mot.reg },
-          { label: "Make", value: mot.make },
-          { label: "Model", value: mot.model },
-          { label: "Year", value: mot.year },
-          { label: "Colour", value: mot.colour },
-          { label: "Keepers", value: mot.keepers },
-          { label: "Mileage", value: mot.mileage != null ? `${mot.mileage} mi` : null },
-          { label: "MOT Status", value: mot.motStatus },
-          { label: "Tax Status", value: mot.taxStatus },
-          { label: "Expiry", value: mot.motExpiry },
-        ].map((field) => (
-          <View key={field.label} style={{ width: "50%", marginBottom: 12 }}>
-            <Text style={{ color: theme.muted, fontSize: 11, fontWeight: "700", letterSpacing: 0.4 }}>
-              {field.label.toUpperCase()}
-            </Text>
-            <Text style={{ color: theme.white, fontSize: 15, fontWeight: "600", marginTop: 2 }}>
-              {field.value ?? "—"}
-            </Text>
-          </View>
-        ))}
-      </View>
+  const statusColor =
+    mot.motStatus === "Valid"
+      ? theme.success
+      : mot.motStatus === "Expired"
+      ? theme.danger
+      : theme.text;
+
+  const rows: { label: string; value: string | null; color?: string }[] = [
+    { label: "MOT status", value: mot.motStatus ?? null, color: statusColor },
+    { label: "MOT expiry", value: formatDate(mot.motExpiry) },
+    { label: "Tax status", value: mot.taxStatus ?? null },
+    { label: "Mileage", value: mot.mileage != null ? `${withCommas(mot.mileage)} mi` : null },
+    { label: "Registration", value: mot.reg ?? null },
+    { label: "Make", value: mot.make ?? null },
+    { label: "Model", value: mot.model ?? null },
+    { label: "Year", value: mot.year != null ? String(mot.year) : null },
+    { label: "Colour", value: mot.colour ?? null },
+    { label: "Keepers", value: mot.keepers != null ? String(mot.keepers) : null },
+  ];
+
+  return (
+    <View style={[styles.group, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
+      {rows.map((row, i) => (
+        <DataRow
+          key={row.label}
+          label={row.label}
+          value={row.value || "—"}
+          valueColor={row.value ? row.color : theme.muted}
+          divider={i > 0}
+        />
+      ))}
 
       {mot.advisories?.length ? (
-        <View style={{ marginTop: 10 }}>
-          <Text style={{ color: theme.goldDeep, fontWeight: "600" }}>
-            Advisories:
+        <View style={[styles.advisoryBlock, { borderTopColor: theme.hairline }]}>
+          <Text style={[styles.blockLabel, { color: theme.muted }]}>
+            Advisories ({mot.advisories.length})
           </Text>
 
           {mot.advisories.map((adv, idx) => (
-            <Text key={idx} style={{ color: theme.muted }}>
-              • {adv}
-            </Text>
+            <View key={idx} style={styles.advisoryRow}>
+              <View style={[styles.bullet, { backgroundColor: theme.muted }]} />
+              <Text style={[styles.advisoryText, { color: theme.text }]}>{adv}</Text>
+            </View>
           ))}
         </View>
       ) : null}
     </View>
   );
 }
+
+// The score's inputs laid out as rows, in a sheet that slides up from the bottom.
+function BreakdownSheet({
+  breakdown,
+  onClose,
+}: {
+  breakdown: {
+    profit: number;
+    profitMargin: number;
+    demandScore: number;
+    rarity: string;
+    condition: string;
+    sellSpeed: string;
+    aiPriceConfidence: number;
+  };
+  onClose: () => void;
+}) {
+  const theme = useTheme();
+  const insets = useSafeAreaInsets();
+
+  const gainColor = (n: number) => (n > 0 ? theme.success : n < 0 ? theme.danger : theme.text);
+
+  return (
+    <Modal transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.backdrop}>
+        {/* Tapping outside the sheet closes it (onRequestClose only covers Android's back button). */}
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          accessibilityRole="button"
+          accessibilityLabel="Close score breakdown"
+          onPress={onClose}
+        />
+
+        <View
+          style={[
+            styles.sheet,
+            {
+              backgroundColor: theme.card,
+              borderColor: theme.hairline,
+              paddingBottom: Math.max(insets.bottom, 16) + 8,
+            },
+          ]}
+        >
+          <View style={[styles.grabber, { backgroundColor: theme.muted }]} />
+
+          <Text style={[styles.sheetTitle, { color: theme.text }]} accessibilityRole="header">
+            Score breakdown
+          </Text>
+
+          <View
+            style={[
+              styles.group,
+              styles.sheetGroup,
+              { backgroundColor: theme.background, borderColor: theme.hairline },
+            ]}
+          >
+            <DataRow
+              label="Profit"
+              value={signedMoney(breakdown.profit)}
+              valueColor={gainColor(breakdown.profit)}
+            />
+            <DataRow
+              label="Margin"
+              value={signedPercent(breakdown.profitMargin)}
+              valueColor={gainColor(breakdown.profitMargin)}
+              divider
+            />
+            <DataRow label="Demand score" value={`${breakdown.demandScore}/100`} divider />
+            <DataRow label="Rarity" value={breakdown.rarity} divider />
+            <DataRow label="Condition" value={breakdown.condition} divider />
+            <DataRow label="Sell speed" value={breakdown.sellSpeed} divider />
+            <DataRow label="AI price confidence" value={`${breakdown.aiPriceConfidence}/100`} divider />
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+            onPress={onClose}
+            style={({ pressed }) => [
+              styles.secondaryButton,
+              styles.sheetClose,
+              { backgroundColor: theme.background, borderColor: theme.hairline },
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text style={[styles.secondaryLabel, { color: theme.text }]}>Close</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+/* -------------------------------------------------------
+   STYLES
+------------------------------------------------------- */
+
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  content: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 24,
+  },
+
+  /* LOADING AND NOT-FOUND STATES */
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+  },
+  stateLoading: { fontSize: 15, marginTop: 16, textAlign: "center" },
+  stateIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  stateTitle: { fontSize: 20, fontWeight: "700", textAlign: "center" },
+  stateBody: { fontSize: 15, lineHeight: 22, textAlign: "center", marginTop: 8 },
+  stateButton: {
+    minHeight: 48,
+    borderRadius: 14,
+    paddingHorizontal: 32,
+    marginTop: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  /* TITLE */
+  pageTitle: { fontSize: 28, fontWeight: "700" },
+  pageSub: { fontSize: 14, marginTop: 4 },
+  notice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  noticeText: { flexShrink: 1, fontSize: 14, fontWeight: "500" },
+
+  /* SECTIONS AND CARDS */
+  sectionTitle: { fontSize: 18, fontWeight: "700", marginTop: 24, marginBottom: 12 },
+  card: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+  },
+  gapTop: { marginTop: 12 },
+  stack: { gap: 16 },
+
+  /* FIELDS */
+  label: { fontSize: 13, fontWeight: "600", marginBottom: 6 },
+  labelInline: { flexShrink: 1, fontSize: 13, fontWeight: "600" },
+  input: {
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 0,
+    fontSize: 16,
+  },
+  pairRow: { flexDirection: "row", gap: 12 },
+  col: { flex: 1, minWidth: 0 },
+  fieldError: { fontSize: 13, lineHeight: 18, marginTop: 6 },
+  caption: { fontSize: 13, lineHeight: 18, marginTop: 8 },
+  hintLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 6,
+  },
+  hint: { fontSize: 13, lineHeight: 18, marginBottom: 8 },
+
+  /* CHOICES */
+  choiceWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  choice: {
+    flexGrow: 1,
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  choiceText: { fontSize: 15, fontWeight: "600" },
+
+  /* BUTTONS */
+  secondaryButton: {
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  secondaryLabel: { fontSize: 15, fontWeight: "600" },
+  primaryButton: {
+    minHeight: 52,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  primaryLabel: { fontSize: 16, fontWeight: "700" },
+
+  /* PRICING */
+  previewRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingTop: 16,
+    borderTopWidth: 1,
+  },
+  previewLabel: { fontSize: 14 },
+  previewValue: {
+    flexShrink: 1,
+    fontSize: 24,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
+  valuationValue: {
+    fontSize: 28,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+    marginTop: 4,
+  },
+  verdict: { fontSize: 15, fontWeight: "600", marginTop: 12 },
+
+  /* FLIP SCORE */
+  scoreTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  scoreLabel: { fontSize: 13 },
+  scoreBand: { fontSize: 14, fontWeight: "700" },
+  scoreNumberRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 6,
+    marginTop: 4,
+  },
+  scoreValue: { fontSize: 32, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  scoreMax: { fontSize: 16, fontVariant: ["tabular-nums"] },
+  meterTrack: {
+    height: 10,
+    borderRadius: 5,
+    overflow: "hidden",
+    marginTop: 12,
+  },
+  meterFill: { height: "100%", borderRadius: 5 },
+  breakdownButton: { marginTop: 16 },
+
+  /* MOT SUMMARY */
+  group: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
+  dataRow: {
+    minHeight: 48,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  dataLabel: { fontSize: 14 },
+  dataValue: {
+    flexShrink: 1,
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "right",
+    fontVariant: ["tabular-nums"],
+  },
+  advisoryBlock: {
+    padding: 16,
+    borderTopWidth: 1,
+    gap: 8,
+  },
+  blockLabel: { fontSize: 13, fontWeight: "600" },
+  advisoryRow: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  bullet: { width: 5, height: 5, borderRadius: 3, marginTop: 8 },
+  advisoryText: { flex: 1, fontSize: 14, lineHeight: 21 },
+
+  /* EMPTY MOT */
+  miniEmpty: { alignItems: "center", paddingVertical: 8 },
+  miniEmptyIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  miniEmptyTitle: { fontSize: 16, fontWeight: "600", textAlign: "center" },
+  miniEmptyBody: { fontSize: 14, lineHeight: 20, textAlign: "center", marginTop: 4 },
+
+  /* PHOTOS */
+  thumbRow: { gap: 10 },
+  thumb: { width: 80, height: 80, borderRadius: 12 },
+
+  /* SAVE */
+  footer: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+  },
+  problemRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    marginBottom: 12,
+  },
+  problemText: { flex: 1, fontSize: 13, lineHeight: 18 },
+
+  /* BREAKDOWN SHEET */
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: 1,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+  },
+  grabber: {
+    alignSelf: "center",
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    opacity: 0.5,
+    marginBottom: 14,
+  },
+  sheetTitle: { fontSize: 18, fontWeight: "700", marginBottom: 12 },
+  sheetGroup: { marginBottom: 16 },
+  sheetClose: { marginTop: 0 },
+
+  pressed: { opacity: 0.7 },
+});

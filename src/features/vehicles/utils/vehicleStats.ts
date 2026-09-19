@@ -38,6 +38,25 @@ export function realisedProfit(record: FlipRecord): number | null {
   return Number.isFinite(profit) ? profit : null;
 }
 
+/**
+ * Profit for a row in a list: what it sold for (or, while unsold, what it is
+ * valued at) minus what it cost. Unknown when either side is missing, so an item
+ * with no buy price never reads as a profit equal to its sell price.
+ */
+export function projectedProfit(record: FlipRecord): number | null {
+  const sell = record.sellPrice ?? record.valuation;
+  if (record.buyPrice == null || sell == null) return null;
+  const profit = sell - record.buyPrice;
+  return Number.isFinite(profit) ? profit : null;
+}
+
+/** Sort comparator for "largest first" that puts unknown (null) values last. */
+export function compareDescending(a: number | null, b: number | null): number {
+  const x = a ?? Number.NEGATIVE_INFINITY;
+  const y = b ?? Number.NEGATIVE_INFINITY;
+  return x === y ? 0 : y > x ? 1 : -1;
+}
+
 /** One set of Motors figures so the tab, hub and analytics screens agree. */
 export function summariseVehicles(records: FlipRecord[]) {
   const vehicles = records.filter(isVehicleRecord);
@@ -104,6 +123,14 @@ export function formatMoney(value: number | null | undefined): string {
     .split(".");
   const sign = value < 0 && rounded !== 0 ? "-" : "";
   return `${sign}£${groupThousands(whole)}${pence ? `.${pence}` : ""}`;
+}
+
+/** "+£1,200", "-£45.50", "£0" for nothing, or "-" when there is no usable number. */
+export function formatSignedMoney(value: number | null | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "-";
+  const rounded = Math.round(value * 100) / 100;
+  if (rounded === 0) return formatMoney(0);
+  return `${rounded > 0 ? "+" : "-"}${formatMoney(Math.abs(rounded))}`;
 }
 
 /** "62,400 mi", or "-" when there is no usable number. */

@@ -16,6 +16,8 @@ export interface Theme {
   goldDeep: string;
   goldSoftGlow: string;
   goldHardGlow: string;
+  // A faint gold wash for a selected chip or option (paired with a gold outline).
+  goldTint: string;
 
   success: string;
   danger: string;
@@ -146,6 +148,7 @@ export const freeTheme: Theme = {
   goldDeep: "#C5A100",
   goldSoftGlow: "rgba(255, 215, 0, 0.35)",
   goldHardGlow: "rgba(255, 215, 0, 0.75)",
+  goldTint: "rgba(255, 215, 0, 0.12)",
 
   success: "#4CAF50",
   danger: "#FF4D4D",
@@ -211,6 +214,7 @@ export const proTheme: Theme = {
   goldDeep: "#C5A100",
   goldSoftGlow: "rgba(255, 215, 0, 0.45)",
   goldHardGlow: "rgba(255, 215, 0, 0.75)",
+  goldTint: "rgba(255, 215, 0, 0.12)",
 
   success: "#4CAF50",
   danger: "#FF4D4D",
