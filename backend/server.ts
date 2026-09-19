@@ -13,6 +13,7 @@ import registerAIDescriptionRoute from "./routes/aiDescription";
 import searchRoute from "./routes/search";
 import searchImageRoute from "./routes/searchImage";
 import vehiclePhotoAnalysisRoute from "./routes/vehiclePhotoAnalysis";
+import { rateLimit } from "./middleware/rateLimit";
 
 
 import {
@@ -90,6 +91,25 @@ if (missingEbayBrowseEnv.length > 0) {
 ------------------------------------------------------- */
 let motTokenCache: { token: string; expiresAt: number } | null = null;
 
+// The base URLs can be overridden so the lookup can be tested against a local stand-in.
+const DVLA_URL =
+  process.env.DVLA_API_URL ||
+  "https://driver-vehicle-licensing.api.gov.uk/vehicle-enquiry/v1/vehicles";
+const MOT_URL =
+  process.env.MOT_API_URL ||
+  "https://history.mot.api.gov.uk/v1/trade/vehicles/registration";
+
+// A government service that hangs must not hang the app with it.
+const UPSTREAM_TIMEOUT_MS = 10_000;
+
+// People type "AB12 CDE", "ab12-cde" and the like; both services want "AB12CDE".
+// Anything with other characters is rejected rather than cleaned up, so it never reaches a URL.
+function normaliseReg(input: unknown): string | null {
+  if (typeof input !== "string" || !/^[A-Za-z0-9 -]{1,12}$/.test(input)) return null;
+  const reg = input.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return reg.length >= 1 && reg.length <= 8 ? reg : null;
+}
+
 async function getMotAccessToken(): Promise<string> {
   if (motTokenCache && motTokenCache.expiresAt > Date.now() + 30_000) {
     return motTokenCache.token;
@@ -103,7 +123,8 @@ async function getMotAccessToken(): Promise<string> {
   });
 
   const tokenRes = await axios.post(process.env.TOKEN_URL!, body.toString(), {
-    headers: { "Content-Type": "application/x-www-form-urlencoded" }
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    timeout: UPSTREAM_TIMEOUT_MS
   });
 
   const { access_token, expires_in } = tokenRes.data;
@@ -118,19 +139,53 @@ async function getMotAccessToken(): Promise<string> {
 async function fetchMotHistory(reg: string) {
   const token = await getMotAccessToken();
 
-  const res = await axios.get(
-    `https://history.mot.api.gov.uk/v1/trade/vehicles/registration/${reg}`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "x-api-key": process.env.API_KEY!
-      },
-      validateStatus: (status) => status === 200 || status === 404
-    }
-  );
+  const res = await axios.get(`${MOT_URL}/${encodeURIComponent(reg)}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "x-api-key": process.env.API_KEY!
+    },
+    timeout: UPSTREAM_TIMEOUT_MS,
+    // 400 = not a valid registration, 404 = no such vehicle: both mean "nothing to show", not "broken".
+    validateStatus: (status) => status === 200 || status === 400 || status === 404
+  });
 
-  if (res.status === 404) return null;
+  if (res.status !== 200) return null;
   return res.data;
+}
+
+type Lookup = { data: any; failed: boolean };
+
+// `failed` means the service itself did not answer properly (down, refused our key, timed out).
+// "No such vehicle" is a normal answer: data is null and failed is false.
+async function lookupDvla(reg: string): Promise<Lookup> {
+  try {
+    const res = await axios.post(
+      DVLA_URL,
+      { registrationNumber: reg },
+      {
+        headers: {
+          "x-api-key": process.env.DVLA_API_KEY!,
+          "Content-Type": "application/json"
+        },
+        timeout: UPSTREAM_TIMEOUT_MS,
+        // 400 = not a valid registration, 404 = no such vehicle: nothing to show, not a fault.
+        validateStatus: (status) => status === 200 || status === 400 || status === 404
+      }
+    );
+    return { data: res.status === 200 ? res.data : null, failed: false };
+  } catch (err: any) {
+    console.error("DVLA LOOKUP ERROR:", err.response?.status ?? err.code ?? err.message);
+    return { data: null, failed: true };
+  }
+}
+
+async function lookupMot(reg: string): Promise<Lookup> {
+  try {
+    return { data: await fetchMotHistory(reg), failed: false };
+  } catch (err: any) {
+    console.error("MOT LOOKUP ERROR:", err.response?.status ?? err.code ?? err.message);
+    return { data: null, failed: true };
+  }
 }
 
 /* -------------------------------------------------------
@@ -147,53 +202,58 @@ app.get("/", (_req, res) => {
 /* -------------------------------------------------------
    ⭐ MERGED VEHICLE LOOKUP — REAL DVLA + REAL MOT
 ------------------------------------------------------- */
-app.get("/vehicle", async (req, res) => {
+app.get("/vehicle", rateLimit(30), async (req, res) => {
   try {
     if (missingMotEnv.length > 0 && missingDvlaEnv.length > 0) {
+      // The boot warnings already name what is missing; clients only need to know it is not set up.
       return res.status(503).json({
         ok: false,
-        error: `Vehicle lookup is not configured — missing: ${[...missingMotEnv, ...missingDvlaEnv].join(", ")}`
+        error: "Vehicle lookup isn't set up on the server yet."
       });
     }
 
-    const reg = req.query.reg as string;
-    if (!reg) return res.status(400).json({ ok: false, error: "Missing reg" });
-
-    /* -----------------------------
-       1. DVLA VEHICLE DATA (optional — skipped if not configured)
-    ----------------------------- */
-    let dvla: any = null;
-    if (missingDvlaEnv.length === 0) {
-      try {
-        const dvlaRes = await axios.post(
-          "https://driver-vehicle-licensing.api.gov.uk/vehicle-enquiry/v1/vehicles",
-          { registrationNumber: reg },
-          {
-            headers: {
-              "x-api-key": process.env.DVLA_API_KEY!,
-              "Content-Type": "application/json"
-            }
-          }
-        );
-        dvla = dvlaRes.data;
-      } catch (err: any) {
-        console.error("❌ DVLA LOOKUP ERROR:", err.response?.data || err.message);
-      }
+    const reg = normaliseReg(req.query.reg);
+    if (!reg) {
+      return res.status(400).json({
+        ok: false,
+        error: "Enter a valid UK registration, for example AB12 CDE."
+      });
     }
 
     /* -----------------------------
-       2. MOT HISTORY DATA (optional — skipped if not configured)
+       1 + 2. DVLA VEHICLE DATA and MOT HISTORY (each optional — skipped if not configured)
+       They don't depend on each other, so ask both at once: it is faster, and a slow
+       service costs one timeout instead of two.
     ----------------------------- */
-    let mot: any = null;
-    let latestMot: any = null;
-    if (missingMotEnv.length === 0) {
-      mot = await fetchMotHistory(reg);
-      latestMot = mot?.motTests?.[0] ?? null;
-    }
+    const [dvlaResult, motResult] = await Promise.all([
+      missingDvlaEnv.length > 0 ? null : lookupDvla(reg),
+      missingMotEnv.length > 0 ? null : lookupMot(reg)
+    ]);
+
+    const dvla = dvlaResult?.data ?? null;
+    const dvlaFailed = dvlaResult?.failed ?? false;
+    const mot = motResult?.data ?? null;
+    const motFailed = motResult?.failed ?? false;
 
     if (!dvla && !mot) {
-      return res.status(404).json({ ok: false, error: `No vehicle data found for ${reg}` });
+      // A service that errored says nothing about whether the vehicle exists, so don't claim it doesn't.
+      if (dvlaFailed || motFailed) {
+        return res.status(502).json({
+          ok: false,
+          error: "The vehicle lookup isn't responding right now. Please try again in a moment."
+        });
+      }
+
+      return res.status(404).json({
+        ok: false,
+        error: `We couldn't find a vehicle with the registration ${reg}. Check it and try again.`
+      });
     }
+
+    // Newest test first, whatever order the service returns them in.
+    const tests: any[] = Array.isArray(mot?.motTests) ? mot.motTests : [];
+    const completedAt = (test: any) => Date.parse(test?.completedDate) || 0;
+    const latestMot = [...tests].sort((a, b) => completedAt(b) - completedAt(a))[0] ?? null;
 
     /* -----------------------------
        3. MERGE WHATEVER WE HAVE INTO ONE OBJECT
@@ -227,10 +287,11 @@ app.get("/vehicle", async (req, res) => {
     return res.json(merged);
 
   } catch (err: any) {
-    console.error("❌ VEHICLE MERGE ERROR:", err.response?.data || err.message);
+    // Never pass an upstream response body through: it is not written for users and can be an object.
+    console.error("VEHICLE LOOKUP ERROR:", err.response?.status ?? err.message);
     return res.status(500).json({
       ok: false,
-      error: err.response?.data || err.message
+      error: "Something went wrong looking up that registration. Please try again."
     });
   }
 });
