@@ -1,12 +1,6 @@
 import React from "react";
-import {
-  Animated,
-  Platform,
-  StyleSheet,
-  TouchableOpacity,
-  View,
-  Text,
-} from "react-native";
+import { Animated, StyleSheet, Pressable, View, Text } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/styles/useTheme";
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
@@ -19,6 +13,12 @@ interface ProfitSupernovaSheetProps {
   avgROI: number;
 }
 
+// Profit and loss both carry an explicit sign.
+const signedMoney = (value: number) =>
+  `${value >= 0 ? "+" : "-"}£${Math.abs(value).toFixed(2)}`;
+const signedPercent = (value: number) =>
+  `${value >= 0 ? "+" : "-"}${Math.abs(value).toFixed(1)}%`;
+
 const ProfitSupernovaSheet: React.FC<ProfitSupernovaSheetProps> = ({
   translateY,
   closeSheet,
@@ -27,6 +27,11 @@ const ProfitSupernovaSheet: React.FC<ProfitSupernovaSheetProps> = ({
   avgROI,
 }) => {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
+
+  const bestProfit = Number(bestFlip?.pricing?.predictedProfit ?? 0) || 0;
+
+  const tone = (value: number) => (value >= 0 ? theme.success : theme.danger);
 
   return (
     <View style={styles.sheetOverlay}>
@@ -35,17 +40,17 @@ const ProfitSupernovaSheet: React.FC<ProfitSupernovaSheetProps> = ({
           styles.sheetContainer,
           {
             backgroundColor: theme.card,
-            borderColor: theme.goldDeep,
-            borderWidth: 3,
+            borderColor: theme.hairline,
+            paddingBottom: Math.max(insets.bottom, 16) + 8,
             transform: [{ translateY }],
           },
         ]}
       >
         {/* Handle */}
-        <View style={styles.sheetHandle} />
+        <View style={[styles.sheetHandle, { backgroundColor: theme.muted }]} />
 
         {/* Title */}
-        <Text style={[styles.sheetTitle, { color: theme.text }]}>
+        <Text style={[styles.sheetTitle, { color: theme.text }]} accessibilityRole="header">
           Profit Supernova
         </Text>
 
@@ -55,51 +60,71 @@ const ProfitSupernovaSheet: React.FC<ProfitSupernovaSheetProps> = ({
         </Text>
 
         {/* Best Flip */}
-        <View style={styles.section}>
-          <Text style={[styles.label, { color: theme.text }]}>
-            Best Flip Profit
-          </Text>
-          <Text style={[styles.value, { color: theme.text }]}>
-            £{bestFlip ? bestFlip.pricing?.predictedProfit ?? 0 : 0}
-          </Text>
-        </View>
-
-        {/* Average Profit */}
-        <View style={styles.section}>
-          <Text style={[styles.label, { color: theme.text }]}>
-            Average Profit
-          </Text>
-          <Text style={[styles.value, { color: theme.text }]}>
-            £{avgProfit.toFixed(2)}
+        <View
+          style={[
+            styles.hero,
+            { backgroundColor: theme.background, borderColor: theme.hairline },
+          ]}
+        >
+          <Text style={[styles.label, { color: theme.muted }]}>Best flip profit</Text>
+          <Text
+            style={[styles.heroValue, { color: tone(bestProfit) }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+          >
+            {signedMoney(bestProfit)}
           </Text>
         </View>
 
-        {/* Average ROI */}
-        <View style={styles.section}>
-          <Text style={[styles.label, { color: theme.text }]}>Average ROI</Text>
-          <Text style={[styles.value, { color: theme.text }]}>
-            {avgROI.toFixed(1)}%
-          </Text>
-        </View>
-
-        {/* Buttons */}
-        <View style={styles.sheetButtonsRow}>
+        <View style={styles.tiles}>
+          {/* Average Profit */}
           <View
             style={[
-              styles.closeButton,
-              {
-                borderColor: theme.goldDeep,
-                borderWidth: 3,
-              },
+              styles.tile,
+              { backgroundColor: theme.background, borderColor: theme.hairline },
             ]}
           >
-            <TouchableOpacity onPress={closeSheet}>
-              <Text style={[styles.closeButtonText, { color: theme.text }]}>
-                Close
-              </Text>
-            </TouchableOpacity>
+            <Text style={[styles.label, { color: theme.muted }]}>Average profit</Text>
+            <Text
+              style={[styles.tileValue, { color: tone(avgProfit) }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+            >
+              {signedMoney(avgProfit)}
+            </Text>
+          </View>
+
+          {/* Average ROI */}
+          <View
+            style={[
+              styles.tile,
+              { backgroundColor: theme.background, borderColor: theme.hairline },
+            ]}
+          >
+            <Text style={[styles.label, { color: theme.muted }]}>Average ROI</Text>
+            <Text
+              style={[styles.tileValue, { color: tone(avgROI) }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+            >
+              {signedPercent(avgROI)}
+            </Text>
           </View>
         </View>
+
+        {/* Button */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+          style={({ pressed }) => [
+            styles.closeButton,
+            { backgroundColor: theme.background, borderColor: theme.hairline },
+            pressed && styles.pressed,
+          ]}
+          onPress={closeSheet}
+        >
+          <Text style={[styles.closeButtonText, { color: theme.text }]}>Close</Text>
+        </Pressable>
       </Animated.View>
     </View>
   );
@@ -108,76 +133,94 @@ const ProfitSupernovaSheet: React.FC<ProfitSupernovaSheetProps> = ({
 const styles = StyleSheet.create({
   sheetOverlay: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(0,0,0,0.55)",
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
     justifyContent: "flex-end",
   },
 
   sheetContainer: {
     width: "100%",
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: Platform.OS === "ios" ? 110 : 100,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 20,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    borderTopWidth: 1,
   },
 
   sheetHandle: {
-    width: 60,
-    height: 5,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.25)",
     alignSelf: "center",
-    marginBottom: 10,
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    opacity: 0.5,
+    marginBottom: 14,
   },
 
   sheetTitle: {
     fontSize: 20,
-    fontWeight: "900",
-    textAlign: "center",
+    fontWeight: "700",
   },
 
   sheetSubtitle: {
     fontSize: 14,
+    lineHeight: 20,
+    marginTop: 4,
     marginBottom: 16,
-    textAlign: "center",
   },
 
-  section: {
-    marginTop: 14,
+  hero: {
+    padding: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+
+  heroValue: {
+    fontSize: 32,
+    fontWeight: "700",
+    marginTop: 4,
+    fontVariant: ["tabular-nums"],
+  },
+
+  tiles: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 12,
+  },
+
+  tile: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 14,
+    borderWidth: 1,
   },
 
   label: {
-    fontSize: 14,
-    opacity: 0.7,
+    fontSize: 13,
+    fontWeight: "600",
   },
 
-  value: {
+  tileValue: {
     fontSize: 20,
-    fontWeight: "900",
+    fontWeight: "700",
     marginTop: 4,
-  },
-
-  sheetButtonsRow: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    marginTop: 22,
+    fontVariant: ["tabular-nums"],
   },
 
   closeButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
+    minHeight: 52,
+    marginTop: 16,
     borderRadius: 14,
-    backgroundColor: "#333",
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   closeButtonText: {
     fontSize: 16,
-    fontWeight: "900",
-    textAlign: "center",
+    fontWeight: "700",
+  },
+
+  pressed: {
+    opacity: 0.75,
   },
 });
 

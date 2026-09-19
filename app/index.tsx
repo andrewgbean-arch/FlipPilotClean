@@ -2,10 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { Animated, Easing, StyleSheet, View } from "react-native";
 import { router } from "expo-router";
 
-const NAVY = "#0A1128";
+import { useTheme } from "@/styles/useTheme";
+
 const LOGO = require("../assets/images/logo5.png");
 
 export default function IntroScreen() {
+  const theme = useTheme();
+
   const spin = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.4)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -58,11 +61,16 @@ export default function IntroScreen() {
     outputRange: ["-540deg", "0deg"],
   });
 
+  // The background is exactly the app's own, so the screen flows straight
+  // on from the native splash and into Home with no colour change.
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Animated.Image
         source={LOGO}
         resizeMode="cover"
+        accessible
+        accessibilityRole="image"
+        accessibilityLabel="FlipPilot"
         onLoadEnd={() => setImageReady(true)}
         style={[
           styles.logo,
@@ -79,7 +87,6 @@ export default function IntroScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: NAVY,
     alignItems: "center",
     justifyContent: "center",
   },

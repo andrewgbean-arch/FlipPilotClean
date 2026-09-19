@@ -1,7 +1,13 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Purchases from "react-native-purchases";
+import { CreditCard } from "phosphor-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { useTheme } from "@/styles/ThemeContext";
 
 export default function ManageSubscription() {
+  const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   const openPortal = async () => {
     try {
@@ -12,19 +18,46 @@ export default function ManageSubscription() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Manage Subscription</Text>
-      <Text style={styles.sub}>Update, cancel, or change your plan</Text>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <View style={styles.body}>
+        <View
+          style={[styles.icon, { backgroundColor: theme.card, borderColor: theme.goldSoftGlow }]}
+        >
+          <CreditCard size={30} color={theme.gold} />
+        </View>
 
-      <View style={styles.divider} />
+        <Text style={[styles.title, { color: theme.text }]} accessibilityRole="header">
+          Update, cancel, or change your plan
+        </Text>
+      </View>
 
-      <Pressable style={styles.button} onPress={openPortal}>
-        <Text style={styles.buttonText}>Open Subscription Portal</Text>
-      </Pressable>
+      <View
+        style={[
+          styles.footer,
+          {
+            backgroundColor: theme.background,
+            borderTopColor: theme.hairline,
+            paddingBottom: Math.max(insets.bottom, 16),
+          },
+        ]}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open subscription portal"
+          style={({ pressed }) => [
+            styles.button,
+            { backgroundColor: theme.gold },
+            pressed && styles.pressed,
+          ]}
+          onPress={openPortal}
+        >
+          <Text style={[styles.buttonText, { color: theme.black }]}>Open subscription portal</Text>
+        </Pressable>
 
-      <Text style={styles.note}>
-        This will open your device’s subscription settings.
-      </Text>
+        <Text style={[styles.note, { color: theme.muted }]}>
+          This will open your device’s subscription settings.
+        </Text>
+      </View>
     </View>
   );
 }
@@ -32,49 +65,50 @@ export default function ManageSubscription() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0A1128",
-    justifyContent: "center",
+  },
+  body: {
+    flex: 1,
     alignItems: "center",
-    padding: 24,
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    paddingBottom: 40,
   },
-  title: {
-    fontSize: 34,
-    fontWeight: "900",
-    color: "#FFD700",
-    marginBottom: 6,
-  },
-  sub: {
-    color: "#AFC6FF",
-    fontSize: 16,
+  icon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
     marginBottom: 20,
   },
-  divider: {
-    width: "70%",
-    height: 1,
-    backgroundColor: "#1F2A44",
-    marginBottom: 30,
+  title: {
+    fontSize: 20,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  footer: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
   },
   button: {
-    backgroundColor: "#FFD700",
-    paddingVertical: 16,
-    paddingHorizontal: 26,
-    borderRadius: 12,
-    shadowColor: "#FFD700",
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+    minHeight: 52,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
   buttonText: {
-    color: "#0A1128",
-    fontWeight: "800",
-    fontSize: 17,
+    fontSize: 16,
+    fontWeight: "700",
   },
   note: {
-    marginTop: 20,
-    color: "#AFC6FF",
+    marginTop: 12,
     fontSize: 13,
     textAlign: "center",
-    opacity: 0.8,
+  },
+  pressed: {
+    opacity: 0.75,
   },
 });

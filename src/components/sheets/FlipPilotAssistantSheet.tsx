@@ -1,12 +1,8 @@
 import React from "react";
-import {
-  Animated,
-  Platform,
-  StyleSheet,
-  Pressable,
-  View,
-  Text,
-} from "react-native";
+import { Animated, StyleSheet, Pressable, View, Text } from "react-native";
+import { ChartLineUp, Tent, Trophy } from "phosphor-react-native";
+import type { Icon as PhosphorIcon } from "phosphor-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/styles/useTheme";
 
@@ -16,19 +12,43 @@ interface FlipPilotAssistantSheetProps {
   isOpen: boolean;
 }
 
+const TIPS: { key: string; Icon: PhosphorIcon; text: string }[] = [
+  {
+    key: "best",
+    Icon: Trophy,
+    text: "Try focusing on items with similar profit to your best flip.",
+  },
+  {
+    key: "bootfairs",
+    Icon: Tent,
+    text: "Use boot fairs to find more high-ROI items.",
+  },
+  {
+    key: "categories",
+    Icon: ChartLineUp,
+    text: "Track what categories give you the strongest returns.",
+  },
+];
+
 const FlipPilotAssistantSheet: React.FC<FlipPilotAssistantSheetProps> = ({
   translateY,
   closeSheet,
   isOpen,
 }) => {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   if (!isOpen) return null;
 
   return (
     <View style={styles.sheetOverlay}>
       {/* Tap outside to close */}
-      <Pressable style={StyleSheet.absoluteFill} onPress={closeSheet} />
+      <Pressable
+        style={StyleSheet.absoluteFill}
+        onPress={closeSheet}
+        accessibilityRole="button"
+        accessibilityLabel="Close"
+      />
 
       {/* Sheet */}
       <Animated.View
@@ -36,17 +56,17 @@ const FlipPilotAssistantSheet: React.FC<FlipPilotAssistantSheetProps> = ({
           styles.sheetContainer,
           {
             backgroundColor: theme.card,
-            borderColor: theme.goldDeep,
-            borderWidth: 3,
+            borderColor: theme.hairline,
+            paddingBottom: Math.max(insets.bottom, 16) + 8,
             transform: [{ translateY }],
           },
         ]}
       >
         {/* Handle */}
-        <View style={styles.sheetHandle} />
+        <View style={[styles.sheetHandle, { backgroundColor: theme.muted }]} />
 
         {/* Title */}
-        <Text style={[styles.sheetTitle, { color: theme.text }]}>
+        <Text style={[styles.sheetTitle, { color: theme.text }]} accessibilityRole="header">
           FlipPilot AI
         </Text>
 
@@ -56,30 +76,39 @@ const FlipPilotAssistantSheet: React.FC<FlipPilotAssistantSheetProps> = ({
         </Text>
 
         {/* AI Hints */}
-        <Text style={[styles.aiHintText, { color: theme.text }]}>
-          • Try focusing on items with similar profit to your best flip.{"\n"}
-          • Use boot fairs to find more high-ROI items.{"\n"}
-          • Track what categories give you the strongest returns.
-        </Text>
-
-        {/* Buttons Row */}
-        <View style={styles.sheetButtonsRow}>
-          <View
-            style={[
-              styles.cancelButton,
-              {
-                borderColor: theme.goldDeep,
-                borderWidth: 3,
-              },
-            ]}
-          >
-            <Pressable onPress={closeSheet}>
-              <Text style={[styles.cancelButtonText, { color: theme.text }]}>
-                Cancel
-              </Text>
-            </Pressable>
-          </View>
+        <View
+          style={[
+            styles.tips,
+            { backgroundColor: theme.background, borderColor: theme.hairline },
+          ]}
+        >
+          {TIPS.map(({ key, Icon, text }, index) => (
+            <View
+              key={key}
+              style={[
+                styles.tipRow,
+                index > 0 && { borderTopWidth: 1, borderTopColor: theme.hairline },
+              ]}
+            >
+              <Icon size={20} color={theme.muted} style={styles.tipIcon} />
+              <Text style={[styles.tipText, { color: theme.text }]}>{text}</Text>
+            </View>
+          ))}
         </View>
+
+        {/* Button */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+          style={({ pressed }) => [
+            styles.closeButton,
+            { backgroundColor: theme.background, borderColor: theme.hairline },
+            pressed && styles.pressed,
+          ]}
+          onPress={closeSheet}
+        >
+          <Text style={[styles.closeButtonText, { color: theme.text }]}>Close</Text>
+        </Pressable>
       </Animated.View>
     </View>
   );
@@ -88,67 +117,79 @@ const FlipPilotAssistantSheet: React.FC<FlipPilotAssistantSheetProps> = ({
 const styles = StyleSheet.create({
   sheetOverlay: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(0,0,0,0.55)",
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
     justifyContent: "flex-end",
   },
 
   sheetContainer: {
     width: "100%",
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: Platform.OS === "ios" ? 60 : 50,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 20,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    borderTopWidth: 1,
   },
 
   sheetHandle: {
-    width: 60,
-    height: 5,
-    borderRadius: 999,
-    backgroundColor: "rgba(255,255,255,0.25)",
     alignSelf: "center",
-    marginBottom: 10,
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    opacity: 0.5,
+    marginBottom: 14,
   },
 
   sheetTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700",
-    textAlign: "center",
   },
 
   sheetSubtitle: {
     fontSize: 14,
-    marginBottom: 12,
-    textAlign: "center",
-  },
-
-  aiHintText: {
-    marginTop: 14,
-    fontSize: 14,
     lineHeight: 20,
+    marginTop: 4,
+    marginBottom: 16,
   },
 
-  sheetButtonsRow: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    marginTop: 18,
-  },
-
-  cancelButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
+  tips: {
     borderRadius: 14,
-    backgroundColor: "#333",
+    borderWidth: 1,
+    overflow: "hidden",
   },
 
-  cancelButtonText: {
+  tipRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    padding: 14,
+  },
+
+  tipIcon: {
+    marginTop: 1,
+  },
+
+  tipText: {
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 21,
+  },
+
+  closeButton: {
+    minHeight: 52,
+    marginTop: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  closeButtonText: {
     fontSize: 16,
-    fontWeight: "900",
-    textAlign: "center",
+    fontWeight: "700",
+  },
+
+  pressed: {
+    opacity: 0.75,
   },
 });
 
