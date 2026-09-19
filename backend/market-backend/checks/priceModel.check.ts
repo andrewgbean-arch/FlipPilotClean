@@ -1,6 +1,6 @@
 // Run with: npx tsx market-backend/checks/priceModel.check.ts (from the backend folder).
 import { decidePrices } from "../priceModel";
-import { identifyingWords, matchesQuery } from "../bulkListingFilter";
+import { identifyingWords, isNotTheItem, matchesQuery } from "../bulkListingFilter";
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -94,6 +94,13 @@ eq("generic query matches all", matchesQuery("Anything Bluetooth Speaker", "Port
 eq("crisps other flavour rejected", matchesQuery("Walkers Monster Munch Pickled Onion 72g", "Walkers Monster Munch Roast Beef 72g"), false);
 eq("crisps same flavour, spaced size", matchesQuery("Monster Munch Roast Beef Walkers 72 g", "Walkers Monster Munch Roast Beef 72g"), true);
 eq("lozenges typo-tolerant", matchesQuery("Nicorette Cools 4mg Lozenges Icy Mint", "NICORETTE Icy Mint 4mg Nicotine Lozenges"), true);
+
+// Accessories and spares are not the item
+eq("belt clip is an accessory", isNotTheItem("Electric Cordless Drill Belt Hook Clip DeWalt DCD771C2", "DeWalt DCD771 Cordless Drill"), true);
+eq("chuck is a spare", isNotTheItem("Chuck for DeWalt Cordless Drill DW959K DCD771C2", "DeWalt DCD771 Cordless Drill"), true);
+eq("the drill itself", isNotTheItem("DEWALT DCD771B 20V MAX 1/2 Cordless Drill Driver - TOOL ONLY", "DeWalt DCD771 Cordless Drill"), false);
+eq("query word is allowed", isNotTheItem("Padded speaker case", "speaker case"), false);
+eq("a case for the speaker", isNotTheItem("JBL Charge 4 Travel Case", "JBL Charge 4 Bluetooth Speaker"), true);
 
 console.log(fail === 0 ? "ALL PASS" : `${fail} FAILED`);
 process.exit(fail ? 1 : 0);

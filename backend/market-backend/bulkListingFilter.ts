@@ -138,7 +138,7 @@ export function listingUnits(title: string): number | null {
 // the item: a "JBL Charge 4 case" or "JBL Charge 4 for parts" says nothing about
 // what a working speaker is worth, but it matches the search and drags the price down.
 const NOT_THE_ITEM =
-  /\b(case|cover|pouch|sleeve|skin|strap|lanyard|stand|mount|holder|bracket|cable|charger|charging|adapter|adaptor|battery|batteries|replacement|spare|spares|parts|repair|faulty|broken|damaged|untested|manual|sticker|decal|box only|empty box|not working|no power|dead)\b/gi;
+  /\b(case|cover|pouch|sleeve|skin|strap|lanyard|stand|mount|holder|bracket|cable|charger|charging|adapter|adaptor|battery|batteries|replacement|spare|spares|parts|repair|faulty|broken|damaged|untested|manual|sticker|decal|box only|empty box|not working|no power|dead|clip|hook|chuck|bits|brushes|gasket|nozzle)\b/gi;
 
 /**
  * True when a listing looks like an accessory, spare part or faulty unit rather
