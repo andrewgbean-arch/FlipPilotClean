@@ -13,6 +13,21 @@ import {
   TextInput,
   Text,
 } from "react-native";
+import {
+  Broom,
+  Diamond,
+  Export,
+  Fire,
+  Heart,
+  Lightning,
+  Package,
+  ShareNetwork,
+  Tag,
+  Trash,
+  Trophy,
+  TrendUp,
+} from "phosphor-react-native";
+import type { Icon as PhosphorIcon } from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/styles/ThemeContext";
@@ -46,28 +61,34 @@ const csvText = (v: string | null | undefined) => `"${(v ?? "").replace(/"/g, '"
 
 // text variants
 const textVariants = StyleSheet.create({
-  h2: { fontSize: 26, fontWeight: "900" },
-  h3: { fontSize: 20, fontWeight: "900" },
+  h2: { fontSize: 26, fontWeight: "700" },
+  h3: { fontSize: 18, fontWeight: "700" },
   body: { fontSize: 16 },
   small: { fontSize: 13, opacity: 0.75 },
 });
+
+const HAIRLINE = "rgba(255, 255, 255, 0.08)";
 
 // Animated pressable
 const AnimatedPressable = ({
   children,
   style,
   onPress,
+  accessibilityLabel,
+  accessibilityRole,
 }: {
   children: React.ReactNode;
   style?: any;
   onPress?: () => void;
+  accessibilityLabel?: string;
+  accessibilityRole?: "button" | "link";
 }) => {
   const scale = useRef(new Animated.Value(1)).current;
 
   const pressIn = () => {
     Animated.timing(scale, {
-      toValue: 0.94,
-      duration: 150,
+      toValue: 0.97,
+      duration: 120,
       useNativeDriver: true,
     }).start();
   };
@@ -75,17 +96,47 @@ const AnimatedPressable = ({
   const pressOut = () => {
     Animated.timing(scale, {
       toValue: 1,
-      duration: 150,
+      duration: 120,
       useNativeDriver: true,
     }).start();
   };
 
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
-      <Pressable onPressIn={pressIn} onPressOut={pressOut} onPress={onPress} style={style}>
+      <Pressable
+        onPressIn={pressIn}
+        onPressOut={pressOut}
+        onPress={onPress}
+        style={style}
+        accessibilityRole={accessibilityRole}
+        accessibilityLabel={accessibilityLabel}
+      >
         {children}
       </Pressable>
     </Animated.View>
+  );
+};
+
+// Small icon + text pill used for the facts on a flip card.
+const MetaChip = ({
+  Icon,
+  label,
+  accent,
+}: {
+  Icon?: PhosphorIcon;
+  label: string;
+  accent?: boolean;
+}) => {
+  const theme = useTheme();
+  const tint = accent ? theme.gold : theme.muted;
+
+  return (
+    <View style={[styles.chip, { backgroundColor: theme.background }]}>
+      {Icon ? <Icon size={14} color={tint} weight={accent ? "fill" : "regular"} /> : null}
+      <Text style={[styles.chipText, { color: accent ? theme.gold : theme.text }]} numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
   );
 };
 
@@ -262,22 +313,6 @@ export default function HistoryScreen() {
     return list;
   }, [flips, search, showFavesOnly, sortMode]);
 
-  const getTrendIcon = (index: number): string => {
-    if (index === 0) return "➖";
-
-    const current = filteredAndSortedFlips[index];
-    const prev = filteredAndSortedFlips[index - 1];
-
-    if (!current || !prev) return "➖";
-
-    const cProfit = getProfit(current);
-    const pProfit = getProfit(prev);
-
-    if (cProfit > pProfit) return "🔺";
-    if (cProfit < pProfit) return "🔻";
-    return "➖";
-  };
-
   // Saved flips open by id. The scan-results screen only understands a fresh
   // scan payload, and it would offer to save this flip a second time.
   const openDetails = (item: FlipRecord) => {
@@ -347,8 +382,6 @@ export default function HistoryScreen() {
   };
 
   const renderItem = ({ item, index }: { item: FlipRecord; index: number }) => {
-    const trend = getTrendIcon(index);
-
     const safeBuy = getBuyPrice(item);
     const safeSell = getSellPrice(item);
     const safeProfit = getProfit(item);
@@ -356,220 +389,105 @@ export default function HistoryScreen() {
 
     const roiColor = getRoiColor(roi);
 
+    const thumb =
+      typeof item.images?.[0] === "string" && item.images[0].trim().length > 0
+        ? item.images[0]
+        : null;
+    const profitColor = safeProfit >= 0 ? theme.success : theme.danger;
+    const profitText = `${safeProfit >= 0 ? "+" : "-"}£${Math.abs(safeProfit).toFixed(2)}`;
+
     return (
-      <View>
+      <View style={[styles.card, { backgroundColor: theme.card, borderColor: HAIRLINE }]}>
+        {/* The tappable summary. The actions below sit beside it, not inside it, so they stay separate buttons. */}
         <AnimatedPressable
-          style={[
-            styles.card,
-            {
-              backgroundColor: theme.card,
-              borderColor: theme.goldDeep,
-              borderWidth: 3,
-            },
-          ]}
           onPress={() => openDetails(item)}
+          accessibilityRole="button"
+          accessibilityLabel={`${item.title}, ${safeProfit >= 0 ? "profit" : "loss"} of £${Math.abs(safeProfit).toFixed(2)}. Open details`}
         >
-          {typeof item.images?.[0] === "string" &&
-            item.images?.[0].trim().length > 0 && (
-              <View style={styles.imageWrapper}>
-                <Image source={{ uri: item.images?.[0] }} style={styles.image} />
-              </View>
-            )}
-
-          {/* HEADER */}
-          <View style={styles.cardHeaderRow}>
-            <Text style={[textVariants.body, styles.name, { color: theme.text }]}>
-              📦 {item.title}
-            </Text>
-
-            <Text style={[textVariants.body, styles.trendBadge, { color: theme.text }]}>
-              {trend}
-            </Text>
-          </View>
-
-          {/* BUY / SELL */}
-          <View style={styles.row}>
-            <Text style={[textVariants.body, styles.text, { color: theme.text }]}>
-              Buy: £{safeBuy.toFixed(2)}
-            </Text>
-            <Text style={[textVariants.body, styles.text, { color: theme.text }]}>
-              Sell: £{safeSell.toFixed(2)}
-            </Text>
-          </View>
-
-          {/* PROFIT */}
-          <Text
-            style={[
-              textVariants.h3,
-              styles.profit,
-              { color: safeProfit >= 0 ? theme.success : theme.danger },
-            ]}
-          >
-            £{safeProfit.toFixed(2)}
-          </Text>
-
-          {/* BADGES */}
-          <View style={styles.badgeRow}>
-            <Text
-              style={[
-                textVariants.body,
-                styles.roiBadge,
-                { color: roiColor },
-              ]}
-            >
-              ROI {roi.toFixed(0)}%
-            </Text>
-
-            {item.aiPriceConfidence != null && (
-              <Text style={[textVariants.body, styles.confBadge, { color: theme.text }]}>
-                Conf {item.aiPriceConfidence.toFixed(0)}%
-              </Text>
-            )}
-
-            {item.flipScore != null && (
-              <Text style={[textVariants.body, styles.favBadge, { color: theme.text }]}>
-                🔥 Score {item.flipScore}
-              </Text>
-            )}
-
-            {item.rarity != null && (
-              <Text style={[textVariants.body, styles.favBadge, { color: theme.text }]}>
-                🎲 Rarity {item.rarity}
-              </Text>
-            )}
-
-            {item.sellSpeed != null && (
-              <Text style={[textVariants.body, styles.favBadge, { color: theme.text }]}>
-                ⚡ Speed {item.sellSpeed}
-              </Text>
-            )}
-
-            {item.market?.demandScore != null && (
-              <Text style={[textVariants.body, styles.favBadge, { color: theme.text }]}>
-                📈 Demand {item.market.demandScore}
-              </Text>
-            )}
-            {item.favourite && (
-              <Text style={[textVariants.body, styles.favBadge, { color: theme.accent }]}>
-                ⭐ Favourite
-              </Text>
-            )}
-          </View>
-
-          {/* CONDITION */}
-          {item.ai?.condition && (
-            <Text
-              style={[
-                textVariants.body,
-                styles.conditionText,
-                { color: theme.text },
-              ]}
-            >
-              Condition: {item.ai.condition}
-            </Text>
+        <View style={styles.cardTop}>
+          {thumb ? (
+            <Image source={{ uri: thumb }} style={styles.thumb} />
+          ) : (
+            <View style={[styles.thumb, styles.thumbEmpty, { backgroundColor: theme.background }]}>
+              <Package size={26} color={theme.muted} />
+            </View>
           )}
 
-          {/* AI SUMMARY */}
-          {(item.ai?.condition ||
-            item.market?.demandScore ||
-            item.sellSpeed) && (
-            <Text
-              style={[
-                textVariants.small,
-                styles.conditionText,
-                { color: theme.muted },
-              ]}
-            >
-              AI:{" "}
-              {item.ai?.condition ? `${item.ai.condition} • ` : ""}
-              {item.market?.demandScore
-                ? `Demand ${item.market.demandScore} • `
-                : ""}
-              {item.sellSpeed ? `Speed ${item.sellSpeed}` : ""}
+          <View style={styles.cardMain}>
+            <Text numberOfLines={2} style={[styles.cardTitle, { color: theme.text }]}>
+              {item.title}
             </Text>
-          )}
-
-          {/* BUTTON ROW */}
-          <View style={styles.buttonRow}>
-            {/* SHARE */}
-            <AnimatedPressable
-              onPress={() =>
-                shareFlip({
-                  title: item.title,
-                  buyPrice: safeBuy,
-                  sellPrice: safeSell,
-                  // No buy price means no meaningful ROI; leave it as "-".
-                  roi: safeBuy > 0 ? Math.round(roi) : null,
-                  profit: safeProfit,
-                  // Scanned flips store the AI's confidence as conditionScore.
-                  // Confidence and origin are left out of the text when unknown.
-                  confidence: item.ai?.conditionScore ?? item.aiPriceConfidence ?? null,
-                  origin: item.ai?.origin ?? null,
-                  description: item.ai?.description || "",
-                  image: item.images?.[0],
-                  flipScore: item.flipScore ?? null,
-                })
-              }
-              style={[
-                styles.fav,
-                {
-                  backgroundColor: theme.accent,
-                  borderColor: theme.goldDeep,
-                  borderWidth: 3,
-                },
-              ]}
-            >
-              <Text style={[textVariants.h3, { color: theme.black }]}>✈️</Text>
-            </AnimatedPressable>
-
-            {/* FAVOURITE */}
-            <AnimatedPressable
-              onPress={() => toggleFavourite(item.id)}
-              style={[
-                styles.fav,
-                styles.favLabelButton,
-                item.favourite
-                  ? {
-                      backgroundColor: theme.accent,
-                      borderColor: theme.goldDeep,
-                      borderWidth: 3,
-                    }
-                  : {
-                      borderWidth: 3,
-                      borderColor: theme.goldDeep,
-                    },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.favLabelText,
-                  {
-                    color: item.favourite ? theme.black : theme.accent,
-                  },
-                ]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-              >
-                {item.favourite ? "⭐ Favourited" : "☆ Add to Favourites"}
-              </Text>
-            </AnimatedPressable>
-
-            {/* DELETE */}
-            <AnimatedPressable
-              onPress={() => deleteFlip(item.id)}
-              style={[
-                styles.fav,
-                {
-                  backgroundColor: theme.danger,
-                  borderColor: theme.goldDeep,
-                  borderWidth: 3,
-                },
-              ]}
-            >
-              <Text style={[textVariants.h3, { color: theme.white }]}>🗑️</Text>
-            </AnimatedPressable>
+            <Text style={[styles.profitValue, { color: profitColor }]}>{profitText}</Text>
+            <Text style={[textVariants.small, { color: theme.muted }]} numberOfLines={1}>
+              Buy £{safeBuy.toFixed(2)} · Sell £{safeSell.toFixed(2)} ·{" "}
+              <Text style={{ color: roiColor }}>ROI {roi.toFixed(0)}%</Text>
+            </Text>
           </View>
+        </View>
+
+        <View style={styles.chipRow}>
+          {item.flipScore != null && <MetaChip Icon={Fire} label={`Score ${item.flipScore}`} />}
+          {item.sellSpeed != null && <MetaChip Icon={Lightning} label={String(item.sellSpeed)} />}
+          {item.market?.demandScore != null && (
+            <MetaChip Icon={TrendUp} label={`Demand ${item.market.demandScore}`} />
+          )}
+          {item.rarity != null && <MetaChip Icon={Diamond} label={String(item.rarity)} />}
+          {item.ai?.condition ? <MetaChip Icon={Tag} label={item.ai.condition} /> : null}
+          {item.aiPriceConfidence != null && (
+            <MetaChip label={`Conf ${item.aiPriceConfidence.toFixed(0)}%`} />
+          )}
+          {item.favourite ? <MetaChip Icon={Heart} label="Favourite" accent /> : null}
+        </View>
         </AnimatedPressable>
+
+        <View style={styles.actionsRow}>
+          <AnimatedPressable
+            accessibilityRole="button"
+            accessibilityLabel="Share flip"
+            style={styles.actionBtn}
+            onPress={() =>
+              shareFlip({
+                title: item.title,
+                buyPrice: safeBuy,
+                sellPrice: safeSell,
+                // No buy price means no meaningful ROI; leave it as "-".
+                roi: safeBuy > 0 ? Math.round(roi) : null,
+                profit: safeProfit,
+                // Scanned flips store the AI's confidence as conditionScore.
+                // Confidence and origin are left out of the text when unknown.
+                confidence: item.ai?.conditionScore ?? item.aiPriceConfidence ?? null,
+                origin: item.ai?.origin ?? null,
+                description: item.ai?.description || "",
+                image: item.images?.[0],
+                flipScore: item.flipScore ?? null,
+              })
+            }
+          >
+            <ShareNetwork size={22} color={theme.muted} />
+          </AnimatedPressable>
+
+          <AnimatedPressable
+            accessibilityRole="button"
+            accessibilityLabel={item.favourite ? "Remove from favourites" : "Add to favourites"}
+            style={styles.actionBtn}
+            onPress={() => toggleFavourite(item.id)}
+          >
+            <Heart
+              size={22}
+              weight={item.favourite ? "fill" : "regular"}
+              color={item.favourite ? theme.gold : theme.muted}
+            />
+          </AnimatedPressable>
+
+          <AnimatedPressable
+            accessibilityRole="button"
+            accessibilityLabel="Delete flip"
+            style={styles.actionBtn}
+            onPress={() => deleteFlip(item.id)}
+          >
+            <Trash size={22} color={theme.danger} />
+          </AnimatedPressable>
+        </View>
       </View>
     );
   };
@@ -595,48 +513,46 @@ export default function HistoryScreen() {
     >
       {/* HEADER */}
       <View style={styles.headerRow}>
-        <Text style={[textVariants.h2, { color: theme.accent }]}>
-          ✈️ FlipPilot
+        <Text style={[styles.screenTitle, { color: theme.text }]} accessibilityRole="header">
+          History
         </Text>
 
         <View style={styles.headerButtonsRow}>
           {/* FAV FILTER */}
           <AnimatedPressable
+            accessibilityRole="button"
+            accessibilityLabel={showFavesOnly ? "Show all flips" : "Show favourites only"}
             style={[
               styles.headerIconBtn,
-              showFavesOnly && {
-                borderWidth: 2,
-                borderColor: theme.goldDeep,
-              },
+              showFavesOnly && { backgroundColor: theme.card },
             ]}
             onPress={() => setShowFavesOnly((v) => !v)}
           >
-            <Text
-              style={[
-                textVariants.h3,
-                {
-                  color: showFavesOnly ? theme.accent : theme.text,
-                },
-              ]}
-            >
-              ⭐
-            </Text>
+            <Heart
+              size={22}
+              weight={showFavesOnly ? "fill" : "regular"}
+              color={showFavesOnly ? theme.gold : theme.text}
+            />
           </AnimatedPressable>
 
           {/* CLEAR ALL */}
           <AnimatedPressable
+            accessibilityRole="button"
+            accessibilityLabel="Clear all history"
             style={styles.headerIconBtn}
             onPress={() => setConfirmClearAll(true)}
           >
-            <Text style={[textVariants.h3, { color: theme.text }]}>🧹</Text>
+            <Broom size={22} color={theme.text} />
           </AnimatedPressable>
 
           {/* EXPORT */}
           <AnimatedPressable
+            accessibilityRole="button"
+            accessibilityLabel="Export flips"
             style={styles.headerIconBtn}
             onPress={exportToCSV}
           >
-            <Text style={[textVariants.h3, { color: theme.text }]}>📤</Text>
+            <Export size={22} color={theme.text} />
           </AnimatedPressable>
         </View>
       </View>
@@ -687,8 +603,8 @@ export default function HistoryScreen() {
             styles.statBox,
             {
               backgroundColor: theme.card,
-              borderColor: theme.goldDeep,
-              borderWidth: 3,
+              borderColor: HAIRLINE,
+              borderWidth: 1,
             },
           ]}
         >
@@ -715,8 +631,8 @@ export default function HistoryScreen() {
             styles.statBox,
             {
               backgroundColor: theme.card,
-              borderColor: theme.goldDeep,
-              borderWidth: 3,
+              borderColor: HAIRLINE,
+              borderWidth: 1,
             },
           ]}
         >
@@ -743,8 +659,8 @@ export default function HistoryScreen() {
             styles.statBox,
             {
               backgroundColor: theme.card,
-              borderColor: theme.goldDeep,
-              borderWidth: 3,
+              borderColor: HAIRLINE,
+              borderWidth: 1,
             },
           ]}
         >
@@ -774,17 +690,15 @@ export default function HistoryScreen() {
             styles.bestCard,
             {
               backgroundColor: theme.card,
-              borderColor: theme.goldDeep,
-              borderWidth: 3,
+              borderColor: HAIRLINE,
+              borderWidth: 1,
             },
           ]}
           onPress={() => openDetails(bestFlip)}
         >
           <View style={styles.bestHeaderRow}>
-            <Text style={[textVariants.h3, { color: theme.accent }]}>
-              🏆 Best Flip
-            </Text>
-            <Text style={[textVariants.h3, { color: theme.accent }]}>👑</Text>
+            <Trophy size={20} weight="fill" color={theme.gold} />
+            <Text style={[textVariants.h3, { color: theme.gold }]}>Best flip</Text>
           </View>
 
           {bestFlip.images?.[0] && (
@@ -834,8 +748,8 @@ export default function HistoryScreen() {
             styles.searchInput,
             {
               backgroundColor: theme.card,
-              borderColor: theme.goldDeep,
-              borderWidth: 3,
+              borderColor: HAIRLINE,
+              borderWidth: 1,
               color: theme.text,
             },
           ]}
@@ -853,8 +767,8 @@ export default function HistoryScreen() {
             {
               opacity: fadeAnim,
               backgroundColor: theme.card,
-              borderColor: theme.goldDeep,
-              borderWidth: 3,
+              borderColor: HAIRLINE,
+              borderWidth: 1,
             },
           ]}
         >
@@ -875,8 +789,8 @@ export default function HistoryScreen() {
               styles.modalContainer,
               {
                 backgroundColor: theme.card,
-                borderColor: theme.goldDeep,
-                borderWidth: 3,
+                borderColor: HAIRLINE,
+                borderWidth: 1,
               },
             ]}
           >
@@ -918,8 +832,8 @@ export default function HistoryScreen() {
                   styles.modalDelete,
                   {
                     backgroundColor: theme.danger,
-                    borderColor: theme.goldDeep,
-                    borderWidth: 3,
+                    borderColor: HAIRLINE,
+                    borderWidth: 1,
                   },
                 ]}
                 onPress={() => deleteFlipHard(confirmDelete)}
@@ -948,8 +862,8 @@ export default function HistoryScreen() {
               styles.modalContainer,
               {
                 backgroundColor: theme.card,
-                borderColor: theme.goldDeep,
-                borderWidth: 3,
+                borderColor: HAIRLINE,
+                borderWidth: 1,
               },
             ]}
           >
@@ -991,8 +905,8 @@ export default function HistoryScreen() {
                   styles.modalDelete,
                   {
                     backgroundColor: theme.danger,
-                    borderColor: theme.goldDeep,
-                    borderWidth: 3,
+                    borderColor: HAIRLINE,
+                    borderWidth: 1,
                   },
                 ]}
                 onPress={clearAllFlips}
@@ -1028,9 +942,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
   },
+  screenTitle: {
+    fontSize: 28,
+    fontWeight: "700",
+  },
   headerIconBtn: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
@@ -1057,8 +975,8 @@ const styles = StyleSheet.create({
   },
   bestHeaderRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    gap: 8,
   },
   bestImageWrapper: {
     marginTop: 8,
@@ -1095,91 +1013,67 @@ const styles = StyleSheet.create({
 
   /* CARD */
   card: {
-    marginBottom: 10,
-    padding: 12,
-    borderRadius: 12,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
   },
-  imageWrapper: {
-    marginBottom: 10,
-    borderRadius: 12,
-    overflow: "hidden",
-  },
-  image: {
-    width: "100%",
-    height: 160,
-    borderRadius: 12,
-  },
-  cardHeaderRow: {
+  cardTop: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 6,
+    gap: 12,
   },
-  name: {
-    flex: 1,
-    marginRight: 8,
+  thumb: {
+    width: 72,
+    height: 72,
+    borderRadius: 12,
   },
-  trendBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 4,
-  },
-  text: {
-    flex: 1,
-  },
-  profit: {
-    marginTop: 8,
-  },
-  badgeRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    marginTop: 8,
-  },
-  roiBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  confBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  favBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-  conditionText: {
-    marginTop: 6,
-  },
-
-  /* BUTTON ROW */
-  buttonRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 10,
-  },
-  fav: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 999,
+  thumbEmpty: {
     alignItems: "center",
     justifyContent: "center",
   },
-  favLabelButton: {
-    flex: 2.2,
-    paddingHorizontal: 6,
+  cardMain: {
+    flex: 1,
+    gap: 2,
   },
-  favLabelText: {
-    fontSize: 13,
-    fontWeight: "800",
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    lineHeight: 21,
+  },
+  profitValue: {
+    fontSize: 22,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 12,
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  chipText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  actionsRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 4,
+    marginTop: 8,
+  },
+  actionBtn: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   /* OVERLAY TOAST */
