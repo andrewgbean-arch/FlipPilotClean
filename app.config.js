@@ -4,19 +4,18 @@ export default {
     slug: "flippilot-new",
     version: "1.0.0",
     orientation: "portrait",
-    icon: "./assets/images/icon.png",
+    icon: "./assets/images/app-icon.png",
     scheme: "flippilotnew",
     // The app is dark-only for now, so keep system UI (keyboard, alerts) dark to match.
     userInterfaceStyle: "dark",
     assetBundlePatterns: ["**/*"],
     ios: {
-      icon: "./assets/expo.icon"
+      icon: "./assets/images/app-icon.png"
     },
     android: {
       adaptiveIcon: {
-        backgroundColor: "#E6F4FE",
+        backgroundColor: "#0A1128",
         foregroundImage: "./assets/images/android-icon-foreground.png",
-        backgroundImage: "./assets/images/android-icon-background.png",
         monochromeImage: "./assets/images/android-icon-monochrome.png"
       },
       predictiveBackGestureEnabled: false,
@@ -30,11 +29,10 @@ export default {
       [
         "expo-splash-screen",
         {
-          backgroundColor: "#0A1128",
-          android: {
-            image: "./assets/images/splash-icon.png",
-            imageWidth: 76
-          }
+          image: "./assets/images/splash-icon.png",
+          imageWidth: 240,
+          resizeMode: "contain",
+          backgroundColor: "#0A1128"
         }
       ],
       "expo-sharing",
