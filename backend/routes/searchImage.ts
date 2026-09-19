@@ -109,8 +109,13 @@ return it as packCount. Comparing a 20-lozenge box with a 72-lozenge one gives
 a price several times too high, so do not guess: use null when no count is
 visible.
 
+Also say what condition it is in. "New" only if it is sealed, in retail
+packaging or clearly unused; a loose item that has obviously been used is
+"Good", "Fair" or "Poor". This decides whether it is priced against new or
+second-hand listings.
+
 Return ONLY this JSON, nothing else:
-{"title": "...", "packCount": number or null, "category": "...", "confidence": number}
+{"title": "...", "packCount": number or null, "condition": "New / Like New / Good / Fair / Poor", "category": "...", "confidence": number}
 `;
 
 const DESCRIBE_PROMPT = `
@@ -149,7 +154,9 @@ router.post("/search-image", rateLimit(2), async (req, res) => {
     // Prices only need the title and pack size, so they start now.
     const packCount = Number(identified.packCount);
     const marketPromise = fetchMarketData(String(identified.title), {
-      packCount: Number.isFinite(packCount) && packCount >= 1 ? Math.round(packCount) : null
+      packCount: Number.isFinite(packCount) && packCount >= 1 ? Math.round(packCount) : null,
+      // Sealed/new items are priced against new listings; anything else against used ones.
+      condition: /^new$/i.test(String(identified.condition ?? "").trim()) ? "new" : "used"
     });
 
     const [details, market] = await Promise.all([describing, marketPromise]);

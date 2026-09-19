@@ -1,6 +1,6 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
-import { priceForPack } from "./bulkListingFilter";
+import { matchesQuery, priceForPack } from "./bulkListingFilter";
 
 // How many of the top results to look at, and how many usable ones to average.
 const RESULTS_TO_SCAN = 10;
@@ -58,6 +58,10 @@ export default async function fetchAmazonMarket(
         // The product name is in a span inside the heading; the heading alone is just the brand.
         const title =
           card.find("h2 span").text().trim() || card.find("h2").first().text().trim() || text.slice(0, 250);
+
+        // Another model or flavour is not this item. (The brand sits outside the
+        // title text, so match against the whole card.)
+        if (!matchesQuery(text.slice(0, 500), query)) return;
 
         const whole = card.find("span.a-price-whole").first().text().replace(/[^0-9]/g, "");
         const fraction = card.find("span.a-price-fraction").first().text().replace(/[^0-9]/g, "");

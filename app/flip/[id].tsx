@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import {
   ArrowLeft,
   CheckCircle,
+  Heart,
   MagnifyingGlassPlus,
   MapPin,
   Package,
@@ -175,7 +176,7 @@ function RangeBar({ position }: { position: number | null }) {
 export default function FlipDetails() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { vehicles: flips, loaded, loadError } = useVehicleHistory();
+  const { vehicles: flips, toggleFavourite, loaded, loadError } = useVehicleHistory();
 
   const params = useLocalSearchParams();
   const { id } = params as { id?: string };
@@ -484,6 +485,24 @@ export default function FlipDetails() {
                 </Text>
                 <Text style={[styles.heroDate, { color: theme.muted }]}>{prettyDate}</Text>
               </View>
+
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={flip.favourite ? "Remove from favourites" : "Save to favourites"}
+                accessibilityState={{ selected: !!flip.favourite }}
+                hitSlop={6}
+                style={({ pressed }) => [styles.favouriteButton, pressed && styles.pressed]}
+                onPress={() => {
+                  Haptics.selectionAsync().catch(() => {});
+                  toggleFavourite(flip.id);
+                }}
+              >
+                <Heart
+                  size={26}
+                  weight={flip.favourite ? "fill" : "regular"}
+                  color={flip.favourite ? theme.gold : theme.muted}
+                />
+              </Pressable>
             </View>
 
             {origin || confidence != null ? (
@@ -888,6 +907,13 @@ const styles = StyleSheet.create({
   heroText: {
     flex: 1,
     gap: 4,
+  },
+  favouriteButton: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "flex-start",
   },
   heroTitle: {
     fontSize: 20,

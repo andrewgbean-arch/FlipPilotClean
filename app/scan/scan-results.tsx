@@ -8,6 +8,7 @@ import {
   Camera,
   Check,
   CheckCircle,
+  Heart,
   ImageBroken,
   PencilSimple,
   WarningCircle,
@@ -51,6 +52,17 @@ const keepPhoto = async (uri: string): Promise<string> => {
 // Keys of the price keypad, in reading order (three to a row).
 const CALC_KEYS = ["7", "8", "9", "4", "5", "6", "1", "2", "3", "0", ".", "DEL"];
 const CALC_ROWS = [0, 3, 6, 9].map((start) => CALC_KEYS.slice(start, start + 3));
+
+// Where the item is being bought decides how much of its resale price is worth paying.
+// Charity shops are the base case (half of what it should sell for, which leaves room for
+// fees, postage and profit); a car boot is where you can haggle harder; a shop or online
+// seller has already taken their cut.
+const SOURCES = [
+  { key: "carboot", label: "Car boot", share: 0.35 },
+  { key: "charity", label: "Charity shop", share: 0.5 },
+  { key: "shop", label: "Shop/online", share: 0.65 },
+] as const;
+type SourceKey = (typeof SOURCES)[number]["key"];
 
 // "+£12.50" or "-£3.20". A profit of exactly zero carries no sign.
 const signedMoney = (n: number) =>
@@ -124,13 +136,15 @@ function FactRow({ label, value, divider }: { label: string; value: string; divi
 
 export default function ScanResultsScreen() {
   const params = useLocalSearchParams();
-  const { addVehicle, loadError } = useVehicleHistory();
+  const { addVehicle, toggleFavourite, vehicles, loadError } = useVehicleHistory();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
+  const [savedId, setSavedId] = useState<string | null>(null);
+  const [source, setSource] = useState<SourceKey>("charity");
   const [imageFailed, setImageFailed] = useState(false);
 
   const [buyPrice, setBuyPrice] = useState<number | null>(null);
@@ -207,7 +221,29 @@ export default function ScanResultsScreen() {
     closeCalculator();
   };
 
-  const saveToHistory = async () => {
+  const isFavourite = savedId ? !!vehicles.find((v) => v.id === savedId)?.favourite : false;
+
+  // Picking where the item is being bought sets the buy price to that share of the sell price.
+  const chooseSource = (key: SourceKey) => {
+    Haptics.selectionAsync().catch(() => {});
+    setSource(key);
+    const share = SOURCES.find((s) => s.key === key)?.share ?? 0.5;
+    if (!saved && sellPrice != null) setBuyPrice(+(sellPrice * share).toFixed(2));
+  };
+
+  // The heart saves the flip to History first if it isn't there yet, then favourites it.
+  const onFavouritePress = async () => {
+    if (saved) {
+      if (savedId) {
+        Haptics.selectionAsync().catch(() => {});
+        toggleFavourite(savedId);
+      }
+      return;
+    }
+    await saveToHistory({ favourite: true });
+  };
+
+  const saveToHistory = async (options?: { favourite?: boolean }) => {
     if (!data || saved) return;
 
     // Saving is switched off when the stored History couldn't be read; say so rather than show "Saved".
@@ -222,10 +258,11 @@ export default function ScanResultsScreen() {
 
     const image = data.image ? await keepPhoto(data.image) : null;
 
-    addVehicle({
+    const record = addVehicle({
       title: data.title ?? data.product?.title ?? "Unknown Item",
       barcode: data.barcode ?? data.product?.barcode ?? null,
       images: image ? [image] : null,
+      favourite: options?.favourite ?? false,
       buyPrice,
       sellPrice,
       flipScore: typeof data.ai?.flip_score === "number" ? data.ai.flip_score : undefined,
@@ -252,6 +289,7 @@ export default function ScanResultsScreen() {
       aiPriceMax: data.aiPriceMax ?? null,
       aiPriceConfidence: data.aiPriceConfidence ?? null,
     });
+    setSavedId(record.id);
   };
 
   const scanAgain = () => {
@@ -427,6 +465,67 @@ export default function ScanResultsScreen() {
           <PriceTile label="Sell price" value={sellPrice} locked={saved} onPress={() => openCalculator("sell")} />
         </View>
 
+        {/* PRICE GUIDE: new price, what it should sell for, and where you're buying */}
+        {sellPrice != null || data.market?.retailPrice != null ? (
+          <View style={[styles.group, styles.guideCard, card]}>
+            {data.market?.retailPrice != null ? (
+              <FactRow
+                label="New in the shops"
+                value={`£${Number(data.market.retailPrice).toFixed(2)}`}
+              />
+            ) : null}
+            {data.ai?.suggested_sell != null ? (
+              <FactRow
+                label="Should sell for"
+                value={`£${Number(data.ai.suggested_sell).toFixed(2)}`}
+                divider={data.market?.retailPrice != null}
+              />
+            ) : null}
+
+            {sellPrice != null && !saved ? (
+              <View style={[styles.sourceBlock, { borderTopColor: theme.hairline }]}>
+                <Text style={[styles.sourceLabel, { color: theme.muted }]}>Where are you buying?</Text>
+                <View style={styles.sourceRow} accessibilityRole="radiogroup">
+                  {SOURCES.map((s) => {
+                    const selected = source === s.key;
+                    return (
+                      <Pressable
+                        key={s.key}
+                        accessibilityRole="radio"
+                        accessibilityLabel={s.label}
+                        accessibilityState={{ checked: selected }}
+                        onPress={() => chooseSource(s.key)}
+                        style={({ pressed }) => [
+                          styles.sourceChip,
+                          selected
+                            ? { backgroundColor: theme.goldTint, borderColor: theme.gold }
+                            : { backgroundColor: theme.background, borderColor: theme.hairline },
+                          pressed && styles.pressed,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.sourceChipText,
+                            { color: selected ? theme.gold : theme.text },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {s.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                <Text style={[styles.sourceHint, { color: theme.muted }]}>
+                  Sets your buy price to about{" "}
+                  {Math.round((SOURCES.find((s) => s.key === source)?.share ?? 0.5) * 100)}% of the
+                  sell price. Tap the buy price to type what you were asked.
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
         {/* FLIP SCORE */}
         <View
           accessible
@@ -503,6 +602,24 @@ export default function ScanResultsScreen() {
         <View style={styles.footerRow}>
           <Pressable
             accessibilityRole="button"
+            accessibilityLabel={isFavourite ? "Remove from favourites" : "Save to favourites"}
+            accessibilityState={{ selected: isFavourite }}
+            style={({ pressed }) => [
+              styles.heartButton,
+              { borderColor: isFavourite ? theme.gold : theme.hairline, backgroundColor: theme.card },
+              pressed && styles.pressed,
+            ]}
+            onPress={onFavouritePress}
+          >
+            <Heart
+              size={24}
+              weight={isFavourite ? "fill" : "regular"}
+              color={isFavourite ? theme.gold : theme.muted}
+            />
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
             accessibilityLabel="Scan again"
             style={({ pressed }) => [
               styles.secondaryButton,
@@ -524,7 +641,7 @@ export default function ScanResultsScreen() {
                 : { backgroundColor: theme.gold },
               pressed && styles.pressed,
             ]}
-            onPress={saveToHistory}
+            onPress={() => saveToHistory()}
             disabled={saved}
           >
             {saved ? (
@@ -533,7 +650,7 @@ export default function ScanResultsScreen() {
               <BookmarkSimple size={20} weight="bold" color={theme.black} />
             )}
             <Text style={[styles.primaryLabel, { color: saved ? theme.text : theme.black }]}>
-              {saved ? "Saved" : "Save to history"}
+              {saved ? "Saved" : "Save"}
             </Text>
           </Pressable>
         </View>
@@ -839,6 +956,29 @@ const styles = StyleSheet.create({
   },
   savedText: { flexShrink: 1, fontSize: 13 },
   footerRow: { flexDirection: "row", gap: 12 },
+  heartButton: {
+    width: 52,
+    minHeight: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  guideCard: { marginTop: 12 },
+  sourceBlock: { borderTopWidth: 1, padding: 14 },
+  sourceLabel: { fontSize: 13, fontWeight: "600", marginBottom: 10 },
+  sourceRow: { flexDirection: "row", gap: 8 },
+  sourceChip: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 6,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sourceChipText: { fontSize: 13, fontWeight: "600" },
+  sourceHint: { fontSize: 12, lineHeight: 17, marginTop: 10 },
   secondaryButton: {
     flex: 1,
     minHeight: 52,

@@ -17,6 +17,8 @@ const pickMarket = (market: any) => ({
   googlePriceMin: market?.googlePriceMin ?? null,
   googlePriceMax: market?.googlePriceMax ?? null,
   smartPrice: market?.smartPrice ?? null,
+  // What one new unit costs in the shops: the reference the sell and buy prices are worked from.
+  retailPrice: market?.retailPrice ?? null,
   lowest: market?.lowest ?? null,
   highest: market?.highest ?? null,
   average: market?.average ?? null,

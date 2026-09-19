@@ -1,6 +1,6 @@
 import axios from "axios";
 import { EbayMarketResult } from "./ebayMarket";
-import { priceForPack } from "./bulkListingFilter";
+import { isNotTheItem, matchesQuery, priceForPack } from "./bulkListingFilter";
 
 /* --------------------------------------------------
    ⭐ eBay Browse API (official, OAuth2 client-credentials)
@@ -71,9 +71,21 @@ function filterOutliers(prices: number[]) {
   return prices.filter((p) => p >= min && p <= max);
 }
 
+function median(values: number[]) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+/**
+ * `condition` narrows the search to what the scanned item actually is: a used
+ * speaker is worth what used speakers sell for, not what a new one costs.
+ * "used" and "new" ask eBay for that condition only; null asks for everything.
+ */
 export default async function fetchEbayBrowseMarket(
   query: string,
-  wantedCount?: number | null
+  wantedCount?: number | null,
+  condition?: "new" | "used" | null
 ): Promise<EbayMarketResult> {
   const empty: EbayMarketResult = {
     average: null,
@@ -94,27 +106,51 @@ export default async function fetchEbayBrowseMarket(
   try {
     const token = await getEbayAccessToken();
 
-    const res = await axios.get(
-      "https://api.ebay.com/buy/browse/v1/item_summary/search",
-      {
+    const search = (filter?: string) =>
+      axios.get("https://api.ebay.com/buy/browse/v1/item_summary/search", {
         timeout: 6000,
         params: {
           q: query,
           limit: 50,
+          ...(filter ? { filter } : {}),
         },
         headers: {
           Authorization: `Bearer ${token}`,
           "X-EBAY-C-MARKETPLACE-ID": "EBAY_GB",
         },
-      }
-    );
+      });
 
-    const summaries = res.data.itemSummaries ?? [];
+    const conditionFilter =
+      condition === "used"
+        ? "conditions:{USED},buyingOptions:{FIXED_PRICE}"
+        : condition === "new"
+        ? "conditions:{NEW},buyingOptions:{FIXED_PRICE}"
+        : undefined;
+
+    let summaries: any[] = [];
+    try {
+      summaries = (await search(conditionFilter)).data.itemSummaries ?? [];
+    } catch (err: any) {
+      // A category that doesn't take the filter must not lose the whole lookup.
+      if (!conditionFilter) throw err;
+    }
+    if (summaries.length < 3 && conditionFilter) {
+      summaries = (await search()).data.itemSummaries ?? [];
+    }
 
     const rawPrices: number[] = [];
     const items: any[] = [];
 
-    for (const item of summaries) {
+    // Prefer listings for the same product (not the next model up); if that
+    // leaves too few, use them all rather than nothing.
+    const sameProduct = summaries.filter((i: any) => matchesQuery(i?.title, query));
+    const pool = sameProduct.length >= 3 ? sameProduct : summaries;
+
+    for (const item of pool) {
+      // Accessories, spares and faulty units are not the item.
+      if (isNotTheItem(item?.title, query)) continue;
+      if (/parts|not working|faulty/i.test(String(item?.condition ?? ""))) continue;
+
       // Scaled to the scanned pack size where the listing says its own; dropped if bulk.
       const listed = parseFloat(item?.price?.value);
       const value = priceForPack(item?.title, listed, wantedCount) ?? NaN;
@@ -139,7 +175,9 @@ export default async function fetchEbayBrowseMarket(
 
     const lowest = Math.min(...prices);
     const highest = Math.max(...prices);
-    const askingAverage = prices.reduce((a, b) => a + b, 0) / prices.length;
+    // The middle price, not the mean: a few premium or oddly priced listings
+    // shouldn't move it.
+    const askingAverage = median(prices);
 
     // These are live asking prices, not confirmed sold prices — items sit
     // on eBay at their asking price for a while before either selling for

@@ -2,7 +2,8 @@ import axios from "axios";
 import fetchAmazonMarket from "./amazonMarket";
 import fetchEbayMarket, { EbayMarketResult } from "./ebayMarket";
 import fetchEbayBrowseMarket from "./ebayBrowseApi";
-import { extractPackCount, priceForPack } from "./bulkListingFilter";
+import { extractPackCount, isNotTheItem, matchesQuery, priceForPack } from "./bulkListingFilter";
+import { decidePrices } from "./priceModel";
 
 // Read this at call time, not at module load — server.ts imports this
 // module (via search.ts/searchImage.ts) BEFORE it calls dotenv.config(),
@@ -85,38 +86,36 @@ function safeNumber(n: unknown): number | null {
 -------------------------------------------------- */
 async function fetchGoogleShopping(query: string, wantedCount?: number | null) {
   try {
-    // Without a region/currency pin, SerpAPI defaults to google.com (US) —
-    // returning US listings priced in USD, which this app was silently
-    // treating as GBP (a $3,699 US bike was being shown as £3,699+markup).
-    // Force UK Google Shopping so results are in the right country AND
-    // currency.
+    // Without a region pin, SerpAPI defaults to google.com (US) — returning US
+    // listings priced in USD, which this app was silently treating as GBP.
+    // The UK is `gl=gb`. This used to say `gl=uk`, which is not a valid country
+    // code: Google answered "no results" for almost every search, so this whole
+    // source was quietly doing nothing (with gb, "Monster Munch 72g" returns
+    // £1.25 and £1.50, the real shelf prices).
     const url = `https://serpapi.com/search.json?engine=google_shopping&q=${encodeURIComponent(
       query
-    )}&google_domain=google.co.uk&gl=uk&hl=en&currency=GBP&api_key=${process.env.SERPAPI_KEY}`;
+    )}&google_domain=google.co.uk&gl=gb&hl=en&api_key=${process.env.SERPAPI_KEY}`;
 
-    const res = await axios.get(url, { timeout: 4500 });
+    const res = await axios.get(url, { timeout: 7000 });
     const items = res.data.shopping_results ?? [];
 
     const rawPrices: number[] = [];
 
-    for (const item of items) {
-      const candidates = [
-        item.extracted_price,
-        item.unit_price,
-        item.inline_offer?.price,
-        item.price,
-      ];
+    // Google Shopping mixes in other models and other flavours. Use the ones for
+    // this product, unless there are too few of those.
+    const sameProduct = items.filter((i: any) => matchesQuery(i?.title, query));
 
-      for (const c of candidates) {
-        if (!c) continue;
+    for (const item of sameProduct.length >= 3 ? sameProduct : items) {
+      // The shelf price of the listing. (`unit_price` is a price per 100g or per
+      // litre, which is not what the item costs, so it is not used.)
+      const c = item.extracted_price ?? item.price;
+      if (!c) continue;
+      if (isNotTheItem(item.title, query)) continue;
 
-        const listed = parseFloat(
-          String(c).replace(/[^0-9.,]/g, "").replace(",", ".")
-        );
-        // Scaled to the scanned pack size where the listing says its own; dropped if bulk.
-        const p = priceForPack(item.title, listed, wantedCount);
-        if (p !== null) rawPrices.push(p);
-      }
+      const listed = parseFloat(String(c).replace(/[^0-9.,]/g, "").replace(",", "."));
+      // Scaled to the scanned pack size where the listing says its own; dropped if bulk.
+      const p = priceForPack(item.title, listed, wantedCount);
+      if (p !== null) rawPrices.push(p);
     }
 
     const prices = filterOutliers(rawPrices);
@@ -125,10 +124,16 @@ async function fetchGoogleShopping(query: string, wantedCount?: number | null) {
       return { min: null, max: null, avg: null, items };
     }
 
+    // Multipacks that don't say so, and premium sellers, only ever push a price
+    // UP, so the shelf price of the item is nearer the bottom of what is listed
+    // than the middle: use the lower quartile.
+    const sorted = [...prices].sort((a, b) => a - b);
+    const lowerQuartile = sorted[Math.floor((sorted.length - 1) * 0.25)];
+
     return {
       min: Math.min(...prices),
       max: Math.max(...prices),
-      avg: prices.reduce((a, b) => a + b, 0) / prices.length,
+      avg: lowerQuartile,
       items,
     };
   } catch (err: any) {
@@ -138,31 +143,30 @@ async function fetchGoogleShopping(query: string, wantedCount?: number | null) {
 }
 
 /* --------------------------------------------------
-   ⭐ AI Price Fallback
+   ⭐ AI price estimate
+
+   Asked every time, alongside the searches: what one new unit costs in a UK
+   shop, and what it is worth second-hand. Search results for cheap things are
+   full of multipacks and for models are full of neighbouring models, and this
+   is the cross-check that keeps a wildly wrong search from becoming the price.
 -------------------------------------------------- */
-async function fetchAiPriceEstimate(title: string) {
+async function fetchAiPriceEstimate(title: string, packCount?: number | null) {
   if (!process.env.OPENAI_API_KEY || !title) return null;
 
-  // This only runs when real eBay/Google comparables couldn't be found, so
-  // there is nothing to sanity-check it against — ask specifically for
-  // realistic USED/resale value (not brand-new RRP) and to assume the
-  // common/budget version of the item rather than a premium tier, since
-  // this number ends up driving the buy/sell recommendation directly.
   const prompt = `
-Estimate the realistic UK SECOND-HAND resale price range for this exact
-item — what it would typically actually sell for used on eBay or Facebook
-Marketplace, NOT the brand-new retail price.
+You are pricing an item for a UK reseller.
 
-Item: "${title}"
+Item: "${title}"${packCount ? `\nPack size: ${packCount} in the pack` : ""}
 
-If the title could match multiple different models or quality tiers,
-assume the common/budget version, not a premium or flagship one.
+If the title could match multiple different models or quality tiers, assume the
+common/budget version, not a premium or flagship one.
 
-Return ONLY valid JSON:
+Return ONLY valid JSON (prices in pounds sterling):
 {
-  "min": number,
-  "max": number,
-  "confidence": number
+  "newPrice": typical price of ONE brand-new unit${packCount ? " (this pack size)" : ""} in a UK shop today,
+  "usedMin": low end of what it realistically sells for second-hand on eBay or Facebook Marketplace,
+  "usedMax": high end of the same range,
+  "confidence": 0-100 how sure you are
 }
   `.trim();
 
@@ -173,6 +177,7 @@ Return ONLY valid JSON:
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
         temperature: 0.2,
+        max_tokens: 120,
       },
       {
         timeout: 6000,
@@ -183,16 +188,19 @@ Return ONLY valid JSON:
       }
     );
 
-    // gpt-4o-mini often wraps its JSON in ```json fences despite being
-    // asked for raw JSON — strip them before parsing (this was silently
-    // failing every call where the model added them, logged as
-    // "Unexpected token '`'", which meant this whole fallback was quietly
-    // returning null more often than it should have).
+    // gpt-4o-mini often wraps its JSON in ```json fences despite being asked
+    // for raw JSON — strip them before parsing.
     const raw = (res.data.choices?.[0]?.message?.content ?? "{}")
       .replace(/```json/gi, "")
       .replace(/```/g, "")
       .trim();
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    return {
+      newPrice: safeNumber(Number(parsed.newPrice)),
+      min: safeNumber(Number(parsed.usedMin)),
+      max: safeNumber(Number(parsed.usedMax)),
+      confidence: safeNumber(Number(parsed.confidence)),
+    };
   } catch (err: any) {
     console.log("AI PRICE ERROR:", err?.message || err);
     return null;
@@ -255,10 +263,12 @@ function cacheSet(key: string, value: UnifiedMarketResult) {
 -------------------------------------------------- */
 export default async function fetchMarketData(
   query: string,
-  options: { packCount?: number | null } = {}
+  options: { packCount?: number | null; condition?: "new" | "used" | null } = {}
 ): Promise<UnifiedMarketResult> {
   const wantedCount = options.packCount ?? extractPackCount(query);
-  const cacheKey = `${query.trim().toLowerCase()}|${wantedCount ?? ""}`;
+  const condition = options.condition ?? null;
+  const usedMode = condition === "used";
+  const cacheKey = `${query.trim().toLowerCase()}|${wantedCount ?? ""}|${condition ?? ""}`;
   const cached = query ? cacheGet(cacheKey) : null;
   if (cached) return cached;
 
@@ -295,125 +305,55 @@ export default async function fetchMarketData(
 
     const ebayPromise = withDeadline(
       hasEbayBrowseCreds()
-        ? fetchEbayBrowseMarket(query, wantedCount)
+        ? fetchEbayBrowseMarket(query, wantedCount, condition)
         : fetchEbayMarket(query, wantedCount),
       6500,
       null
     );
+    // The AI's idea of the new price and the used range, asked alongside the
+    // searches: the cross-check if what the searches found is far off.
+    const aiEstimatePromise = withDeadline(fetchAiPriceEstimate(query, wantedCount), 5000, null);
     const amazonPromise = withDeadline(fetchAmazonMarket(query, wantedCount), 4500, null);
     const googlePromise = fetchGoogleShopping(query, wantedCount);
 
     const [ebay, amazon] = await Promise.all([ebayPromise, amazonPromise]);
 
-    // Google Shopping is the slowest and least reliable of the three, so once
-    // the others are in it only gets a short grace period rather than holding
-    // the whole answer up for its full timeout.
-    const googleGraceMs = Math.max(300, Math.min(1500, 5000 - (Date.now() - startedAt)));
+    // Google Shopping is the slowest and least reliable of the three (anywhere
+    // from a third of a second to twenty), so it does not hold the answer up:
+    // once the others are in it gets a short grace period and is used only if
+    // it made it. The AI's price estimate is the cross-check that doesn't wait.
+    const googleGraceMs = Math.max(300, Math.min(2000, 5000 - (Date.now() - startedAt)));
     const google = await withDeadline(googlePromise, googleGraceMs, null);
+    const aiEstimate = await aiEstimatePromise;
 
-    // 4️⃣ AI fallback (only if Google + eBay are weak)
-    const weakGoogle = !google?.min || google.min < 1;
-    const weakEbay = !ebay?.lowest || ebay.lowest < 1;
+    // 4️⃣ AI estimate (new price + used range)
+    const aiPriceMin = safeNumber(aiEstimate?.min);
+    const aiPriceMax = safeNumber(aiEstimate?.max);
+    const aiPriceConfidence = safeNumber(aiEstimate?.confidence);
 
-    let aiPriceMin: number | null = null;
-    let aiPriceMax: number | null = null;
-    let aiPriceConfidence: number | null = null;
+    // 5️⃣ The three prices: new, sell, buy (see priceModel.ts)
+    const usedPrice = safeNumber(ebay?.average ?? ebay?.lowest ?? null);
 
-    if (weakGoogle && weakEbay) {
-      const aiPrice = await fetchAiPriceEstimate(query);
-      if (aiPrice) {
-        aiPriceMin = safeNumber(aiPrice.min);
-        aiPriceMax = safeNumber(aiPrice.max);
-        aiPriceConfidence = safeNumber(aiPrice.confidence);
-      }
-    }
+    const decision = decidePrices({
+      used: usedMode,
+      ebay: usedPrice,
+      amazonNew: safeNumber(amazon?.newPrice),
+      googleNew: safeNumber(google?.avg),
+      aiNew: safeNumber(aiEstimate?.newPrice),
+      aiUsedMin: aiPriceMin,
+      aiUsedMax: aiPriceMax,
+    });
 
-    // 5️⃣ Core prices
-    const usedPrice = safeNumber(
-      ebay?.average ?? ebay?.lowest ?? null
-    );
-
-    // Use Google's blended average, not its single highest listing — the
-    // max is often an unrelated premium outlier (a flagship/bundle listing
-    // pulled in by a loose title match) and was dragging buy/sell prices
-    // way above what the actual scanned item is worth.
-    // AI fallback only kicks in when nothing real was found, so use the
-    // midpoint of its range rather than the top of it — using aiPriceMax
-    // here meant a wide/uncertain AI guess always resolved to its most
-    // expensive end, not a representative value.
-    const aiPriceMid =
-      aiPriceMin != null && aiPriceMax != null
-        ? (aiPriceMin + aiPriceMax) / 2
-        : aiPriceMax;
-
-    const retailPrice = safeNumber(
-      amazon?.newPrice ??
-      google?.avg ??
-      ebay?.highest ??
-      aiPriceMid ??
-      null
-    );
+    const retailPrice = decision.newPrice;
+    const average = decision.sell;
+    const smartPrice = decision.buy;
 
     // 6️⃣ Range + stats
-    const googlePriceMin = safeNumber(
-      google?.min ?? aiPriceMin ?? usedPrice ?? null
-    );
-    const googlePriceMax = safeNumber(
-      google?.max ?? aiPriceMax ?? retailPrice ?? null
-    );
+    const googlePriceMin = safeNumber(google?.min ?? aiPriceMin ?? usedPrice ?? null);
+    const googlePriceMax = safeNumber(google?.max ?? aiPriceMax ?? retailPrice ?? null);
 
-    const lowest = safeNumber(
-      ebay?.lowest ?? googlePriceMin ?? aiPriceMin ?? null
-    );
-    const highest = safeNumber(
-      ebay?.highest ?? googlePriceMax ?? aiPriceMax ?? null
-    );
-
-    // eBay's `usedPrice` comes from SOLD listings — real recent transactions
-    // for this exact query. Google/Amazon's `retailPrice` comes from *new*
-    // listings/shopping ads, which skew toward premium/branded sellers who
-    // pay to advertise — for a generic or unbranded item this runs well
-    // above what it will actually resell for. Trust eBay's sold data as the
-    // primary signal whenever we have it, rather than blending it evenly
-    // with (or, as before, effectively double-counting) the ad-biased
-    // retail number.
-    //
-    // NOTE: `retailPrice` already falls back through to `google?.avg` above,
-    // so folding `google?.avg` into this blend again as a separate term
-    // would silently double-weight it — that was a real bug (Google's
-    // number counted twice vs eBay's once), which is exactly the kind of
-    // thing that pushes a blended "average" price toward the pricier,
-    // ad-driven source.
-    const average = safeNumber(
-      usedPrice
-        ? retailPrice
-          ? usedPrice * 0.7 + retailPrice * 0.3
-          : usedPrice * 1.15
-        : retailPrice ?? null
-    );
-
-    // Prefer averaged/blended prices over a single raw min/max — a generic
-    // search (especially from an AI-guessed title) often returns unrelated
-    // items alongside real matches, and the cheapest/priciest single result
-    // can be a wildly wrong outlier (e.g. a £25 cable next to a £600
-    // premium unit under the same "speaker" search).
-    const smartPrice =
-      safeNumber(
-        (() => {
-          if (usedPrice && retailPrice) {
-            return Number(((usedPrice * 0.75) + (retailPrice * 0.25)).toFixed(2));
-          }
-          if (usedPrice) return Number((usedPrice * 0.85).toFixed(2));
-          if (average && average > 0) {
-            return Number((average * 0.85).toFixed(2));
-          }
-          if (retailPrice) return Number((retailPrice * 0.7).toFixed(2));
-          if (googlePriceMin && googlePriceMin > 0) {
-            return Number((googlePriceMin * 0.9).toFixed(2));
-          }
-          return aiPriceMin ?? aiPriceMax ?? null;
-        })()
-      ) ?? null;
+    const lowest = safeNumber(ebay?.lowest ?? googlePriceMin ?? aiPriceMin ?? null);
+    const highest = safeNumber(ebay?.highest ?? googlePriceMax ?? aiPriceMax ?? null);
 
     // 7️⃣ Demand + confidence
     const soldCount = ebay?.soldCount ?? ebay?.items?.length ?? 0;

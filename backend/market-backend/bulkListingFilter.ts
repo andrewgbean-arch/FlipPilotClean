@@ -134,6 +134,25 @@ export function listingUnits(title: string): number | null {
   return unitsOf(title);
 }
 
+// Listings for something that goes WITH the item, or for a broken one, are not
+// the item: a "JBL Charge 4 case" or "JBL Charge 4 for parts" says nothing about
+// what a working speaker is worth, but it matches the search and drags the price down.
+const NOT_THE_ITEM =
+  /\b(case|cover|pouch|sleeve|skin|strap|lanyard|stand|mount|holder|bracket|cable|charger|charging|adapter|adaptor|battery|batteries|replacement|spare|spares|parts|repair|faulty|broken|damaged|untested|manual|sticker|decal|box only|empty box|not working|no power|dead)\b/gi;
+
+/**
+ * True when a listing looks like an accessory, spare part or faulty unit rather
+ * than the item searched for. A word the search itself contains does not count
+ * (searching "phone charger" must keep listings that say "charger").
+ */
+export function isNotTheItem(title: string | null | undefined, query: string): boolean {
+  if (!title) return false;
+  const wanted = query.toLowerCase();
+  const found = title.match(NOT_THE_ITEM);
+  if (!found) return false;
+  return found.some((word) => !wanted.includes(word.toLowerCase()));
+}
+
 /**
  * True when a listing is not comparable to the item that was scanned and
  * should be ignored. See the note at the top for what `wantedCount` changes.
@@ -184,4 +203,67 @@ export function priceForPack(
   }
 
   return price;
+}
+
+/* --------------------------------------------------
+   Relevance: is this listing for the same product?
+
+   A search for "JBL Charge 4" also returns the Charge 5, the Xtreme 4 and the
+   Clip 4, and a search for one flavour of crisps returns the other flavours.
+   Their prices say nothing about the scanned item. The words that identify the
+   product (brand, model, flavour, size) must appear in the listing's title;
+   words that only describe the kind of thing it is ("portable", "speaker") do not.
+-------------------------------------------------- */
+const GENERIC_WORDS = new Set(
+  (
+    "the a an and or for with of in on to by from new used pack set kit lot item items " +
+    "black white blue red green grey gray silver gold pink purple orange yellow brown " +
+    "bluetooth wireless portable speaker speakers headphones earphones earbuds console phone mobile " +
+    "laptop tablet camera watch toy toys game games mini large small medium big original classic " +
+    "edition genuine official uk free delivery fast bargain boxed unboxed sealed working tested " +
+    "great good condition quality high low super mega ultra pro plus max lozenge lozenges tablets tablet " +
+    "snacks snack crisps flavour flavor flavoured size sized"
+  ).split(" ")
+);
+
+function words(text: string): string[] {
+  return text
+    .toLowerCase()
+    // "72 g" and "72g" are the same thing
+    .replace(/(\d)\s+(g|kg|ml|l|mg|cm|mm|gb|tb|w|cl)\b/g, "$1$2")
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length >= 3 || /\d/.test(w));
+}
+
+function sameWord(a: string, b: string): boolean {
+  if (a === b) return true;
+  // plurals and endings: lozenge/lozenges, charge/charger
+  return a.length >= 4 && b.length >= 4 && (a.startsWith(b) || b.startsWith(a));
+}
+
+/** The words in a search that identify the product. Empty when the search is generic. */
+export function identifyingWords(query: string): string[] {
+  return Array.from(new Set(words(query).filter((w) => !GENERIC_WORDS.has(w))));
+}
+
+/** True when a listing title contains (nearly) all of the search's identifying words. */
+export function matchesQuery(title: string | null | undefined, query: string): boolean {
+  const wanted = identifyingWords(query);
+  if (wanted.length === 0) return true; // a generic search: nothing to match on
+  if (!title) return false;
+
+  const have = words(title);
+  const found = wanted.filter((w) => have.some((h) => sameWord(h, w))).length;
+  return found >= Math.ceil(wanted.length * 0.8);
+}
+
+/** The items that match the search, or all of them when too few do (so a odd title still gets an answer). */
+export function relevantOrAll<T>(
+  items: T[],
+  titleOf: (item: T) => string | null | undefined,
+  query: string,
+  minimum = 3
+): T[] {
+  const relevant = items.filter((item) => matchesQuery(titleOf(item), query));
+  return relevant.length >= minimum ? relevant : items;
 }
