@@ -11,50 +11,75 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  Barcode,
+  Camera,
+  CameraSlash,
+  CaretRight,
+  ChatCircle,
+  ClockCounterClockwise,
+  CloudSun,
+  CurrencyGbp,
+  Car,
+  Stack,
+  Star,
+  Storefront,
+  Tent,
+} from "phosphor-react-native";
+import type { Icon as PhosphorIcon } from "phosphor-react-native";
 import { useTheme } from "@/styles/useTheme";
 
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
+import { getProfit } from "@/components/FlipCard";
+import { formatMoney } from "@/features/vehicles/utils/vehicleStats";
 import WeatherCard from "@/components/WeatherCard";
 import FeedbackSheet from "@/components/sheets/FeedbackSheet";
-import GlowPulseCard from "@/components/ui/GlowPulseCard";
 
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+const TOOLS: { key: string; label: string; Icon: PhosphorIcon; route: string; tint: string }[] = [
+  { key: "scan", label: "AI Scan", Icon: Camera, route: "/scan", tint: "#FFD700" },
+  { key: "barcode", label: "Barcode Lookup", Icon: Barcode, route: "/scan", tint: "#4FA3FF" },
+  { key: "flips", label: "Your Flips", Icon: Stack, route: "/history", tint: "#4CAF50" },
+  { key: "market", label: "Marketplace", Icon: Storefront, route: "/marketplace", tint: "#FF9F43" },
+  { key: "vehicles", label: "Vehicles Hub", Icon: Car, route: "/vehicles", tint: "#B78CFF" },
+];
 
-type IconFamily = "feather" | "mci";
+const INSIGHTS: { key: string; title: string; meta: string; Icon: PhosphorIcon; route: string }[] = [
+  { key: "weather", title: "Weather", meta: "Bootfair conditions", Icon: CloudSun, route: "/weather" },
+  { key: "bootfairs", title: "Bootfairs", meta: "Find local fairs", Icon: Tent, route: "/bootfairs" },
+  { key: "reviews", title: "Reviews", meta: "Rate FlipPilot", Icon: Star, route: "/rate" },
+];
 
-const TOOLS: {
-  key: string;
-  label: string;
-  icon: string;
-  family: IconFamily;
-  route: string;
+const signedMoney = (value: number) =>
+  `${value >= 0 ? "+" : "-"}£${Math.abs(value).toFixed(2)}`;
+
+function StatBlock({
+  Icon,
+  tint,
+  label,
+  value,
+  valueColor,
+  suffix,
+}: {
+  Icon: PhosphorIcon;
   tint: string;
-}[] = [
-  { key: "scan", label: "AI Scan", icon: "camera", family: "feather", route: "/scan", tint: "#FFD700" },
-  { key: "barcode", label: "Barcode Lookup", icon: "barcode", family: "mci", route: "/scan", tint: "#4FA3FF" },
-  { key: "flips", label: "Your Flips", icon: "layers", family: "feather", route: "/history", tint: "#4CAF50" },
-  { key: "market", label: "Marketplace", icon: "storefront-outline", family: "mci", route: "/marketplace", tint: "#FF9F43" },
-  { key: "vehicles", label: "Vehicles Hub", icon: "car-multiple", family: "mci", route: "/vehicles", tint: "#B78CFF" },
-];
+  label: string;
+  value: string;
+  valueColor: string;
+  suffix?: string;
+}) {
+  const theme = useTheme();
 
-const INSIGHTS: {
-  key: string;
-  title: string;
-  meta: string;
-  icon: string;
-  family: IconFamily;
-  route: string;
-}[] = [
-  { key: "weather", title: "Weather", meta: "Bootfair conditions", icon: "weather-partly-cloudy", family: "mci", route: "/weather" },
-  { key: "bootfairs", title: "Bootfairs", meta: "Find local fairs", icon: "tent", family: "mci", route: "/bootfairs" },
-  { key: "reviews", title: "Reviews", meta: "Rate FlipPilot", icon: "star", family: "feather", route: "/rate" },
-];
-
-function ToolIcon({ family, name, size, color }: { family: IconFamily; name: string; size: number; color: string }) {
-  return family === "feather" ? (
-    <Feather name={name as any} size={size} color={color} />
-  ) : (
-    <MaterialCommunityIcons name={name as any} size={size} color={color} />
+  return (
+    <View style={styles.statsBlock}>
+      <View style={[styles.statBadge, { backgroundColor: tint + "24" }]}>
+        <Icon size={18} color={tint} />
+      </View>
+      <Text style={[styles.statsLabel, { color: theme.muted }]}>{label}</Text>
+      <Text style={[styles.statsValue, { color: valueColor }]} numberOfLines={1} adjustsFontSizeToFit>
+        {value}
+        {suffix ? <Text style={[styles.statsSuffix, { color: theme.muted }]}>{suffix}</Text> : null}
+      </Text>
+    </View>
   );
 }
 
@@ -108,13 +133,11 @@ export default function HomeScreen() {
     closeSheet();
   };
 
-  // ⭐ Stats
+  // ⭐ Stats. Profit comes from the same helper as History, so the two screens
+  // agree after a flip's prices are edited.
   const stats = useMemo(() => {
     const total = flips.length;
-    const totalProfit = flips.reduce(
-      (sum, f) => sum + (f.pricing?.predictedProfit ?? f.profit ?? 0),
-      0
-    );
+    const totalProfit = flips.reduce((sum, f) => sum + getProfit(f), 0);
 
     const avgScoreRaw = flips.reduce((sum, f) => sum + (f.flipScore ?? 0), 0);
     const scoreCount = flips.filter((f) => f.flipScore != null).length;
@@ -125,6 +148,11 @@ export default function HomeScreen() {
   }, [flips]);
 
   const latestFlip = flips[0] ?? null;
+  const latestProfit = latestFlip ? getProfit(latestFlip) : 0;
+  const profitColor =
+    stats.totalProfit > 0 ? theme.success : stats.totalProfit < 0 ? theme.danger : theme.text;
+
+  const card = { backgroundColor: theme.card, borderColor: theme.hairline };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -145,88 +173,93 @@ export default function HomeScreen() {
         <WeatherCard theme={theme} />
 
         {/* STATS */}
-        <GlowPulseCard style={styles.glowCardOverride}>
-          <Text style={[styles.sectionTitle, { color: theme.gold }]}>
-            <Feather name="bar-chart-2" size={20} color={theme.gold} /> Flip Stats
+        <View style={[styles.statsCard, card]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]} accessibilityRole="header">
+            Flip stats
           </Text>
 
           <View style={styles.statsRow}>
-            <View style={styles.statsBlock}>
-              <View style={[styles.statBadge, { backgroundColor: "rgba(255,215,0,0.14)" }]}>
-                <Feather name="layers" size={16} color={theme.gold} />
-              </View>
-              <Text style={[styles.statsLabel, { color: theme.muted }]}>TOTAL FLIPS</Text>
-              <Text style={[styles.statsValue, { color: theme.white }]}>{stats.total}</Text>
-            </View>
+            <StatBlock
+              Icon={Stack}
+              tint={theme.gold}
+              label="TOTAL FLIPS"
+              value={String(stats.total)}
+              valueColor={theme.text}
+            />
 
-            <View style={styles.statDivider} />
+            <View style={[styles.statDivider, { backgroundColor: theme.hairline }]} />
 
-            <View style={styles.statsBlock}>
-              <View style={[styles.statBadge, { backgroundColor: "rgba(76,175,80,0.14)" }]}>
-                <Feather name="dollar-sign" size={16} color={theme.success} />
-              </View>
-              <Text style={[styles.statsLabel, { color: theme.muted }]}>TOTAL PROFIT</Text>
-              <Text style={[styles.statsValue, { color: theme.success }]}>
-                £{stats.totalProfit.toFixed(2)}
-              </Text>
-            </View>
+            <StatBlock
+              Icon={CurrencyGbp}
+              tint={theme.success}
+              label="TOTAL PROFIT"
+              value={formatMoney(stats.totalProfit)}
+              valueColor={profitColor}
+            />
 
-            <View style={styles.statDivider} />
+            <View style={[styles.statDivider, { backgroundColor: theme.hairline }]} />
 
-            <View style={styles.statsBlock}>
-              <View style={[styles.statBadge, { backgroundColor: "rgba(79,163,255,0.14)" }]}>
-                <Feather name="star" size={16} color={theme.secondary} />
-              </View>
-              <Text style={[styles.statsLabel, { color: theme.muted }]}>AVG SCORE</Text>
-              <Text style={[styles.statsValue, { color: theme.white }]}>
-                {stats.avgScore != null ? stats.avgScore : "—"}
-                <Text style={{ fontSize: 13, color: theme.muted }}>/100</Text>
-              </Text>
-            </View>
+            <StatBlock
+              Icon={Star}
+              tint={theme.secondary}
+              label="AVG SCORE"
+              value={stats.avgScore != null ? String(stats.avgScore) : "-"}
+              valueColor={theme.text}
+              suffix="/100"
+            />
           </View>
-        </GlowPulseCard>
+        </View>
 
         {/* LATEST FLIP */}
         <View style={styles.sectionWrapper}>
-          <Text style={[styles.sectionTitle, { color: theme.gold }]}>
-            <Feather name="zap" size={20} color={theme.gold} /> Latest Flip
+          <Text style={[styles.sectionTitle, { color: theme.text }]} accessibilityRole="header">
+            Latest flip
           </Text>
 
           {latestFlip ? (
-            <Pressable
-              style={[styles.spotlightCard, { backgroundColor: theme.card, borderColor: theme.goldSoftGlow }]}
-              onPress={() => router.push(`/flip/${latestFlip.id}`)}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.spotlightTitle, { color: theme.white }]} numberOfLines={1}>
-                  {latestFlip.title}
-                </Text>
-                <View style={styles.spotlightMetaRow}>
-                  <Feather name="dollar-sign" size={14} color={theme.success} />
-                  <Text style={[styles.spotlightMeta, { color: theme.success }]}>
-                    £{(latestFlip.pricing?.predictedProfit ?? latestFlip.profit ?? 0).toFixed(2)} profit
+            <View style={[styles.latestCard, card]}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${latestFlip.title}, ${latestProfit >= 0 ? "profit" : "loss"} of £${Math.abs(latestProfit).toFixed(2)}. Open details`}
+                style={({ pressed }) => [styles.latestMain, pressed && styles.pressed]}
+                onPress={() => router.push(`/flip/${latestFlip.id}`)}
+              >
+                <View style={styles.latestText}>
+                  <Text style={[styles.latestTitle, { color: theme.text }]} numberOfLines={1}>
+                    {latestFlip.title}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.latestProfit,
+                      { color: latestProfit >= 0 ? theme.success : theme.danger },
+                    ]}
+                  >
+                    {signedMoney(latestProfit)}
+                  </Text>
+                  <Text style={[styles.latestMeta, { color: theme.muted }]}>
+                    Score {latestFlip.flipScore ?? "-"}/100
                   </Text>
                 </View>
-                <View style={styles.spotlightMetaRow}>
-                  <Feather name="star" size={14} color={theme.gold} />
-                  <Text style={[styles.spotlightMeta, { color: theme.muted }]}>
-                    Score {latestFlip.flipScore ?? "?"}/100
-                  </Text>
-                </View>
+                <CaretRight size={20} color={theme.muted} />
+              </Pressable>
 
-                <Pressable
-                  style={styles.historyButton}
-                  onPress={() => router.push("/history")}
-                >
-                  <Feather name="clock" size={16} color={theme.muted} />
-                  <Text style={[styles.historyLabel, { color: theme.muted }]}>View History</Text>
-                </Pressable>
-              </View>
-              <Feather name="chevron-right" size={22} color={theme.muted} />
-            </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="View history"
+                style={({ pressed }) => [
+                  styles.historyRow,
+                  { borderTopColor: theme.hairline },
+                  pressed && styles.pressed,
+                ]}
+                onPress={() => router.push("/history")}
+              >
+                <ClockCounterClockwise size={18} color={theme.muted} />
+                <Text style={[styles.historyLabel, { color: theme.muted }]}>View history</Text>
+              </Pressable>
+            </View>
           ) : (
-            <View style={[styles.emptyCard, { backgroundColor: theme.card, borderColor: "rgba(255,255,255,0.06)" }]}>
-              <Feather name="camera-off" size={22} color={theme.muted} />
+            <View style={[styles.emptyCard, card]}>
+              <CameraSlash size={24} color={theme.muted} />
               <Text style={[styles.emptyText, { color: theme.muted }]}>
                 No flips yet. Start scanning to build your dashboard.
               </Text>
@@ -236,21 +269,23 @@ export default function HomeScreen() {
 
         {/* TOOLS */}
         <View style={styles.sectionWrapper}>
-          <Text style={[styles.sectionTitle, { color: theme.gold }]}>
-            <Feather name="tool" size={20} color={theme.gold} /> Tools
+          <Text style={[styles.sectionTitle, { color: theme.text }]} accessibilityRole="header">
+            Tools
           </Text>
 
           <View style={styles.toolsRow}>
-            {TOOLS.map((tool) => (
+            {TOOLS.map(({ key, label, Icon, route, tint }) => (
               <Pressable
-                key={tool.key}
-                style={[styles.toolCard, { backgroundColor: theme.card }]}
-                onPress={() => router.push(tool.route as any)}
+                key={key}
+                accessibilityRole="button"
+                accessibilityLabel={label}
+                style={({ pressed }) => [styles.toolCard, card, pressed && styles.pressed]}
+                onPress={() => router.push(route as any)}
               >
-                <View style={[styles.iconBadge, { backgroundColor: tool.tint + "22" }]}>
-                  <ToolIcon family={tool.family} name={tool.icon} size={22} color={tool.tint} />
+                <View style={[styles.iconBadge, { backgroundColor: tint + "22" }]}>
+                  <Icon size={24} color={tint} />
                 </View>
-                <Text style={[styles.toolLabel, { color: theme.text }]}>{tool.label}</Text>
+                <Text style={[styles.toolLabel, { color: theme.text }]}>{label}</Text>
               </Pressable>
             ))}
           </View>
@@ -258,28 +293,32 @@ export default function HomeScreen() {
 
         {/* INSIGHTS */}
         <View style={styles.sectionWrapper}>
-          <Text style={[styles.sectionTitle, { color: theme.gold }]}>
-            <Feather name="info" size={20} color={theme.gold} /> Insights
+          <Text style={[styles.sectionTitle, { color: theme.text }]} accessibilityRole="header">
+            Insights
           </Text>
 
           <View style={styles.insightsRow}>
-            {INSIGHTS.map((insight) => (
+            {INSIGHTS.map(({ key, title, meta, Icon, route }) => (
               <Pressable
-                key={insight.key}
-                style={[styles.insightCard, { backgroundColor: theme.card }]}
-                onPress={() => router.push(insight.route as any)}
+                key={key}
+                accessibilityRole="button"
+                accessibilityLabel={`${title}. ${meta}`}
+                style={({ pressed }) => [styles.insightCard, card, pressed && styles.pressed]}
+                onPress={() => router.push(route as any)}
               >
-                <ToolIcon family={insight.family} name={insight.icon} size={22} color={theme.muted} />
-                <Text style={[styles.insightTitle, { color: theme.text }]}>{insight.title}</Text>
-                <Text style={[styles.insightMeta, { color: theme.muted }]}>{insight.meta}</Text>
+                <Icon size={22} color={theme.muted} />
+                <Text style={[styles.insightTitle, { color: theme.text }]}>{title}</Text>
+                <Text style={[styles.insightMeta, { color: theme.muted }]}>{meta}</Text>
               </Pressable>
             ))}
 
             <Pressable
-              style={[styles.insightCard, { backgroundColor: theme.card }]}
+              accessibilityRole="button"
+              accessibilityLabel="Feedback. Tell us your thoughts"
+              style={({ pressed }) => [styles.insightCard, card, pressed && styles.pressed]}
               onPress={openSheet}
             >
-              <Feather name="message-circle" size={22} color={theme.muted} />
+              <ChatCircle size={22} color={theme.muted} />
               <Text style={[styles.insightTitle, { color: theme.text }]}>Feedback</Text>
               <Text style={[styles.insightMeta, { color: theme.muted }]}>Tell us your thoughts</Text>
             </Pressable>
@@ -312,103 +351,99 @@ const styles = StyleSheet.create({
     height: 170,
   },
 
-  glowCardOverride: { marginHorizontal: 16 },
+  sectionTitle: { fontSize: 18, fontWeight: "700", marginBottom: 12 },
+  sectionWrapper: { marginTop: 26, marginHorizontal: 16 },
 
-  sectionTitle: { fontSize: 19, fontWeight: "800", marginBottom: 14 },
+  statsCard: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+  },
   statsRow: { flexDirection: "row", alignItems: "center" },
   statsBlock: { flex: 1, alignItems: "center" },
-  statDivider: { width: 1, height: 44, backgroundColor: "rgba(255,255,255,0.08)" },
+  statDivider: { width: 1, height: 52 },
   statBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 6,
   },
-  statsLabel: { fontSize: 10, fontWeight: "700", letterSpacing: 0.6 },
-  statsValue: { fontSize: 19, fontWeight: "800", marginTop: 4 },
+  statsLabel: { fontSize: 11, fontWeight: "600", letterSpacing: 0.5 },
+  statsValue: { fontSize: 22, fontWeight: "700", marginTop: 4, fontVariant: ["tabular-nums"] },
+  statsSuffix: { fontSize: 13, fontWeight: "500" },
 
-  sectionWrapper: { marginTop: 26, marginHorizontal: 16 },
-
-  spotlightCard: {
-    borderRadius: 18,
-    padding: 18,
-    borderWidth: 1,
+  latestCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
+  latestMain: {
+    padding: 16,
     flexDirection: "row",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
+    gap: 12,
   },
-  spotlightTitle: { fontSize: 18, fontWeight: "800" },
-  spotlightMetaRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
-  spotlightMeta: { fontSize: 13, fontWeight: "600" },
+  latestText: { flex: 1, gap: 2 },
+  latestTitle: { fontSize: 16, fontWeight: "600" },
+  latestProfit: { fontSize: 22, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  latestMeta: { fontSize: 13 },
+  historyRow: {
+    minHeight: 48,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderTopWidth: 1,
+  },
+  historyLabel: { fontSize: 14, fontWeight: "600" },
 
   emptyCard: {
-    borderRadius: 18,
-    padding: 22,
+    borderRadius: 16,
     borderWidth: 1,
     borderStyle: "dashed",
+    padding: 22,
     alignItems: "center",
     gap: 8,
   },
-  emptyText: { fontSize: 13, textAlign: "center" },
-
-  historyButton: {
-    marginTop: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  historyLabel: { fontSize: 13, fontWeight: "700" },
+  emptyText: { fontSize: 14, lineHeight: 20, textAlign: "center" },
 
   toolsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
+    rowGap: 12,
   },
   toolCard: {
     width: "48%",
-    borderRadius: 18,
+    borderRadius: 16,
+    borderWidth: 1,
     padding: 16,
-    marginBottom: 14,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
   },
   iconBadge: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 10,
   },
-  toolLabel: { fontSize: 13, fontWeight: "700", textAlign: "center" },
+  toolLabel: { fontSize: 14, fontWeight: "600", textAlign: "center" },
 
   insightsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
-    gap: 12,
+    rowGap: 12,
   },
   insightCard: {
-    width: "47%",
+    width: "48%",
     borderRadius: 16,
+    borderWidth: 1,
     padding: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 1,
   },
-  insightTitle: { fontSize: 15, fontWeight: "700", marginTop: 8 },
+  insightTitle: { fontSize: 15, fontWeight: "600", marginTop: 8 },
   insightMeta: { fontSize: 12, marginTop: 3 },
-});
 
+  pressed: { opacity: 0.7 },
+});

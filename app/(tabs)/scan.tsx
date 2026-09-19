@@ -16,6 +16,7 @@ import { PermissionStatus } from "expo";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Haptics from "expo-haptics";
 import { router, useFocusEffect, useIsFocused } from "expo-router";
+import { Barcode, Camera, CameraRotate, Check, Flashlight } from "phosphor-react-native";
 
 import { useTheme } from "@/styles/ThemeContext";
 import { aiLookup, describeApiError, searchBarcode } from "@/utils/api";
@@ -26,7 +27,7 @@ const LASER_COLOR = "#FF3B3B";
 const AI_TIPS = [
   "Hold device steady…",
   "Line the barcode up inside the frame.",
-  "No barcode? Use SCAN PHOTO instead.",
+  "No barcode? Use Scan photo instead.",
   "Check for scratches before listing.",
   "Bundles sell faster — consider grouping items.",
   "Compare SOLD prices, not active listings.",
@@ -376,7 +377,7 @@ export default function ScanScreen() {
     return (
       <View style={[styles.center, { backgroundColor: theme.background }]}>
         <ActivityIndicator size="large" color={theme.gold} />
-        <Text style={{ marginTop: 20, color: theme.gold, fontWeight: "700" }}>
+        <Text style={{ marginTop: 20, color: theme.muted, fontWeight: "600" }}>
           Preparing camera…
         </Text>
       </View>
@@ -388,10 +389,10 @@ export default function ScanScreen() {
 
     return (
       <View style={[styles.center, { backgroundColor: theme.background, paddingHorizontal: 32 }]}>
-        <View style={[styles.permissionIconBadge, { backgroundColor: theme.goldSoftGlow }]}>
-          <Text style={{ fontSize: 28 }}>📷</Text>
+        <View style={[styles.permissionIconBadge, { backgroundColor: theme.card, borderColor: theme.goldSoftGlow }]}>
+          <Camera size={30} color={theme.gold} />
         </View>
-        <Text style={{ color: theme.text, fontSize: 22, fontWeight: "900", textAlign: "center" }}>
+        <Text style={{ color: theme.text, fontSize: 22, fontWeight: "700", textAlign: "center" }}>
           Camera access needed
         </Text>
         <Text style={{ color: theme.muted, fontSize: 14, textAlign: "center", marginTop: 8 }}>
@@ -401,11 +402,12 @@ export default function ScanScreen() {
         </Text>
 
         <Pressable
+          accessibilityRole="button"
           style={[styles.permissionButton, { backgroundColor: theme.gold }]}
           onPress={canAskAgain ? requestPermission : openSettings}
         >
-          <Text style={{ color: theme.black, fontWeight: "900", fontSize: 18 }}>
-            {canAskAgain ? "Enable Camera" : "Open Settings"}
+          <Text style={{ color: theme.black, fontWeight: "700", fontSize: 17 }}>
+            {canAskAgain ? "Enable camera" : "Open Settings"}
           </Text>
         </Pressable>
       </View>
@@ -438,21 +440,27 @@ export default function ScanScreen() {
         {/* TOP RIGHT BUTTONS */}
         <View style={styles.topRight}>
           <Pressable
-            style={[styles.utilityButton, { backgroundColor: theme.card }]}
+            accessibilityRole="button"
+            accessibilityLabel={torch ? "Turn torch off" : "Turn torch on"}
+            style={[styles.utilityButton, { backgroundColor: torch ? theme.gold : theme.card }]}
             onPress={() => setTorch((t) => !t)}
           >
-            <Text style={{ color: theme.text, fontWeight: "900" }}>
-              {torch ? "🔦" : "💡"}
-            </Text>
+            <Flashlight
+              size={22}
+              weight={torch ? "fill" : "regular"}
+              color={torch ? theme.black : theme.text}
+            />
           </Pressable>
 
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Switch camera"
             style={[styles.utilityButton, { backgroundColor: theme.card }]}
             onPress={() =>
               setCameraFacing((f) => (f === "back" ? "front" : "back"))
             }
           >
-            <Text style={{ color: theme.text, fontWeight: "900" }}>🔄</Text>
+            <CameraRotate size={22} color={theme.text} />
           </Pressable>
         </View>
 
@@ -494,7 +502,7 @@ export default function ScanScreen() {
           <Text style={styles.holoText}>
             {barcodeArmed
               ? currentTip
-              : "Barcode scanning is paused. Tap SCAN BARCODE to scan again."}
+              : "Scanning is paused. Tap Scan barcode to start again."}
           </Text>
         </Animated.View>
 
@@ -508,7 +516,7 @@ export default function ScanScreen() {
               },
             ]}
           >
-            <Text style={styles.successText}>✔</Text>
+            <Check size={56} weight="bold" color={theme.success} />
           </Animated.View>
         )}
 
@@ -520,17 +528,18 @@ export default function ScanScreen() {
               { backgroundColor: theme.card, borderColor: theme.goldSoftGlow },
             ]}
           >
-            <Text style={{ color: theme.text, fontSize: 18, fontWeight: "900", textAlign: "center" }}>
+            <Text style={{ color: theme.text, fontSize: 18, fontWeight: "700", textAlign: "center" }}>
               The camera couldn't start
             </Text>
             <Text style={{ color: theme.muted, fontSize: 14, textAlign: "center", marginTop: 8 }}>
               It may be in use by another app. Close other apps that use the camera, then try again.
             </Text>
             <Pressable
+              accessibilityRole="button"
               style={[styles.permissionButton, { backgroundColor: theme.gold }]}
               onPress={retryCamera}
             >
-              <Text style={{ color: theme.black, fontWeight: "900", fontSize: 16 }}>
+              <Text style={{ color: theme.black, fontWeight: "700", fontSize: 16 }}>
                 Try again
               </Text>
             </Pressable>
@@ -540,6 +549,8 @@ export default function ScanScreen() {
         {/* BUTTONS */}
         <View style={styles.bottomButtons}>
           <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ disabled: barcodeArmed }}
             style={[
               styles.scanButton,
               { backgroundColor: theme.gold },
@@ -548,18 +559,19 @@ export default function ScanScreen() {
             onPress={() => setBarcodeArmed(true)}
             disabled={barcodeArmed}
           >
-            <Text style={{ color: theme.black, fontWeight: "900", fontSize: 18 }}>
-              {barcodeArmed ? "SCANNING FOR BARCODE" : "SCAN BARCODE"}
+            <Barcode size={22} color={theme.black} />
+            <Text style={[styles.scanButtonLabel, { color: theme.black }]}>
+              {barcodeArmed ? "Scanning for barcode…" : "Scan barcode"}
             </Text>
           </Pressable>
 
           <Pressable
-            style={[styles.scanButton, { backgroundColor: theme.gold }]}
+            accessibilityRole="button"
+            style={[styles.scanButton, styles.scanButtonSecondary]}
             onPress={takePhoto}
           >
-            <Text style={{ color: theme.black, fontWeight: "900", fontSize: 18 }}>
-              SCAN PHOTO
-            </Text>
+            <Camera size={22} color={theme.text} />
+            <Text style={[styles.scanButtonLabel, { color: theme.text }]}>Scan photo</Text>
           </Pressable>
         </View>
 
@@ -578,14 +590,16 @@ export default function ScanScreen() {
       {loading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={theme.gold} />
-          <Text style={{ marginTop: 20, color: theme.gold, fontWeight: "900" }}>
-            Analyzing…
+          <Text style={{ marginTop: 20, color: theme.text, fontSize: 16, fontWeight: "600" }}>
+            Analysing…
           </Text>
           <Pressable
-            style={[styles.cancelButton, { borderColor: theme.gold }]}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel scan"
+            style={[styles.cancelButton, { borderColor: "rgba(255,255,255,0.3)" }]}
             onPress={cancelScan}
           >
-            <Text style={{ color: theme.gold, fontWeight: "800", fontSize: 16 }}>
+            <Text style={{ color: theme.text, fontWeight: "600", fontSize: 16 }}>
               Cancel
             </Text>
           </Pressable>
@@ -596,9 +610,9 @@ export default function ScanScreen() {
       {toastVisible && (
         <Animated.View
           pointerEvents="none"
-          style={[styles.toast, { borderColor: theme.gold }]}
+          style={[styles.toast, { borderColor: theme.hairline }]}
         >
-          <Text style={{ color: theme.gold, fontWeight: "800", textAlign: "center" }}>
+          <Text style={{ color: theme.text, fontWeight: "600", textAlign: "center" }}>
             {toastMessage}
           </Text>
         </Animated.View>
@@ -617,12 +631,13 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
 
   permissionIconBadge: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
+    borderWidth: 1,
+    marginBottom: 20,
   },
 
   topRight: {
@@ -685,32 +700,20 @@ const styles = StyleSheet.create({
   },
 
 holoText: {
-  color: "rgba(255,255,255,0.85)",
+  color: "rgba(255,255,255,0.9)",
   fontSize: 15,
-  fontWeight: "700",
+  fontWeight: "600",
   textAlign: "center",
-  textShadowColor: "rgba(255,0,0,0.4)",
-  textShadowOffset: { width: 0, height: 0 },
-  textShadowRadius: 6,
 },
 successCheck: {
   position: "absolute",
   top: "40%",
   alignSelf: "center",
-  backgroundColor: "rgba(0,255,0,0.15)",
-  padding: 30,
+  backgroundColor: "rgba(10,17,40,0.75)",
+  padding: 26,
   borderRadius: 100,
-  borderWidth: 2,
-  borderColor: "rgba(0,255,0,0.4)",
-},
-
-successText: {
-  fontSize: 60,
-  fontWeight: "900",
-  color: "lime",
-  textShadowColor: "rgba(0,255,0,0.6)",
-  textShadowOffset: { width: 0, height: 0 },
-  textShadowRadius: 12,
+  borderWidth: 1,
+  borderColor: "rgba(76,175,80,0.6)",
 },
 
 bottomButtons: {
@@ -722,13 +725,24 @@ bottomButtons: {
 },
 
 scanButton: {
-  paddingVertical: 16,
+  minHeight: 52,
+  paddingVertical: 14,
   borderRadius: 14,
+  flexDirection: "row",
   alignItems: "center",
-  shadowColor: "#FFD700",
-  shadowOpacity: 0.4,
-  shadowRadius: 10,
-  shadowOffset: { width: 0, height: 0 },
+  justifyContent: "center",
+  gap: 10,
+},
+
+scanButtonSecondary: {
+  backgroundColor: "rgba(10,17,40,0.78)",
+  borderWidth: 1,
+  borderColor: "rgba(255,255,255,0.18)",
+},
+
+scanButtonLabel: {
+  fontSize: 17,
+  fontWeight: "700",
 },
 
 scanButtonActive: {
@@ -764,10 +778,11 @@ loadingOverlay: {
 
 cancelButton: {
   marginTop: 28,
-  paddingVertical: 12,
+  minHeight: 48,
+  justifyContent: "center",
   paddingHorizontal: 32,
   borderRadius: 14,
-  borderWidth: 1.5,
+  borderWidth: 1,
 },
 
 toast: {
@@ -779,7 +794,7 @@ toast: {
   paddingVertical: 12,
   paddingHorizontal: 22,
   borderRadius: 14,
-  borderWidth: 2,
+  borderWidth: 1,
   zIndex: 50,
 },
 });

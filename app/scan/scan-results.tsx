@@ -1,6 +1,17 @@
 import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
+import {
+  Backspace,
+  Barcode,
+  BookmarkSimple,
+  Camera,
+  Check,
+  CheckCircle,
+  ImageBroken,
+  PencilSimple,
+  WarningCircle,
+} from "phosphor-react-native";
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
@@ -14,6 +25,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { useTheme } from "@/styles/ThemeContext";
@@ -35,11 +47,80 @@ const keepPhoto = async (uri: string): Promise<string> => {
   }
 };
 
+// Keys of the price keypad, in reading order (three to a row).
+const CALC_KEYS = ["7", "8", "9", "4", "5", "6", "1", "2", "3", "0", ".", "DEL"];
+const CALC_ROWS = [0, 3, 6, 9].map((start) => CALC_KEYS.slice(start, start + 3));
+
+// "+£12.50" or "-£3.20". A profit of exactly zero carries no sign.
+const signedMoney = (n: number) =>
+  `${n > 0 ? "+" : n < 0 ? "-" : ""}£${Math.abs(n).toFixed(2)}`;
+const signedPercent = (n: number) =>
+  `${n > 0 ? "+" : n < 0 ? "-" : ""}${Math.abs(n).toFixed(1)}%`;
+
+// One of the two big Buy / Sell tiles. Tapping it opens the keypad.
+function PriceTile({
+  label,
+  value,
+  onPress,
+}: {
+  label: string;
+  value: number | null;
+  onPress: () => void;
+}) {
+  const theme = useTheme();
+  const valueText = value != null ? `£${value.toFixed(2)}` : "Tap to set";
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${label}, ${value != null ? valueText : "not set"}`}
+      accessibilityHint="Opens the keypad to change this price"
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.tile,
+        { backgroundColor: theme.card, borderColor: theme.hairline },
+        pressed && styles.pressed,
+      ]}
+    >
+      <View style={styles.tileTop}>
+        <Text style={[styles.tileLabel, { color: theme.muted }]}>{label}</Text>
+        <PencilSimple size={16} color={theme.muted} />
+      </View>
+      <Text
+        style={[
+          value != null ? styles.tileValue : styles.tileEmpty,
+          { color: value != null ? theme.text : theme.muted },
+        ]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+      >
+        {valueText}
+      </Text>
+    </Pressable>
+  );
+}
+
+// A label on the left and a value on the right, used inside a grouped card.
+function FactRow({ label, value, divider }: { label: string; value: string; divider?: boolean }) {
+  const theme = useTheme();
+
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${label}, ${value}`}
+      style={[styles.factRow, divider && { borderTopWidth: 1, borderTopColor: theme.hairline }]}
+    >
+      <Text style={[styles.factLabel, { color: theme.muted }]}>{label}</Text>
+      <Text style={[styles.factValue, { color: theme.text }]}>{value}</Text>
+    </View>
+  );
+}
+
 export default function ScanResultsScreen() {
   const params = useLocalSearchParams();
   const { addVehicle, loadError } = useVehicleHistory();
   const theme = useTheme();
-  const isPro = theme.mode === "pro";
+  const insets = useSafeAreaInsets();
 
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -172,8 +253,8 @@ export default function ScanResultsScreen() {
     return (
       <View style={[styles.center, { backgroundColor: theme.background }]}>
         <ActivityIndicator size="large" color={theme.gold} />
-        <Text style={{ marginTop: 16, color: theme.gold, fontWeight: "700" }}>
-          Loading scan…
+        <Text style={[styles.stateLoading, { color: theme.muted }]}>
+          Loading your scan result
         </Text>
       </View>
     );
@@ -181,286 +262,271 @@ export default function ScanResultsScreen() {
 
   if (!data) {
     return (
-      <View
-        style={[
-          styles.center,
-          { backgroundColor: theme.background, paddingHorizontal: 32 },
-        ]}
-      >
-        <Text style={[styles.title, { color: theme.text, textAlign: "center" }]}>
+      <View style={[styles.center, { backgroundColor: theme.background }]}>
+        <View
+          style={[styles.stateIcon, { backgroundColor: theme.card, borderColor: theme.hairline }]}
+        >
+          <WarningCircle size={30} color={theme.warning} />
+        </View>
+        <Text style={[styles.stateTitle, { color: theme.text }]} accessibilityRole="header">
           Couldn't load this result
         </Text>
-        <Text style={[styles.subtitle, { color: theme.muted, textAlign: "center" }]}>
+        <Text style={[styles.stateBody, { color: theme.muted }]}>
           This scan isn't available any more. Go back and scan the item again.
         </Text>
         <Pressable
-          style={[
-            styles.actionButton,
-            {
-              backgroundColor: theme.gold,
-              borderColor: theme.goldSoftGlow,
-              marginTop: 20,
-              paddingHorizontal: 32,
-            },
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          style={({ pressed }) => [
+            styles.stateButton,
+            { backgroundColor: theme.gold },
+            pressed && styles.pressed,
           ]}
           onPress={() =>
             router.canGoBack() ? router.back() : router.replace("/(tabs)/scan")
           }
         >
-          <Text style={[styles.actionButtonText, { color: theme.black }]}>
-            Go back
-          </Text>
+          <Text style={[styles.primaryLabel, { color: theme.black }]}>Go back</Text>
         </Pressable>
       </View>
     );
   }
 
   const title = data.title ?? data.product?.title ?? "Unknown Item";
+  const barcode = data.barcode ?? data.product?.barcode ?? null;
+
+  const card = { backgroundColor: theme.card, borderColor: theme.hairline };
+
+  // Profit and ROI share one colour: green for a gain, red for a loss, plain for break-even.
+  const signColor = (n: number | null) =>
+    n == null ? theme.muted : n > 0 ? theme.success : n < 0 ? theme.danger : theme.text;
+  const profitColor = signColor(profit);
+
+  const fairPrice = data.ai?.fair_price;
+
+  const scoreColor =
+    flipScore >= 70 ? theme.success : flipScore >= 40 ? theme.warning : theme.danger;
+  const scoreBand = flipScore >= 70 ? "Strong" : flipScore >= 40 ? "Fair" : "Weak";
+  const scorePercent = Math.max(0, Math.min(100, Number(flipScore) || 0));
+
+  const facts: { label: string; value: string }[] = [];
+  if (data.ai?.condition) facts.push({ label: "Condition", value: String(data.ai.condition) });
+  if (data.ai?.confidence != null) {
+    facts.push({ label: "Confidence", value: `${data.ai.confidence}%` });
+  }
+  const hasAnalysis = Boolean(data.ai?.description || data.ai?.condition);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* TITLE */}
         <View style={styles.header}>
-          <Text style={[styles.title, { color: theme.text }]}>{title}</Text>
-          <Text style={[styles.subtitle, { color: theme.muted }]}>
-            {data.barcode ?? data.product?.barcode ?? "Identified from photo"}
-          </Text>
-        </View>
-
-        {/* AI DESCRIPTION */}
-        {(data.ai?.description || data.ai?.condition) && (
-          <View
-            style={[
-              styles.cardWide,
-              { backgroundColor: theme.card, borderColor: theme.goldSoftGlow, marginBottom: 16 },
-            ]}
-          >
-            <Text style={[styles.cardLabel, { color: theme.gold }]}>AI Analysis</Text>
-
-            {data.ai?.description && (
-              <Text style={[styles.marketLine, { color: theme.text }]}>
-                {data.ai.description}
-              </Text>
-            )}
-
-            <View style={styles.priceRow}>
-              {data.ai?.condition && (
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.priceLabel, { color: theme.muted }]}>Condition</Text>
-                  <Text style={[styles.priceValue, { color: theme.text }]}>
-                    {data.ai.condition}
-                  </Text>
-                </View>
-              )}
-              {data.ai?.confidence != null && (
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.priceLabel, { color: theme.muted }]}>Confidence</Text>
-                  <Text style={[styles.priceValue, { color: theme.text }]}>
-                    {data.ai.confidence}%
-                  </Text>
-                </View>
-              )}
-            </View>
-          </View>
-        )}
-
-        {/* IMAGE */}
-        {data.image && (
-          <View
-            style={[
-              styles.imageWrapper,
-              { backgroundColor: theme.card, borderColor: theme.goldSoftGlow },
-            ]}
-          >
-            {imageFailed ? (
-              <View style={styles.center}>
-                <Text style={{ color: theme.muted }}>Photo no longer available</Text>
+          {data.image ? (
+            imageFailed ? (
+              <View
+                accessible
+                accessibilityLabel="Photo no longer available"
+                style={[styles.thumb, styles.thumbEmpty, card]}
+              >
+                <ImageBroken size={26} color={theme.muted} />
               </View>
             ) : (
               <Image
                 source={{ uri: data.image }}
-                style={styles.image}
-                resizeMode="contain"
+                style={styles.thumb}
+                resizeMode="cover"
+                accessibilityLabel="Photo of the scanned item"
                 onError={() => setImageFailed(true)}
               />
-            )}
+            )
+          ) : null}
+
+          <View style={styles.headerText}>
+            <Text
+              style={[styles.title, { color: theme.text }]}
+              numberOfLines={3}
+              accessibilityRole="header"
+            >
+              {title}
+            </Text>
+            <View style={styles.metaRow}>
+              {barcode ? (
+                <Barcode size={14} color={theme.muted} />
+              ) : (
+                <Camera size={14} color={theme.muted} />
+              )}
+              <Text style={[styles.meta, { color: theme.muted }]} numberOfLines={1} selectable>
+                {barcode ?? "Identified from photo"}
+              </Text>
+            </View>
           </View>
-        )}
+        </View>
+
+        {/* PROFIT + ROI */}
+        <View style={[styles.hero, card]}>
+          <Text style={[styles.heroLabel, { color: theme.muted }]}>Estimated profit</Text>
+
+          <View style={styles.heroRow}>
+            <Text
+              style={[styles.profit, { color: profitColor }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              accessibilityLabel={
+                profit != null
+                  ? `Estimated ${profit < 0 ? "loss" : "profit"} of £${Math.abs(profit).toFixed(2)}`
+                  : "Estimated profit not available yet"
+              }
+            >
+              {profit != null ? signedMoney(profit) : "—"}
+            </Text>
+
+            <View style={[styles.roiPill, { backgroundColor: theme.background }]}>
+              <Text
+                style={[styles.roiText, { color: signColor(roi) }]}
+                accessibilityLabel={
+                  roi != null ? `Return on investment ${signedPercent(roi)}` : "Return on investment not available"
+                }
+              >
+                ROI {roi != null ? signedPercent(roi) : "—"}
+              </Text>
+            </View>
+          </View>
+
+          {profit == null ? (
+            <Text style={[styles.heroHint, { color: theme.muted }]}>
+              Set a buy and a sell price to see your profit.
+            </Text>
+          ) : null}
+
+          <View style={[styles.fairRow, { borderTopColor: theme.hairline }]}>
+            <Text style={[styles.factLabel, { color: theme.muted }]}>Fair market price</Text>
+            <Text style={[styles.fairValue, { color: theme.text }]}>
+              {fairPrice != null ? `£${Number(fairPrice).toFixed(2)}` : "—"}
+            </Text>
+          </View>
+        </View>
+
+        {/* BUY + SELL */}
+        <View style={styles.tilesRow}>
+          <PriceTile label="Buy price" value={buyPrice} onPress={() => openCalculator("buy")} />
+          <PriceTile label="Sell price" value={sellPrice} onPress={() => openCalculator("sell")} />
+        </View>
 
         {/* FLIP SCORE */}
-        <View style={styles.row}>
-          <View
-            style={[
-              styles.card,
-              { backgroundColor: theme.card, borderColor: theme.goldSoftGlow },
-            ]}
-          >
-            <Text style={[styles.cardLabel, { color: theme.gold }]}>
-              FlipScore
-            </Text>
-            <Text style={[styles.flipScoreValue, { color: theme.text }]}>
-              {flipScore}
-            </Text>
+        <View
+          accessible
+          accessibilityLabel={`FlipScore ${flipScore} out of 100, ${scoreBand}`}
+          style={[styles.scoreCard, card]}
+        >
+          <View style={styles.scoreTop}>
+            <Text style={[styles.heroLabel, { color: theme.muted }]}>FlipScore</Text>
+            <Text style={[styles.scoreBand, { color: scoreColor }]}>{scoreBand}</Text>
+          </View>
 
+          <View style={styles.scoreNumberRow}>
+            <Text style={[styles.scoreValue, { color: theme.text }]}>{flipScore}</Text>
+            <Text style={[styles.scoreMax, { color: theme.muted }]}>/ 100</Text>
+          </View>
+
+          <View style={[styles.meterTrack, { backgroundColor: theme.background }]}>
             <View
               style={[
-                styles.meterBackground,
-                { backgroundColor: theme.secondary },
+                styles.meterFill,
+                { width: `${scorePercent}%`, backgroundColor: scoreColor },
               ]}
-            >
-              <View
-                style={[
-                  styles.meterFill,
-                  {
-                    width: `${flipScore}%`,
-                    backgroundColor:
-                      flipScore >= 70
-                        ? theme.success
-                        : flipScore >= 40
-                        ? theme.gold
-                        : theme.danger,
-                  },
-                ]}
-              />
-            </View>
+            />
           </View>
         </View>
 
-        {/* PRICING */}
-        <View
-          style={[
-            styles.cardWide,
-            { backgroundColor: theme.card, borderColor: theme.goldSoftGlow },
-          ]}
-        >
-          <Text style={[styles.cardLabel, { color: theme.gold }]}>
-            Pricing
-          </Text>
+        {/* AI ANALYSIS */}
+        {hasAnalysis ? (
+          <>
+            <Text style={[styles.sectionTitle, { color: theme.text }]} accessibilityRole="header">
+              AI analysis
+            </Text>
+            <View style={[styles.group, card]}>
+              {facts.map((fact, i) => (
+                <FactRow key={fact.label} label={fact.label} value={fact.value} divider={i > 0} />
+              ))}
 
-          {/* FAIR PRICE */}
-          <Text style={[styles.marketLine, { color: theme.text }]}>
-            Fair Price: £
-            {data.ai?.fair_price != null
-              ? data.ai.fair_price.toFixed(2)
-              : "—"}
-          </Text>
-
-          {/* BUY PRICE */}
-          <View style={styles.priceRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.priceLabel, { color: theme.muted }]}>
-                Buy price
-              </Text>
-              <Text style={[styles.priceValue, { color: theme.text }]}>
-                {buyPrice != null ? `£${buyPrice.toFixed(2)}` : "Tap to set"}
-              </Text>
+              {data.ai?.description ? (
+                <Text
+                  style={[
+                    styles.description,
+                    { color: theme.text },
+                    facts.length > 0 && { borderTopWidth: 1, borderTopColor: theme.hairline },
+                  ]}
+                >
+                  {data.ai.description}
+                </Text>
+              ) : null}
             </View>
+          </>
+        ) : null}
+      </ScrollView>
 
-            <Pressable
-              style={[styles.priceButton, { backgroundColor: theme.gold }]}
-              onPress={() => openCalculator("buy")}
-            >
-              <Text
-                style={[styles.priceButtonText, { color: theme.black }]}
-              >
-                Set
-              </Text>
-            </Pressable>
+      {/* ACTIONS */}
+      <View
+        style={[
+          styles.footer,
+          {
+            backgroundColor: theme.background,
+            borderTopColor: theme.hairline,
+            paddingBottom: Math.max(insets.bottom, 16),
+          },
+        ]}
+      >
+        {saved ? (
+          <View style={styles.savedRow} accessibilityLiveRegion="polite">
+            <CheckCircle size={16} weight="fill" color={theme.success} />
+            <Text style={[styles.savedText, { color: theme.muted }]}>
+              This flip is now in your History and Home dashboard
+            </Text>
           </View>
+        ) : null}
 
-          {/* SELL PRICE */}
-          <View style={styles.priceRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.priceLabel, { color: theme.muted }]}>
-                Sell price
-              </Text>
-              <Text style={[styles.priceValue, { color: theme.text }]}>
-                {sellPrice != null ? `£${sellPrice.toFixed(2)}` : "Tap to set"}
-              </Text>
-            </View>
-
-            <Pressable
-              style={[styles.priceButton, { backgroundColor: theme.gold }]}
-              onPress={() => openCalculator("sell")}
-            >
-              <Text
-                style={[styles.priceButtonText, { color: theme.black }]}
-              >
-                Set
-              </Text>
-            </Pressable>
-          </View>
-
-          {/* PROFIT + ROI */}
-          <View style={styles.priceRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.priceLabel, { color: theme.muted }]}>
-                Profit
-              </Text>
-              <Text
-                style={[
-                  styles.priceValue,
-                  {
-                    color:
-                      profit != null && profit < 0
-                        ? theme.danger
-                        : theme.success,
-                  },
-                ]}
-              >
-                {profit != null ? `£${profit.toFixed(2)}` : "—"}
-              </Text>
-            </View>
-
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.priceLabel, { color: theme.muted }]}>
-                ROI
-              </Text>
-              <Text style={[styles.priceValue, { color: theme.text }]}>
-                {roi != null ? `${roi}%` : "—"}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* ACTION BUTTONS */}
-        <View style={{ gap: 12, marginTop: 16 }}>
+        <View style={styles.footerRow}>
           <Pressable
-            style={[
-              styles.actionButton,
-              { backgroundColor: theme.gold, borderColor: theme.goldSoftGlow },
+            accessibilityRole="button"
+            accessibilityLabel="Scan again"
+            style={({ pressed }) => [
+              styles.secondaryButton,
+              { borderColor: theme.hairline, backgroundColor: theme.card },
+              pressed && styles.pressed,
             ]}
             onPress={scanAgain}
           >
-            <Text
-              style={[styles.actionButtonText, { color: theme.black }]}
-            >
-              Scan Again
+            <Text style={[styles.secondaryLabel, { color: theme.text }]}>Scan again</Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={saved ? "Saved to history" : "Save to history"}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              saved
+                ? { backgroundColor: theme.card, borderWidth: 1, borderColor: theme.hairline }
+                : { backgroundColor: theme.gold },
+              pressed && styles.pressed,
+            ]}
+            onPress={saveToHistory}
+            disabled={saved}
+          >
+            {saved ? (
+              <CheckCircle size={20} weight="fill" color={theme.success} />
+            ) : (
+              <BookmarkSimple size={20} weight="bold" color={theme.black} />
+            )}
+            <Text style={[styles.primaryLabel, { color: saved ? theme.text : theme.black }]}>
+              {saved ? "Saved" : "Save to history"}
             </Text>
           </Pressable>
         </View>
-
-        {/* SAVE */}
-        <Pressable
-          style={[
-            styles.saveBox,
-            { backgroundColor: theme.card, borderColor: theme.gold },
-            saved && { opacity: 0.6 },
-          ]}
-          onPress={saveToHistory}
-          disabled={saved}
-        >
-          <Text style={[styles.saveTitle, { color: theme.gold }]}>
-            {saved ? "Saved ✓" : "Save to history"}
-          </Text>
-          <Text style={[styles.saveSubtitle, { color: theme.muted }]}>
-            {saved
-              ? "This flip is now in your History and Home dashboard"
-              : "Keep this flip in your log for later"}
-          </Text>
-        </Pressable>
-      </ScrollView>
+      </View>
 
       {/* CALCULATOR */}
       <Modal
@@ -472,75 +538,85 @@ export default function ScanResultsScreen() {
         <View style={styles.modalBackdrop}>
           <View
             style={[
-              styles.calcContainer,
-              { backgroundColor: theme.card, borderColor: theme.goldSoftGlow },
+              styles.sheet,
+              {
+                backgroundColor: theme.card,
+                borderColor: theme.hairline,
+                paddingBottom: Math.max(insets.bottom, 16) + 8,
+              },
             ]}
           >
-            <Text style={[styles.calcTitle, { color: theme.gold }]}>
+            <View style={[styles.grabber, { backgroundColor: theme.muted }]} />
+
+            <Text style={[styles.calcTitle, { color: theme.text }]} accessibilityRole="header">
               {calcMode === "buy" ? "Set buy price" : "Set sell price"}
             </Text>
 
-            <View
-              style={[
-                styles.calcDisplay,
-                { backgroundColor: theme.secondary },
-              ]}
-            >
+            <View style={[styles.calcDisplay, { backgroundColor: theme.background }]}>
               <Text
                 style={[styles.calcDisplayText, { color: theme.text }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                accessibilityLiveRegion="polite"
               >
                 £{calcValue || "0"}
               </Text>
             </View>
 
             <View style={styles.calcGrid}>
-              {["7","8","9","4","5","6","1","2","3","0",".","DEL"].map(
-                (key) => (
-                  <Pressable
-                    key={key}
-                    style={[
-                      styles.calcKey,
-                      { backgroundColor: theme.secondary },
-                    ]}
-                    onPress={() => handleCalcKey(key)}
-                  >
-                    <Text
-                      style={[styles.calcKeyText, { color: theme.text }]}
+              {CALC_ROWS.map((row, rowIndex) => (
+                <View key={rowIndex} style={styles.calcRow}>
+                  {row.map((key) => (
+                    <Pressable
+                      key={key}
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        key === "DEL" ? "Delete" : key === "." ? "Decimal point" : key
+                      }
+                      style={({ pressed }) => [
+                        styles.calcKey,
+                        { backgroundColor: theme.background },
+                        pressed && styles.pressed,
+                      ]}
+                      onPress={() => handleCalcKey(key)}
                     >
-                      {key}
-                    </Text>
-                  </Pressable>
-                )
-              )}
+                      {key === "DEL" ? (
+                        <Backspace size={26} color={theme.text} />
+                      ) : (
+                        <Text style={[styles.calcKeyText, { color: theme.text }]}>{key}</Text>
+                      )}
+                    </Pressable>
+                  ))}
+                </View>
+              ))}
             </View>
 
             <View style={styles.calcBottomRow}>
               <Pressable
-                style={[
-                  styles.calcActionButton,
-                  { backgroundColor: theme.secondary },
+                accessibilityRole="button"
+                accessibilityLabel="Clear amount"
+                style={({ pressed }) => [
+                  styles.calcClear,
+                  { borderColor: theme.hairline, backgroundColor: theme.background },
+                  pressed && styles.pressed,
                 ]}
                 onPress={() => handleCalcKey("CLR")}
               >
-                <Text
-                  style={[styles.calcActionText, { color: theme.text }]}
-                >
-                  Clear
-                </Text>
+                <Text style={[styles.secondaryLabel, { color: theme.text }]}>Clear</Text>
               </Pressable>
 
               <Pressable
-                style={[
-                  styles.calcActionButton,
+                accessibilityRole="button"
+                accessibilityLabel="Confirm price"
+                style={({ pressed }) => [
+                  styles.calcConfirm,
                   { backgroundColor: theme.gold },
+                  pressed && styles.pressed,
                 ]}
                 onPress={confirmCalc}
               >
-                <Text
-                  style={[styles.calcActionText, { color: theme.black }]}
-                >
-                  Confirm
-                </Text>
+                <Check size={20} weight="bold" color={theme.black} />
+                <Text style={[styles.primaryLabel, { color: theme.black }]}>Confirm</Text>
               </Pressable>
             </View>
           </View>
@@ -550,189 +626,273 @@ export default function ScanResultsScreen() {
   );
 }
 
-/* ================================
-   ⭐ STYLES
-================================ */
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
-
+  scroll: { flex: 1 },
   scrollContent: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 24,
+  },
+
+  /* LOADING AND NOT-FOUND STATES */
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
     paddingBottom: 40,
   },
-
-  header: { marginBottom: 16 },
-
-  title: {
-    fontSize: 22,
-    fontWeight: "900",
-  },
-  subtitle: {
-    marginTop: 4,
-  },
-
-  imageWrapper: {
-    width: "100%",
-    height: 220,
-    borderRadius: 14,
-    overflow: "hidden",
-    marginBottom: 16,
+  stateLoading: { fontSize: 15, marginTop: 16, textAlign: "center" },
+  stateIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     borderWidth: 1,
-  },
-  image: { width: "100%", height: "100%" },
-
-  row: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 12,
-  },
-
-  card: {
-    flex: 1,
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1,
-  },
-  cardWide: {
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1,
-    marginBottom: 12,
-  },
-
-  cardLabel: {
-    fontWeight: "800",
-    marginBottom: 6,
-  },
-  flipScoreValue: {
-    fontSize: 24,
-    fontWeight: "900",
-    marginBottom: 6,
-  },
-
-  meterBackground: {
-    height: 8,
-    borderRadius: 999,
-    overflow: "hidden",
-    marginBottom: 4,
-  },
-  meterFill: {
-    height: "100%",
-    borderRadius: 999,
-  },
-
-  priceRow: {
-    flexDirection: "row",
     alignItems: "center",
-    marginTop: 8,
-    gap: 10,
-  },
-  priceLabel: {
-    fontSize: 13,
-  },
-  priceValue: {
-    fontSize: 18,
-    fontWeight: "800",
-    marginTop: 2,
-  },
-  priceButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 999,
-  },
-  priceButtonText: {
-    fontWeight: "800",
-  },
-
-  marketLine: {
-    fontSize: 14,
-    marginTop: 4,
-  },
-
-  actionButton: {
-    paddingVertical: 12,
-    borderRadius: 999,
     justifyContent: "center",
+    marginBottom: 20,
+  },
+  stateTitle: { fontSize: 20, fontWeight: "700", textAlign: "center" },
+  stateBody: { fontSize: 15, lineHeight: 22, textAlign: "center", marginTop: 8 },
+  stateButton: {
+    minHeight: 48,
+    borderRadius: 14,
+    paddingHorizontal: 32,
+    marginTop: 24,
     alignItems: "center",
+    justifyContent: "center",
+  },
+
+  /* TITLE */
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  thumb: { width: 72, height: 72, borderRadius: 12 },
+  thumbEmpty: {
     borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  actionButtonText: {
-    fontWeight: "800",
-    fontSize: 15,
+  headerText: { flex: 1 },
+  title: { fontSize: 24, fontWeight: "700", lineHeight: 30 },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 4,
   },
+  meta: { flexShrink: 1, fontSize: 13, fontVariant: ["tabular-nums"] },
 
-  saveBox: {
+  /* PROFIT + ROI */
+  hero: {
     marginTop: 16,
-    padding: 14,
     borderRadius: 16,
-    borderWidth: 1.5,
-  },
-  saveTitle: {
-    fontWeight: "900",
-    fontSize: 16,
-    marginBottom: 4,
-  },
-  saveSubtitle: {
-    fontSize: 13,
-  },
-
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    justifyContent: "flex-end",
-  },
-  calcContainer: {
+    borderWidth: 1,
     padding: 16,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+  },
+  heroLabel: { fontSize: 13 },
+  heroRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    marginTop: 4,
+  },
+  profit: {
+    flexShrink: 1,
+    fontSize: 40,
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
+  roiPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  roiText: { fontSize: 14, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  heroHint: { fontSize: 13, marginTop: 4 },
+  fairRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    marginTop: 16,
+    paddingTop: 12,
     borderTopWidth: 1,
   },
-  calcTitle: {
-    fontSize: 18,
-    fontWeight: "900",
-    marginBottom: 10,
+  fairValue: { fontSize: 16, fontWeight: "600", fontVariant: ["tabular-nums"] },
+
+  /* BUY + SELL */
+  tilesRow: { flexDirection: "row", gap: 12, marginTop: 12 },
+  tile: {
+    flex: 1,
+    minHeight: 96,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 14,
+    justifyContent: "space-between",
   },
-  calcDisplay: {
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-  },
-  calcDisplayText: {
-    fontSize: 24,
-    fontWeight: "900",
-    textAlign: "right",
-  },
-  calcGrid: {
+  tileTop: {
     flexDirection: "row",
-    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  tileLabel: { fontSize: 13 },
+  tileValue: { fontSize: 26, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  tileEmpty: { fontSize: 18, fontWeight: "600" },
+
+  /* FLIP SCORE */
+  scoreCard: {
+    marginTop: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+  },
+  scoreTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  scoreBand: { fontSize: 14, fontWeight: "700" },
+  scoreNumberRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 6,
+    marginTop: 4,
+  },
+  scoreValue: { fontSize: 32, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  scoreMax: { fontSize: 16, fontVariant: ["tabular-nums"] },
+  meterTrack: {
+    height: 10,
+    borderRadius: 5,
+    overflow: "hidden",
+    marginTop: 12,
+  },
+  meterFill: { height: "100%", borderRadius: 5 },
+
+  /* AI ANALYSIS */
+  sectionTitle: { fontSize: 18, fontWeight: "700", marginTop: 24, marginBottom: 12 },
+  group: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
+  factRow: {
+    minHeight: 52,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  factLabel: { fontSize: 14 },
+  factValue: {
+    flexShrink: 1,
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "right",
+    fontVariant: ["tabular-nums"],
+  },
+  description: { fontSize: 15, lineHeight: 22, padding: 16 },
+
+  /* ACTIONS */
+  footer: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+  },
+  savedRow: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     marginBottom: 12,
   },
-  calcKey: {
-    width: "22%",
-    aspectRatio: 1,
-    borderRadius: 999,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  calcKeyText: {
-    fontSize: 18,
-    fontWeight: "800",
-  },
-  calcBottomRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  calcActionButton: {
+  savedText: { flexShrink: 1, fontSize: 13 },
+  footerRow: { flexDirection: "row", gap: 12 },
+  secondaryButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 999,
-    justifyContent: "center",
+    minHeight: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 12,
     alignItems: "center",
+    justifyContent: "center",
   },
-  calcActionText: {
-    fontWeight: "800",
-    fontSize: 16,
+  secondaryLabel: { fontSize: 16, fontWeight: "600" },
+  primaryButton: {
+    flex: 1.5,
+    minHeight: 52,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
   },
+  primaryLabel: { fontSize: 16, fontWeight: "700" },
+
+  /* PRICE KEYPAD */
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: 1,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+  },
+  grabber: {
+    alignSelf: "center",
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    opacity: 0.5,
+    marginBottom: 14,
+  },
+  calcTitle: { fontSize: 18, fontWeight: "700" },
+  calcDisplay: {
+    marginTop: 12,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  calcDisplayText: {
+    fontSize: 36,
+    fontWeight: "700",
+    textAlign: "right",
+    fontVariant: ["tabular-nums"],
+  },
+  calcGrid: { marginTop: 12, gap: 10 },
+  calcRow: { flexDirection: "row", gap: 10 },
+  calcKey: {
+    flex: 1,
+    minHeight: 56,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  calcKeyText: { fontSize: 24, fontWeight: "600", fontVariant: ["tabular-nums"] },
+  calcBottomRow: { flexDirection: "row", gap: 10, marginTop: 12 },
+  calcClear: {
+    flex: 1,
+    minHeight: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  calcConfirm: {
+    flex: 1.5,
+    minHeight: 52,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+
+  pressed: { opacity: 0.7 },
 });
