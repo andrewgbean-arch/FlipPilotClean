@@ -1,5 +1,5 @@
 import axios from "axios";
-import { isBulkListing } from "./bulkListingFilter";
+import { priceForPack } from "./bulkListingFilter";
 
 export interface EbayMarketResult {
   average: number | null;
@@ -47,7 +47,8 @@ function filterOutliers(prices: number[]) {
    ⭐ MAIN FUNCTION
 -------------------------------------------------- */
 export default async function fetchEbayMarket(
-  query: string
+  query: string,
+  wantedCount?: number | null
 ): Promise<EbayMarketResult> {
   try {
     if (!query) {
@@ -70,23 +71,23 @@ export default async function fetchEbayMarket(
       query
     )}&api_key=${process.env.SERPAPI_KEY}&ebay_domain=ebay.co.uk&sort=best_match&sold_items=true`;
 
-    const res = await axios.get(url, { timeout: 12000 });
+    const res = await axios.get(url, { timeout: 7000 });
     const items = res.data.shopping_results ?? [];
 
     const rawPrices: number[] = [];
 
     for (const item of items) {
-      if (isBulkListing(item.title)) continue;
-
       if (typeof item.extracted_price === "number") {
-        rawPrices.push(item.extracted_price);
+        const p = priceForPack(item.title, item.extracted_price, wantedCount);
+        if (p !== null) rawPrices.push(p);
       }
 
       if (item.price) {
-        const p = parseFloat(
-          item.price.replace(/[^0-9.,]/g, "").replace(",", ".")
+        const listed = parseFloat(
+          String(item.price).replace(/[^0-9.,]/g, "").replace(",", ".")
         );
-        if (!isNaN(p)) rawPrices.push(p);
+        const p = priceForPack(item.title, listed, wantedCount);
+        if (p !== null) rawPrices.push(p);
       }
     }
 

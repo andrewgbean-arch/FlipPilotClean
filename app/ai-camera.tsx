@@ -16,6 +16,7 @@ import {
 } from "react-native";
 
 import { aiLookup, describeApiError } from "@/utils/api";
+import { photoForUpload } from "@/utils/photo";
 import { normalizeConfidence, transformScanResult } from "@/utils/scanTransform";
 
 const NAVY = "#0A1128";
@@ -24,8 +25,8 @@ const GOLD = "#FFD700";
 // expo-camera unbinds the shared camera when any camera view is destroyed, so give the
 // previous screen's camera a moment to go away before this one mounts.
 const CAMERA_SETTLE_MS = 300;
-// Photos travel to the server as base64; this keeps them well under its 10mb body limit.
-const PHOTO_QUALITY = 0.5;
+// The photo is shrunk before it is sent (see photoForUpload), so capture at a good quality.
+const PHOTO_QUALITY = 0.7;
 
 export default function AiCameraScreen() {
   const isFocused = useIsFocused();
@@ -165,9 +166,9 @@ export default function AiCameraScreen() {
     try {
       let photo;
       try {
+        // No base64 here: a full-size photo as text is slow to build and is shrunk below anyway.
         photo = await cameraRef.current.takePictureAsync({
           quality: PHOTO_QUALITY,
-          base64: true,
         });
       } catch (err) {
         console.log("Photo capture error:", err);
@@ -179,12 +180,20 @@ export default function AiCameraScreen() {
 
       if (controller.signal.aborted) return;
 
-      if (!photo?.base64) {
+      if (!photo?.uri) {
         Alert.alert("Scan failed", "Couldn't read that photo. Please try again.");
         return;
       }
 
-      const res = await aiLookup(photo.base64, controller.signal);
+      const upload = await photoForUpload(photo);
+      if (controller.signal.aborted) return;
+
+      if (!upload) {
+        Alert.alert("Scan failed", "Couldn't read that photo. Please try again.");
+        return;
+      }
+
+      const res = await aiLookup(upload, controller.signal);
       if (controller.signal.aborted) return;
 
       // SUPER NOVA VISION MODE DATA

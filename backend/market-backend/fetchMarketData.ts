@@ -2,7 +2,7 @@ import axios from "axios";
 import fetchAmazonMarket from "./amazonMarket";
 import fetchEbayMarket, { EbayMarketResult } from "./ebayMarket";
 import fetchEbayBrowseMarket from "./ebayBrowseApi";
-import { isBulkListing } from "./bulkListingFilter";
+import { extractPackCount, priceForPack } from "./bulkListingFilter";
 
 // Read this at call time, not at module load — server.ts imports this
 // module (via search.ts/searchImage.ts) BEFORE it calls dotenv.config(),
@@ -83,7 +83,7 @@ function safeNumber(n: unknown): number | null {
 /* --------------------------------------------------
    ⭐ Google Shopping (copied from /search, wrapped)
 -------------------------------------------------- */
-async function fetchGoogleShopping(query: string) {
+async function fetchGoogleShopping(query: string, wantedCount?: number | null) {
   try {
     // Without a region/currency pin, SerpAPI defaults to google.com (US) —
     // returning US listings priced in USD, which this app was silently
@@ -94,14 +94,12 @@ async function fetchGoogleShopping(query: string) {
       query
     )}&google_domain=google.co.uk&gl=uk&hl=en&currency=GBP&api_key=${process.env.SERPAPI_KEY}`;
 
-    const res = await axios.get(url, { timeout: 12000 });
+    const res = await axios.get(url, { timeout: 4500 });
     const items = res.data.shopping_results ?? [];
 
     const rawPrices: number[] = [];
 
     for (const item of items) {
-      if (isBulkListing(item.title)) continue;
-
       const candidates = [
         item.extracted_price,
         item.unit_price,
@@ -112,10 +110,12 @@ async function fetchGoogleShopping(query: string) {
       for (const c of candidates) {
         if (!c) continue;
 
-        const p = parseFloat(
+        const listed = parseFloat(
           String(c).replace(/[^0-9.,]/g, "").replace(",", ".")
         );
-        if (!isNaN(p)) rawPrices.push(p);
+        // Scaled to the scanned pack size where the listing says its own; dropped if bulk.
+        const p = priceForPack(item.title, listed, wantedCount);
+        if (p !== null) rawPrices.push(p);
       }
     }
 
@@ -175,7 +175,7 @@ Return ONLY valid JSON:
         temperature: 0.2,
       },
       {
-        timeout: 12000,
+        timeout: 6000,
         headers: {
           Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
           "Content-Type": "application/json",
@@ -200,11 +200,68 @@ Return ONLY valid JSON:
 }
 
 /* --------------------------------------------------
+   ⭐ Speed: hard deadline per source + short-lived cache
+-------------------------------------------------- */
+// A slow source used to hold the whole answer up. Each one now gets a deadline
+// and, if it misses it, counts as "no data" so the others can be used.
+function withDeadline<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise<T>((resolve) => {
+    const timer = setTimeout(() => resolve(fallback), ms);
+    work.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      () => {
+        clearTimeout(timer);
+        resolve(fallback);
+      }
+    );
+  });
+}
+
+// Scanning the same item twice (or a second person scanning it) should not pay
+// for the same lookups again.
+const CACHE_TTL_MS = 10 * 60 * 1000;
+const CACHE_MAX = 200;
+const cache = new Map<string, { at: number; value: UnifiedMarketResult }>();
+
+function cacheGet(key: string): UnifiedMarketResult | null {
+  const hit = cache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.at > CACHE_TTL_MS) {
+    cache.delete(key);
+    return null;
+  }
+  return hit.value;
+}
+
+function cacheSet(key: string, value: UnifiedMarketResult) {
+  // Only remember answers that found something; a failed lookup should be retried.
+  if (value.lowest == null && value.smartPrice == null) return;
+  if (cache.size >= CACHE_MAX) {
+    const oldest = cache.keys().next().value;
+    if (oldest !== undefined) cache.delete(oldest);
+  }
+  cache.set(key, { at: Date.now(), value });
+}
+
+/* --------------------------------------------------
    ⭐ MAIN UNIFIED MARKET FUNCTION
+
+   `options.packCount` is how many units the scanned item holds (read off the
+   label or the barcode record). When it is not given, it is read from the
+   query text ("... 20 lozenges").
 -------------------------------------------------- */
 export default async function fetchMarketData(
-  query: string
+  query: string,
+  options: { packCount?: number | null } = {}
 ): Promise<UnifiedMarketResult> {
+  const wantedCount = options.packCount ?? extractPackCount(query);
+  const cacheKey = `${query.trim().toLowerCase()}|${wantedCount ?? ""}`;
+  const cached = query ? cacheGet(cacheKey) : null;
+  if (cached) return cached;
+
   if (!query) {
     return {
       usedPrice: null,
@@ -234,11 +291,25 @@ export default async function fetchMarketData(
     // 1️⃣-3️⃣ eBay, Amazon and Google are independent lookups — run them
     // concurrently instead of one after another (was costing 3x the latency
     // for no benefit, since none of these depend on each other's result).
-    const [ebay, amazon, google] = await Promise.all([
-      hasEbayBrowseCreds() ? fetchEbayBrowseMarket(query) : fetchEbayMarket(query),
-      fetchAmazonMarket(query),
-      fetchGoogleShopping(query),
-    ]);
+    const startedAt = Date.now();
+
+    const ebayPromise = withDeadline(
+      hasEbayBrowseCreds()
+        ? fetchEbayBrowseMarket(query, wantedCount)
+        : fetchEbayMarket(query, wantedCount),
+      6500,
+      null
+    );
+    const amazonPromise = withDeadline(fetchAmazonMarket(query, wantedCount), 4500, null);
+    const googlePromise = fetchGoogleShopping(query, wantedCount);
+
+    const [ebay, amazon] = await Promise.all([ebayPromise, amazonPromise]);
+
+    // Google Shopping is the slowest and least reliable of the three, so once
+    // the others are in it only gets a short grace period rather than holding
+    // the whole answer up for its full timeout.
+    const googleGraceMs = Math.max(300, Math.min(1500, 5000 - (Date.now() - startedAt)));
+    const google = await withDeadline(googlePromise, googleGraceMs, null);
 
     // 4️⃣ AI fallback (only if Google + eBay are weak)
     const weakGoogle = !google?.min || google.min < 1;
@@ -373,7 +444,7 @@ const image =
     const ebayItems = ebay?.ebayData?.items ?? ebay?.items ?? [];
     const googleItems = google?.items ?? [];
 
-    return {
+    const result: UnifiedMarketResult = {
       usedPrice,
       retailPrice,
       googlePriceMin,
@@ -401,6 +472,9 @@ const image =
       googleItems,
       image,
     };
+
+    cacheSet(cacheKey, result);
+    return result;
   } catch (err: any) {
     console.error("Unified Market Engine Error:", err?.message || err);
 

@@ -3,6 +3,7 @@ import { Router } from "express";
 import fetchMarketData from "../market-backend/fetchMarketData";
 import { buildFlipMeta } from "../market-backend/buildFlipMeta";
 import { rateLimit } from "../middleware/rateLimit";
+import { extractPackCount } from "../market-backend/bulkListingFilter";
 
 
 
@@ -14,7 +15,7 @@ const router = Router();
 async function fetchOpenFoodFacts(barcode: string) {
   try {
     const url = `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`;
-    const res = await axios.get(url);
+    const res = await axios.get(url, { timeout: 4000 });
 
     if (res.data.status !== 1) return null;
 
@@ -27,6 +28,8 @@ async function fetchOpenFoodFacts(barcode: string) {
       categories: p.categories ?? null,
       origin: p.countries ?? null,
       ingredients: p.ingredients_text ?? null,
+      // e.g. "20 lozenges", "500 ml": how much is in this pack.
+      quantity: p.quantity ?? null,
     };
   } catch {
     return null;
@@ -49,8 +52,6 @@ Item title: ${title}
 Origin: ${origin}
 Category: ${category}
 Ingredients: ${ingredients}
-Retail price: ${market?.googlePriceMin} - ${market?.googlePriceMax}
-Used price: ${market?.lowest} - ${market?.highest}
 
 Return JSON with:
 - title
@@ -70,8 +71,10 @@ Return JSON with:
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
         response_format: { type: "json_object" },
+        max_tokens: 450,
       },
       {
+        timeout: 10000,
         headers: {
           Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
           "Content-Type": "application/json",
@@ -105,11 +108,16 @@ router.get("/search", rateLimit(10), async (req, res) => {
     const off = await fetchOpenFoodFacts(barcode);
     const searchQuery = off?.title ?? barcode;
 
-    // ⭐ Unified pricing engine
-    const market = await fetchMarketData(searchQuery);
+    // The pack size on the product record ("20 lozenges") is what the prices
+    // have to be compared against.
+    const packCount = extractPackCount(off?.quantity ?? "") ?? extractPackCount(off?.title ?? "");
 
-    // AI block stays the same
-    const ai = await buildAiBlock(off, market);
+    // The description does not need the prices, so write it while they are
+    // being looked up instead of after (this used to run one after the other).
+    const [market, ai] = await Promise.all([
+      fetchMarketData(searchQuery, { packCount }),
+      buildAiBlock(off, null),
+    ]);
 
     // Flip meta stays the same
     const flipMeta = buildFlipMeta(market);

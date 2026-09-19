@@ -1,6 +1,6 @@
 import axios from "axios";
 import { EbayMarketResult } from "./ebayMarket";
-import { isBulkListing } from "./bulkListingFilter";
+import { priceForPack } from "./bulkListingFilter";
 
 /* --------------------------------------------------
    ⭐ eBay Browse API (official, OAuth2 client-credentials)
@@ -40,7 +40,7 @@ async function getEbayAccessToken(): Promise<string> {
     "https://api.ebay.com/identity/v1/oauth2/token",
     body.toString(),
     {
-      timeout: 8000,
+      timeout: 5000,
       headers: {
         Authorization: `Basic ${basicAuth}`,
         "Content-Type": "application/x-www-form-urlencoded",
@@ -72,7 +72,8 @@ function filterOutliers(prices: number[]) {
 }
 
 export default async function fetchEbayBrowseMarket(
-  query: string
+  query: string,
+  wantedCount?: number | null
 ): Promise<EbayMarketResult> {
   const empty: EbayMarketResult = {
     average: null,
@@ -96,7 +97,7 @@ export default async function fetchEbayBrowseMarket(
     const res = await axios.get(
       "https://api.ebay.com/buy/browse/v1/item_summary/search",
       {
-        timeout: 10000,
+        timeout: 6000,
         params: {
           q: query,
           limit: 50,
@@ -114,10 +115,11 @@ export default async function fetchEbayBrowseMarket(
     const items: any[] = [];
 
     for (const item of summaries) {
-      if (isBulkListing(item?.title)) continue;
-
-      const value = parseFloat(item?.price?.value);
-      if (!isNaN(value)) rawPrices.push(value);
+      // Scaled to the scanned pack size where the listing says its own; dropped if bulk.
+      const listed = parseFloat(item?.price?.value);
+      const value = priceForPack(item?.title, listed, wantedCount) ?? NaN;
+      if (isNaN(value)) continue;
+      rawPrices.push(value);
 
       items.push({
         title: item?.title ?? query,

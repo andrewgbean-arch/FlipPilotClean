@@ -7,7 +7,8 @@ const PORT = 3001;
 
 const REQUEST_TIMEOUT_MS = 20_000;
 // Photo lookups run a vision call and then a market lookup on the server, so they get longer.
-const PHOTO_TIMEOUT_MS = 30_000;
+// The server gives up on its slowest source after about 8 seconds, so 25 is generous.
+const PHOTO_TIMEOUT_MS = 25_000;
 // The backend rejects request bodies over 10mb; stay under that rather than upload a doomed request.
 const MAX_IMAGE_BASE64_LENGTH = 9_000_000;
 
