@@ -4,8 +4,6 @@ import helmet from "helmet";
 import morgan from "morgan";
 import dotenv from "dotenv";
 import axios from "axios";
-import fs from "fs";
-import path from "path";
 import registerPublishListingRoute from "./routes/publishListing";
 import registerPublishedListingsRoute from "./routes/publishedListings";
 import registerMessagesRoute from "./routes/messages";
@@ -17,18 +15,16 @@ import vehiclePhotoAnalysisRoute from "./routes/vehiclePhotoAnalysis";
 import { rateLimit } from "./middleware/rateLimit";
 
 
-import {
-  getUser,
-  incrementUsage,
-  isOverLimit,
-  isDeviceAllowed,
-  lockDevice
-} from "./userstore";
 
 dotenv.config();
 
 const app = express();
 const PORT = Number(process.env.PORT) || 4000;
+
+// Set TRUST_PROXY_HOPS=1 when hosted behind one proxy (Render, Fly, Heroku ...) so
+// req.ip is the real caller. Left at 0 for running on your own network.
+const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS) || 0;
+if (trustProxyHops > 0) app.set("trust proxy", trustProxyHops);
 
 /* -------------------------------------------------------
    MIDDLEWARE
@@ -50,10 +46,15 @@ app.use((req, res, next) => {
   next();
 });
 
-registerPublishedListingsRoute(app);
-registerPublishListingRoute(app);
-registerMessagesRoute(app);
-registerAIDescriptionRoute(app);
+// The Marketplace is hidden in the app, and these routes have no sign-in (anyone can
+// post, read messages or spend OpenAI credits on descriptions), so they are only
+// switched on when ENABLE_MARKETPLACE=true.
+if (process.env.ENABLE_MARKETPLACE === "true") {
+  registerPublishedListingsRoute(app);
+  registerPublishListingRoute(app);
+  registerMessagesRoute(app);
+  registerAIDescriptionRoute(app);
+}
 app.use(searchRoute);
 app.use(searchImageRoute);
 app.use(scanStepsRoute);
@@ -299,164 +300,15 @@ app.get("/vehicle", rateLimit(30), async (req, res) => {
 });
 
 /* -------------------------------------------------------
-   DEVICE LOCK
-------------------------------------------------------- */
-app.post("/auth/device-lock", (req, res) => {
-  const { userId, deviceId } = req.body;
-
-  if (!userId || !deviceId) {
-    return res.status(400).json({ ok: false, error: "Missing userId or deviceId" });
-  }
-
-  lockDevice(userId, deviceId);
-
-  res.status(200).json({ ok: true, message: "Device locked" });
-});
-
-/* -------------------------------------------------------
-   AI PRICE DETECTOR
-------------------------------------------------------- */
-app.post("/scan", async (req, res, next) => {
-  try {
-    const { userId, deviceId, barcode, imageBase64, store, location } = req.body;
-
-    if (!userId || !deviceId) {
-      return res.status(400).json({ ok: false, error: "Missing userId or deviceId" });
-    }
-
-    const user = getUser(userId);
-
-    if (!isDeviceAllowed(userId, deviceId)) {
-      return res.status(403).json({ ok: false, error: "Device not allowed" });
-    }
-
-    if (isOverLimit(userId)) {
-      return res.status(429).json({ ok: false, error: "Usage limit reached" });
-    }
-
-    incrementUsage(userId, "vision");
-
-    const product = {
-      barcode: barcode ?? "N/A",
-      title: "Sample Product",
-      base_price: 2.99,
-      category: "Grocery"
-    };
-
-    const fair_price = product.base_price * 1.25;
-    const suggested_buy = product.base_price * 0.9;
-    const suggested_sell = fair_price;
-    const flip_score = Math.floor(Math.random() * 25) + 70;
-
-    res.status(200).json({
-      ok: true,
-      product,
-      ai: {
-        fair_price,
-        suggested_buy,
-        suggested_sell,
-        flip_score
-      },
-      image: imageBase64 ?? null,
-      store,
-      location
-    });
-  } catch (err) {
-    console.error("❌ SCAN ERROR:", err);
-    next(err);
-  }
-});
-
-/* -------------------------------------------------------
-   VAN JOBS
-------------------------------------------------------- */
-app.get("/jobs", (_req, res) => {
-  const jobs = [
-    {
-      id: 1,
-      title: "Deliver parcels to Torquay",
-      pay: 42,
-      distance_km: 8,
-      time_window: "18:00 - 20:00",
-      status: "open"
-    },
-    {
-      id: 2,
-      title: "Pick up returns from Paignton",
-      pay: 35,
-      distance_km: 5,
-      time_window: "19:00 - 21:00",
-      status: "open"
-    }
-  ];
-
-  res.status(200).json({ ok: true, jobs });
-});
-
-/* -------------------------------------------------------
-   ACCEPT JOB
-------------------------------------------------------- */
-app.post("/jobs/:id/accept", (req, res) => {
-  const jobId = Number(req.params.id);
-
-  res.status(200).json({
-    ok: true,
-    jobId,
-    message: `Job ${jobId} accepted`,
-    status: "accepted",
-    timestamp: new Date().toISOString()
-  });
-});
-
-/* -------------------------------------------------------
-   ADMIN STATS
-------------------------------------------------------- */
-app.get("/stats", (_req, res) => {
-  const storePath = path.join(__dirname, "data", "users.json");
-  const raw = fs.readFileSync(storePath, "utf8");
-  const users = JSON.parse(raw);
-
-  const totalUsers = Object.keys(users).length;
-  const totalBarcode = Object.values(users).reduce((a: number, u: any) => a + u.barcodeUses, 0);
-  const totalVision = Object.values(users).reduce((a: number, u: any) => a + u.visionUses, 0);
-
-  res.status(200).json({
-    ok: true,
-    totalUsers,
-    totalBarcode,
-    totalVision
-  });
-});
-app.post("/car-listings", (req, res) => {
-  const listing = req.body;
-
-  const filePath = path.join(__dirname, "data", "car-listings.json");
-
-  let existing = [];
-  if (fs.existsSync(filePath)) {
-    existing = JSON.parse(fs.readFileSync(filePath, "utf8"));
-  }
-
-  existing.push({
-    ...listing,
-    id: existing.length + 1,
-    createdAt: new Date().toISOString()
-  });
-
-  fs.writeFileSync(filePath, JSON.stringify(existing, null, 2));
-
-  res.json({ ok: true, id: existing.length });
-});
-
-/* -------------------------------------------------------
    GLOBAL ERROR HANDLER
 ------------------------------------------------------- */
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   const error = err instanceof Error ? err : new Error("Unknown error");
 
+  console.error("Unhandled error:", error.message);
   res.status(500).json({
     ok: false,
-    error: error.message
+    error: process.env.NODE_ENV === "production" ? "Something went wrong." : error.message
   });
 });
 

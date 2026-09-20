@@ -4,6 +4,7 @@ import fetchMarketData from "../market-backend/fetchMarketData";
 import { buildFlipMeta } from "../market-backend/buildFlipMeta";
 import { extractPackCount } from "../market-backend/bulkListingFilter";
 import { getEbayAccessToken } from "../market-backend/ebayBrowseApi";
+import { paidLookupBudget } from "../middleware/dailyBudget";
 import { rateLimit } from "../middleware/rateLimit";
 import { askVision, DESCRIBE_PROMPT, IDENTIFY_PROMPT } from "./searchImage";
 import { buildAiBlock, fetchOpenFoodFacts } from "./search";
@@ -107,7 +108,7 @@ export async function identifyBarcode(code: string): Promise<BarcodeIdentity | n
   return identity;
 }
 
-router.get("/identify-barcode", rateLimit(30), async (req, res) => {
+router.get("/identify-barcode", rateLimit(30), paidLookupBudget, async (req, res) => {
   try {
     const code = String(req.query.q ?? "").replace(/\D/g, "");
     if (code.length < 6) return res.json({ error: "bad-barcode", message: "That doesn't look like a barcode. Try scanning it again." });
@@ -136,7 +137,7 @@ router.get("/identify-barcode", rateLimit(30), async (req, res) => {
 
 /* ---------------- photo -> product ---------------- */
 
-router.post("/identify-image", rateLimit(6), async (req, res) => {
+router.post("/identify-image", rateLimit(6), paidLookupBudget, async (req, res) => {
   try {
     const { imageBase64 } = req.body ?? {};
     if (!imageBase64 || typeof imageBase64 !== "string" || imageBase64.length < 50) {
@@ -172,7 +173,7 @@ const gradeOf = (condition: unknown) => {
   return /like new/i.test(c) ? "like new" : /poor/i.test(c) ? "poor" : /fair/i.test(c) ? "fair" : "good";
 };
 
-router.post("/price", rateLimit(30), async (req, res) => {
+router.post("/price", rateLimit(30), paidLookupBudget, async (req, res) => {
   try {
     const { title, packCount, condition, barcode, imageBase64 } = req.body ?? {};
     if (!title || typeof title !== "string") return res.json({ error: "Missing title" });

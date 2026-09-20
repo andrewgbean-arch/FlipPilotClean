@@ -1,5 +1,6 @@
 import { Router } from "express";
 import axios from "axios";
+import { paidLookupBudget } from "../middleware/dailyBudget";
 import { rateLimit } from "../middleware/rateLimit";
 
 const router = Router();
@@ -88,7 +89,7 @@ Rules:
 /* --------------------------------------------------
    MAIN ROUTE
 -------------------------------------------------- */
-router.post("/vehicle-photo-analysis", rateLimit(5), async (req, res) => {
+router.post("/vehicle-photo-analysis", rateLimit(5), paidLookupBudget, async (req, res) => {
   try {
     const { imageBase64 } = req.body;
 

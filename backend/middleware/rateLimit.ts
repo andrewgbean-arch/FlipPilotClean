@@ -20,11 +20,11 @@ setInterval(() => {
 export function rateLimit(maxPerMinute: number) {
   return (req: Request, res: Response, next: NextFunction) => {
     const ip = req.ip || "unknown";
-    const userId = (req as any).body?.userId || "guest";
     const route = req.path;
 
-    // Unique key per IP + user + route
-    const key = `${ip}:${userId}:${route}`;
+    // One bucket per IP and route. It used to include `body.userId` as well, but the
+    // caller chooses that, so sending a different one each time gave unlimited requests.
+    const key = `${ip}:${route}`;
 
     const now = Date.now();
     const windowMs = 60_000;

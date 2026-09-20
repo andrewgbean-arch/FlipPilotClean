@@ -1,5 +1,6 @@
 import { Router } from "express";
 import axios from "axios";
+import { paidLookupBudget } from "../middleware/dailyBudget";
 import { rateLimit } from "../middleware/rateLimit";
 import fetchMarketData from "../market-backend/fetchMarketData";
 import { buildFlipMeta } from "../market-backend/buildFlipMeta";
@@ -132,7 +133,7 @@ You are an expert reseller describing an item from a photo. Return ONLY this JSO
 /* --------------------------------------------------
    MAIN ROUTE — UPGRADED
 -------------------------------------------------- */
-router.post("/search-image", rateLimit(2), async (req, res) => {
+router.post("/search-image", rateLimit(2), paidLookupBudget, async (req, res) => {
   try {
     const { imageBase64, userId, deviceId } = req.body;
 
