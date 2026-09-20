@@ -12,6 +12,7 @@ import registerMessagesRoute from "./routes/messages";
 import registerAIDescriptionRoute from "./routes/aiDescription";
 import searchRoute from "./routes/search";
 import searchImageRoute from "./routes/searchImage";
+import scanStepsRoute from "./routes/scanSteps";
 import vehiclePhotoAnalysisRoute from "./routes/vehiclePhotoAnalysis";
 import { rateLimit } from "./middleware/rateLimit";
 
@@ -55,6 +56,7 @@ registerMessagesRoute(app);
 registerAIDescriptionRoute(app);
 app.use(searchRoute);
 app.use(searchImageRoute);
+app.use(scanStepsRoute);
 app.use(vehiclePhotoAnalysisRoute);
 
 /* -------------------------------------------------------

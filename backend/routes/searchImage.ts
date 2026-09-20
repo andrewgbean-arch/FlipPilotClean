@@ -39,7 +39,7 @@ function extractJSON(text: string) {
    The price lookup starts as soon as (1) is back, while (2) is still being
    written. Before, one long answer had to finish before prices even started.
 -------------------------------------------------- */
-async function askVision(
+export async function askVision(
   prompt: string,
   base64: string,
   options: { maxTokens: number; timeoutMs: number }
@@ -85,7 +85,7 @@ async function askVision(
   }
 }
 
-const IDENTIFY_PROMPT = `
+export const IDENTIFY_PROMPT = `
 You are a professional product recognition system.
 
 The "title" you return is used verbatim to search eBay/Amazon/Google for
@@ -118,7 +118,7 @@ Return ONLY this JSON, nothing else:
 {"title": "...", "packCount": number or null, "condition": "New / Like New / Good / Fair / Poor", "category": "...", "confidence": number}
 `;
 
-const DESCRIBE_PROMPT = `
+export const DESCRIBE_PROMPT = `
 You are an expert reseller describing an item from a photo. Return ONLY this JSON:
 {
   "description": "1 short sentence summary",

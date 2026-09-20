@@ -22,7 +22,7 @@ import { isNotTheItem, matchesQuery, priceForPack } from "./bulkListingFilter";
 
 let tokenCache: { token: string; expiresAt: number } | null = null;
 
-async function getEbayAccessToken(): Promise<string> {
+export async function getEbayAccessToken(): Promise<string> {
   if (tokenCache && tokenCache.expiresAt > Date.now() + 30_000) {
     return tokenCache.token;
   }

@@ -324,7 +324,7 @@ export default async function fetchMarketData(
     // The AI's idea of the new price and the used range, asked alongside the
     // searches: the cross-check if what the searches found is far off.
     const aiEstimatePromise = withDeadline(fetchAiPriceEstimate(query, wantedCount), 5000, null);
-    const amazonPromise = withDeadline(fetchAmazonMarket(query, wantedCount), 4500, null);
+    const amazonPromise = withDeadline(fetchAmazonMarket(query, wantedCount), 3000, null);
     const googlePromise = fetchGoogleShopping(query, wantedCount);
 
     const [ebay, amazon] = await Promise.all([ebayPromise, amazonPromise]);
@@ -333,7 +333,7 @@ export default async function fetchMarketData(
     // from a third of a second to twenty), so it does not hold the answer up:
     // once the others are in it gets a short grace period and is used only if
     // it made it. The AI's price estimate is the cross-check that doesn't wait.
-    const googleGraceMs = Math.max(300, Math.min(2000, 5000 - (Date.now() - startedAt)));
+    const googleGraceMs = Math.max(300, Math.min(1000, 4000 - (Date.now() - startedAt)));
     const google = await withDeadline(googlePromise, googleGraceMs, null);
     const aiEstimate = await aiEstimatePromise;
     const ebayNew = await ebayNewPromise;

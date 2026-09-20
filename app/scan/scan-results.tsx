@@ -31,7 +31,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { useTheme } from "@/styles/ThemeContext";
-import { SCAN_AGAIN_EVENT } from "@/utils/scanTransform";
+import { fetchPrices } from "@/utils/api";
+import { dropPending, getPending } from "@/utils/pendingScan";
+import { applyPrices, SCAN_AGAIN_EVENT } from "@/utils/scanTransform";
 
 // A photo scan's picture sits in the cache folder, which the OS can clear at any time.
 // Keep a copy in the documents folder so a saved flip doesn't lose its photo.
@@ -79,15 +81,18 @@ function PriceTile({
   value,
   onPress,
   locked,
+  checking,
 }: {
   label: string;
   value: number | null;
   onPress: () => void;
+  // The price is still being looked up.
+  checking?: boolean;
   // Once the flip is saved the prices are part of the record, so they can no longer be edited here.
   locked?: boolean;
 }) {
   const theme = useTheme();
-  const valueText = value != null ? `£${value.toFixed(2)}` : "Tap to set";
+  const valueText = value != null ? `£${value.toFixed(2)}` : checking ? "Checking…" : "Tap to set";
 
   return (
     <Pressable
@@ -147,6 +152,8 @@ export default function ScanResultsScreen() {
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
+  // A scan opens this screen after step 1 (what is it?); step 2 (what is it worth?) runs here.
+  const [priceState, setPriceState] = useState<"ready" | "loading" | "failed">("ready");
   const [source, setSource] = useState<SourceKey>("charity");
   const [imageFailed, setImageFailed] = useState(false);
 
@@ -165,6 +172,7 @@ export default function ScanResultsScreen() {
 
         setBuyPrice(parsed.ai?.suggested_buy ?? null);
         setSellPrice(parsed.ai?.suggested_sell ?? null);
+        if (parsed.pendingId) setPriceState("loading");
       }
     } catch (e) {
       console.log("Failed to parse scan result:", e);
@@ -172,6 +180,40 @@ export default function ScanResultsScreen() {
       setLoading(false);
     }
   }, [params?.data]);
+
+  // Step 2: look the prices up while the screen is already showing the item.
+  useEffect(() => {
+    const pendingId: string | undefined = data?.pendingId ?? undefined;
+    if (!pendingId || priceState !== "loading") return;
+
+    const request = getPending(pendingId);
+    if (!request) {
+      setPriceState("failed");
+      return;
+    }
+
+    const controller = new AbortController();
+    fetchPrices(request, controller.signal)
+      .then((res) => {
+        if (controller.signal.aborted) return;
+        const next = applyPrices(data, res);
+        setData(next);
+        // Don't overwrite a price the user has already typed in.
+        setBuyPrice((current) => current ?? next.ai.suggested_buy ?? null);
+        setSellPrice((current) => current ?? next.ai.suggested_sell ?? null);
+        setPriceState("ready");
+        dropPending(pendingId);
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        console.log("Price lookup failed:", err);
+        setPriceState("failed");
+      });
+
+    return () => controller.abort();
+    // `data` is read once when the lookup starts; the lookup must not restart when it is updated.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.pendingId, priceState]);
 
   const profit = useMemo(() => {
     if (buyPrice == null || sellPrice == null) return null;
@@ -448,7 +490,28 @@ export default function ScanResultsScreen() {
             </View>
           </View>
 
-          {profit == null ? (
+          {priceState === "loading" ? (
+            <View style={styles.checkingRow} accessibilityLiveRegion="polite">
+              <ActivityIndicator size="small" color={theme.muted} />
+              <Text style={[styles.heroHint, styles.checkingText, { color: theme.muted }]}>
+                Checking prices…
+              </Text>
+            </View>
+          ) : priceState === "failed" ? (
+            <View accessibilityLiveRegion="polite">
+              <Text style={[styles.heroHint, { color: theme.warning }]}>
+                Couldn't check prices. Try again, or set your own.
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Try the price check again"
+                style={({ pressed }) => [styles.retryButton, { borderColor: theme.hairline }, pressed && styles.pressed]}
+                onPress={() => setPriceState("loading")}
+              >
+                <Text style={[styles.secondaryLabel, { color: theme.text }]}>Try again</Text>
+              </Pressable>
+            </View>
+          ) : profit == null ? (
             <Text style={[styles.heroHint, { color: theme.muted }]}>
               Set a buy and a sell price to see your profit.
             </Text>
@@ -468,12 +531,12 @@ export default function ScanResultsScreen() {
 
         {/* BUY + SELL */}
         <View style={styles.tilesRow}>
-          <PriceTile label="Buy price" value={buyPrice} locked={saved} onPress={() => openCalculator("buy")} />
-          <PriceTile label="Sell price" value={sellPrice} locked={saved} onPress={() => openCalculator("sell")} />
+          <PriceTile label="Buy price" value={buyPrice} locked={saved} checking={priceState === "loading"} onPress={() => openCalculator("buy")} />
+          <PriceTile label="Sell price" value={sellPrice} locked={saved} checking={priceState === "loading"} onPress={() => openCalculator("sell")} />
         </View>
 
         {/* PRICE GUIDE: new price, what it should sell for, and where you're buying */}
-        {sellPrice != null || data.market?.retailPrice != null ? (
+        {priceState !== "loading" && (sellPrice != null || data.market?.retailPrice != null) ? (
           <View style={[styles.group, styles.guideCard, card]}>
             {data.market?.retailPrice != null ? (
               <FactRow
@@ -534,6 +597,7 @@ export default function ScanResultsScreen() {
         ) : null}
 
         {/* FLIP SCORE */}
+        {priceState === "ready" ? (
         <View
           accessible
           accessibilityLabel={`FlipScore ${flipScore} out of 100, ${scoreBand}`}
@@ -558,6 +622,7 @@ export default function ScanResultsScreen() {
             />
           </View>
         </View>
+        ) : null}
 
         {/* AI ANALYSIS */}
         {hasAnalysis ? (
@@ -617,6 +682,7 @@ export default function ScanResultsScreen() {
               pressed && styles.pressed,
             ]}
             onPress={onFavouritePress}
+            disabled={priceState === "loading"}
           >
             <Heart
               size={24}
@@ -649,7 +715,7 @@ export default function ScanResultsScreen() {
               pressed && styles.pressed,
             ]}
             onPress={() => saveToHistory()}
-            disabled={saved}
+            disabled={saved || priceState === "loading"}
           >
             {saved ? (
               <CheckCircle size={20} weight="fill" color={theme.success} />
@@ -972,6 +1038,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   guideCard: { marginTop: 12 },
+  checkingRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
+  checkingText: { marginTop: 0 },
+  retryButton: {
+    alignSelf: "flex-start",
+    minHeight: 44,
+    marginTop: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   sourceBlock: { borderTopWidth: 1, padding: 14 },
   sourceLabel: { fontSize: 13, fontWeight: "600", marginBottom: 10 },
   sourceRow: { flexDirection: "row", gap: 8 },

@@ -129,12 +129,15 @@ async function request(path: string, options: RequestOptions = {}): Promise<any>
       });
     }
 
-    // The backend answers most lookup failures with 200 and { error }.
+    // The backend answers most lookup failures with 200 and { error }, and may
+    // add a `message` that is safe to show ("We don't recognise that barcode yet").
     if (typeof payload.error === "string") {
       console.log("Server could not complete", path, "-", payload.error);
       throw new ApiError(
         "lookup",
-        "We couldn't get a result for that item. Try again, or try a clearer barcode or photo.",
+        typeof payload.message === "string" && payload.message
+          ? payload.message
+          : "We couldn't get a result for that item. Try again, or try a clearer barcode or photo.",
         { status: res.status }
       );
     }
@@ -189,6 +192,39 @@ export async function aiLookup(imageBase64: string, signal?: AbortSignal) {
     signal,
     timeoutMs: PHOTO_TIMEOUT_MS,
   });
+}
+
+// -----------------------------
+// SCAN IN TWO STEPS (fast "what is it?", then "what is it worth?")
+// -----------------------------
+export async function identifyBarcode(barcode: string, signal?: AbortSignal) {
+  return request(`/identify-barcode?q=${encodeURIComponent(barcode)}`, {
+    signal,
+    timeoutMs: 12_000,
+  });
+}
+
+export async function identifyPhoto(imageBase64: string, signal?: AbortSignal) {
+  assertImageFits(imageBase64);
+  return request("/identify-image", {
+    method: "POST",
+    body: { imageBase64 },
+    signal,
+    timeoutMs: 20_000,
+  });
+}
+
+export async function fetchPrices(
+  body: {
+    title: string;
+    barcode?: string | null;
+    packCount?: number | null;
+    condition?: string | null;
+    imageBase64?: string | null;
+  },
+  signal?: AbortSignal
+) {
+  return request("/price", { method: "POST", body, signal, timeoutMs: 20_000 });
 }
 
 // -----------------------------

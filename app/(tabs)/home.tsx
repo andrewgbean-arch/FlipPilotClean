@@ -21,6 +21,7 @@ import {
   CloudSun,
   CurrencyGbp,
   Car,
+  GearSix,
   Stack,
   Star,
   Tent,
@@ -164,6 +165,19 @@ export default function HomeScreen() {
             style={styles.logoHeaderImage}
             resizeMode="contain"
           />
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Settings"
+            style={({ pressed }) => [
+              styles.settingsButton,
+              { top: insets.top + 6, borderColor: theme.hairline, backgroundColor: theme.card },
+              pressed && styles.pressed,
+            ]}
+            onPress={() => router.push("/settings")}
+          >
+            <GearSix size={22} color={theme.muted} />
+          </Pressable>
         </View>
 
         {/* WEATHER */}
@@ -356,6 +370,17 @@ const styles = StyleSheet.create({
   logoHeaderImage: {
     width: "100%",
     height: 170,
+  },
+
+  settingsButton: {
+    position: "absolute",
+    right: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   weatherCard: { marginHorizontal: 16, marginTop: 8 },

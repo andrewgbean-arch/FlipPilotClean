@@ -52,3 +52,62 @@ export const transformScanResult = (input: any, imageUri?: string) => ({
   aiPriceConfidence: input?.aiPriceConfidence ?? null,
   image: imageUri ?? input?.image ?? null,
 });
+
+// Step 1 of a scan ("what is it?"): enough to open the result screen straight away. The
+// prices arrive a moment later (see applyPrices), so the price fields start empty.
+export const transformIdentity = (
+  input: any,
+  options: { imageUri?: string | null; pendingId?: string } = {}
+): Record<string, any> => ({
+  title: input?.title ?? "Unknown Item",
+  barcode: input?.barcode ?? null,
+  base_price: null,
+  ai: {
+    title: input?.title ?? null,
+    category: input?.category ?? null,
+    condition: input?.condition ?? null,
+    description: null,
+    confidence: normalizeConfidence(input?.confidence),
+    fair_price: null,
+    suggested_buy: null,
+    suggested_sell: null,
+    flip_score: 0,
+  },
+  market: pickMarket(null),
+  flipPotential: null,
+  sellSpeed: null,
+  rarity: null,
+  insights: null,
+  aiPriceMin: null,
+  aiPriceMax: null,
+  aiPriceConfidence: null,
+  image: options.imageUri ?? input?.image ?? null,
+  pendingId: options.pendingId ?? null,
+});
+
+// Step 2 ("what is it worth?"): fold the price lookup into the result already on screen.
+export const applyPrices = (data: any, res: any): Record<string, any> => ({
+  ...data,
+  base_price: res?.pricing?.recommendedBuyPrice ?? null,
+  ai: {
+    ...data?.ai,
+    // The description and other details written while the prices were looked up.
+    description: res?.ai?.description ?? data?.ai?.description ?? null,
+    fullDescription: res?.ai?.fullDescription ?? data?.ai?.fullDescription ?? null,
+    conditionScore: res?.ai?.conditionScore ?? data?.ai?.conditionScore ?? null,
+    origin: res?.ai?.origin ?? data?.ai?.origin ?? null,
+    condition: data?.ai?.condition ?? res?.ai?.condition ?? null,
+    fair_price: res?.market?.average ?? res?.pricing?.recommendedSellPrice ?? null,
+    suggested_buy: res?.pricing?.recommendedBuyPrice ?? null,
+    suggested_sell: res?.pricing?.recommendedSellPrice ?? null,
+    flip_score: res?.flipScore ?? 0,
+  },
+  market: pickMarket(res?.market),
+  flipPotential: res?.flipPotential ?? null,
+  sellSpeed: res?.sellSpeed ?? null,
+  rarity: res?.rarity ?? null,
+  insights: res?.insights ?? null,
+  aiPriceMin: res?.aiPriceMin ?? null,
+  aiPriceMax: res?.aiPriceMax ?? null,
+  aiPriceConfidence: res?.aiPriceConfidence ?? null,
+});

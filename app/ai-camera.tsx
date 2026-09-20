@@ -15,9 +15,10 @@ import {
   View,
 } from "react-native";
 
-import { aiLookup, describeApiError } from "@/utils/api";
+import { describeApiError, identifyPhoto } from "@/utils/api";
+import { putPending } from "@/utils/pendingScan";
 import { photoForUpload } from "@/utils/photo";
-import { normalizeConfidence, transformScanResult } from "@/utils/scanTransform";
+import { normalizeConfidence, transformIdentity } from "@/utils/scanTransform";
 
 const NAVY = "#0A1128";
 const GOLD = "#FFD700";
@@ -193,14 +194,19 @@ export default function AiCameraScreen() {
         return;
       }
 
-      const res = await aiLookup(upload, controller.signal);
+      const id = await identifyPhoto(upload, controller.signal);
       if (controller.signal.aborted) return;
 
-      // SUPER NOVA VISION MODE DATA
-      setVisionBox(res.ai?.box ?? null);
-      setConfidence(normalizeConfidence(res.ai?.confidence));
+      setConfidence(normalizeConfidence(id.confidence));
 
-      const payload = transformScanResult(res, photo.uri);
+      // The result screen opens now and looks up prices while it is showing.
+      const pendingId = putPending({
+        title: id.title,
+        packCount: id.packCount ?? null,
+        condition: id.condition ?? null,
+        imageBase64: upload,
+      });
+      const payload = transformIdentity(id, { imageUri: photo.uri, pendingId });
 
       router.push({
         pathname: "/scan/scan-results",

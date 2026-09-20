@@ -14,14 +14,16 @@ import {
 
 import { PermissionStatus } from "expo";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import type { BarcodeSettings } from "expo-camera";
 import * as Haptics from "expo-haptics";
 import { router, useFocusEffect, useIsFocused } from "expo-router";
 import { Barcode, Camera, CameraRotate, Check, Flashlight } from "phosphor-react-native";
 
 import { useTheme } from "@/styles/ThemeContext";
-import { aiLookup, describeApiError, searchBarcode } from "@/utils/api";
+import { describeApiError, identifyBarcode, identifyPhoto } from "@/utils/api";
+import { putPending } from "@/utils/pendingScan";
 import { photoForUpload } from "@/utils/photo";
-import { SCAN_AGAIN_EVENT, transformScanResult } from "@/utils/scanTransform";
+import { SCAN_AGAIN_EVENT, transformIdentity } from "@/utils/scanTransform";
 
 // Laser + AI Tips
 const LASER_COLOR = "#FF3B3B";
@@ -42,6 +44,12 @@ const CAMERA_SETTLE_MS = 300;
 // The photo is shrunk before it is sent (see photoForUpload), so capture at a good quality.
 const PHOTO_QUALITY = 0.7;
 const TOAST_MS = 4000;
+
+// One object for the life of the app: a new object on every render (the tip text
+// changes every 3 seconds) makes the camera reconfigure its scanner each time.
+const BARCODE_SETTINGS: BarcodeSettings = {
+  barcodeTypes: ["qr", "ean13", "ean8", "upc_a", "upc_e", "code128"],
+};
 
 export default function ScanScreen() {
   const theme = useTheme();
@@ -269,7 +277,7 @@ export default function ScanScreen() {
     showToast(describeApiError(err));
   };
 
-  const openResults = (payload: ReturnType<typeof transformScanResult>) => {
+  const openResults = (payload: Record<string, any>) => {
     triggerSuccess();
     triggerFramePulse();
     triggerFlash();
@@ -311,10 +319,17 @@ export default function ScanScreen() {
     const controller = beginScan();
 
     try {
-      const res = await searchBarcode(data, controller.signal);
+      // Step 1: what is it? Quick, so the result screen opens straight away and
+      // shows "Checking prices" while step 2 (what is it worth?) runs there.
+      const id = await identifyBarcode(data, controller.signal);
       if (controller.signal.aborted) return;
 
-      openResults(transformScanResult(res));
+      const pendingId = putPending({
+        title: id.title,
+        barcode: id.barcode ?? data,
+        packCount: id.packCount ?? null,
+      });
+      openResults(transformIdentity({ ...id, barcode: id.barcode ?? data }, { pendingId }));
     } catch (err) {
       failScan(err, controller, "Barcode scan error:");
     } finally {
@@ -367,10 +382,16 @@ export default function ScanScreen() {
         return;
       }
 
-      const res = await aiLookup(upload, controller.signal);
+      const id = await identifyPhoto(upload, controller.signal);
       if (controller.signal.aborted) return;
 
-      openResults(transformScanResult(res, photo.uri));
+      const pendingId = putPending({
+        title: id.title,
+        packCount: id.packCount ?? null,
+        condition: id.condition ?? null,
+        imageBase64: upload,
+      });
+      openResults(transformIdentity(id, { imageUri: photo.uri, pendingId }));
     } catch (err) {
       failScan(err, controller, "Photo scan error:");
     } finally {
@@ -437,9 +458,7 @@ export default function ScanScreen() {
             style={StyleSheet.absoluteFill}
             facing={cameraFacing}
             enableTorch={torch}
-            barcodeScannerSettings={{
-              barcodeTypes: ["qr", "ean13", "ean8", "upc_a", "upc_e", "code128"],
-            }}
+            barcodeScannerSettings={BARCODE_SETTINGS}
             onBarcodeScanned={handleBarcode}
             onCameraReady={() => setCameraReady(true)}
             onMountError={handleCameraError}

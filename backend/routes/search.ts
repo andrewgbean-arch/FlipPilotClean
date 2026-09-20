@@ -12,7 +12,7 @@ const router = Router();
 /* --------------------------------------------------
    1. OpenFoodFacts
 -------------------------------------------------- */
-async function fetchOpenFoodFacts(barcode: string) {
+export async function fetchOpenFoodFacts(barcode: string) {
   try {
     const url = `https://world.openfoodfacts.org/api/v0/product/${barcode}.json`;
     const res = await axios.get(url, { timeout: 4000 });
@@ -39,7 +39,7 @@ async function fetchOpenFoodFacts(barcode: string) {
 /* --------------------------------------------------
    2. AI Block (unchanged)
 -------------------------------------------------- */
-async function buildAiBlock(off: any, market: any) {
+export async function buildAiBlock(off: any, market: any) {
   const title = off?.title ?? "Unknown Item";
   const origin = off?.origin ?? "Unknown";
   const category = off?.categories?.split(",")[0]?.trim() || "Unknown";
