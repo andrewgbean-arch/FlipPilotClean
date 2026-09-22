@@ -1,8 +1,9 @@
 import { Express, Request, Response } from "express";
 import { loadListings, saveListings } from "./publishedListings";
+import { rateLimit } from "../middleware/rateLimit";
 
 export default function registerMessagesRoute(app: Express) {
-  app.post("/messages/:listingId", (req: Request, res: Response) => {
+  app.post("/messages/:listingId", rateLimit(20), (req: Request, res: Response) => {
     const { sender, message } = req.body;
 
     if (!sender || !message) {

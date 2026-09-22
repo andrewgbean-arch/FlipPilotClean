@@ -214,6 +214,12 @@ export async function identifyPhoto(imageBase64: string, signal?: AbortSignal) {
   });
 }
 
+// Physical condition and how long it's been owned — asked as their own question on
+// the scan result (an AI guess from one photo is often too generic to price well),
+// and matched by name to backend/market-backend/priceModel.ts's Grade / AgeBand.
+export type ItemGrade = "perfect" | "good" | "poor" | "not-working";
+export type ItemAge = "new" | "like-new" | "within-6-months" | "over-1-year";
+
 export async function fetchPrices(
   body: {
     title: string;
@@ -221,6 +227,8 @@ export async function fetchPrices(
     packCount?: number | null;
     condition?: string | null;
     imageBase64?: string | null;
+    grade?: ItemGrade | null;
+    age?: ItemAge | null;
   },
   signal?: AbortSignal
 ) {

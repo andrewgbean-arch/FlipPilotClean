@@ -46,15 +46,13 @@ app.use((req, res, next) => {
   next();
 });
 
-// The Marketplace is hidden in the app, and these routes have no sign-in (anyone can
-// post, read messages or spend OpenAI credits on descriptions), so they are only
-// switched on when ENABLE_MARKETPLACE=true.
-if (process.env.ENABLE_MARKETPLACE === "true") {
-  registerPublishedListingsRoute(app);
-  registerPublishListingRoute(app);
-  registerMessagesRoute(app);
-  registerAIDescriptionRoute(app);
-}
+// The Marketplace has no sign-in yet (anyone can post a listing or a message,
+// under whatever name they type in), so the write routes below carry their own
+// rate limit. /ai/description writes a fixed template, not a paid AI call.
+registerPublishedListingsRoute(app);
+registerPublishListingRoute(app);
+registerMessagesRoute(app);
+registerAIDescriptionRoute(app);
 app.use(searchRoute);
 app.use(searchImageRoute);
 app.use(scanStepsRoute);

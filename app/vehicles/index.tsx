@@ -9,6 +9,8 @@ import {
   ClipboardText,
   Garage,
   Plus,
+  Storefront,
+  UploadSimple,
 } from "phosphor-react-native";
 import type { Icon as PhosphorIcon } from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -130,6 +132,20 @@ export default function VehiclesHome() {
             title="MOT checker"
             subtitle="Look up a vehicle by registration"
             onPress={() => router.push("/vehicles/mot-lookup")}
+          />
+          <MenuRow
+            Icon={Storefront}
+            title="Browse listings"
+            subtitle="See what is for sale in the marketplace"
+            onPress={() => router.push("/marketplace")}
+            divider
+          />
+          <MenuRow
+            Icon={UploadSimple}
+            title="Publish a flip"
+            subtitle="List one of your flips in the marketplace"
+            onPress={() => router.push("/marketplace/PublishFlip")}
+            divider
           />
           <MenuRow
             Icon={Camera}

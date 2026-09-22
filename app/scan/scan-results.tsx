@@ -14,7 +14,7 @@ import {
   WarningCircle,
   X,
 } from "phosphor-react-native";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -25,13 +25,14 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { useTheme } from "@/styles/ThemeContext";
-import { fetchPrices } from "@/utils/api";
+import { fetchPrices, type ItemAge, type ItemGrade } from "@/utils/api";
 import { dropPending, getPending } from "@/utils/pendingScan";
 import { applyPrices, SCAN_AGAIN_EVENT } from "@/utils/scanTransform";
 
@@ -67,6 +68,31 @@ const SOURCES = [
   { key: "charity", label: "Charity shop", share: 0.5 },
   { key: "shop", label: "Shop/online", share: 0.65 },
 ] as const;
+
+// Physical state and how long it's been owned — asked only for a photo scan (a
+// barcode scan is always a new shop product). Each affects the sell price on its
+// own: see backend/market-backend/priceModel.ts for how they're combined.
+const CONDITION_OPTIONS: { key: ItemGrade; label: string }[] = [
+  { key: "perfect", label: "Perfect" },
+  { key: "good", label: "Good" },
+  { key: "poor", label: "Poor" },
+  { key: "not-working", label: "Not working" },
+];
+const AGE_OPTIONS: { key: ItemAge; label: string }[] = [
+  { key: "new", label: "New" },
+  { key: "like-new", label: "Like new" },
+  { key: "within-6-months", label: "Within 6 months" },
+  { key: "over-1-year", label: "Older than 1 year" },
+];
+
+// A default for the two boxes above, read from the AI's one-word photo guess —
+// the user can change either at any time, which checks the price again.
+const gradeFromCondition = (condition: unknown): ItemGrade => {
+  const c = String(condition ?? "");
+  return /like new/i.test(c) ? "perfect" : /poor/i.test(c) ? "poor" : /fair/i.test(c) ? "poor" : "good";
+};
+const ageFromCondition = (condition: unknown): ItemAge =>
+  /^new$/i.test(String(condition ?? "").trim()) ? "new" : "within-6-months";
 type SourceKey = (typeof SOURCES)[number]["key"];
 
 // "+£12.50" or "-£3.20". A profit of exactly zero carries no sign.
@@ -154,6 +180,16 @@ export default function ScanResultsScreen() {
   const [savedId, setSavedId] = useState<string | null>(null);
   // A scan opens this screen after step 1 (what is it?); step 2 (what is it worth?) runs here.
   const [priceState, setPriceState] = useState<"ready" | "loading" | "failed">("ready");
+  // The AI's identification can be too vague to price well ("White Bluetooth Speaker"
+  // covers everything from a £10 mini speaker to a £150 one) — this lets the name be
+  // corrected and the price looked up again against the better name.
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const retitleAbortRef = useRef<AbortController | null>(null);
+  // Condition and age, asked as their own boxes (see CONDITION_OPTIONS / AGE_OPTIONS
+  // above): each is its own factor in the sell price, not just a single AI guess.
+  const [grade, setGrade] = useState<ItemGrade>("good");
+  const [age, setAge] = useState<ItemAge>("within-6-months");
   const [source, setSource] = useState<SourceKey>("charity");
   const [imageFailed, setImageFailed] = useState(false);
 
@@ -172,6 +208,8 @@ export default function ScanResultsScreen() {
 
         setBuyPrice(parsed.ai?.suggested_buy ?? null);
         setSellPrice(parsed.ai?.suggested_sell ?? null);
+        setGrade(gradeFromCondition(parsed.ai?.condition));
+        setAge(ageFromCondition(parsed.ai?.condition));
         if (parsed.pendingId) setPriceState("loading");
       }
     } catch (e) {
@@ -214,6 +252,95 @@ export default function ScanResultsScreen() {
     // `data` is read once when the lookup starts; the lookup must not restart when it is updated.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.pendingId, priceState]);
+
+  // A price check the user asked for by hand — after correcting the name, or after
+  // changing the Condition or Age box — rather than the one that runs automatically
+  // when the screen opens. Always overwrites the prices shown, since the point of
+  // asking again is that the old ones were for the wrong item or the wrong state.
+  const recheckPrice = async (overrides: { title?: string; grade?: ItemGrade; age?: ItemAge }) => {
+    retitleAbortRef.current?.abort();
+    const controller = new AbortController();
+    retitleAbortRef.current = controller;
+
+    const nextTitle = overrides.title ?? title;
+    const nextGrade = overrides.grade ?? grade;
+    const nextAge = overrides.age ?? age;
+    // The Condition box also relabels the "AI analysis" condition fact, so the two
+    // never disagree with each other.
+    const nextConditionLabel = overrides.grade
+      ? CONDITION_OPTIONS.find((o) => o.key === nextGrade)?.label ?? data?.ai?.condition
+      : data?.ai?.condition;
+
+    setPriceState("loading");
+    setBuyPrice(null);
+    setSellPrice(null);
+    // Show the change straight away, so "Checking prices…" doesn't look like it
+    // was thrown away.
+    setData((prev: any) =>
+      prev
+        ? { ...prev, title: nextTitle, ai: { ...prev.ai, title: nextTitle, condition: nextConditionLabel } }
+        : prev
+    );
+
+    try {
+      const res = await fetchPrices(
+        {
+          title: nextTitle,
+          barcode: data?.barcode ?? null,
+          condition: nextConditionLabel ?? null,
+          grade: nextGrade,
+          age: nextAge,
+        },
+        controller.signal
+      );
+      if (controller.signal.aborted) return;
+
+      const next = applyPrices(
+        { ...data, title: nextTitle, ai: { ...data?.ai, title: nextTitle, condition: nextConditionLabel } },
+        res
+      );
+      setData(next);
+      setBuyPrice(next.ai.suggested_buy ?? null);
+      setSellPrice(next.ai.suggested_sell ?? null);
+      setPriceState("ready");
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      console.log("Price re-check failed:", err);
+      setPriceState("failed");
+    }
+  };
+
+  const startEditTitle = () => {
+    setTitleDraft(title);
+    setEditingTitle(true);
+  };
+
+  const cancelEditTitle = () => setEditingTitle(false);
+
+  const confirmEditTitle = () => {
+    const next = titleDraft.trim();
+    setEditingTitle(false);
+    if (!next || next === title) return;
+    recheckPrice({ title: next });
+  };
+
+  const chooseGrade = (next: ItemGrade) => {
+    if (saved || priceState === "loading" || next === grade) return;
+    Haptics.selectionAsync().catch(() => {});
+    setGrade(next);
+    recheckPrice({ grade: next });
+  };
+
+  const chooseAge = (next: ItemAge) => {
+    if (saved || priceState === "loading" || next === age) return;
+    Haptics.selectionAsync().catch(() => {});
+    setAge(next);
+    recheckPrice({ age: next });
+  };
+
+  useEffect(() => {
+    return () => retitleAbortRef.current?.abort();
+  }, []);
 
   const profit = useMemo(() => {
     if (buyPrice == null || sellPrice == null) return null;
@@ -387,6 +514,7 @@ export default function ScanResultsScreen() {
   }
 
   const title = data.title ?? data.product?.title ?? "Unknown Item";
+  const titleLocked = saved || priceState === "loading" || editingTitle;
   const barcode = data.barcode ?? data.product?.barcode ?? null;
 
   const card = { backgroundColor: theme.card, borderColor: theme.hairline };
@@ -440,13 +568,69 @@ export default function ScanResultsScreen() {
           ) : null}
 
           <View style={styles.headerText}>
-            <Text
-              style={[styles.title, { color: theme.text }]}
-              numberOfLines={3}
-              accessibilityRole="header"
-            >
-              {title}
-            </Text>
+            {editingTitle ? (
+              <View style={styles.titleEditRow}>
+                <TextInput
+                  value={titleDraft}
+                  onChangeText={setTitleDraft}
+                  style={[styles.titleInput, { color: theme.text, borderColor: theme.gold }]}
+                  placeholder="What is it?"
+                  placeholderTextColor={theme.muted}
+                  autoFocus
+                  multiline
+                  accessibilityLabel="Item name"
+                  returnKeyType="done"
+                  onSubmitEditing={confirmEditTitle}
+                />
+                <View style={styles.titleEditActions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Cancel editing the name"
+                    hitSlop={8}
+                    style={({ pressed }) => [
+                      styles.titleEditButton,
+                      { borderColor: theme.hairline },
+                      pressed && styles.pressed,
+                    ]}
+                    onPress={cancelEditTitle}
+                  >
+                    <X size={18} color={theme.muted} />
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Save the name and check the price again"
+                    hitSlop={8}
+                    style={({ pressed }) => [
+                      styles.titleEditButton,
+                      { backgroundColor: theme.gold, borderColor: theme.gold },
+                      pressed && styles.pressed,
+                    ]}
+                    onPress={confirmEditTitle}
+                  >
+                    <Check size={18} weight="bold" color={theme.black} />
+                  </Pressable>
+                </View>
+              </View>
+            ) : (
+              <Pressable
+                accessibilityRole={titleLocked ? undefined : "button"}
+                accessibilityLabel={
+                  titleLocked ? undefined : `${title}. Not quite right? Tap to correct the name and check the price again`
+                }
+                disabled={titleLocked}
+                onPress={startEditTitle}
+                style={({ pressed }) => [styles.titleRow, pressed && !titleLocked && styles.pressed]}
+              >
+                <Text
+                  style={[styles.title, { color: theme.text }]}
+                  numberOfLines={3}
+                  accessibilityRole="header"
+                >
+                  {title}
+                </Text>
+                {titleLocked ? null : <PencilSimple size={16} color={theme.muted} />}
+              </Pressable>
+            )}
             <View style={styles.metaRow}>
               {barcode ? (
                 <Barcode size={14} color={theme.muted} />
@@ -550,6 +734,81 @@ export default function ScanResultsScreen() {
                 value={`£${Number(data.ai.suggested_sell).toFixed(2)}`}
                 divider={data.market?.retailPrice != null}
               />
+            ) : null}
+
+            {/* CONDITION + AGE: only asked for a photo scan (a barcode is always a new
+                shop product). Each box re-checks the price on its own. */}
+            {!barcode && !saved ? (
+              <View style={[styles.sourceBlock, { borderTopColor: theme.hairline }]}>
+                <Text style={[styles.sourceLabel, { color: theme.muted }]}>Condition</Text>
+                <View style={styles.pickerRow} accessibilityRole="radiogroup">
+                  {CONDITION_OPTIONS.map((o) => {
+                    const selected = grade === o.key;
+                    return (
+                      <Pressable
+                        key={o.key}
+                        accessibilityRole="radio"
+                        accessibilityLabel={o.label}
+                        accessibilityState={{ checked: selected }}
+                        onPress={() => chooseGrade(o.key)}
+                        style={({ pressed }) => [
+                          styles.pickerChip,
+                          selected
+                            ? { backgroundColor: theme.goldTint, borderColor: theme.gold }
+                            : { backgroundColor: theme.background, borderColor: theme.hairline },
+                          pressed && styles.pressed,
+                        ]}
+                      >
+                        <Text
+                          style={[styles.sourceChipText, { color: selected ? theme.gold : theme.text }]}
+                          numberOfLines={1}
+                        >
+                          {o.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {grade === "not-working" ? (
+                  <Text style={[styles.sourceHint, { color: theme.warning }]}>
+                    Priced for parts or repair, not a working sale.
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+
+            {!barcode && !saved ? (
+              <View style={[styles.sourceBlock, { borderTopColor: theme.hairline }]}>
+                <Text style={[styles.sourceLabel, { color: theme.muted }]}>Age</Text>
+                <View style={styles.pickerRow} accessibilityRole="radiogroup">
+                  {AGE_OPTIONS.map((o) => {
+                    const selected = age === o.key;
+                    return (
+                      <Pressable
+                        key={o.key}
+                        accessibilityRole="radio"
+                        accessibilityLabel={o.label}
+                        accessibilityState={{ checked: selected }}
+                        onPress={() => chooseAge(o.key)}
+                        style={({ pressed }) => [
+                          styles.pickerChip,
+                          selected
+                            ? { backgroundColor: theme.goldTint, borderColor: theme.gold }
+                            : { backgroundColor: theme.background, borderColor: theme.hairline },
+                          pressed && styles.pressed,
+                        ]}
+                      >
+                        <Text
+                          style={[styles.sourceChipText, { color: selected ? theme.gold : theme.text }]}
+                          numberOfLines={1}
+                        >
+                          {o.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
             ) : null}
 
             {sellPrice != null && !saved ? (
@@ -897,7 +1156,27 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   headerText: { flex: 1 },
-  title: { fontSize: 24, fontWeight: "700", lineHeight: 30 },
+  titleRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  title: { flex: 1, fontSize: 24, fontWeight: "700", lineHeight: 30 },
+  titleEditRow: { gap: 8 },
+  titleInput: {
+    fontSize: 20,
+    fontWeight: "700",
+    lineHeight: 26,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  titleEditActions: { flexDirection: "row", justifyContent: "flex-end", gap: 8 },
+  titleEditButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   metaRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1064,6 +1343,17 @@ const styles = StyleSheet.create({
   },
   sourceChipText: { fontSize: 13, fontWeight: "600" },
   sourceHint: { fontSize: 12, lineHeight: 17, marginTop: 10 },
+  // Condition/Age chips wrap onto more than one line rather than being squeezed
+  // to fit, since some labels ("Older than 1 year") are long.
+  pickerRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  pickerChip: {
+    minHeight: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   secondaryButton: {
     flex: 1,
     minHeight: 52,

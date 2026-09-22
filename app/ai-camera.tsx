@@ -19,6 +19,7 @@ import { describeApiError, identifyPhoto } from "@/utils/api";
 import { putPending } from "@/utils/pendingScan";
 import { photoForUpload } from "@/utils/photo";
 import { normalizeConfidence, transformIdentity } from "@/utils/scanTransform";
+import ScanWaitingAd, { AD_REVEAL_DELAY_MS } from "@/components/ScanWaitingAd";
 
 const NAVY = "#0A1128";
 const GOLD = "#FFD700";
@@ -39,6 +40,9 @@ export default function AiCameraScreen() {
   const [cameraKey, setCameraKey] = useState(0);
 
   const [loading, setLoading] = useState(false);
+  // A quick lookup is often over before anyone could read anything, so the
+  // sponsored card only appears once the wait has actually gone on a little.
+  const [showWaitingAd, setShowWaitingAd] = useState(false);
   // Set synchronously so a double tap on the shutter can't start two lookups.
   const busyRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -103,6 +107,15 @@ export default function AiCameraScreen() {
     });
     return () => sub.remove();
   }, []);
+
+  useEffect(() => {
+    if (!loading) {
+      setShowWaitingAd(false);
+      return;
+    }
+    const timer = setTimeout(() => setShowWaitingAd(true), AD_REVEAL_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [loading]);
 
   // Only one screen should hold the camera. Mount it while this screen is in front, and drop it
   // as soon as something is pushed on top (such as the results) or the screen is left.
@@ -368,6 +381,8 @@ export default function AiCameraScreen() {
           >
             <Text style={styles.smallActionText}>Cancel</Text>
           </Pressable>
+
+          {showWaitingAd ? <ScanWaitingAd /> : null}
         </View>
       )}
     </View>

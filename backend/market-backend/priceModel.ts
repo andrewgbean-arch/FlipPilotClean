@@ -8,36 +8,61 @@
           listed price UP, so when the sources disagree wildly the ones that
           look contaminated are set aside.
    SELL   what it should resell for. Used items: worked out from the NEW price
-          (a used one in good condition sells for about half of it), and checked
-          against what similar used ones ask on eBay and the AI's used range: the
-          middle of those opinions wins. Sealed/new items: at or a little under
-          the shelf price. Never more than it costs new.
+          (a used one sells for a share of it, by CONDITION and AGE — see below),
+          and checked against what similar used ones ask on eBay and the AI's used
+          range: the middle of those opinions wins. A "Not working" item skips that
+          check (it is priced for spares/repair, not a working sale) and a broken
+          item found on eBay would only mislead it. Sealed/new items: at or a
+          little under the shelf price. Never more than it costs new.
    BUY    the most worth paying: half the sell price, which leaves room for
           fees, postage and a profit.
 
    Kept as a pure function of its inputs so it can be checked on its own.
 -------------------------------------------------- */
 
-export type Grade = "like new" | "good" | "fair" | "poor";
+// Physical/functional state, asked as its own question on the scan result — an
+// AI guess from one photo is often too generic to price well on its own.
+export type Grade = "perfect" | "good" | "poor" | "not-working";
+
+// How long it's been owned/used, asked separately from condition: a "Perfect"
+// item bought last week is worth more than an equally "Perfect" one that's a
+// year old — newer tech and fashion depreciate fastest, even unmarked.
+export type AgeBand = "new" | "like-new" | "within-6-months" | "over-1-year";
 
 /**
- * What a used one sells for as a share of the new price, by condition. These
- * are rules of thumb, not measurements: electronics lose value faster than
- * furniture, and a working, tidy item in "good" condition typically goes for
- * around half of new.
+ * What a used item sells for as a share of the new price, by condition. These
+ * are rules of thumb, not measurements. "Not working" is priced for spares or
+ * repair, not a working sale — see NOT_WORKING_SHARE below, used in place of this
+ * for that grade rather than as part of the usual working-item comparison.
  */
-export const USED_SHARE: Record<Grade, number> = {
-  "like new": 0.7,
+export const CONDITION_SHARE: Record<Grade, number> = {
+  perfect: 0.7,
   good: 0.5,
-  fair: 0.35,
-  poor: 0.2,
+  poor: 0.3,
+  "not-working": 0.12,
+};
+
+/** Convenience alias for the "not working" share, used directly in a couple of places. */
+export const NOT_WORKING_SHARE = CONDITION_SHARE["not-working"];
+
+/**
+ * Extra discount for age, on top of condition — multiplied together. A recently
+ * bought item holds more of its value even in the same physical condition.
+ */
+export const AGE_FACTOR: Record<AgeBand, number> = {
+  new: 1,
+  "like-new": 0.95,
+  "within-6-months": 0.85,
+  "over-1-year": 0.65,
 };
 
 export interface PriceEvidence {
   /** The scanned item is second-hand (true) or sealed / new (false). */
   used: boolean;
-  /** How good the used item is (used items only). Defaults to "good". */
+  /** Condition, for a used item. Defaults to "good" when not given. */
   grade?: Grade;
+  /** How long it's been owned, for a used item. Defaults to "within-6-months". */
+  age?: AgeBand;
   /** Middle asking price of NEW eBay listings for the same item. */
   ebayNew?: number | null;
   /** Middle asking price of matching eBay listings, already scaled to the pack size. */
@@ -113,22 +138,35 @@ export function decidePrices(e: PriceEvidence): PriceDecision {
       : null;
 
   if (e.used) {
-    // Three ways to reach a used price: what used listings ask, what the new
-    // price implies for this condition, and what the AI expects. The middle
-    // opinion wins, so one bad source (used listings polluted with new ones, a
-    // wrong AI guess) can't run away with it.
-    const fromNew = newPrice ? newPrice * USED_SHARE[e.grade ?? "good"] : null;
-    const opinions = [e.ebay, fromNew, aiUsedMid].filter(valid);
+    const grade = e.grade ?? "good";
+    const conditionShare = CONDITION_SHARE[grade];
+    // Age doesn't further discount an item that's already priced for spares/repair.
+    const ageFactor = grade === "not-working" ? 1 : AGE_FACTOR[e.age ?? "within-6-months"];
+    const fromNew = newPrice ? newPrice * conditionShare * ageFactor : null;
 
-    if (opinions.length >= 3) {
-      sell = median(opinions);
-    } else if (opinions.length === 2) {
-      // Two opinions: use the market's if they agree, otherwise the one worked
-      // out from the new price (else the lower).
-      const [a, b] = opinions;
-      sell = agree(a, b) ? (valid(e.ebay) ? e.ebay : (a + b) / 2) : valid(fromNew) ? fromNew : Math.min(a, b);
-    } else if (opinions.length === 1) {
-      sell = opinions[0];
+    if (grade === "not-working") {
+      // Priced for spares or repair, not a working sale — the market and AI
+      // opinions below assume a working item, so a broken one found among them
+      // would only mislead this. Fall back to the market only if there is no
+      // new price to work from at all.
+      sell = fromNew ?? (valid(e.ebay) ? e.ebay * NOT_WORKING_SHARE : null);
+    } else {
+      // Three ways to reach a used price: what used listings ask, what the new
+      // price implies for this condition and age, and what the AI expects. The
+      // middle opinion wins, so one bad source (used listings polluted with new
+      // ones, a wrong AI guess) can't run away with it.
+      const opinions = [e.ebay, fromNew, aiUsedMid].filter(valid);
+
+      if (opinions.length >= 3) {
+        sell = median(opinions);
+      } else if (opinions.length === 2) {
+        // Two opinions: use the market's if they agree, otherwise the one worked
+        // out from the new price (else the lower).
+        const [a, b] = opinions;
+        sell = agree(a, b) ? (valid(e.ebay) ? e.ebay : (a + b) / 2) : valid(fromNew) ? fromNew : Math.min(a, b);
+      } else if (opinions.length === 1) {
+        sell = opinions[0];
+      }
     }
     if (sell !== null && newPrice) sell = Math.min(sell, newPrice * 0.9);
   } else {

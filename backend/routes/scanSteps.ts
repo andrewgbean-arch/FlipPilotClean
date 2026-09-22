@@ -4,6 +4,7 @@ import fetchMarketData from "../market-backend/fetchMarketData";
 import { buildFlipMeta } from "../market-backend/buildFlipMeta";
 import { extractPackCount } from "../market-backend/bulkListingFilter";
 import { getEbayAccessToken } from "../market-backend/ebayBrowseApi";
+import type { AgeBand, Grade } from "../market-backend/priceModel";
 import { paidLookupBudget } from "../middleware/dailyBudget";
 import { rateLimit } from "../middleware/rateLimit";
 import { askVision, DESCRIBE_PROMPT, IDENTIFY_PROMPT } from "./searchImage";
@@ -168,18 +169,28 @@ router.post("/identify-image", rateLimit(6), paidLookupBudget, async (req, res) 
 
 /* ---------------- the prices ---------------- */
 
+const GRADES = new Set<string>(["perfect", "good", "poor", "not-working"]);
+const AGES = new Set<string>(["new", "like-new", "within-6-months", "over-1-year"]);
+
+// The AI's one-word photo guess ("New"/"Like New"/"Good"/"Fair"/"Poor"), used only
+// as a default until the app sends the grade the user actually picked on the two
+// Condition / Age boxes.
 const gradeOf = (condition: unknown) => {
   const c = String(condition ?? "");
-  return /like new/i.test(c) ? "like new" : /poor/i.test(c) ? "poor" : /fair/i.test(c) ? "fair" : "good";
+  return /like new/i.test(c) ? "perfect" : /poor/i.test(c) ? "poor" : /fair/i.test(c) ? "poor" : "good";
 };
 
 router.post("/price", rateLimit(30), paidLookupBudget, async (req, res) => {
   try {
-    const { title, packCount, condition, barcode, imageBase64 } = req.body ?? {};
+    const { title, packCount, condition, barcode, imageBase64, grade, age } = req.body ?? {};
     if (!title || typeof title !== "string") return res.json({ error: "Missing title" });
 
     const startedAt = Date.now();
-    const isNew = barcode ? true : /^new$/i.test(String(condition ?? "").trim());
+    // "New" in the Age box means the item itself is unused, so it is priced like
+    // a new one whatever the app guessed from the barcode or the photo.
+    const chosenAge = (typeof age === "string" && AGES.has(age) ? age : null) as AgeBand | null;
+    const isNew = chosenAge ? chosenAge === "new" : barcode ? true : /^new$/i.test(String(condition ?? "").trim());
+    const chosenGrade = (typeof grade === "string" && GRADES.has(grade) ? grade : gradeOf(condition)) as Grade;
     const count = Number(packCount);
 
     // The description is written while the prices are looked up.
@@ -195,7 +206,8 @@ router.post("/price", rateLimit(30), paidLookupBudget, async (req, res) => {
       fetchMarketData(title, {
         packCount: Number.isFinite(count) && count >= 1 ? Math.round(count) : null,
         condition: isNew ? "new" : "used",
-        grade: gradeOf(condition),
+        grade: chosenGrade,
+        age: chosenAge ?? "within-6-months",
       }),
     ]);
 

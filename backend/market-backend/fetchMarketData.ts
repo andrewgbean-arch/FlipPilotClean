@@ -3,7 +3,7 @@ import fetchAmazonMarket from "./amazonMarket";
 import fetchEbayMarket, { EbayMarketResult } from "./ebayMarket";
 import fetchEbayBrowseMarket from "./ebayBrowseApi";
 import { extractPackCount, isNotTheItem, matchesQuery, priceForPack } from "./bulkListingFilter";
-import { decidePrices, type Grade } from "./priceModel";
+import { decidePrices, type AgeBand, type Grade } from "./priceModel";
 
 // Read this at call time, not at module load — server.ts imports this
 // module (via search.ts/searchImage.ts) BEFORE it calls dotenv.config(),
@@ -267,13 +267,15 @@ export default async function fetchMarketData(
     packCount?: number | null;
     condition?: "new" | "used" | null;
     grade?: Grade | null;
+    age?: AgeBand | null;
   } = {}
 ): Promise<UnifiedMarketResult> {
   const wantedCount = options.packCount ?? extractPackCount(query);
   const condition = options.condition ?? null;
   const usedMode = condition === "used";
   const grade = options.grade ?? "good";
-  const cacheKey = `${query.trim().toLowerCase()}|${wantedCount ?? ""}|${condition ?? ""}|${grade}`;
+  const age = options.age ?? "within-6-months";
+  const cacheKey = `${query.trim().toLowerCase()}|${wantedCount ?? ""}|${condition ?? ""}|${grade}|${age}`;
   const cached = query ? cacheGet(cacheKey) : null;
   if (cached) return cached;
 
@@ -349,6 +351,7 @@ export default async function fetchMarketData(
     const decision = decidePrices({
       used: usedMode,
       grade,
+      age,
       ebayNew: safeNumber(ebayNew?.average ?? null),
       ebay: usedPrice,
       amazonNew: safeNumber(amazon?.newPrice),

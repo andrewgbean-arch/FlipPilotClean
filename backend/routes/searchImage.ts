@@ -160,11 +160,11 @@ router.post("/search-image", rateLimit(2), paidLookupBudget, async (req, res) =>
       condition: /^new$/i.test(String(identified.condition ?? "").trim()) ? "new" : "used",
       // How good it is decides what share of the new price a used one sells for.
       grade: /like new/i.test(String(identified.condition ?? ""))
-        ? "like new"
+        ? "perfect"
         : /poor/i.test(String(identified.condition ?? ""))
         ? "poor"
         : /fair/i.test(String(identified.condition ?? ""))
-        ? "fair"
+        ? "poor"
         : "good"
     });
 
