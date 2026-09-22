@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { StyleSheet, View } from "react-native";
+import { Animated, StyleSheet, View } from "react-native";
 import { router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 
@@ -9,6 +9,36 @@ const STARTUP_VIDEO = require("../src/assets/videos/startup.mp4");
 // Safety net: never strand the user on this screen if the video's end
 // event never fires (a slow device, a codec issue, an empty video track).
 const FALLBACK_MS = 8000;
+
+function LoadingDots({ color }: { color: string }) {
+  const pulses = useRef([0, 1, 2].map(() => new Animated.Value(0.25))).current;
+
+  useEffect(() => {
+    const loops = pulses.map((value, i) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(i * 160),
+          Animated.timing(value, { toValue: 1, duration: 420, useNativeDriver: true }),
+          Animated.timing(value, { toValue: 0.25, duration: 420, useNativeDriver: true }),
+          Animated.delay((2 - i) * 160),
+        ])
+      )
+    );
+    loops.forEach((loop) => loop.start());
+    return () => loops.forEach((loop) => loop.stop());
+  }, [pulses]);
+
+  return (
+    <View style={styles.dotsRow}>
+      {pulses.map((value, i) => (
+        <Animated.View
+          key={i}
+          style={[styles.dot, { backgroundColor: color, opacity: value, transform: [{ scale: value }] }]}
+        />
+      ))}
+    </View>
+  );
+}
 
 export default function IntroScreen() {
   const theme = useTheme();
@@ -46,6 +76,9 @@ export default function IntroScreen() {
         nativeControls={false}
         accessibilityLabel="FlipPilot"
       />
+      <View style={styles.loadingWrap} pointerEvents="none">
+        <LoadingDots color={theme.gold} />
+      </View>
     </View>
   );
 }
@@ -53,4 +86,18 @@ export default function IntroScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   video: { flex: 1 },
+  loadingWrap: {
+    position: "absolute",
+    right: 20,
+    bottom: 28,
+  },
+  dotsRow: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  dot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+  },
 });
