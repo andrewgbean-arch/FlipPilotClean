@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import type { NextFunction, Request, Response } from "express";
+import { isProSubscriber } from "../subscriptions/revenueCat";
 
 /* --------------------------------------------------
    Free tier: 5 AI lookups (barcode + photo combined) per calendar week, per
@@ -13,12 +14,10 @@ import type { NextFunction, Request, Response } from "express";
    it and get a fresh 5 — the same way any free tier without accounts works.
    It's a soft cap, not a security boundary.
 
-   Bolt-on and Pro aren't purchasable through the app yet (see
-   app/upgrade.tsx), so for now this cap applies to every device regardless
-   of subscription status. Exempting real subscribers needs a server-side
-   RevenueCat check (their app-user-id, verified against RevenueCat's REST
-   API with a secret key) — a client-reported "I'm Pro" flag would be trivial
-   to fake, the same class of bug fixed in rateLimit.ts's userId removal.
+   A device that has used its 5 gets one extra check before being blocked:
+   is it actually a real, paying Pro subscriber? (see subscriptions/revenueCat.ts —
+   a genuine server-to-server check, not a client-reported flag.) Bolt-on has
+   no real product to check yet, so it isn't exempted here.
 -------------------------------------------------- */
 
 const WEEKLY_FREE_LIMIT = 5;
@@ -58,7 +57,7 @@ function nextWeekStart(weekStart: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-export function freeScanLimit(req: Request, res: Response, next: NextFunction) {
+export async function freeScanLimit(req: Request, res: Response, next: NextFunction) {
   const deviceId =
     typeof req.query.deviceId === "string"
       ? req.query.deviceId
@@ -77,6 +76,10 @@ export function freeScanLimit(req: Request, res: Response, next: NextFunction) {
     existing?.weekStart === weekStart ? existing : { weekStart, count: 0 };
 
   if (record.count >= WEEKLY_FREE_LIMIT) {
+    // Worth the extra round trip only once a device is actually about to be
+    // blocked — a genuine Pro subscriber gets waved through with no cap.
+    if (await isProSubscriber(deviceId)) return next();
+
     res.json({
       error: "free-scan-limit",
       message: "You've used your 5 free scans this week. Upgrade to Bolt-on or Pro for more.",

@@ -15,6 +15,8 @@ import Purchases, {
   PurchasesOfferings,
 } from "react-native-purchases";
 
+import { getDeviceId } from "@/utils/deviceId";
+
 type SubscriptionContextType = {
   isPro: boolean;
   offerings: PurchasesOfferings | null;
@@ -84,7 +86,12 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
         // Fast Refresh runs this again; RevenueCat should only be set up once.
         if (!(await Purchases.isConfigured())) {
-          Purchases.configure({ apiKey: key });
+          // Our own device id (see src/utils/deviceId.ts) as the app user id,
+          // so the backend can look a device's subscription status up
+          // directly from RevenueCat instead of trusting a client-reported
+          // isPro flag (see backend/subscriptions/revenueCat.ts).
+          const deviceId = await getDeviceId();
+          Purchases.configure({ apiKey: key, appUserID: deviceId });
         }
       } catch (err) {
         console.log("RevenueCat init error:", err);
