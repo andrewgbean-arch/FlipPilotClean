@@ -9,6 +9,8 @@
  * why that matters"; it never accuses anyone or blocks a conversation.
  */
 
+import { checkContactDetails } from "@/utils/contactChecks";
+
 export type ScamSignal = {
   id: string;
   /** What the scam is called, in the words a person would use. */
@@ -161,14 +163,20 @@ export const SCAM_SIGNALS: ScamSignal[] = [
 
 export type ScamWarning = Pick<ScamSignal, "id" | "title" | "advice" | "severity">;
 
-/** Which scams a message looks like. Empty when nothing stands out. */
+/**
+ * Which scams a message looks like — both what it says, and the contact details
+ * in it. Empty when nothing stands out.
+ */
 export function checkMessage(text: string | null | undefined): ScamWarning[] {
   const message = String(text ?? "");
   if (!message.trim()) return [];
 
-  return SCAM_SIGNALS.filter((signal) =>
+  const fromWording = SCAM_SIGNALS.filter((signal) =>
     signal.patterns.some((pattern) => pattern.test(message))
   ).map(({ id, title, advice, severity }) => ({ id, title, advice, severity }));
+
+  // Emails, links and phone numbers pasted into the chat.
+  return [...fromWording, ...checkContactDetails(message)];
 }
 
 /** The worst thing found, for deciding how loud to be. */
@@ -193,6 +201,7 @@ export const MESSAGE_SAFETY_TIPS = [
   "No couriers, no cheques, no gift cards, no crypto. Every one of those is a scam.",
   "Never share a code that was texted to you, or your bank login, with anyone.",
   "A payment text, email or screenshot is not money. Check your own account.",
+  "Look at the address an email really came from, not the name on it. Anyone can put PayPal in the name.",
   "If something feels off, walk away. There will be another one.",
 ];
 
