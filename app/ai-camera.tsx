@@ -15,7 +15,7 @@ import {
   View,
 } from "react-native";
 
-import { describeApiError, identifyPhoto } from "@/utils/api";
+import { ApiError, describeApiError, identifyPhoto } from "@/utils/api";
 import { putPending } from "@/utils/pendingScan";
 import { photoForUpload } from "@/utils/photo";
 import { normalizeConfidence, transformIdentity } from "@/utils/scanTransform";
@@ -229,7 +229,17 @@ export default function AiCameraScreen() {
       // Cancelled by the user, or they left the screen: nothing to report.
       if (!controller.signal.aborted) {
         console.log("AI camera error:", err);
-        Alert.alert("Scan failed", describeApiError(err));
+
+        // The weekly free-scan cap is a sales moment, not just an error: offer
+        // the upgrade screen directly instead of a plain failure alert.
+        if (err instanceof ApiError && err.kind === "quota") {
+          Alert.alert("You're out of free scans", err.message, [
+            { text: "Not now", style: "cancel" },
+            { text: "Upgrade", onPress: () => router.push("/upgrade") },
+          ]);
+        } else {
+          Alert.alert("Scan failed", describeApiError(err));
+        }
       }
     } finally {
       if (abortRef.current === controller) abortRef.current = null;

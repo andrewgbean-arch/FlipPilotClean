@@ -2,6 +2,8 @@
 // Every request here has a timeout, can be cancelled, and fails with an ApiError whose
 // message is safe to show to the user.
 
+import { getDeviceId } from "./deviceId";
+
 const LOCAL_LAN_IP = "192.168.0.47"; // the owner's dev PC, used only in development builds
 const PORT = 3001;
 
@@ -31,6 +33,7 @@ export type ApiErrorKind =
   | "offline"
   | "aborted"
   | "rate-limited"
+  | "quota"
   | "too-large"
   | "server"
   | "lookup";
@@ -129,6 +132,19 @@ async function request(path: string, options: RequestOptions = {}): Promise<any>
       });
     }
 
+    // The free-scan weekly cap answers with 200 and this specific error too, but
+    // gets its own kind so the screen can offer an Upgrade button instead of a
+    // plain toast (see freeScanLimit in the backend).
+    if (payload.error === "free-scan-limit") {
+      throw new ApiError(
+        "quota",
+        typeof payload.message === "string" && payload.message
+          ? payload.message
+          : "You've used your free scans this week.",
+        { status: res.status }
+      );
+    }
+
     // The backend answers most lookup failures with 200 and { error }, and may
     // add a `message` that is safe to show ("We don't recognise that barcode yet").
     if (typeof payload.error === "string") {
@@ -198,17 +214,19 @@ export async function aiLookup(imageBase64: string, signal?: AbortSignal) {
 // SCAN IN TWO STEPS (fast "what is it?", then "what is it worth?")
 // -----------------------------
 export async function identifyBarcode(barcode: string, signal?: AbortSignal) {
-  return request(`/identify-barcode?q=${encodeURIComponent(barcode)}`, {
-    signal,
-    timeoutMs: 12_000,
-  });
+  const deviceId = await getDeviceId();
+  return request(
+    `/identify-barcode?q=${encodeURIComponent(barcode)}&deviceId=${encodeURIComponent(deviceId)}`,
+    { signal, timeoutMs: 12_000 }
+  );
 }
 
 export async function identifyPhoto(imageBase64: string, signal?: AbortSignal) {
   assertImageFits(imageBase64);
+  const deviceId = await getDeviceId();
   return request("/identify-image", {
     method: "POST",
-    body: { imageBase64 },
+    body: { imageBase64, deviceId },
     signal,
     timeoutMs: 20_000,
   });

@@ -20,7 +20,7 @@ import { router, useFocusEffect, useIsFocused } from "expo-router";
 import { Barcode, Camera, CameraRotate, Check, Flashlight } from "phosphor-react-native";
 
 import { useTheme } from "@/styles/ThemeContext";
-import { describeApiError, identifyBarcode, identifyPhoto } from "@/utils/api";
+import { ApiError, describeApiError, identifyBarcode, identifyPhoto } from "@/utils/api";
 import { putPending } from "@/utils/pendingScan";
 import { photoForUpload } from "@/utils/photo";
 import { SCAN_AGAIN_EVENT, transformIdentity } from "@/utils/scanTransform";
@@ -287,6 +287,17 @@ export default function ScanScreen() {
     if (controller.signal.aborted) return;
 
     console.log(label, err);
+
+    // The weekly free-scan cap is a sales moment, not just an error: offer the
+    // upgrade screen directly instead of a toast the user can miss.
+    if (err instanceof ApiError && err.kind === "quota") {
+      Alert.alert("You're out of free scans", err.message, [
+        { text: "Not now", style: "cancel" },
+        { text: "Upgrade", onPress: () => router.push("/upgrade") },
+      ]);
+      return;
+    }
+
     showToast(describeApiError(err));
   };
 
