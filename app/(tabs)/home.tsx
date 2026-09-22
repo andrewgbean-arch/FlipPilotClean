@@ -173,7 +173,7 @@ export default function HomeScreen() {
             accessibilityLabel="Settings"
             style={({ pressed }) => [
               styles.settingsButton,
-              { top: insets.top + 6, borderColor: theme.hairline, backgroundColor: theme.card },
+              { borderColor: theme.hairline, backgroundColor: theme.card },
               pressed && styles.pressed,
             ]}
             onPress={() => router.push("/settings")}
@@ -366,17 +366,20 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   logoHeaderWrapper: {
-    paddingHorizontal: 16,
+    flexDirection: "row",
     alignItems: "center",
+    paddingHorizontal: 16,
   },
+  // Square logo (1024x1024 source): given a generous height, "contain" fills as much
+  // of the remaining row width as it can, so this stays much bigger than the gear icon
+  // beside it without needing to hand-calculate an exact pixel size.
   logoHeaderImage: {
-    width: "100%",
-    height: 170,
+    flex: 1,
+    height: 320,
+    marginRight: 10,
   },
 
   settingsButton: {
-    position: "absolute",
-    right: 16,
     width: 44,
     height: 44,
     borderRadius: 22,
