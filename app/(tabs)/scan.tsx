@@ -24,6 +24,7 @@ import { describeApiError, identifyBarcode, identifyPhoto } from "@/utils/api";
 import { putPending } from "@/utils/pendingScan";
 import { photoForUpload } from "@/utils/photo";
 import { SCAN_AGAIN_EVENT, transformIdentity } from "@/utils/scanTransform";
+import ScanWaitingAd, { AD_REVEAL_DELAY_MS } from "@/components/ScanWaitingAd";
 
 // Laser + AI Tips
 const LASER_COLOR = "#FF3B3B";
@@ -69,6 +70,9 @@ export default function ScanScreen() {
 
   // Scan state
   const [loading, setLoading] = useState(false);
+  // A quick barcode lookup is often over before anyone could read anything, so
+  // the sponsored card only appears once the wait has actually gone on a little.
+  const [showWaitingAd, setShowWaitingAd] = useState(false);
   // Barcode scanning switches off after every lookup and only resumes when the user asks
   // (SCAN BARCODE, or Scan Again on the results), so a code still in view can't repeat lookups.
   const [barcodeArmed, setBarcodeArmed] = useState(true);
@@ -246,6 +250,15 @@ export default function ScanScreen() {
       if (successTimer.current) clearTimeout(successTimer.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (!loading) {
+      setShowWaitingAd(false);
+      return;
+    }
+    const timer = setTimeout(() => setShowWaitingAd(true), AD_REVEAL_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [loading]);
 
   // ============================
   // Scan flow
@@ -631,6 +644,8 @@ export default function ScanScreen() {
               Cancel
             </Text>
           </Pressable>
+
+          {showWaitingAd ? <ScanWaitingAd /> : null}
         </View>
       )}
 
