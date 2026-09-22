@@ -2,6 +2,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import {
   CalendarBlank,
   CaretRight,
+  CloudRain,
   MagnifyingGlass,
   MapPin,
   WarningCircle,
@@ -100,6 +101,13 @@ function ResultCard({ item }: { item: FairResult }) {
         <Text numberOfLines={2} style={[styles.cardTitle, { color: theme.text }]}>
           {item.name}
         </Text>
+
+        {item.cancelledDueToWeather ? (
+          <View style={[styles.cancelledPill, { borderColor: theme.danger }]}>
+            <CloudRain size={13} color={theme.danger} weight="fill" />
+            <Text style={[styles.cancelledPillText, { color: theme.danger }]}>Cancelled</Text>
+          </View>
+        ) : null}
 
         <View style={styles.facts}>
           <FactRow Icon={MapPin} text={item.postcode} />
@@ -395,6 +403,21 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     lineHeight: 24,
+  },
+  cancelledPill: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  cancelledPillText: {
+    fontSize: 12,
+    fontWeight: "700",
   },
   facts: {
     gap: 6,

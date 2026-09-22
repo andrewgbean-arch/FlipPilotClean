@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   CaretRight,
   Car,
+  CloudRain,
   CreditCard,
   EnvelopeSimple,
   FacebookLogo,
@@ -34,6 +35,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from "react-native";
@@ -41,7 +43,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/styles/ThemeContext";
 
-import { Fair, getAllFairs } from "../../src/lib/fairs";
+import { Fair, getAllFairs, isUserFair, updateUserFair } from "../../src/lib/fairs";
 
 /* SMALL LOCAL COMPONENTS */
 function SectionTitle({ children }: { children: string }) {
@@ -215,6 +217,8 @@ export default function BootfairDetails() {
 
   const [fair, setFair] = useState<Fair | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isMine, setIsMine] = useState(false);
+  const [updatingCancelled, setUpdatingCancelled] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -226,10 +230,26 @@ export default function BootfairDetails() {
       setLoading(false);
     });
 
+    if (id) {
+      isUserFair(id).then((mine) => {
+        if (active) setIsMine(mine);
+      });
+    }
+
     return () => {
       active = false;
     };
   }, [id]);
+
+  // Only the organiser who listed this fair on this device can flip this -
+  // it's their call to make while it's live, not a one-time form answer.
+  const setCancelled = async (cancelledDueToWeather: boolean) => {
+    if (!fair || updatingCancelled) return;
+    setUpdatingCancelled(true);
+    const updated = await updateUserFair(fair.id, { cancelledDueToWeather });
+    if (updated) setFair(updated);
+    setUpdatingCancelled(false);
+  };
 
   if (loading) {
     return (
@@ -370,11 +390,19 @@ export default function BootfairDetails() {
         })
       : null;
 
-  const hasDetails = Boolean(fair.nextDate || fair.hours || fair.frequency);
+  const hasDetails = Boolean(
+    fair.nextDate || fair.daysOfWeek?.length || fair.hours || fair.frequency
+  );
   const detailRows: { label: string; value: string }[] = [];
   if (fair.nextDate) detailRows.push({ label: "Next date", value: fair.nextDate });
+  if (fair.daysOfWeek?.length) {
+    detailRows.push({ label: "Usually on", value: fair.daysOfWeek.join(", ") });
+  }
   if (fair.hours) detailRows.push({ label: "Opening hours", value: fair.hours });
   if (fair.frequency) detailRows.push({ label: "How often", value: fair.frequency });
+
+  // Extra photos beyond the hero (images[0]).
+  const galleryPhotos = fair.images?.slice(1) ?? [];
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -402,6 +430,23 @@ export default function BootfairDetails() {
             {fair.address || fair.postcode}
           </Text>
         </View>
+
+        {/* CANCELLED DUE TO WEATHER */}
+        {fair.cancelledDueToWeather ? (
+          <View
+            style={[
+              styles.cancelledBanner,
+              { backgroundColor: theme.danger, borderColor: theme.danger },
+            ]}
+            accessible
+            accessibilityLabel="Cancelled today due to bad weather"
+          >
+            <CloudRain size={20} color={theme.white} weight="fill" />
+            <Text style={[styles.cancelledText, { color: theme.white }]}>
+              Cancelled due to bad weather
+            </Text>
+          </View>
+        ) : null}
 
         {/* BADGES */}
         <View style={styles.chips}>
@@ -431,6 +476,23 @@ export default function BootfairDetails() {
           <Text style={[styles.description, { color: theme.muted }]}>{fair.description}</Text>
         ) : null}
 
+        {/* GALLERY (photos beyond the hero image) */}
+        {galleryPhotos.length > 0 ? (
+          <>
+            <SectionTitle>Photos</SectionTitle>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.gallery}>
+              {galleryPhotos.map((uri, i) => (
+                <Image
+                  key={uri + i}
+                  source={{ uri }}
+                  style={[styles.galleryImage, { backgroundColor: theme.card }]}
+                  resizeMode="cover"
+                />
+              ))}
+            </ScrollView>
+          </>
+        ) : null}
+
         {/* WHEN (entered by whoever listed the fair) */}
         {hasDetails ? (
           <>
@@ -440,6 +502,34 @@ export default function BootfairDetails() {
                 <DataRow key={row.label} label={row.label} value={row.value} divider={i > 0} />
               ))}
             </Group>
+          </>
+        ) : null}
+
+        {/* MANAGE (only the organiser who listed this fair on this device sees this) */}
+        {isMine ? (
+          <>
+            <SectionTitle>Manage your listing</SectionTitle>
+            <View
+              style={[styles.manageRow, { backgroundColor: theme.card, borderColor: theme.hairline }]}
+            >
+              <View style={styles.manageText}>
+                <Text style={[styles.toggleLabel, { color: theme.text }]}>
+                  Cancelled due to bad weather
+                </Text>
+                <Text style={[styles.manageHint, { color: theme.muted }]}>
+                  Turn this on to let visitors know before they travel.
+                </Text>
+              </View>
+              <Switch
+                value={fair.cancelledDueToWeather}
+                onValueChange={setCancelled}
+                disabled={updatingCancelled}
+                thumbColor={theme.white}
+                trackColor={{ true: theme.danger, false: theme.cardElevated }}
+                ios_backgroundColor={theme.cardElevated}
+                accessibilityLabel="Cancelled due to bad weather"
+              />
+            </View>
           </>
         ) : null}
 
@@ -642,6 +732,53 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 23,
     marginTop: 16,
+  },
+  cancelledBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  cancelledText: {
+    fontSize: 15,
+    fontWeight: "700",
+    flexShrink: 1,
+  },
+  gallery: {
+    marginTop: 16,
+  },
+  galleryImage: {
+    width: 140,
+    height: 140,
+    borderRadius: 12,
+    marginRight: 10,
+  },
+
+  /* MANAGE YOUR LISTING */
+  manageRow: {
+    minHeight: 64,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  manageText: {
+    flex: 1,
+    gap: 4,
+  },
+  toggleLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  manageHint: {
+    fontSize: 13,
+    lineHeight: 18,
   },
 
   /* SECTIONS */

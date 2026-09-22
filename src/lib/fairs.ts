@@ -6,10 +6,12 @@ export interface Fair {
   name: string;
   postcode: string;
   nextDate: string;
+  daysOfWeek: string[];
   entryFee: string;
   stallFee: string;
   openingTime: string;
   closingTime: string;
+  cancelledDueToWeather: boolean;
 
   website?: string;
   email: string;
@@ -86,4 +88,28 @@ export async function addUserFair(fair: Fair): Promise<Fair[]> {
   const updated = [fair, ...existing];
   await AsyncStorage.setItem(USER_FAIRS_KEY, JSON.stringify(updated));
   return updated;
+}
+
+// True for a fair this device's user listed themselves - the only fairs they
+// can manage (cancel/un-cancel), since there are no accounts and the built-in
+// list isn't theirs to edit.
+export async function isUserFair(id: string): Promise<boolean> {
+  const existing = await readUserFairs();
+  return existing.some((f) => f.id === id);
+}
+
+// Patches one of THIS device's own fairs (e.g. toggling cancelledDueToWeather)
+// and persists it. Does nothing to the built-in list - there's nothing there
+// for this device's user to own.
+export async function updateUserFair(id: string, patch: Partial<Fair>): Promise<Fair | null> {
+  const existing = await readUserFairs();
+  const index = existing.findIndex((f) => f.id === id);
+  if (index === -1) return null;
+
+  const updatedFair = { ...existing[index], ...patch };
+  const updated = [...existing];
+  updated[index] = updatedFair;
+
+  await AsyncStorage.setItem(USER_FAIRS_KEY, JSON.stringify(updated));
+  return updatedFair;
 }

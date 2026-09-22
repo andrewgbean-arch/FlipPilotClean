@@ -1,10 +1,12 @@
 import { router } from "expo-router";
-import { Check, WarningCircle } from "phosphor-react-native";
+import { Check, Plus, WarningCircle, X } from "phosphor-react-native";
 import { useState } from "react";
 import type { ReactNode } from "react";
+import * as ImagePicker from "expo-image-picker";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -79,14 +81,28 @@ const CATEGORY_OPTIONS = [
   "Community",
 ];
 
+const DAY_OPTIONS = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
+
+const MAX_PHOTOS = 6;
+
 type FieldKey =
   | "name"
   | "postcode"
   | "nextDate"
+  | "daysOfWeek"
   | "entryFee"
   | "stallFee"
   | "openingTime"
   | "closingTime"
+  | "description"
   | "organiserWebsite"
   | "organiserEmail";
 
@@ -129,6 +145,7 @@ function FormField({
   hint,
   error,
   style,
+  inputStyle,
   value,
   onChangeText,
   placeholder,
@@ -139,6 +156,8 @@ function FormField({
   hint?: string;
   error?: string;
   style?: StyleProp<ViewStyle>;
+  // Extra style for the input itself, e.g. a taller box for a multiline field.
+  inputStyle?: StyleProp<ViewStyle>;
   value: string;
   onChangeText: (text: string) => void;
   placeholder: string;
@@ -161,6 +180,7 @@ function FormField({
             color: theme.text,
             borderColor: error ? theme.danger : focused ? theme.gold : theme.hairline,
           },
+          inputStyle,
         ]}
         placeholder={placeholder}
         placeholderTextColor={theme.muted}
@@ -185,6 +205,40 @@ function FormField({
   );
 }
 
+// A plain yes/no question - one row, a label and a switch.
+function ToggleRow({
+  label,
+  value,
+  onValueChange,
+  divider,
+}: {
+  label: string;
+  value: boolean;
+  onValueChange: (value: boolean) => void;
+  divider?: boolean;
+}) {
+  const theme = useTheme();
+
+  return (
+    <View
+      style={[
+        styles.toggleRow,
+        divider ? { borderTopColor: theme.hairline } : { borderTopWidth: 0, paddingTop: 0 },
+      ]}
+    >
+      <Text style={[styles.toggleLabel, { color: theme.text }]}>{label}</Text>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        thumbColor={theme.white}
+        trackColor={{ true: theme.gold, false: theme.cardElevated }}
+        ios_backgroundColor={theme.cardElevated}
+        accessibilityLabel={label}
+      />
+    </View>
+  );
+}
+
 export default function AddFairScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -192,14 +246,28 @@ export default function AddFairScreen() {
   const [name, setName] = useState("");
   const [postcode, setPostcode] = useState("");
   const [nextDate, setNextDate] = useState("");
+  const [daysOfWeek, setDaysOfWeek] = useState<string[]>([]);
   const [entryFee, setEntryFee] = useState("");
   const [stallFee, setStallFee] = useState("");
   const [openingTime, setOpeningTime] = useState("");
   const [closingTime, setClosingTime] = useState("");
+  const [description, setDescription] = useState("");
+  const [photos, setPhotos] = useState<string[]>([]);
   const [organiserWebsite, setOrganiserWebsite] = useState("");
   const [organiserEmail, setOrganiserEmail] = useState("");
   const [showEmailPublicly, setShowEmailPublicly] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
+
+  // Facilities - each a plain yes/no the organiser answers themselves.
+  const [parking, setParking] = useState(false);
+  const [toilets, setToilets] = useState(false);
+  const [foodStalls, setFoodStalls] = useState(false);
+  const [dogFriendly, setDogFriendly] = useState(false);
+  const [wheelchairAccessible, setWheelchairAccessible] = useState(false);
+  const [indoor, setIndoor] = useState(false);
+  const [weatherSafe, setWeatherSafe] = useState(false);
+  const [acceptsCard, setAcceptsCard] = useState(false);
+  const [acceptsCash, setAcceptsCash] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [formError, setFormError] = useState("");
@@ -217,6 +285,41 @@ export default function AddFairScreen() {
     } else {
       setCategories([...categories, cat]);
     }
+  };
+
+  const toggleDay = (day: string) => {
+    if (errors.daysOfWeek) setErrors((prev) => ({ ...prev, daysOfWeek: undefined }));
+    if (formError) setFormError("");
+    if (daysOfWeek.includes(day)) {
+      setDaysOfWeek(daysOfWeek.filter((d) => d !== day));
+    } else {
+      setDaysOfWeek([...daysOfWeek, day]);
+    }
+  };
+
+  const pickPhoto = async () => {
+    if (photos.length >= MAX_PHOTOS) return;
+
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert(
+        "Photo access needed",
+        "Allow photo library access to add pictures of your boot fair."
+      );
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 0.8,
+    });
+
+    if (result.canceled) return;
+    setPhotos((prev) => [...prev, result.assets[0].uri]);
+  };
+
+  const removePhoto = (uri: string) => {
+    setPhotos((prev) => prev.filter((p) => p !== uri));
   };
 
   const validateAndSubmit = async () => {
@@ -240,6 +343,7 @@ export default function AddFairScreen() {
     for (const [key, value] of required) {
       if (!value) missing[key] = "Required";
     }
+    if (daysOfWeek.length === 0) missing.daysOfWeek = "Pick at least one day";
 
     if (Object.keys(missing).length > 0) {
       setErrors(missing);
@@ -254,6 +358,7 @@ export default function AddFairScreen() {
       ["entryFee", entryFee],
       ["stallFee", stallFee],
       ["organiserWebsite", organiserWebsite],
+      ["description", description],
     ];
 
     const badLanguage: FormErrors = {};
@@ -313,10 +418,12 @@ export default function AddFairScreen() {
       name,
       postcode: place.postcode,
       nextDate,
+      daysOfWeek,
       entryFee,
       stallFee,
       openingTime,
       closingTime,
+      cancelledDueToWeather: false,
       website: cleanedWebsite || undefined,
       email: organiserEmail,
       displayEmailPublicly: showEmailPublicly,
@@ -328,29 +435,29 @@ export default function AddFairScreen() {
       lng: place.lng,
       hours: `${openingTime} – ${closingTime}`,
       frequency: "One‑off",
-      images: [],
+      images: photos,
       featured: false,
       busyScore: 0,
-      description: "",
+      description,
       verified: false,
       lastUpdated: new Date().toISOString(),
 
       social: {},
 
-      parking: false,
-      toilets: false,
-      foodStalls: false,
-      dogFriendly: false,
-      wheelchairAccessible: false,
+      parking,
+      toilets,
+      foodStalls,
+      dogFriendly,
+      wheelchairAccessible,
 
-      indoor: false,
-      weatherSafe: false,
+      indoor,
+      weatherSafe,
 
       estimatedStalls: 0,
       estimatedVisitors: 0,
 
-      acceptsCard: false,
-      acceptsCash: true,
+      acceptsCard,
+      acceptsCash,
     };
 
     try {
@@ -419,6 +526,103 @@ export default function AddFairScreen() {
             onChangeText={onChange("nextDate", setNextDate)}
             error={errors.nextDate}
           />
+
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: theme.muted }]}>Day(s) of the week *</Text>
+            <View style={styles.dayContainer}>
+              {DAY_OPTIONS.map((day) => {
+                const selected = daysOfWeek.includes(day);
+
+                return (
+                  <Pressable
+                    key={day}
+                    accessibilityRole="button"
+                    accessibilityLabel={day}
+                    accessibilityState={{ selected }}
+                    onPress={() => toggleDay(day)}
+                    style={({ pressed }) => [
+                      styles.dayChip,
+                      {
+                        backgroundColor: selected ? GOLD_TINT : theme.background,
+                        borderColor: selected ? theme.gold : theme.hairline,
+                      },
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text
+                      style={[styles.dayText, { color: selected ? theme.gold : theme.text }]}
+                    >
+                      {day.slice(0, 3)}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {errors.daysOfWeek ? (
+              <Text
+                style={[styles.fieldMessage, { color: theme.danger }]}
+                accessibilityLiveRegion="polite"
+              >
+                {errors.daysOfWeek}
+              </Text>
+            ) : (
+              <Text style={[styles.fieldMessage, { color: theme.muted }]}>
+                Which day(s) this fair usually runs on.
+              </Text>
+            )}
+          </View>
+        </FormCard>
+
+        {/* PHOTOS */}
+        <SectionTitle title="Photos" subtitle="Show people what to expect. The first photo is used as the cover." />
+        <FormCard>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
+            {photos.map((uri) => (
+              <View key={uri} style={styles.photoThumbWrap}>
+                <Image source={{ uri }} style={[styles.photoThumb, { borderColor: theme.hairline }]} />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Remove photo"
+                  onPress={() => removePhoto(uri)}
+                  style={[styles.photoRemove, { backgroundColor: theme.danger }]}
+                >
+                  <X size={14} color={theme.white} weight="bold" />
+                </Pressable>
+              </View>
+            ))}
+
+            {photos.length < MAX_PHOTOS ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Add a photo"
+                onPress={pickPhoto}
+                style={({ pressed }) => [
+                  styles.photoAdd,
+                  { backgroundColor: theme.background, borderColor: theme.hairline },
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Plus size={22} color={theme.muted} />
+              </Pressable>
+            ) : null}
+          </ScrollView>
+          <Text style={[styles.fieldMessage, { color: theme.muted }]}>
+            {photos.length} of {MAX_PHOTOS} photos added.
+          </Text>
+        </FormCard>
+
+        {/* ABOUT */}
+        <SectionTitle title="About" subtitle="Tell people what your boot fair is like." />
+        <FormCard>
+          <FormField
+            label="Description (optional)"
+            placeholder="Pitch types, what to expect, parking info, regular stalls..."
+            value={description}
+            onChangeText={onChange("description", setDescription)}
+            error={errors.description}
+            inputStyle={styles.descriptionInput}
+            inputProps={{ multiline: true, numberOfLines: 5, textAlignVertical: "top" }}
+          />
         </FormCard>
 
         {/* FEES AND TIMES */}
@@ -469,6 +673,30 @@ export default function AddFairScreen() {
           <Text style={[styles.fieldMessage, { color: theme.muted }]}>
             Use 24-hour times, for example 07:00.
           </Text>
+        </FormCard>
+
+        {/* FACILITIES */}
+        <SectionTitle title="Facilities" subtitle="What's actually there, so visitors know before they travel." />
+        <FormCard>
+          <ToggleRow label="Parking available" value={parking} onValueChange={setParking} />
+          <ToggleRow label="Toilets on site" value={toilets} onValueChange={setToilets} divider />
+          <ToggleRow label="Food stalls" value={foodStalls} onValueChange={setFoodStalls} divider />
+          <ToggleRow label="Dog friendly" value={dogFriendly} onValueChange={setDogFriendly} divider />
+          <ToggleRow
+            label="Wheelchair accessible"
+            value={wheelchairAccessible}
+            onValueChange={setWheelchairAccessible}
+            divider
+          />
+          <ToggleRow label="Indoor" value={indoor} onValueChange={setIndoor} divider />
+          <ToggleRow
+            label="Weather safe (covered even in rain)"
+            value={weatherSafe}
+            onValueChange={setWeatherSafe}
+            divider
+          />
+          <ToggleRow label="Accepts card payments" value={acceptsCard} onValueChange={setAcceptsCard} divider />
+          <ToggleRow label="Accepts cash" value={acceptsCash} onValueChange={setAcceptsCash} divider />
         </FormCard>
 
         {/* ORGANISER */}
@@ -664,6 +892,62 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontWeight: "600",
+  },
+  descriptionInput: {
+    height: 110,
+    paddingTop: 12,
+  },
+
+  /* DAYS OF THE WEEK */
+  dayContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  dayChip: {
+    minWidth: 48,
+    minHeight: 40,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dayText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+
+  /* PHOTOS */
+  photoScroll: {
+    flexGrow: 0,
+  },
+  photoThumbWrap: {
+    marginRight: 10,
+  },
+  photoThumb: {
+    width: 96,
+    height: 96,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  photoRemove: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  photoAdd: {
+    width: 96,
+    height: 96,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   /* CATEGORIES */

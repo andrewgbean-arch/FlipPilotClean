@@ -4,6 +4,7 @@ import {
   CalendarBlank,
   CaretRight,
   Clock,
+  CloudRain,
   MagnifyingGlass,
   MapPin,
   Plus,
@@ -62,23 +63,26 @@ function Chip({
   Icon,
   label,
   accent,
+  danger,
 }: {
   Icon?: PhosphorIcon;
   label: string;
   accent?: boolean;
+  danger?: boolean;
 }) {
   const theme = useTheme();
+  const tone = danger ? theme.danger : accent ? theme.gold : theme.muted;
 
   return (
-    <View style={[styles.chip, { backgroundColor: theme.background }]}>
-      {Icon ? (
-        <Icon
-          size={14}
-          color={accent ? theme.gold : theme.muted}
-          weight={accent ? "fill" : "regular"}
-        />
-      ) : null}
-      <Text style={[styles.chipText, { color: theme.text }]} numberOfLines={1}>
+    <View
+      style={[
+        styles.chip,
+        { backgroundColor: theme.background },
+        danger && { borderWidth: 1, borderColor: theme.danger },
+      ]}
+    >
+      {Icon ? <Icon size={14} color={tone} weight={danger || accent ? "fill" : "regular"} /> : null}
+      <Text style={[styles.chipText, { color: danger ? theme.danger : theme.text }]} numberOfLines={1}>
         {label}
       </Text>
     </View>
@@ -139,6 +143,9 @@ function FairCard({ item }: { item: Fair }) {
         </Text>
 
         <View style={styles.chips}>
+          {item.cancelledDueToWeather ? (
+            <Chip Icon={CloudRain} label="Cancelled" danger />
+          ) : null}
           {item.featured ? <Chip Icon={Star} label="Featured" accent /> : null}
           {item.frequency ? <Chip label={item.frequency} /> : null}
           {/* 0 means nobody has rated it, not "quiet" */}
