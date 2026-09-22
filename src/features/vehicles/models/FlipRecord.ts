@@ -27,16 +27,6 @@ export interface FlipRecord {
     value: number;
   }[] | null;
 
-  // AI valuation engine output
-  aiValuation?: {
-    estimatedValue?: number | null;
-    confidence?: number | null;
-    notes?: string | null;
-  } | null;
-
-  // Trade-in value
-  tradeValue?: number | null;
-
   // Buyer confidence score
   buyerConfidence?: number | null;
 
@@ -71,18 +61,8 @@ export interface FlipRecord {
     photos?: any[] | null;
   } | null;
 
-  // AI price engine output
-  aiPrice?: {
-    recommendedSellPrice?: number | null;
-    riskLevel?: "low" | "medium" | "high" | null;
-    confidence?: number | null;
-    notes?: string | null;
-
-    min?: number | null;
-    max?: number | null;
-  } | null;
-
-  // Legacy AI price fields
+  // Real AI price-estimate range for a scanned item (from the item-pricing
+  // model's cross-check, not the removed vehicle "AI advisor" formula).
   aiPriceMin?: number | null;
   aiPriceMax?: number | null;
   aiPriceConfidence?: number | null;
@@ -190,13 +170,6 @@ export const FlipRecordDefaults: FlipRecord = {
   valuation: null,
   valuationHistory: null,
 
-  aiValuation: {
-    estimatedValue: null,
-    confidence: null,
-    notes: null,
-  },
-
-  tradeValue: null,
   buyerConfidence: null,
 
   flipScore: null,
@@ -220,15 +193,6 @@ export const FlipRecordDefaults: FlipRecord = {
     origin: null,
     conditionScore: null,
     photos: null,
-  },
-
-  aiPrice: {
-    recommendedSellPrice: null,
-    riskLevel: null,
-    confidence: null,
-    notes: null,
-    min: null,
-    max: null,
   },
 
   aiPriceMin: null,
@@ -322,16 +286,6 @@ export function normalizeFlipRecord(v: Partial<FlipRecord>): FlipRecord {
   return {
     ...FlipRecordDefaults,
     ...v,
-
-    aiValuation: {
-      ...FlipRecordDefaults.aiValuation,
-      ...(v.aiValuation ?? {}),
-    },
-
-    aiPrice: {
-      ...FlipRecordDefaults.aiPrice,
-      ...(v.aiPrice ?? {}),
-    },
 
     market: {
       ...FlipRecordDefaults.market,

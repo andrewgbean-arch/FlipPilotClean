@@ -34,7 +34,6 @@ import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryCon
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
 import { fetchMOT } from "@/features/vehicles/api/mot";
 import { calculateFlipScore, FlipScoreInput } from "@/utils/flipScoreEngine";
-import { calculatePrice, computeAiPrice } from "@/features/ai/priceengine";
 
 import { useTheme } from "@/styles/useTheme";
 import { Theme } from "@/styles/theme";
@@ -68,7 +67,6 @@ const signedMoney = (n: number) =>
   `${n > 0 ? "+" : n < 0 ? "-" : ""}£${Math.abs(n).toFixed(2)}`;
 const signedPercent = (n: number) =>
   `${n > 0 ? "+" : n < 0 ? "-" : ""}${Math.abs(n).toFixed(1)}%`;
-const money = (n: number) => `£${n.toFixed(2)}`;
 const withCommas = (n: number) =>
   String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 
@@ -178,9 +176,6 @@ function EditFlipForm({
   const [title, setTitle] = useState(flip.title ?? "");
   const [buyPrice, setBuyPrice] = useState(String(flip.buyPrice ?? ""));
   const [sellPrice, setSellPrice] = useState(String(flip.sellPrice ?? ""));
-  const [aiPriceConfidence, setAiPriceConfidence] = useState(
-    String(flip.aiPrice?.confidence ?? 0)
-  );
 
   const [rarity, setRarity] = useState<FlipScoreInput["rarity"]>(
     (flip.rarity as any) ?? "Common"
@@ -228,7 +223,6 @@ function EditFlipForm({
   const mileageN = parseAmount(mileage);
   const keepersN = parseAmount(keepers);
   const engineN = parseAmount(engineSize);
-  const confidenceN = parseAmount(aiPriceConfidence);
   const demandN = parseAmount(demandScore);
 
   /* -------------------------------------------------------
@@ -261,25 +255,10 @@ function EditFlipForm({
         rarity,
         condition,
         sellSpeed,
-        aiPriceConfidence: confidenceN ?? undefined,
       })
     : flip.flipScore ?? 0;
 
-  /* -------------------------------------------------------
-       VALUATION PREVIEW DATA
-    ------------------------------------------------------- */
   const flipScore = liveScore;
-  const marketHeat = demandN ?? 0;
-
-  const listing = {
-    id: flip.id,
-    price: sellN || buyN || 0,
-    mileage: mileageN ?? 0,
-    year,
-    condition,
-    make,
-    engineSize: engineN ?? 0,
-  };
 
   /* -------------------------------------------------------
        VALIDATION
@@ -295,10 +274,6 @@ function EditFlipForm({
     keepers: keepersN === undefined ? "Keepers must be a number." : null,
     engine:
       engineN === undefined ? "Engine size must be a number, for example 1242." : null,
-    confidence:
-      confidenceN === undefined || (confidenceN != null && confidenceN > 100)
-        ? "AI price confidence must be a number from 0 to 100."
-        : null,
     demand:
       demandN === undefined || (demandN != null && demandN > 100)
         ? "Demand score must be a number from 0 to 100."
@@ -313,7 +288,6 @@ function EditFlipForm({
     errors.mileage ??
     errors.keepers ??
     errors.engine ??
-    errors.confidence ??
     errors.demand ??
     null;
 
@@ -441,20 +415,6 @@ function EditFlipForm({
           : []),
     };
 
-    const aiPrice = computeAiPrice({
-      ...flip,
-      title,
-      buyPrice: buyN ?? null,
-      sellPrice: sellN ?? null,
-      flipScore,
-      rarity,
-      sellSpeed,
-      ai: { condition, description },
-      market: { demandScore: demandN ?? 0 },
-      images,
-      mot: motPayload,
-    });
-
     updateVehicle(flip.id, {
       title: title.trim(),
       buyPrice: buyN ?? null,
@@ -467,12 +427,6 @@ function EditFlipForm({
       market: { demandScore: demandN ?? 0 },
       images,
       mot: motPayload,
-      aiPrice: {
-        recommendedSellPrice: aiPrice.recommendedSellPrice,
-        riskLevel: aiPrice.riskLevel,
-        confidence: confidenceN ?? 0,
-        notes: aiPrice.notes,
-      },
     });
 
     // Back to wherever the edit was opened from, not a second copy of the list.
@@ -497,7 +451,6 @@ function EditFlipForm({
       rarity,
       condition,
       sellSpeed,
-      aiPriceConfidence: confidenceN ?? 0,
     };
   };
 
@@ -730,27 +683,10 @@ function EditFlipForm({
           </View>
         </Card>
 
-        <ValuationCard listing={listing} prediction={{ flipScore, marketHeat }} />
-
         {/* CONDITION AND SCORING */}
         <SectionTitle>Condition and scoring</SectionTitle>
         <Card>
           <View style={styles.stack}>
-            <View>
-              <Tooltip
-                label="AI price confidence (0–100)"
-                hint="Higher confidence means AI believes the price estimate is accurate."
-                value={aiPriceConfidence}
-                onChangeText={(t) => {
-                  setDirty(true);
-                  setAiPriceConfidence(t);
-                  setScoreEdited(true);
-                }}
-                invalid={!!errors.confidence}
-              />
-              <FieldError text={errors.confidence} />
-            </View>
-
             <ChoiceGroup
               label="Rarity"
               value={rarity}
@@ -1091,52 +1027,6 @@ function ChoiceGroup({
   );
 }
 
-// A number field whose label has an info button that shows or hides a hint.
-function Tooltip({
-  label,
-  hint,
-  value,
-  onChangeText,
-  invalid,
-}: {
-  label: string;
-  hint: string;
-  value: string;
-  onChangeText: (t: string) => void;
-  invalid?: boolean;
-}) {
-  const theme = useTheme();
-  const [showHint, setShowHint] = useState(false);
-
-  return (
-    <View>
-      <View style={styles.hintLabelRow}>
-        <Text style={[styles.labelInline, { color: theme.muted }]}>{label}</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`About ${label}`}
-          accessibilityState={{ expanded: showHint }}
-          hitSlop={14}
-          onPress={() => setShowHint(!showHint)}
-          style={({ pressed }) => pressed && styles.pressed}
-        >
-          <Info size={18} color={theme.muted} weight={showHint ? "fill" : "regular"} />
-        </Pressable>
-      </View>
-
-      {showHint ? <Text style={[styles.hint, { color: theme.muted }]}>{hint}</Text> : null}
-
-      <TextField
-        label={label}
-        value={value}
-        onChangeText={(t: string) => onChangeText(t)}
-        keyboardType="numeric"
-        invalid={invalid}
-      />
-    </View>
-  );
-}
-
 // The FlipScore for the current inputs, with a way into the full breakdown.
 function FlipScoreCard({ score, onPress }: { score: number; onPress: () => void }) {
   const theme = useTheme();
@@ -1178,58 +1068,6 @@ function FlipScoreCard({ score, onPress }: { score: number; onPress: () => void 
       >
         <Text style={[styles.secondaryLabel, { color: theme.text }]}>View score breakdown</Text>
       </Pressable>
-    </Card>
-  );
-}
-
-// What FlipPilot's price engine makes of the vehicle as it is filled in right now.
-function ValuationCard({
-  listing,
-  prediction,
-}: {
-  listing: { price: number };
-  prediction: { flipScore: number; marketHeat: number };
-}) {
-  const theme = useTheme();
-
-  const valuation = calculatePrice(listing, prediction);
-  const price = listing.price ?? 0;
-  const difference = price - valuation;
-
-  const verdict =
-    difference < -1000
-      ? "Under market value"
-      : difference < -300
-      ? "Good price"
-      : difference < 300
-      ? "Fair price"
-      : "Above market value";
-
-  const verdictColor =
-    difference < -300 ? theme.success : difference < 300 ? theme.text : theme.warning;
-
-  // How the valuation compares with the price entered, kept visible even when it is tiny.
-  const percent = price > 0 ? Math.min(100, Math.max(5, (valuation / price) * 100)) : 100;
-
-  return (
-    <Card style={styles.gapTop}>
-      <View accessible accessibilityLabel={`Market valuation ${money(valuation)}, ${verdict}`}>
-        <Text style={[styles.scoreLabel, { color: theme.muted }]}>Market valuation</Text>
-        <Text style={[styles.valuationValue, { color: theme.text }]} numberOfLines={1} adjustsFontSizeToFit>
-          {money(valuation)}
-        </Text>
-
-        <View style={[styles.meterTrack, { backgroundColor: theme.background }]}>
-          <View style={[styles.meterFill, { width: `${percent}%`, backgroundColor: verdictColor }]} />
-        </View>
-
-        <Text style={[styles.verdict, { color: verdictColor }]}>{verdict}</Text>
-      </View>
-
-      <Text style={[styles.caption, { color: theme.muted }]}>
-        This valuation uses FlipPilot’s PriceEngine (age, mileage, condition, brand, engine size,
-        market heat).
-      </Text>
     </Card>
   );
 }
@@ -1341,7 +1179,6 @@ function BreakdownSheet({
     rarity: string;
     condition: string;
     sellSpeed: string;
-    aiPriceConfidence: number;
   };
   onClose: () => void;
 }) {
@@ -1399,7 +1236,6 @@ function BreakdownSheet({
             <DataRow label="Rarity" value={breakdown.rarity} divider />
             <DataRow label="Condition" value={breakdown.condition} divider />
             <DataRow label="Sell speed" value={breakdown.sellSpeed} divider />
-            <DataRow label="AI price confidence" value={`${breakdown.aiPriceConfidence}/100`} divider />
           </View>
 
           <Pressable
@@ -1489,7 +1325,6 @@ const styles = StyleSheet.create({
 
   /* FIELDS */
   label: { fontSize: 13, fontWeight: "600", marginBottom: 6 },
-  labelInline: { flexShrink: 1, fontSize: 13, fontWeight: "600" },
   input: {
     height: 48,
     borderRadius: 12,
@@ -1502,13 +1337,6 @@ const styles = StyleSheet.create({
   col: { flex: 1, minWidth: 0 },
   fieldError: { fontSize: 13, lineHeight: 18, marginTop: 6 },
   caption: { fontSize: 13, lineHeight: 18, marginTop: 8 },
-  hintLabelRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 6,
-  },
-  hint: { fontSize: 13, lineHeight: 18, marginBottom: 8 },
 
   /* CHOICES */
   choiceWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
@@ -1560,14 +1388,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontVariant: ["tabular-nums"],
   },
-  valuationValue: {
-    fontSize: 28,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-    marginTop: 4,
-  },
-  verdict: { fontSize: 15, fontWeight: "600", marginTop: 12 },
-
   /* FLIP SCORE */
   scoreTop: {
     flexDirection: "row",

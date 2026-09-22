@@ -14,9 +14,9 @@ export function calcFlipScore(vehicle: FlipRecord): number {
   const roi = buy > 0 ? ((sell - buy) / buy) * 100 : 0;
   score += Math.min(20, roi / 5);
 
-  // AI Confidence (0–10). Confidence is stored on a 0–100 scale; the edit
-  // screens keep it under aiPrice, the AI lookup at the top level.
-  const confidence = vehicle.aiPrice?.confidence ?? vehicle.aiPriceConfidence;
+  // AI Confidence (0–10), the real scanned-item price-estimate confidence,
+  // stored on a 0–100 scale.
+  const confidence = vehicle.aiPriceConfidence;
   if (confidence != null && Number.isFinite(confidence)) {
     score += Math.max(0, Math.min(10, confidence / 10));
   }
@@ -37,11 +37,6 @@ export function calcFlipScore(vehicle: FlipRecord): number {
     if (vehicle.mot?.motStatus === "Valid") score += 10;
     if (vehicle.mot?.motStatus === "Expired") score -= 5;
   }
-
-  // Risk Level (0–10)
-  if (vehicle.aiPrice?.riskLevel === "low") score += 10;
-  if (vehicle.aiPrice?.riskLevel === "medium") score += 5;
-  if (vehicle.aiPrice?.riskLevel === "high") score -= 5;
 
   // Clamp
   if (score < 0) score = 0;

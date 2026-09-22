@@ -16,10 +16,8 @@ import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import {
   Camera,
-  ChartLineUp,
   ImageSquare,
   MagnifyingGlass,
-  Sparkle,
   WarningCircle,
   X,
 } from "phosphor-react-native";
@@ -28,8 +26,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/styles/ThemeContext";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
-import { useAIValuation } from "@/features/vehicles/hooks/useAIValuation";
-import { useMarketScan } from "@/features/vehicles/hooks/useMarketScan";
 import { autoFormatReg, getMotStatusColor } from "@/features/vehicles/ui/SupernovaUI";
 import { fetchMOT } from "@/features/vehicles/api/mot";
 import { formatDate } from "@/features/vehicles/utils/motDates";
@@ -44,17 +40,11 @@ function parseAmount(text: string): number | null | undefined {
 
 const normaliseReg = (text: string) => text.replace(/\s+/g, "").toUpperCase();
 
-// "£1,800", or a dash when there is nothing to show.
-const money = (n: number | null | undefined) =>
-  typeof n === "number" && Number.isFinite(n) ? formatMoney(n) : "—";
-
 // "+£800" or "-£200". A profit of exactly zero carries no sign.
 const signedMoney = (n: number) =>
   `${n > 0 ? "+" : n < 0 ? "-" : ""}${formatMoney(Math.abs(n))}`;
 const signedPercent = (n: number) =>
   `${n > 0 ? "+" : n < 0 ? "-" : ""}${Math.abs(n).toFixed(1)}%`;
-
-const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 // The label shown for an MOT expiry date.
 function motStatusLabel(expiry: string | null | undefined): string {
@@ -240,20 +230,6 @@ function FactRow({ label, value, divider }: { label: string; value: string; divi
   );
 }
 
-// An inset block (darker than the card) that holds a title and its fact rows.
-function ResultBox({ title, children }: { title: string; children: React.ReactNode }) {
-  const theme = useTheme();
-
-  return (
-    <View style={[styles.resultBox, { backgroundColor: theme.background, borderColor: theme.hairline }]}>
-      <Text style={[styles.resultTitle, { color: theme.text }]} accessibilityRole="header">
-        {title}
-      </Text>
-      {children}
-    </View>
-  );
-}
-
 export default function NewVehicleScreen() {
   const theme = useTheme();
   const router = useRouter();
@@ -280,14 +256,6 @@ export default function NewVehicleScreen() {
   const [motData, setMotData] = useState<any>(null);
   const [motLoading, setMotLoading] = useState(false);
   const [motError, setMotError] = useState<string | null>(null);
-
-  const { fetchAIValuation, loading: aiLoading } = useAIValuation();
-  const { fetchMarketScan, loading: marketLoading } = useMarketScan();
-
-  const [aiData, setAiData] = useState<any>(null);
-  const [marketData, setMarketData] = useState<any>(null);
-  const [aiError, setAiError] = useState<string | null>(null);
-  const [marketError, setMarketError] = useState<string | null>(null);
 
   // Set once Save is pressed, so problems are not shown on a form nobody has touched yet.
   const [showProblem, setShowProblem] = useState(false);
@@ -429,83 +397,6 @@ export default function NewVehicleScreen() {
   };
 
   /* ============================================================
-     AI Valuation + Market Scan
-  ============================================================ */
-  const runAIValuation = async () => {
-    if (aiLoading) return;
-    if (!title.trim()) {
-      setAiError("Add a title first so the AI knows what to value.");
-      return;
-    }
-    setAiError(null);
-
-    const ai = await fetchAIValuation({
-      id: "temp",
-      title,
-      buyPrice: buyN ?? null,
-      sellPrice: sellN ?? null,
-      notes,
-      images,
-      barcode: "manual-entry",
-      timestamp: Date.now().toString(),
-    });
-
-    if (!ai) {
-      setAiError("Couldn't get an AI valuation right now. Try again in a moment.");
-      return;
-    }
-
-    setAiData({
-      aiPrice: {
-        recommendedSellPrice: ai.recommendedSellPrice,
-        riskLevel: ai.riskLevel,
-      },
-      aiPriceMin: ai.aiPriceMin,
-      aiPriceMax: ai.aiPriceMax,
-      aiPriceConfidence: ai.confidence,
-      insights: ai.insights,
-    });
-  };
-
-  const runMarketScan = async () => {
-    if (marketLoading) return;
-    if (!title.trim()) {
-      setMarketError("Add a title first so we know what to search for.");
-      return;
-    }
-    setMarketError(null);
-
-    const market = await fetchMarketScan({
-      title,
-      buyPrice: buyN ?? null,
-      sellPrice: sellN ?? null,
-      notes,
-      images,
-    });
-
-    if (!market) {
-      setMarketError("Couldn't get market data right now. Try again in a moment.");
-      return;
-    }
-
-    setMarketData({
-      market: {
-        googlePriceMin: market.googlePriceMin ?? null,
-        googlePriceMax: market.googlePriceMax ?? null,
-        lowest: market.lowest ?? null,
-        highest: market.highest ?? null,
-        average: market.average ?? null,
-        smartPrice: market.smartPrice ?? null,
-        soldCount: market.soldCount ?? null,
-        demandScore: market.demandScore ?? null,
-        aiPriceMin: market.aiPriceMin ?? null,
-        aiPriceMax: market.aiPriceMax ?? null,
-        aiPriceConfidence: market.aiPriceConfidence ?? null,
-      },
-    });
-  };
-
-  /* ============================================================
      Save Vehicle
   ============================================================ */
   const saveVehicle = () => {
@@ -532,18 +423,6 @@ export default function NewVehicleScreen() {
 
       favourite: false,
       barcode: "manual-entry",
-
-      ...(aiData || {
-        aiPrice: null,
-        aiPriceMin: null,
-        aiPriceMax: null,
-        aiPriceConfidence: null,
-        insights: null,
-      }),
-
-      ...(marketData || {
-        market: null,
-      }),
 
       // Form fields (reg/make/model/year/colour) take precedence over the
       // MOT lookup snapshot so manual edits made after a lookup aren't lost —
@@ -901,74 +780,6 @@ export default function NewVehicleScreen() {
           )}
         </Section>
 
-        {/* PRICE CHECK */}
-        <Section title="Price check" hint="Optional. Both checks search using the vehicle title.">
-          <View style={styles.stack}>
-            <ActionButton
-              label="Run AI valuation"
-              loadingLabel="Running..."
-              Icon={Sparkle}
-              loading={aiLoading}
-              onPress={runAIValuation}
-            />
-
-            {aiError ? (
-              <Text style={[styles.error, { color: theme.danger }]} accessibilityLiveRegion="polite">
-                {aiError}
-              </Text>
-            ) : null}
-
-            {aiData ? (
-              <ResultBox title="AI summary">
-                <FactRow label="Recommended price" value={money(aiData.aiPrice?.recommendedSellPrice)} />
-                <FactRow
-                  label="Risk level"
-                  value={aiData.aiPrice?.riskLevel ? capitalise(String(aiData.aiPrice.riskLevel)) : "—"}
-                  divider
-                />
-                <FactRow
-                  label="Confidence"
-                  value={
-                    aiData.aiPriceConfidence != null
-                      ? `${Math.round(aiData.aiPriceConfidence)}%`
-                      : "—"
-                  }
-                  divider
-                />
-              </ResultBox>
-            ) : null}
-          </View>
-
-          <View style={[styles.divider, { backgroundColor: theme.hairline }]} />
-
-          <View style={styles.stack}>
-            <ActionButton
-              label="Run market scan"
-              loadingLabel="Scanning..."
-              Icon={ChartLineUp}
-              loading={marketLoading}
-              onPress={runMarketScan}
-            />
-
-            {marketError ? (
-              <Text style={[styles.error, { color: theme.danger }]} accessibilityLiveRegion="polite">
-                {marketError}
-              </Text>
-            ) : null}
-
-            {marketData ? (
-              <ResultBox title="Market snapshot">
-                <FactRow label="Smart price" value={money(marketData.market.smartPrice)} />
-                <FactRow
-                  label="Range"
-                  value={`${money(marketData.market.lowest)} – ${money(marketData.market.highest)}`}
-                  divider
-                />
-                <FactRow label="Average" value={money(marketData.market.average)} divider />
-              </ResultBox>
-            ) : null}
-          </View>
-        </Section>
       </ScrollView>
 
       {/* SAVE */}
@@ -1157,11 +968,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   emptyText: { flex: 1, fontSize: 13, lineHeight: 18 },
-
-  /* PRICE CHECK */
-  divider: { height: 1 },
-  resultBox: { borderRadius: 12, borderWidth: 1, overflow: "hidden" },
-  resultTitle: { fontSize: 16, fontWeight: "700", paddingHorizontal: 14, paddingTop: 14, paddingBottom: 4 },
 
   /* SAVE */
   footer: {

@@ -26,7 +26,6 @@ import {
 import type { Icon as PhosphorIcon } from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { calculatePrice, computeAiPrice } from "@/features/ai/priceengine";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { fetchMOT } from "@/features/vehicles/api/mot";
 import { formatDate } from "@/features/vehicles/utils/motDates";
@@ -56,7 +55,6 @@ type ProblemField =
   | "title"
   | "buy"
   | "sell"
-  | "confidence"
   | "demand"
   | "year"
   | "mileage"
@@ -88,7 +86,6 @@ export default function CreateNewFlip() {
   const [title, setTitle] = useState("");
   const [buyPrice, setBuyPrice] = useState("");
   const [sellPrice, setSellPrice] = useState("");
-  const [aiPriceConfidence, setAiPriceConfidence] = useState("");
 
   const [rarity, setRarity] = useState<FlipScoreInput["rarity"]>("Common");
   const [sellSpeed, setSellSpeed] = useState<FlipScoreInput["sellSpeed"]>("Medium");
@@ -114,7 +111,6 @@ export default function CreateNewFlip() {
   ------------------------------------------------------- */
   const buyN = parseAmount(buyPrice);
   const sellN = parseAmount(sellPrice);
-  const confidenceN = parseAmount(aiPriceConfidence);
   const demandN = parseAmount(demandScore);
   const yearN = parseAmount(year);
   const mileageN = parseAmount(mileage);
@@ -126,8 +122,6 @@ export default function CreateNewFlip() {
     ? { field: "buy", message: "Buy price must be a number, for example 1800." }
     : sellN === undefined
     ? { field: "sell", message: "Sell price must be a number, for example 2600." }
-    : confidenceN === undefined || (confidenceN != null && confidenceN > 100)
-    ? { field: "confidence", message: "AI price confidence must be a number from 0 to 100." }
     : demandN === undefined || (demandN != null && demandN > 100)
     ? { field: "demand", message: "Demand score must be a number from 0 to 100." }
     : yearN === undefined
@@ -156,7 +150,6 @@ export default function CreateNewFlip() {
           rarity,
           condition,
           sellSpeed,
-          aiPriceConfidence: confidenceN ?? undefined,
         })
       : 0;
 
@@ -308,23 +301,6 @@ export default function CreateNewFlip() {
           : [],
     };
 
-    const aiPrice = computeAiPrice({
-      title,
-      buyPrice: buyN ?? null,
-      sellPrice: sellN ?? null,
-      flipScore,
-      rarity,
-      sellSpeed,
-      ai: { condition, description: null },
-      market: { demandScore: demandN ?? 0 },
-      favourite: false,
-      images,
-      mot: motPayload,
-      id: "",
-      timestamp: "",
-      proTips: null,
-    });
-
     addVehicle({
       title: title.trim(),
       buyPrice: buyN ?? null,
@@ -343,12 +319,6 @@ export default function CreateNewFlip() {
       images,
       mot: motPayload,
       proTips: null,
-      aiPrice: {
-        recommendedSellPrice: aiPrice.recommendedSellPrice,
-        riskLevel: aiPrice.riskLevel,
-        confidence: confidenceN ?? 0,
-        notes: aiPrice.notes,
-      },
     });
 
     // replace, so Back does not return to the filled-in form and save it twice.
@@ -365,7 +335,6 @@ export default function CreateNewFlip() {
     rarity,
     condition,
     sellSpeed,
-    aiPriceConfidence,
   }: {
     buyPrice: string;
     sellPrice: string;
@@ -373,7 +342,6 @@ export default function CreateNewFlip() {
     rarity: string;
     condition: string;
     sellSpeed: string;
-    aiPriceConfidence: string;
   }) => {
     const buy = parseAmount(buyPrice) ?? 0;
     const sell = parseAmount(sellPrice) ?? 0;
@@ -387,38 +355,8 @@ export default function CreateNewFlip() {
       rarity,
       condition,
       sellSpeed,
-      aiPriceConfidence: parseAmount(aiPriceConfidence) ?? 0,
     };
   };
-
-  /* -------------------------------------------------------
-     LIVE MARKET VALUATION PREVIEW
-  ------------------------------------------------------- */
-  const valuationPrice = sellN ?? buyN ?? 0;
-  const valuation = calculatePrice(
-    {
-      price: valuationPrice,
-      mileage: mileageN ?? 0,
-      year: yearN ?? 0,
-      condition,
-      make,
-    },
-    {
-      flipScore: liveScore,
-      marketHeat: demandN ?? 50,
-    }
-  );
-  const valuationGap = valuationPrice - valuation;
-  const valuationVerdict =
-    valuationGap < -1000
-      ? { label: "Under market value", color: theme.success }
-      : valuationGap < -300
-      ? { label: "Good price", color: theme.success }
-      : valuationGap < 300
-      ? { label: "Fair price", color: theme.text }
-      : { label: "Above market value", color: theme.warning };
-  const valuationPercent =
-    valuationPrice > 0 ? Math.min(100, Math.max(5, (valuation / valuationPrice) * 100)) : 0;
 
   const hasScore = buyN != null && sellN != null;
   const scoreColor =
@@ -439,7 +377,6 @@ export default function CreateNewFlip() {
     rarity,
     condition,
     sellSpeed,
-    aiPriceConfidence,
   });
 
   /* -------------------------------------------------------
@@ -751,17 +688,6 @@ export default function CreateNewFlip() {
           />
 
           <FormInput
-            label="AI price confidence (0–100)"
-            hint="Higher confidence means AI believes the price estimate is accurate."
-            value={aiPriceConfidence}
-            onChangeText={setAiPriceConfidence}
-            placeholder="0–100"
-            keyboardType="numeric"
-            error={errorFor("confidence")}
-            onFocus={revealField}
-          />
-
-          <FormInput
             label="Demand score (0–100)"
             value={demandScore}
             onChangeText={setDemandScore}
@@ -770,48 +696,6 @@ export default function CreateNewFlip() {
             error={errorFor("demand")}
             onFocus={revealField}
           />
-        </Section>
-
-        {/* MARKET VALUATION */}
-        <Section title="Market valuation">
-          {valuationPrice > 0 ? (
-            <>
-              <View style={styles.profitTop}>
-                <Text style={[styles.label, { color: theme.muted }]}>Estimated market value</Text>
-                <View style={[styles.pill, { backgroundColor: theme.background }]}>
-                  <Text style={[styles.pillText, { color: valuationVerdict.color }]}>
-                    {valuationVerdict.label}
-                  </Text>
-                </View>
-              </View>
-
-              <Text
-                style={[styles.valuationValue, { color: theme.text }]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-              >
-                {formatMoney(valuation)}
-              </Text>
-
-              <View style={[styles.meterTrack, { backgroundColor: theme.background }]}>
-                <View
-                  style={[
-                    styles.meterFill,
-                    { width: `${valuationPercent}%`, backgroundColor: valuationVerdict.color },
-                  ]}
-                />
-              </View>
-
-              <Text style={[styles.hint, { color: theme.muted }]}>
-                Uses FlipPilot's price engine: age, mileage, condition, make, engine size and market
-                heat.
-              </Text>
-            </>
-          ) : (
-            <Text style={[styles.hint, { color: theme.muted }]}>
-              Enter a buy or sell price to see a market valuation.
-            </Text>
-          )}
         </Section>
 
         {/* FLIPSCORE */}
@@ -949,7 +833,6 @@ export default function CreateNewFlip() {
               <FactRow label="Rarity" value={breakdown.rarity} divider />
               <FactRow label="Condition" value={breakdown.condition} divider />
               <FactRow label="Sell speed" value={breakdown.sellSpeed} divider />
-              <FactRow label="AI confidence" value={`${breakdown.aiPriceConfidence}/100`} divider />
             </View>
           </View>
         </View>
@@ -1327,7 +1210,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   profitValue: { fontSize: 36, fontWeight: "700", fontVariant: ["tabular-nums"] },
-  valuationValue: { fontSize: 32, fontWeight: "700", fontVariant: ["tabular-nums"] },
   pill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
   pillText: { fontSize: 14, fontWeight: "700", fontVariant: ["tabular-nums"] },
   meterTrack: { height: 10, borderRadius: 5, overflow: "hidden" },

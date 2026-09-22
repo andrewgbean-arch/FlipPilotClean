@@ -328,8 +328,7 @@ export default function VehicleOverviewScreen() {
     typeof vehicle.flipScore === "number" && Number.isFinite(vehicle.flipScore)
       ? Math.max(0, Math.min(100, vehicle.flipScore))
       : null;
-  // The edit screens keep it under aiPrice, the AI lookup at the top level.
-  const confidence = vehicle.aiPrice?.confidence ?? vehicle.aiPriceConfidence ?? null;
+  const confidence = vehicle.aiPriceConfidence ?? null;
 
   /* MOT HISTORY */
   const history = mot.mileageHistory ?? [];

@@ -78,17 +78,14 @@ const clampScore = (n: number) => Math.min(100, Math.max(0, Math.round(n)));
 const money = (n: number) => `£${(Math.round(n * 100) / 100).toLocaleString()}`;
 
 // Pure: returns the record with the patch applied. Nested objects are merged
-// so a caller that sends only part of `ai`, `market` or `aiPrice` (the edit
-// screen does) does not wipe the rest of them.
+// so a caller that sends only part of `ai` or `market` (the edit screen
+// does) does not wipe the rest of them.
 const applyUpdate = (v: FlipRecord, data: Partial<FlipRecord>): FlipRecord => {
   const updated: FlipRecord = {
     ...v,
     ...data,
     ...(data.ai && v.ai ? { ai: { ...v.ai, ...data.ai } } : {}),
     ...(data.market && v.market ? { market: { ...v.market, ...data.market } } : {}),
-    ...(data.aiPrice && v.aiPrice
-      ? { aiPrice: { ...v.aiPrice, ...data.aiPrice } }
-      : {}),
   };
 
   if (updated.buyPrice != null && updated.sellPrice != null) {

@@ -249,9 +249,6 @@ function AnalyticsRow({
     v.valuation != null ? formatMoney(Math.round(v.valuation * 1.05)) : null;
 
   const extras: string[] = [];
-  if (v.aiValuation?.confidence != null) {
-    extras.push(`AI confidence ${v.aiValuation.confidence}%`);
-  }
   if (suggested) extras.push(`Suggested listing ${suggested}`);
 
   return (

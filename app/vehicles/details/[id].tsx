@@ -15,7 +15,6 @@ import {
   PencilSimple,
   Tag,
   ShieldCheck,
-  Sparkle,
   Trash,
   WarningCircle,
   X,
@@ -271,61 +270,6 @@ function ActionRow({
   );
 }
 
-// The AI price rows, used on the page and in the advisor sheet.
-function AiRows({ vehicle }: { vehicle: FlipRecord }) {
-  const theme = useTheme();
-
-  const ai = vehicle.aiPrice;
-  const recommended = ai?.recommendedSellPrice ?? null;
-  const risk = ai?.riskLevel ?? null;
-  const confidence = ai?.confidence ?? null;
-  const notes = ai?.notes ?? null;
-  const planned = vehicle.sellPrice ?? null;
-
-  const riskColour =
-    risk === "low"
-      ? theme.success
-      : risk === "medium"
-      ? theme.warning
-      : risk === "high"
-      ? theme.danger
-      : theme.muted;
-
-  return (
-    <>
-      <DataRow
-        label="Recommended sell price"
-        value={recommended ? formatMoney(recommended) : "-"}
-        strong
-      />
-      <DataRow
-        label="Risk level"
-        value={risk ? capitalise(risk) : "Unknown"}
-        valueColor={riskColour}
-        divider
-      />
-      {confidence != null ? (
-        <MeterBlock label="AI confidence" value={`${confidence}/100`} percent={confidence} divider />
-      ) : (
-        <DataRow label="AI confidence" value="-" divider />
-      )}
-      <TextBlock
-        label="Your price against the AI's"
-        text={
-          recommended
-            ? planned != null
-              ? `You planned ${formatMoney(planned)}, AI suggests ${formatMoney(recommended)}.`
-              : `AI suggests ${formatMoney(recommended)}.`
-            : "No AI price has been saved yet."
-        }
-        muted={!recommended}
-        divider
-      />
-      {notes ? <TextBlock label="AI notes" text={notes} divider /> : null}
-    </>
-  );
-}
-
 // Loading and missing-vehicle screens: an icon in a circle and a calm line.
 function StateView({
   loading,
@@ -373,7 +317,6 @@ export default function VehicleDetails() {
     useVehicleHistory();
 
   const vehicle = vehicles.find((v: FlipRecord) => v.id === id);
-  const [advisorVisible, setAdvisorVisible] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [viewerUri, setViewerUri] = useState<string | null>(null);
 
@@ -459,8 +402,7 @@ export default function VehicleDetails() {
       : null;
   const flipPercent = flipScore == null ? 0 : Math.max(0, Math.min(100, flipScore));
   const demandScore = vehicle.market?.demandScore ?? null;
-  // Flips added by hand keep the confidence under aiPrice; ones from a market scan keep it on the record.
-  const aiConfidence = vehicle.aiPriceConfidence ?? vehicle.aiPrice?.confidence ?? null;
+  const aiConfidence = vehicle.aiPriceConfidence ?? null;
 
   const market = vehicle.market ?? null;
   const marketRows: { label: string; value: string }[] = [];
@@ -475,16 +417,11 @@ export default function VehicleDetails() {
     });
   }
   if (market?.soldCount != null) marketRows.push({ label: "Sold count", value: String(market.soldCount) });
-  // With no AI price section, the confidence would not show anywhere else.
-  const showMarketConfidence = aiConfidence != null && !vehicle.aiPrice;
+  const showMarketConfidence = aiConfidence != null;
   const hasMarket = demandScore != null || marketRows.length > 0 || showMarketConfidence;
 
   const valuationRows: { label: string; value: string }[] = [];
   if (vehicle.valuation != null) valuationRows.push({ label: "Valuation", value: formatMoney(vehicle.valuation) });
-  if (vehicle.tradeValue != null) valuationRows.push({ label: "Trade value", value: formatMoney(vehicle.tradeValue) });
-  if (vehicle.aiValuation?.estimatedValue != null) {
-    valuationRows.push({ label: "AI estimated value", value: formatMoney(vehicle.aiValuation.estimatedValue) });
-  }
 
   const timeline = buildVehicleTimeline(vehicle);
   const tips = vehicle.proTips ?? [];
@@ -673,15 +610,6 @@ export default function VehicleDetails() {
             onPress={() => openScreen(`/vehicles/market/${vehicle.id}`)}
             divider
           />
-          {vehicle.aiPrice ? (
-            <ActionRow
-              Icon={Sparkle}
-              title="AI advisor"
-              subtitle="Suggested sell price and risk"
-              onPress={() => setAdvisorVisible(true)}
-              divider
-            />
-          ) : null}
         </Group>
 
         {/* PHOTOS */}
@@ -710,16 +638,6 @@ export default function VehicleDetails() {
                 </Pressable>
               ))}
             </ScrollView>
-          </>
-        ) : null}
-
-        {/* AI INSIGHTS */}
-        {vehicle.aiPrice ? (
-          <>
-            <SectionTitle>AI insights</SectionTitle>
-            <Group>
-              <AiRows vehicle={vehicle} />
-            </Group>
           </>
         ) : null}
 
@@ -992,64 +910,6 @@ export default function VehicleDetails() {
           </View>
         </View>
       </Modal>
-
-      {/* AI ADVISOR */}
-      {vehicle.aiPrice ? (
-        <Modal
-          visible={advisorVisible}
-          animationType="slide"
-          transparent
-          onRequestClose={() => setAdvisorVisible(false)}
-        >
-          <View style={styles.sheetBackdrop}>
-            {/* Tapping outside the sheet closes it (onRequestClose only covers Android's back button). */}
-            <Pressable
-              style={StyleSheet.absoluteFill}
-              accessibilityRole="button"
-              accessibilityLabel="Close AI advisor"
-              onPress={() => setAdvisorVisible(false)}
-            />
-            <View
-              style={[
-                styles.sheet,
-                {
-                  backgroundColor: theme.card,
-                  borderColor: theme.hairline,
-                  paddingBottom: Math.max(insets.bottom, 16) + 8,
-                },
-              ]}
-            >
-              <View style={[styles.grabber, { backgroundColor: theme.muted }]} />
-
-              <View style={styles.sheetHeader}>
-                <Text style={[styles.sheetTitle, { color: theme.text }]} accessibilityRole="header">
-                  AI advisor
-                </Text>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Close AI advisor"
-                  hitSlop={8}
-                  style={({ pressed }) => [styles.sheetClose, pressed && styles.pressed]}
-                  onPress={() => setAdvisorVisible(false)}
-                >
-                  <X size={22} color={theme.muted} />
-                </Pressable>
-              </View>
-
-              <ScrollView showsVerticalScrollIndicator={false} style={styles.sheetScroll}>
-                <View
-                  style={[
-                    styles.group,
-                    { backgroundColor: theme.background, borderColor: theme.hairline },
-                  ]}
-                >
-                  <AiRows vehicle={vehicle} />
-                </View>
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
-      ) : null}
 
       {/* PHOTO VIEWER */}
       <Modal
@@ -1521,49 +1381,6 @@ const styles = StyleSheet.create({
   modalButtonText: {
     fontSize: 16,
     fontWeight: "700",
-  },
-
-  /* AI ADVISOR SHEET */
-  sheetBackdrop: {
-    flex: 1,
-    backgroundColor: SCRIM,
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    maxHeight: "85%",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderTopWidth: 1,
-    paddingHorizontal: 16,
-    paddingTop: 10,
-  },
-  grabber: {
-    alignSelf: "center",
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    opacity: 0.5,
-    marginBottom: 14,
-  },
-  sheetHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
-  sheetTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-  },
-  sheetClose: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: -10,
-  },
-  sheetScroll: {
-    flexGrow: 0,
   },
 
   /* PHOTO VIEWER */

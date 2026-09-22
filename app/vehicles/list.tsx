@@ -23,7 +23,6 @@ import {
   Package,
   ShieldCheck,
   ShieldWarning,
-  Sparkle,
   Stack as StackIcon,
   Tag,
   TrendUp,
@@ -384,10 +383,6 @@ function FlipRow({
               label={`MOT health ${motHealth}`}
               iconColor={healthColor}
             />
-          ) : null}
-
-          {v.aiValuation?.confidence != null ? (
-            <MetaChip Icon={Sparkle} label={`AI confidence ${v.aiValuation.confidence}%`} />
           ) : null}
 
           {v.sellSpeed != null ? <MetaChip Icon={Lightning} label={String(v.sellSpeed)} /> : null}
