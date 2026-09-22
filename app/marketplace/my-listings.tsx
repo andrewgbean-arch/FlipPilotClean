@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, Image } from "react-native";
 import { router } from "expo-router";
+import { ShareNetwork } from "phosphor-react-native";
 import { useTheme } from "@/styles/ThemeContext";
 
 import { BASE_URL } from "@/utils/api";
 import { getDeviceId } from "@/utils/deviceId";
+import { shareListing } from "@/utils/shareListing";
 
 export default function MyListings() {
   const theme = useTheme();
@@ -58,19 +60,47 @@ export default function MyListings() {
               style={{ width: "100%", height: 160 }}
             />
           )}
-          <View style={{ padding: 14 }}>
-            <Text
+          <View style={{ padding: 14, flexDirection: "row", alignItems: "center" }}>
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{
+                  color: theme.goldDeep,
+                  fontSize: 20,
+                  fontWeight: "700",
+                }}
+              >
+                {item.title ?? (`${item.vehicle?.make ?? ""} ${item.vehicle?.model ?? ""}`.trim() || "Untitled listing")}
+              </Text>
+              <Text style={{ color: theme.text, marginTop: 4 }}>
+                £{item.price}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Share this listing to other platforms"
+              onPress={(e) => {
+                e.stopPropagation();
+                shareListing({
+                  title: item.title ?? "Untitled listing",
+                  price: item.price,
+                  description: item.description,
+                  location: item.location,
+                });
+              }}
               style={{
-                color: theme.goldDeep,
-                fontSize: 20,
-                fontWeight: "700",
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: theme.black,
+                borderWidth: 1,
+                borderColor: theme.goldSoftGlow,
               }}
             >
-              {item.title ?? (`${item.vehicle?.make ?? ""} ${item.vehicle?.model ?? ""}`.trim() || "Untitled listing")}
-            </Text>
-            <Text style={{ color: theme.text, marginTop: 4 }}>
-              £{item.price}
-            </Text>
+              <ShareNetwork size={20} color={theme.goldDeep} />
+            </TouchableOpacity>
           </View>
         </TouchableOpacity>
       ))}
