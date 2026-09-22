@@ -87,7 +87,7 @@ const SCREEN_TITLES: Record<string, string> = {
   "flip/[id]": "Flip details",
   "mot/[id]": "MOT history",
   "messages/[id]": "Message seller",
-  bootfairs: "Boot Fairs",
+  bootfairs: "Bootfairs & Events",
   vehicles: "Vehicles",
   "marketplace/index": "Marketplace",
   "marketplace/MarketplaceHub": "Marketplace",

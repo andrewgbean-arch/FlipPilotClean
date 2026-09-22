@@ -294,7 +294,7 @@ export default function BootFairFinderScreen() {
         ]}
       >
         <Text style={[styles.cardTitle, { color: theme.text }]} accessibilityRole="header">
-          Find a boot fair near you
+          Find an event near you
         </Text>
 
         <Text style={[styles.fieldLabel, { color: theme.muted }]}>Postcode</Text>

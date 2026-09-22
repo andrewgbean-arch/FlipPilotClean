@@ -213,7 +213,7 @@ const QUICK_ACCESS: QuickAccessItem[] = [
     Icon: Barcode,
   },
   {
-    title: "Boot Fairs",
+    title: "Bootfairs & Events",
     desc: "Fairs, fêtes, markets & sales",
     href: "/bootfairs",
     Icon: Storefront,

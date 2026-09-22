@@ -48,7 +48,7 @@ const TOOLS: { key: string; label: string; Icon: PhosphorIcon; route: string; ti
 
 const INSIGHTS: { key: string; title: string; meta: string; Icon: PhosphorIcon; route: string }[] = [
   { key: "weather", title: "Weather", meta: "Bootfair conditions", Icon: CloudSun, route: "/weather" },
-  { key: "bootfairs", title: "Bootfairs", meta: "Fairs, fêtes & markets", Icon: Tent, route: "/bootfairs" },
+  { key: "bootfairs", title: "Bootfairs & Events", meta: "Fairs, fêtes & markets", Icon: Tent, route: "/bootfairs" },
   { key: "reviews", title: "Reviews", meta: "Rate FlipPilot", Icon: Star, route: "/rate" },
 ];
 
