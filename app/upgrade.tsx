@@ -1,57 +1,90 @@
 import type { PurchasesOfferings } from "react-native-purchases";
 
-import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Check, Info } from "phosphor-react-native";
+import { useMemo, useState } from "react";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Check, Info, Minus } from "phosphor-react-native";
+import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useSubscription } from "../src/context/SubscriptionContext";
 import { useTheme } from "@/styles/ThemeContext";
 
-// The prices and claims shown on this screen are written out here; the purchase
-// itself always uses the RevenueCat package.
-const MONTHLY_PRICE = "£4.99";
-const YEARLY_PRICE = "£39.99";
-const YEARLY_SAVING = "Save 40%";
+type TierId = "free" | "boltOn" | "pro";
 
-const BENEFITS = [
-  "Supernova AI Pricing",
-  "Advanced Market Intelligence",
-  "Unlimited AI Lookups",
-  "Pro Flip Detection",
-  "Boot Fair Finder Pro",
-  "Advertising Hub Access",
-  "Priority Feature Access",
-  "Premium Themes",
-];
-
-// Feature, what Free gets, what Pro gets.
-const COMPARISON: [string, string, string][] = [
-  ["AI Lookups", "Limited", "Unlimited"],
-  ["Market Check", "Basic", "Full Data"],
-  ["Profit Engine", "Standard", "Advanced"],
-  ["Flip Score", "Basic", "Pro Metrics"],
-  ["Boot Fair Finder", "Basic", "Pro Map"],
-];
-
-type PlanOptionProps = {
+type Tier = {
+  id: TierId;
   name: string;
+  tagline: string;
   price: string;
   period: string;
   badge?: string;
+  included: string[];
+  notIncluded?: string[];
+};
+
+// The prices and claims shown on this screen are written out here; a real
+// purchase always uses the matching RevenueCat package (see boltOnPackage /
+// proPackage below) — Free never purchases anything.
+const TIERS: Tier[] = [
+  {
+    id: "free",
+    name: "Free",
+    tagline: "Browse everything, try it out",
+    price: "£0",
+    period: "forever",
+    included: ["Browse the Marketplace and every screen", "5 AI lookups a week", "See vehicle listings"],
+    notIncluded: ["Sell on the Marketplace", "List a vehicle"],
+  },
+  {
+    id: "boltOn",
+    name: "Bolt-on",
+    tagline: "For the occasional flip",
+    price: "£2.99",
+    period: "month",
+    included: ["200 AI lookups a month", "Sell up to 5 items on the Marketplace", "Everything in Free"],
+    notIncluded: ["List a vehicle"],
+  },
+  {
+    id: "pro",
+    name: "Pro",
+    tagline: "Full use — built for trading",
+    price: "£6.99",
+    period: "month",
+    badge: "Best value",
+    included: [
+      "Unlimited AI lookups",
+      "Sell unlimited items on the Marketplace",
+      "2 vehicle listings free",
+      "Extra vehicles billed per vehicle",
+      "Everything in Bolt-on",
+    ],
+  },
+];
+
+// Feature, Free, Bolt-on, Pro — kept short so four columns fit a phone width.
+const COMPARISON: [string, string, string, string][] = [
+  ["AI lookups", "5 / week", "200 / month", "Unlimited"],
+  ["Sell on Marketplace", "—", "Up to 5 items", "Unlimited"],
+  ["Vehicle listings", "—", "—", "2 free, then billed"],
+];
+
+type TierOptionProps = {
+  tier: Tier;
   selected: boolean;
   onPress: () => void;
 };
 
-// One selectable plan. The gold outline and the filled tick mark the chosen one.
-function PlanOption({ name, price, period, badge, selected, onPress }: PlanOptionProps) {
+// One selectable tier card. The gold outline and the filled tick mark the chosen one.
+function TierOption({ tier, selected, onPress }: TierOptionProps) {
   const theme = useTheme();
 
   return (
     <Pressable
       accessibilityRole="radio"
       accessibilityState={{ checked: selected }}
-      accessibilityLabel={`${name} plan, ${price} per ${period}${badge ? `, ${badge}` : ""}`}
+      accessibilityLabel={`${tier.name} plan, ${tier.price} per ${tier.period}${
+        tier.badge ? `, ${tier.badge}` : ""
+      }`}
       onPress={onPress}
       style={({ pressed }) => [
         styles.plan,
@@ -74,17 +107,24 @@ function PlanOption({ name, price, period, badge, selected, onPress }: PlanOptio
       </View>
 
       <View style={styles.planMain}>
-        <Text style={[styles.planName, { color: theme.text }]}>{name}</Text>
-        {badge ? (
-          <View style={[styles.saveChip, { backgroundColor: theme.success + "24" }]}>
-            <Text style={[styles.saveChipText, { color: theme.success }]}>{badge}</Text>
-          </View>
-        ) : null}
+        <View style={styles.planNameRow}>
+          <Text style={[styles.planName, { color: theme.text }]}>{tier.name}</Text>
+          {tier.badge ? (
+            <View style={[styles.saveChip, { backgroundColor: theme.gold + "24" }]}>
+              <Text style={[styles.saveChipText, { color: theme.gold }]}>{tier.badge}</Text>
+            </View>
+          ) : null}
+        </View>
+        <Text style={[styles.planTagline, { color: theme.muted }]} numberOfLines={1}>
+          {tier.tagline}
+        </Text>
       </View>
 
       <Text style={[styles.planPrice, { color: theme.text }]}>
-        {price}
-        <Text style={[styles.planPeriod, { color: theme.muted }]}> / {period}</Text>
+        {tier.price}
+        {tier.period !== "forever" ? (
+          <Text style={[styles.planPeriod, { color: theme.muted }]}> / {tier.period}</Text>
+        ) : null}
       </Text>
     </Pressable>
   );
@@ -97,26 +137,46 @@ export default function UpgradeScreen() {
   // RevenueCat subscription context
   const { offerings, purchase, restore } = useSubscription() as {
     offerings: PurchasesOfferings | null;
-
     purchase: (pkg: any) => Promise<void>;
     restore: () => Promise<void>;
   };
 
-  const [yearly, setYearly] = useState(false);
+  const [selected, setSelected] = useState<TierId>("pro");
 
-  const handlePurchase = () => {
-    const current = offerings?.current;
+  // Only "Pro" has a real product in RevenueCat today. Bolt-on's price and
+  // features are shown honestly, but it can't be bought until a matching
+  // product exists there — this looks for one by identifier rather than
+  // assuming it's there, so the button never pretends a purchase happened.
+  const proPackage = offerings?.current?.monthly ?? null;
+  const boltOnPackage = useMemo(() => {
+    const packages = offerings?.current?.availablePackages ?? [];
+    return packages.find((p) => p.identifier.toLowerCase().includes("bolt")) ?? null;
+  }, [offerings]);
 
-    if (!current) return;
+  const tier = TIERS.find((t) => t.id === selected)!;
+  const card = { backgroundColor: theme.card, borderColor: theme.hairline };
 
-    const pkg = yearly ? current.annual : current.monthly;
+  const activePackage = selected === "free" ? null : selected === "boltOn" ? boltOnPackage : proPackage;
+  const notReadyToBuy = selected !== "free" && !activePackage;
 
-    if (pkg) purchase(pkg);
+  const handleCta = () => {
+    if (selected === "free") {
+      router.back();
+      return;
+    }
+    if (!activePackage) {
+      Alert.alert(
+        `${tier.name} isn't ready yet`,
+        "This plan is coming soon — check back shortly."
+      );
+      return;
+    }
+    purchase(activePackage);
   };
 
-  const card = { backgroundColor: theme.card, borderColor: theme.hairline };
-  const selectedPrice = yearly ? `${YEARLY_PRICE} / year` : `${MONTHLY_PRICE} / month`;
-  const selectedPriceSpoken = yearly ? `${YEARLY_PRICE} per year` : `${MONTHLY_PRICE} per month`;
+  const ctaLabel =
+    selected === "free" ? "Continue with Free" : `Get ${tier.name}`;
+  const ctaSub = selected === "free" ? "No card needed" : `${tier.price} / ${tier.period} · Cancel anytime`;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -127,37 +187,25 @@ export default function UpgradeScreen() {
       >
         {/* HEADLINE */}
         <Text style={[styles.title, { color: theme.text }]} accessibilityRole="header">
-          FlipPilot Pro
+          Choose your plan
         </Text>
         <Text style={[styles.subtitle, { color: theme.muted }]}>
-          Unlock your full flipping power
+          Start free, add what you need
         </Text>
 
-        {/* PLANS */}
+        {/* TIERS */}
         <View accessibilityRole="radiogroup" style={styles.plans}>
-          <PlanOption
-            name="Monthly"
-            price={MONTHLY_PRICE}
-            period="month"
-            selected={!yearly}
-            onPress={() => setYearly(false)}
-          />
-          <PlanOption
-            name="Yearly"
-            price={YEARLY_PRICE}
-            period="year"
-            badge={YEARLY_SAVING}
-            selected={yearly}
-            onPress={() => setYearly(true)}
-          />
+          {TIERS.map((t) => (
+            <TierOption key={t.id} tier={t} selected={selected === t.id} onPress={() => setSelected(t.id)} />
+          ))}
         </View>
 
-        {/* BENEFITS */}
+        {/* WHAT'S INCLUDED */}
         <Text style={[styles.sectionTitle, { color: theme.text }]} accessibilityRole="header">
-          Everything you unlock
+          What's in {tier.name}
         </Text>
         <View style={[styles.group, styles.benefits, card]}>
-          {BENEFITS.map((item) => (
+          {tier.included.map((item) => (
             <View key={item} style={styles.benefitRow}>
               <View style={[styles.benefitCheck, { backgroundColor: theme.gold + "1F" }]}>
                 <Check size={14} weight="bold" color={theme.gold} />
@@ -165,11 +213,19 @@ export default function UpgradeScreen() {
               <Text style={[styles.benefitText, { color: theme.text }]}>{item}</Text>
             </View>
           ))}
+          {tier.notIncluded?.map((item) => (
+            <View key={item} style={styles.benefitRow}>
+              <View style={[styles.benefitCheck, { backgroundColor: theme.muted + "1A" }]}>
+                <Minus size={14} weight="bold" color={theme.muted} />
+              </View>
+              <Text style={[styles.benefitText, { color: theme.muted }]}>{item}</Text>
+            </View>
+          ))}
         </View>
 
         {/* COMPARISON */}
         <Text style={[styles.sectionTitle, { color: theme.text }]} accessibilityRole="header">
-          Free vs Pro
+          Compare plans
         </Text>
         <View style={[styles.group, card]}>
           <View
@@ -179,23 +235,24 @@ export default function UpgradeScreen() {
           >
             <View style={styles.compareLabel} />
             <Text style={[styles.compareHeadText, { color: theme.muted }]}>Free</Text>
+            <Text style={[styles.compareHeadText, { color: theme.muted }]}>Bolt-on</Text>
             <Text style={[styles.compareHeadText, { color: theme.text }]}>Pro</Text>
           </View>
 
-          {COMPARISON.map(([label, free, pro]) => (
+          {COMPARISON.map(([label, free, boltOn, pro]) => (
             <View
               key={label}
               accessible
-              accessibilityLabel={`${label}. Free: ${free}. Pro: ${pro}.`}
-              style={[
-                styles.compareRow,
-                { borderTopWidth: 1, borderTopColor: theme.hairline },
-              ]}
+              accessibilityLabel={`${label}. Free: ${free === "—" ? "not included" : free}. Bolt-on: ${
+                boltOn === "—" ? "not included" : boltOn
+              }. Pro: ${pro}.`}
+              style={[styles.compareRow, { borderTopWidth: 1, borderTopColor: theme.hairline }]}
             >
               <Text style={[styles.compareLabel, styles.compareLabelText, { color: theme.text }]}>
                 {label}
               </Text>
               <Text style={[styles.compareValue, { color: theme.muted }]}>{free}</Text>
+              <Text style={[styles.compareValue, { color: theme.muted }]}>{boltOn}</Text>
               <Text style={[styles.compareValue, styles.compareValuePro, { color: theme.text }]}>
                 {pro}
               </Text>
@@ -215,29 +272,29 @@ export default function UpgradeScreen() {
           },
         ]}
       >
-        {!offerings?.current ? (
+        {notReadyToBuy ? (
           <View style={styles.noticeRow} accessibilityLiveRegion="polite">
             <Info size={16} color={theme.muted} />
             <Text style={[styles.noticeText, { color: theme.muted }]}>
-              Store prices aren't available yet. You can subscribe once they've loaded.
+              {selected === "boltOn"
+                ? "Bolt-on isn't available to buy yet — check back shortly."
+                : "Store prices aren't available yet. You can subscribe once they've loaded."}
             </Text>
           </View>
         ) : null}
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Unlock FlipPilot Pro, ${selectedPriceSpoken}`}
+          accessibilityLabel={`${ctaLabel}, ${ctaSub}`}
           style={({ pressed }) => [
             styles.cta,
             { backgroundColor: theme.gold },
             pressed && styles.pressed,
           ]}
-          onPress={handlePurchase}
+          onPress={handleCta}
         >
-          <Text style={[styles.ctaLabel, { color: theme.black }]}>Unlock FlipPilot Pro</Text>
-          <Text style={[styles.ctaSub, { color: theme.black }]}>
-            {selectedPrice} · Cancel anytime
-          </Text>
+          <Text style={[styles.ctaLabel, { color: theme.black }]}>{ctaLabel}</Text>
+          <Text style={[styles.ctaSub, { color: theme.black }]}>{ctaSub}</Text>
         </Pressable>
 
         <Pressable
@@ -250,9 +307,7 @@ export default function UpgradeScreen() {
         </Pressable>
 
         <Text style={[styles.legal, { color: theme.muted }]}>
-          {"7‑day free trial • No commitment • Cancel anytime"}
-          {"\n"}
-          Subscriptions renew automatically until cancelled. You can manage or cancel in your
+          Bolt-on and Pro renew automatically until cancelled. You can manage or cancel in your
           device's subscription settings.
         </Text>
       </View>
@@ -279,7 +334,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    minHeight: 64,
+    minHeight: 68,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 16,
@@ -293,14 +348,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  planMain: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: 8,
-  },
+  planMain: { flex: 1, gap: 2 },
+  planNameRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 },
   planName: { fontSize: 16, fontWeight: "600" },
+  planTagline: { fontSize: 13 },
   saveChip: {
     paddingHorizontal: 9,
     paddingVertical: 4,
@@ -336,20 +387,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 8,
   },
-  compareHeadText: { flex: 1, fontSize: 13, fontWeight: "600" },
+  compareHeadText: { flex: 1, fontSize: 12, fontWeight: "600", textAlign: "center" },
   compareRow: {
     minHeight: 48,
     paddingHorizontal: 16,
     paddingVertical: 12,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    gap: 8,
   },
-  compareLabel: { flex: 1.25 },
-  compareLabelText: { fontSize: 14 },
-  compareValue: { flex: 1, fontSize: 14 },
+  compareLabel: { flex: 1.15 },
+  compareLabelText: { fontSize: 13 },
+  compareValue: { flex: 1, fontSize: 12, textAlign: "center" },
   compareValuePro: { fontWeight: "600" },
 
   /* PURCHASE */
