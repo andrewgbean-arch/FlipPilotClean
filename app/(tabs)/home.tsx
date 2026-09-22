@@ -178,6 +178,11 @@ export default function HomeScreen() {
             style={{ width: logoSize, height: logoSize }}
             resizeMode="contain"
           />
+          {/* Real text, not baked into the logo artwork — stays crisp at any
+              screen size instead of thinning out into illegible pixels. */}
+          <Text style={[styles.logoTagline, { color: theme.gold }]}>
+            SCAN · CHECK · FLIP
+          </Text>
 
           <Pressable
             accessibilityRole="button"
@@ -383,6 +388,12 @@ const styles = StyleSheet.create({
   logoHeaderWrapper: {
     alignItems: "center",
     paddingHorizontal: 16,
+  },
+  logoTagline: {
+    marginTop: -6,
+    fontSize: 13,
+    fontWeight: "700",
+    letterSpacing: 3,
   },
 
   // Floats over the hero logo's corner instead of sharing a row with it,
