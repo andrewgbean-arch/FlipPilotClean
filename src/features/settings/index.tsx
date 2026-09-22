@@ -2,7 +2,7 @@ import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import Constants from "expo-constants";
-import { CaretRight, CreditCard, Crown, Info, Star } from "phosphor-react-native";
+import { BookOpen, CaretRight, CreditCard, Crown, Info, Star } from "phosphor-react-native";
 import type { Icon as PhosphorIcon } from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -165,6 +165,17 @@ export default function SettingsScreen() {
               divider
             />
           )}
+        </View>
+
+        {/* HELP & GUIDES */}
+        <SectionTitle>Help & guides</SectionTitle>
+        <View style={[styles.group, card]}>
+          <MenuRow
+            Icon={BookOpen}
+            title="How to use FlipPilot"
+            subtitle="Scanning, pricing, selling and plans"
+            onPress={() => router.push("/help")}
+          />
         </View>
 
         {/* HELP US IMPROVE */}

@@ -12,6 +12,7 @@ import {
 import {
   AirplaneTilt,
   Barcode,
+  BookOpen,
   CaretRight,
   ChartLineUp,
   ClipboardText,
@@ -228,6 +229,12 @@ const QUICK_ACCESS: QuickAccessItem[] = [
     desc: "Buy, sell and message locally",
     href: "/marketplace",
     Icon: ChartLineUp,
+  },
+  {
+    title: "How to use FlipPilot",
+    desc: "A quick guide to get you flipping",
+    href: "/help",
+    Icon: BookOpen,
   },
 ];
 
