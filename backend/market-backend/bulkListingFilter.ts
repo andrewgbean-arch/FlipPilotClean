@@ -138,7 +138,7 @@ export function listingUnits(title: string): number | null {
 // the item: a "JBL Charge 4 case" or "JBL Charge 4 for parts" says nothing about
 // what a working speaker is worth, but it matches the search and drags the price down.
 const NOT_THE_ITEM =
-  /\b(case|cover|pouch|sleeve|skin|strap|lanyard|stand|mount|holder|bracket|cable|charger|charging|adapter|adaptor|battery|batteries|replacement|spare|spares|parts|repair|faulty|broken|damaged|untested|manual|sticker|decal|box only|empty box|not working|no power|dead|clip|hook|chuck|bits|brushes|gasket|nozzle)\b/gi;
+  /\b(case|cover|pouch|sleeve|skin|strap|lanyard|stand|mount|holder|bracket|cable|charger|charging|adapter|adaptor|battery|batteries|replacement|spare|spares|parts|repair|faulty|broken|damaged|untested|manual|sticker|decal|box only|empty box|not working|no power|dead|clip|hook|chuck|bits|brushes|gasket|nozzle|tank|filter|filters|descaler|descaling|valve|seal|seals|pipe|hose|jug|carafe|portafilter|group\s?head|3d model|3d render|digital model|cad model|stl file|render pack)\b/gi;
 
 /**
  * True when a listing looks like an accessory, spare part or faulty unit rather
@@ -237,8 +237,11 @@ function words(text: string): string[] {
 
 function sameWord(a: string, b: string): boolean {
   if (a === b) return true;
-  // plurals and endings: lozenge/lozenges, charge/charger
-  return a.length >= 4 && b.length >= 4 && (a.startsWith(b) || b.startsWith(a));
+  if (a.length < 4 || b.length < 4) return false;
+  // plurals/endings (lozenge/lozenges) and a brand particle glued on the
+  // front ("DeLonghi" vs "Longhi" when a listing drops the apostrophe or
+  // space the query's own title has) - checked both ways round.
+  return a.startsWith(b) || b.startsWith(a) || a.endsWith(b) || b.endsWith(a);
 }
 
 /** The words in a search that identify the product. Empty when the search is generic. */

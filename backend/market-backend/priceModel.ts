@@ -76,6 +76,15 @@ export interface PriceEvidence {
   /** The AI's idea of the second-hand range. */
   aiUsedMin: number | null;
   aiUsedMax: number | null;
+  /**
+   * The cheapest real, relevant, single-unit listing actually seen (currently
+   * Google Shopping's own minimum, which already went through the same
+   * relevance/bulk filtering as everything else). The blended NEW price is a
+   * lower-quartile-and-AI-estimate average, which can land below a real price
+   * someone could point to on screen — nothing should ever look cheaper than
+   * an actual listing that was found for it.
+   */
+  marketFloor?: number | null;
 }
 
 export interface PriceDecision {
@@ -126,6 +135,13 @@ export function decidePrices(e: PriceEvidence): PriceDecision {
     newPrice = e.aiNew;
   } else if (shelf.length) {
     newPrice = Math.min(...shelf);
+  }
+
+  // Never end up cheaper than a real listing that was actually found for it -
+  // the lower-quartile-and-AI blend above can land below that by design, but
+  // showing a price under something on screen right now looks simply wrong.
+  if (newPrice !== null && valid(e.marketFloor) && newPrice < e.marketFloor) {
+    newPrice = e.marketFloor;
   }
 
   /* ---- SELL ---- */

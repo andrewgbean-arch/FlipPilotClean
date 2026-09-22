@@ -359,6 +359,7 @@ export default async function fetchMarketData(
       aiNew: safeNumber(aiEstimate?.newPrice),
       aiUsedMin: aiPriceMin,
       aiUsedMax: aiPriceMax,
+      marketFloor: safeNumber(google?.min),
     });
 
     const retailPrice = decision.newPrice;
