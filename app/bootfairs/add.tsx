@@ -72,6 +72,11 @@ async function lookupPostcode(postcode: string): Promise<PostcodePlace | null> {
 
 // Categories available
 const CATEGORY_OPTIONS = [
+  "Boot Fair",
+  "Fête",
+  "Market",
+  "Garage Sale",
+  "Jumble Sale",
   "Indoor",
   "Outdoor",
   "Weekly",
@@ -436,7 +441,7 @@ export default function AddFairScreen() {
       hours: `${openingTime} – ${closingTime}`,
       frequency: "One‑off",
       images: photos,
-      featured: false,
+      featuredUntil: null,
       busyScore: 0,
       description,
       verified: false,
@@ -462,18 +467,19 @@ export default function AddFairScreen() {
 
     try {
       await addUserFair(newFair);
-    } catch {
+    } catch (err: any) {
       setSubmitting(false);
       setFormError(
-        "Couldn't save your boot fair. Something went wrong saving it to this phone. Please try again."
+        typeof err?.message === "string" && err.message
+          ? err.message
+          : "Couldn't save your boot fair. Check your connection and try again."
       );
       return;
     }
 
-    // Fairs are only stored on this device for now, so say so.
     Alert.alert(
-      "Boot fair saved",
-      "It's saved on this phone and will show in your boot fair list."
+      "Boot fair listed",
+      "It's live and visible to everyone nearby."
     );
     setSubmitting(false);
     router.back();
@@ -492,10 +498,10 @@ export default function AddFairScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Text style={[styles.pageTitle, { color: theme.text }]} accessibilityRole="header">
-          List your boot fair
+          List your boot fair, fête, market or sale
         </Text>
         <Text style={[styles.pageSubtitle, { color: theme.muted }]}>
-          Fairs you list are saved on this phone. Fields marked * are required.
+          Your listing is visible to everyone nearby. Fields marked * are required.
         </Text>
 
         {/* FAIR DETAILS */}

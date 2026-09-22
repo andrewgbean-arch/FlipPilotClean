@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 import axios from "axios";
 import registerPublishListingRoute from "./routes/publishListing";
 import registerPublishedListingsRoute from "./routes/publishedListings";
+import registerFairsRoute from "./routes/fairs";
 import registerMessagesRoute from "./routes/messages";
 import registerAIDescriptionRoute from "./routes/aiDescription";
 import registerEbayExportRoute from "./routes/ebayExport";
@@ -55,6 +56,7 @@ app.use((req, res, next) => {
 // open. /ai/description writes a fixed template, not a paid AI call.
 registerPublishedListingsRoute(app);
 registerPublishListingRoute(app);
+registerFairsRoute(app);
 registerMessagesRoute(app);
 registerAIDescriptionRoute(app);
 registerEbayExportRoute(app);

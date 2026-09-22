@@ -10,6 +10,7 @@ import {
   ForkKnife,
   Globe,
   House,
+  Info,
   InstagramLogo,
   MapPin,
   Money,
@@ -17,6 +18,7 @@ import {
   PawPrint,
   Phone,
   SealCheck,
+  Sparkle,
   Star,
   Tent,
   Toilet,
@@ -42,8 +44,14 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/styles/ThemeContext";
+import { useSubscription } from "@/context/SubscriptionContext";
 
-import { Fair, getAllFairs, isUserFair, updateUserFair } from "../../src/lib/fairs";
+import { Fair, getAllFairs, isFeatured, updateUserFair } from "../../src/lib/fairs";
+import { getDeviceId } from "@/utils/deviceId";
+
+// 30 days is a simple, predictable promotion window - independent of whether
+// the organiser keeps nextDate fresh for a recurring fair.
+const FEATURE_DAYS = 30;
 
 /* SMALL LOCAL COMPONENTS */
 function SectionTitle({ children }: { children: string }) {
@@ -219,22 +227,33 @@ export default function BootfairDetails() {
   const [loading, setLoading] = useState(true);
   const [isMine, setIsMine] = useState(false);
   const [updatingCancelled, setUpdatingCancelled] = useState(false);
+  const [purchasingFeature, setPurchasingFeature] = useState(false);
+
+  const { offerings, purchaseProduct, busy: purchaseBusy } = useSubscription();
+
+  // Only looks for it by identifier - never assumes it exists, so the button
+  // never pretends a purchase is possible before this product is actually
+  // set up in the RevenueCat dashboard (same pattern as upgrade.tsx's
+  // boltOnPackage lookup).
+  const featurePackage =
+    offerings?.current?.availablePackages?.find((p) =>
+      p.identifier.toLowerCase().includes("feature")
+    ) ?? null;
 
   useEffect(() => {
     let active = true;
 
-    // Fairs the user added live in storage, so they are read asynchronously.
-    getAllFairs().then((all) => {
+    // Fairs live on the shared backend now, so this is a real network fetch.
+    Promise.all([getAllFairs(), getDeviceId()]).then(([all, deviceId]) => {
       if (!active) return;
-      setFair(all.find((f) => f.id === id) ?? null);
+      const found = all.find((f) => f.id === id) ?? null;
+      setFair(found);
+      // The only fairs this device is allowed to manage are ones it listed
+      // itself - checked against the server's own ownerDeviceId, not a
+      // locally-remembered list.
+      setIsMine(Boolean(found && found.ownerDeviceId === deviceId));
       setLoading(false);
     });
-
-    if (id) {
-      isUserFair(id).then((mine) => {
-        if (active) setIsMine(mine);
-      });
-    }
 
     return () => {
       active = false;
@@ -249,6 +268,22 @@ export default function BootfairDetails() {
     const updated = await updateUserFair(fair.id, { cancelledDueToWeather });
     if (updated) setFair(updated);
     setUpdatingCancelled(false);
+  };
+
+  // Only applies featuredUntil once the purchase has actually gone through -
+  // purchaseProduct reports real RevenueCat success, not an assumption.
+  const buyFeature = async () => {
+    if (!fair || !featurePackage || purchasingFeature) return;
+    setPurchasingFeature(true);
+
+    const result = await purchaseProduct(featurePackage);
+    if (result.success) {
+      const featuredUntil = new Date(Date.now() + FEATURE_DAYS * 24 * 60 * 60 * 1000).toISOString();
+      const updated = await updateUserFair(fair.id, { featuredUntil });
+      if (updated) setFair(updated);
+    }
+
+    setPurchasingFeature(false);
   };
 
   if (loading) {
@@ -450,7 +485,7 @@ export default function BootfairDetails() {
 
         {/* BADGES */}
         <View style={styles.chips}>
-          {fair.featured ? (
+          {isFeatured(fair) ? (
             <Chip Icon={Star} label="Featured" iconColor={theme.gold} filled />
           ) : null}
 
@@ -530,6 +565,65 @@ export default function BootfairDetails() {
                 accessibilityLabel="Cancelled due to bad weather"
               />
             </View>
+
+            {/* PROMOTE */}
+            {isFeatured(fair) ? (
+              <View
+                style={[
+                  styles.manageRow,
+                  { marginTop: 12, backgroundColor: theme.card, borderColor: theme.gold },
+                ]}
+              >
+                <Sparkle size={22} color={theme.gold} weight="fill" />
+                <View style={styles.manageText}>
+                  <Text style={[styles.toggleLabel, { color: theme.gold }]}>Featured</Text>
+                  <Text style={[styles.manageHint, { color: theme.muted }]}>
+                    Until{" "}
+                    {new Date(fair.featuredUntil!).toLocaleDateString("en-GB", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </Text>
+                </View>
+              </View>
+            ) : featurePackage ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Feature this listing for ${featurePackage.product.priceString}`}
+                disabled={purchasingFeature || purchaseBusy}
+                onPress={buyFeature}
+                style={({ pressed }) => [
+                  styles.manageRow,
+                  { marginTop: 12, backgroundColor: theme.card, borderColor: theme.gold },
+                  (pressed || purchasingFeature) && styles.pressed,
+                ]}
+              >
+                <Sparkle size={22} color={theme.gold} weight="fill" />
+                <View style={styles.manageText}>
+                  <Text style={[styles.toggleLabel, { color: theme.text }]}>
+                    Feature this listing
+                  </Text>
+                  <Text style={[styles.manageHint, { color: theme.muted }]}>
+                    Shown at the top of the list for {FEATURE_DAYS} days
+                  </Text>
+                </View>
+                {purchasingFeature ? (
+                  <ActivityIndicator color={theme.gold} />
+                ) : (
+                  <Text style={[styles.toggleLabel, { color: theme.gold }]}>
+                    {featurePackage.product.priceString}
+                  </Text>
+                )}
+              </Pressable>
+            ) : (
+              <View style={[styles.manageRow, { marginTop: 12, backgroundColor: theme.card, borderColor: theme.hairline }]}>
+                <Info size={20} color={theme.muted} />
+                <Text style={[styles.manageHint, { color: theme.muted, flex: 1 }]}>
+                  Featured listings aren't available to buy yet - check back shortly.
+                </Text>
+              </View>
+            )}
           </>
         ) : null}
 

@@ -214,7 +214,7 @@ const QUICK_ACCESS: QuickAccessItem[] = [
   },
   {
     title: "Boot Fairs",
-    desc: "Find local boot fairs",
+    desc: "Fairs, fêtes, markets & sales",
     href: "/bootfairs",
     Icon: Storefront,
   },

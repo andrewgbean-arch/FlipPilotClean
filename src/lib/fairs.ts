@@ -1,7 +1,11 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getDeviceId } from "@/utils/deviceId";
+import { BASE_URL } from "@/utils/api";
 
 export interface Fair {
   id: string;
+  // Set by the server once a fair exists; a fair this client just built to
+  // POST doesn't have one yet.
+  ownerDeviceId?: string;
 
   name: string;
   postcode: string;
@@ -17,7 +21,7 @@ export interface Fair {
   email: string;
   displayEmailPublicly?: boolean;
   categories: string[];
-phone?: string;
+  phone?: string;
 
   address: string;
   lat: number;
@@ -26,7 +30,10 @@ phone?: string;
   frequency: string;
 
   images: string[];
-  featured: boolean;
+  // ISO timestamp; the fair is featured while this is set and in the future.
+  // Set by paying to promote a listing (see bootfairs/details.tsx), never by
+  // the client directly - the server ignores this field on create.
+  featuredUntil?: string | null;
   busyScore: number;
   description: string;
   verified: boolean;
@@ -50,66 +57,68 @@ phone?: string;
   acceptsCash: boolean;
 }
 
-export const fairs: Fair[] = [];
-
-const USER_FAIRS_KEY = "@flippilot_user_bootfairs";
-
-// Throws if storage itself cannot be read; an empty or unparseable value is just "no fairs".
-async function readUserFairs(): Promise<Fair[]> {
-  const raw = await AsyncStorage.getItem(USER_FAIRS_KEY);
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+export function isFeatured(fair: Fair): boolean {
+  return Boolean(fair.featuredUntil) && new Date(fair.featuredUntil!).getTime() > Date.now();
 }
 
-export async function loadUserFairs(): Promise<Fair[]> {
-  try {
-    return await readUserFairs();
-  } catch {
-    return [];
-  }
-}
-
-// Every fair the app knows about: fairs the user added on this device first,
-// then the built-in list. Lists, details and search must all read from here.
+// Every boot fair, fête, market or garage sale anyone has listed - this is a
+// shared backend now, not per-device storage. Lists, details and search must
+// all read from here so a listing is visible to everyone, not just its own
+// organiser's phone.
 export async function getAllFairs(): Promise<Fair[]> {
-  const userFairs = await loadUserFairs();
-  return [...userFairs, ...fairs];
+  try {
+    const res = await fetch(`${BASE_URL}/fairs`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [];
+  }
 }
 
-export async function addUserFair(fair: Fair): Promise<Fair[]> {
-  // Use the throwing read: if storage can't be read, fail the add instead of
-  // writing back a list that contains only this fair and wipes the earlier ones.
-  const existing = await readUserFairs();
-  const updated = [fair, ...existing];
-  await AsyncStorage.setItem(USER_FAIRS_KEY, JSON.stringify(updated));
-  return updated;
+// The `id` on `fair` is whatever the caller put there (bootfairs/add.tsx
+// still builds a full Fair object) - the server always mints the real one
+// and ignores it, along with ownerDeviceId, verified, featuredUntil etc.
+export async function addUserFair(fair: Fair): Promise<Fair> {
+  const deviceId = await getDeviceId();
+
+  const res = await fetch(`${BASE_URL}/fairs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...fair, deviceId }),
+  });
+
+  let payload: any = null;
+  try {
+    payload = await res.json();
+  } catch {
+    // Not JSON - the !res.ok check below turns this into an error.
+  }
+
+  if (!res.ok || !payload?.ok || !payload.fair) {
+    throw new Error(payload?.error || "Couldn't save your boot fair.");
+  }
+
+  return payload.fair as Fair;
 }
 
-// True for a fair this device's user listed themselves - the only fairs they
-// can manage (cancel/un-cancel), since there are no accounts and the built-in
-// list isn't theirs to edit.
-export async function isUserFair(id: string): Promise<boolean> {
-  const existing = await readUserFairs();
-  return existing.some((f) => f.id === id);
-}
-
-// Patches one of THIS device's own fairs (e.g. toggling cancelledDueToWeather)
-// and persists it. Does nothing to the built-in list - there's nothing there
-// for this device's user to own.
+// Patches one of THIS device's own fairs (cancelledDueToWeather,
+// featuredUntil) and returns the updated fair, or null if the request was
+// rejected (not found, or not this device's fair to manage).
 export async function updateUserFair(id: string, patch: Partial<Fair>): Promise<Fair | null> {
-  const existing = await readUserFairs();
-  const index = existing.findIndex((f) => f.id === id);
-  if (index === -1) return null;
+  const deviceId = await getDeviceId();
 
-  const updatedFair = { ...existing[index], ...patch };
-  const updated = [...existing];
-  updated[index] = updatedFair;
+  try {
+    const res = await fetch(`${BASE_URL}/fairs/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...patch, deviceId }),
+    });
+    if (!res.ok) return null;
 
-  await AsyncStorage.setItem(USER_FAIRS_KEY, JSON.stringify(updated));
-  return updatedFair;
+    const data = await res.json();
+    return data?.ok && data.fair ? (data.fair as Fair) : null;
+  } catch {
+    return null;
+  }
 }

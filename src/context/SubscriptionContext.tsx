@@ -23,6 +23,11 @@ type SubscriptionContextType = {
   purchase: (pkg: any) => Promise<void>;
   restore: () => Promise<void>;
 
+  // A one-time (non-"pro") purchase — e.g. featuring a boot fair listing.
+  // Unlike purchase(), this doesn't assume the "pro" entitlement or redirect
+  // anywhere; the caller decides what a successful purchase unlocks.
+  purchaseProduct: (pkg: any) => Promise<{ success: boolean; cancelled?: boolean }>;
+
   // True once RevenueCat is set up and usable. It stays false on web, in Expo
   // Go, and in builds that have no RevenueCat key.
   available: boolean;
@@ -165,6 +170,36 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // ⭐ One-time purchase (not the "pro" entitlement) — e.g. featuring a boot
+  // fair listing. The caller applies whatever the purchase unlocks itself;
+  // this only reports whether the purchase actually went through.
+  const purchaseProduct = async (pkg: any): Promise<{ success: boolean; cancelled?: boolean }> => {
+    if (!available) {
+      notifyUnavailable();
+      return { success: false };
+    }
+    if (inFlight.current) return { success: false };
+    inFlight.current = true;
+    setBusy(true);
+
+    try {
+      await Purchases.purchasePackage(pkg);
+      return { success: true };
+    } catch (err: any) {
+      if (err?.userCancelled) return { success: false, cancelled: true };
+
+      console.log("Purchase error:", err);
+      Alert.alert(
+        "Purchase didn't complete",
+        "Something went wrong while completing your purchase. Please try again. If you were charged, contact support."
+      );
+      return { success: false };
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
+    }
+  };
+
   // ⭐ Restore purchases
   const restore = async () => {
     if (!available) {
@@ -204,6 +239,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         isPro,
         offerings,
         purchase,
+        purchaseProduct,
         restore,
         available,
         busy,

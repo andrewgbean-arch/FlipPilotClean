@@ -43,11 +43,12 @@ const TOOLS: { key: string; label: string; Icon: PhosphorIcon; route: string; ti
   { key: "flips", label: "Your Flips", Icon: Stack, route: "/history", tint: "#4CAF50" },
   { key: "market", label: "Marketplace", Icon: Storefront, route: "/marketplace", tint: "#FF9F43" },
   { key: "vehicles", label: "Vehicles Hub", Icon: Car, route: "/vehicles", tint: "#B78CFF" },
+  { key: "advertise", label: "Advertise Your Event", Icon: Tent, route: "/bootfairs/add", tint: "#2ED9B8" },
 ];
 
 const INSIGHTS: { key: string; title: string; meta: string; Icon: PhosphorIcon; route: string }[] = [
   { key: "weather", title: "Weather", meta: "Bootfair conditions", Icon: CloudSun, route: "/weather" },
-  { key: "bootfairs", title: "Bootfairs", meta: "Find local fairs", Icon: Tent, route: "/bootfairs" },
+  { key: "bootfairs", title: "Bootfairs", meta: "Fairs, fêtes & markets", Icon: Tent, route: "/bootfairs" },
   { key: "reviews", title: "Reviews", meta: "Rate FlipPilot", Icon: Star, route: "/rate" },
 ];
 

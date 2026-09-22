@@ -32,7 +32,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/styles/ThemeContext";
 
 import { BusinessAdvert, businessAdverts } from "../../src/lib/businessAdverts";
-import { Fair, getAllFairs } from "../../src/lib/fairs";
+import { Fair, getAllFairs, isFeatured } from "../../src/lib/fairs";
 
 const RADIUS_OPTIONS = [5, 10, 20];
 
@@ -146,7 +146,7 @@ function FairCard({ item }: { item: Fair }) {
           {item.cancelledDueToWeather ? (
             <Chip Icon={CloudRain} label="Cancelled" danger />
           ) : null}
-          {item.featured ? <Chip Icon={Star} label="Featured" accent /> : null}
+          {isFeatured(item) ? <Chip Icon={Star} label="Featured" accent /> : null}
           {item.frequency ? <Chip label={item.frequency} /> : null}
           {/* 0 means nobody has rated it, not "quiet" */}
           {item.busyScore > 0 ? <Chip Icon={Users} label={`Busy ${item.busyScore}/10`} /> : null}
@@ -270,7 +270,7 @@ export default function BootFairFinderScreen() {
 
   // Use `featured` fairs as "sponsored" for now
   const sponsoredFairs = useMemo(
-    () => fairLocations.filter((f) => f.featured).slice(0, 5),
+    () => fairLocations.filter(isFeatured).slice(0, 5),
     [fairLocations]
   );
 
@@ -282,7 +282,7 @@ export default function BootFairFinderScreen() {
       showsVerticalScrollIndicator={false}
     >
       <Text style={[styles.intro, styles.block, { color: theme.muted }]}>
-        Find car boot fairs near you, or list your own.
+        Find boot fairs, fêtes, markets and garage sales near you, or list your own.
       </Text>
 
       {/* SEARCH */}
