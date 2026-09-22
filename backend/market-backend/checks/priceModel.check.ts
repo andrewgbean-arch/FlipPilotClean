@@ -1,5 +1,5 @@
 // Run with: npx tsx market-backend/checks/priceModel.check.ts (from the backend folder).
-import { decidePrices } from "../priceModel";
+import { decidePrices, NOT_WORKING_SHARE } from "../priceModel";
 import { identifyingWords, isNotTheItem, matchesQuery } from "../bulkListingFilter";
 
 let fail = 0;
@@ -29,6 +29,8 @@ const none = { ebay: null, amazonNew: null, googleNew: null, aiNew: null, aiUsed
 }
 
 // A used speaker: market says 150, the AI says 40-50 used, new is about 60.
+// No grade/age given, so the defaults (good, within-6-months) apply — median of
+// three opinions still lands in the same place either way.
 {
   const d = decidePrices({ ...none, used: true, ebay: 150, aiNew: 60, aiUsedMin: 40, aiUsedMax: 50 });
   between("speaker sell", d.sell, 40, 50);
@@ -54,12 +56,12 @@ const none = { ebay: null, amazonNew: null, googleNew: null, aiNew: null, aiUsed
   eq("nothing buy", d.buy, null);
 }
 
-// Only the AI knows
+// Only the AI knows. Two opinions (fromNew via the default age/grade, and the AI's
+// own used range) that roughly agree average out.
 {
   const d = decidePrices({ ...none, used: true, aiNew: 100, aiUsedMin: 30, aiUsedMax: 50 });
-  eq("ai only sell", d.sell, 45);
+  between("ai only sell", d.sell, 39, 43);
 }
-
 
 // Lozenges where the AI is a bit high and the listings (scaled from 80-packs) a bit low.
 {
@@ -68,15 +70,76 @@ const none = { ebay: null, amazonNew: null, googleNew: null, aiNew: null, aiUsed
   eq("lozenge sell from ebay", d.sell, 3);
 }
 
-
-// Used price worked out from the new price: nothing on used listings at all.
+/* --------------------------------------------------
+   CONDITION (Perfect / Good / Poor / Not working) — the two held equal
+   at age "new" (factor 1) so only the condition share is being compared.
+-------------------------------------------------- */
 {
-  const d = decidePrices({ ...none, used: true, grade: "good", googleNew: 130, ebayNew: 120, aiNew: 125 });
-  between("from new: good is about half", d.sell, 55, 70);
-  const poor = decidePrices({ ...none, used: true, grade: "poor", googleNew: 130, ebayNew: 120, aiNew: 125 });
-  between("from new: poor is lower", poor.sell, 20, 30);
-  const likeNew = decidePrices({ ...none, used: true, grade: "like new", googleNew: 130, ebayNew: 120, aiNew: 125 });
-  between("from new: like new is higher", likeNew.sell, 80, 95);
+  const base = { ...none, used: true, age: "new" as const, googleNew: 130, ebayNew: 120, aiNew: 125 };
+  const perfect = decidePrices({ ...base, grade: "perfect" });
+  const good = decidePrices({ ...base, grade: "good" });
+  const poor = decidePrices({ ...base, grade: "poor" });
+
+  between("condition good", good.sell, 55, 70);
+  between("condition poor: lower than good", poor.sell, 30, 45);
+  between("condition perfect: higher than good", perfect.sell, 80, 95);
+  if (!(perfect.sell! > good.sell! && good.sell! > poor.sell!)) {
+    fail++;
+    console.log("FAIL condition ordering", { perfect: perfect.sell, good: good.sell, poor: poor.sell });
+  }
+}
+
+/* --------------------------------------------------
+   AGE (New / Like new / Within 6 months / Older than 1 year) — condition held
+   equal at "good" so only the age discount is being compared.
+-------------------------------------------------- */
+{
+  const base = { ...none, used: true, grade: "good" as const, googleNew: 100, ebayNew: 100, aiNew: 100 };
+  const fresh = decidePrices({ ...base, age: "new" });
+  const likeNew = decidePrices({ ...base, age: "like-new" });
+  const sixMonths = decidePrices({ ...base, age: "within-6-months" });
+  const overYear = decidePrices({ ...base, age: "over-1-year" });
+
+  between("age new: no extra discount", fresh.sell, 48, 52);
+  between("age like-new: a touch less", likeNew.sell, 45, 49);
+  between("age within 6 months: noticeably less", sixMonths.sell, 40, 44);
+  between("age over a year: the least", overYear.sell, 30, 35);
+  if (!(fresh.sell! > likeNew.sell! && likeNew.sell! > sixMonths.sell! && sixMonths.sell! > overYear.sell!)) {
+    fail++;
+    console.log("FAIL age ordering", {
+      fresh: fresh.sell,
+      likeNew: likeNew.sell,
+      sixMonths: sixMonths.sell,
+      overYear: overYear.sell,
+    });
+  }
+}
+
+/* --------------------------------------------------
+   NOT WORKING — priced for spares/repair; ignores a market/AI number that
+   assumes the item works, and age doesn't discount it further.
+-------------------------------------------------- */
+{
+  // A far higher used-market price (150) and AI range (100-140) are both ignored:
+  // this is spares value, about 12% of the ~200 new price either would suggest.
+  const d = decidePrices({
+    ...none,
+    used: true,
+    grade: "not-working",
+    googleNew: 200,
+    ebayNew: 200,
+    aiNew: 200,
+    ebay: 150,
+    aiUsedMin: 100,
+    aiUsedMax: 140,
+  });
+  between("not working: priced for parts, not the market figure", d.sell, 20, 28);
+}
+{
+  // No new price to work from at all: falls back to a share of the (working)
+  // used listing rather than being left unpriced.
+  const d = decidePrices({ ...none, used: true, grade: "not-working", ebay: 100 });
+  eq("not working, no new price", d.sell, Number((100 * NOT_WORKING_SHARE).toFixed(2)));
 }
 
 // Used listings polluted with new ones: new price and the AI outvote them.
