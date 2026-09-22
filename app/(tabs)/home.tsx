@@ -7,6 +7,7 @@ import {
   Pressable,
   Animated,
   Image,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -87,6 +88,14 @@ export default function HomeScreen() {
   const { vehicles: flips } = useVehicleHistory();
   const theme = useTheme();
 
+  // The logo is a square image; size it from the screen width rather than
+  // flex/aspectRatio, which doesn't reliably combine on React Native Web and
+  // was rendering the header near the image's raw 1024px resolution instead
+  // of the space actually available next to the settings button.
+  const { width: windowWidth } = useWindowDimensions();
+  const HEADER_RESERVED_WIDTH = 32 + 44 + 10; // horizontal padding + gear button + gap
+  const logoSize = Math.min(windowWidth - HEADER_RESERVED_WIDTH, 340);
+
   // ⭐ Bottom sheet
   const [showSheet, setShowSheet] = useState(false);
   const [feedbackText, setFeedbackText] = useState("");
@@ -164,7 +173,7 @@ export default function HomeScreen() {
         <View style={[styles.logoHeaderWrapper, { paddingTop: insets.top + 10 }]}>
           <Image
             source={require("@/assets/images/logopulse.png")}
-            style={styles.logoHeaderImage}
+            style={[styles.logoHeaderImage, { width: logoSize, height: logoSize }]}
             resizeMode="contain"
           />
 
@@ -370,12 +379,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
   },
-  // Square logo (1024x1024 source): given a generous height, "contain" fills as much
-  // of the remaining row width as it can, so this stays much bigger than the gear icon
-  // beside it without needing to hand-calculate an exact pixel size.
+  // width/height are set inline from the screen width (see logoSize above) -
+  // flex:1 + aspectRatio:1 doesn't reliably combine on React Native Web and
+  // was inflating this row to the image's raw pixel height instead.
   logoHeaderImage: {
-    flex: 1,
-    height: 320,
     marginRight: 10,
   },
 
