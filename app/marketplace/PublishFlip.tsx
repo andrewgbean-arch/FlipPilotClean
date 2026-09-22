@@ -14,10 +14,6 @@ import {
 import { useRouter } from "expo-router";
 
 import GoldButton from "@/components/ui/GoldButton";
-import FlipScoreMeter from "@/components/analytics/FlipScoreMeter";
-import MileageRiskScore from "@/components/motors/MileageRiskScore";
-import ListingQualityScore from "@/components/marketplace/ListingQualityScore";
-import MarketHeatIndex from "@/components/analytics/MarketHeatIndex";
 import GlowPulseCard from "@/components/ui/GlowPulseCard";
 import HeroHeader from "@/components/ui/HeroHeader";
 import SparklesOverlay from "@/components/ui/SparklesOverlay";
@@ -216,33 +212,6 @@ function PublishFlipForm({ router }: { router: ReturnType<typeof useRouter> }) {
           style={[styles.divider, { backgroundColor: shimmerColor }]}
         />
 
-        {/* METRICS */}
-        <View style={styles.metricsSection}>
-          <FlipScoreMeter
-            price={numericPrice}
-            mileage={numericMileage}
-            descriptionLength={description.length}
-          />
-
-          <MileageRiskScore listing={{ mileage: numericMileage }} />
-
-          <ListingQualityScore
-            listing={{
-              photos: [],
-              description,
-              vehicle: {
-                mileage: numericMileage,
-              },
-              price: numericPrice,
-            }}
-            prediction={{
-              flipScore: 0,
-            }}
-          />
-
-          <MarketHeatIndex />
-        </View>
-
         <View style={{ paddingHorizontal: 16, marginTop: 8 }}>
           <AnimatedButton
             onPress={handlePublish}
@@ -323,12 +292,6 @@ const styles = StyleSheet.create({
 
   column: {
     flex: 1,
-  },
-
-  metricsSection: {
-    marginTop: 24,
-    paddingHorizontal: 16,
-    gap: 14,
   },
 
   cardTitle: {

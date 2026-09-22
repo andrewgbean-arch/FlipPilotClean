@@ -16,7 +16,6 @@ import GlowPulseCard from "@/components/ui/GlowPulseCard";
 import HeroHeader from "@/components/ui/HeroHeader";
 import SparklesOverlay from "@/components/ui/SparklesOverlay";
 
-import { calculateFlipScore } from "@/utils/flipScorePredictor";
 import { BASE_URL } from "@/utils/api";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -65,30 +64,11 @@ export default function PublicListing() {
       </View>
     );
 
-  /** AI prediction */
-  const prediction = calculateFlipScore(listing);
-
-  const dealHeat =
-    prediction.flipScore >= 85
-      ? "🔥 Hot"
-      : prediction.flipScore >= 70
-      ? "Warm"
-      : "Cold";
-
   const sellerTrust = (listing.seller?.rating ?? 4) * 20;
-
-  const profitLevel =
-    prediction.profitEstimate >= 1500
-      ? "High"
-      : prediction.profitEstimate >= 800
-      ? "Medium"
-      : "Low";
 
   const listingName = listing.vehicle
     ? `${listing.vehicle.year ?? ""} ${listing.vehicle.make ?? ""} ${listing.vehicle.model ?? ""}`.trim()
     : listing.title ?? "This listing";
-
-  const aiSummary = `${listingName} shows a ${dealHeat.toLowerCase()} deal profile with estimated profit of around £${prediction.profitEstimate} and a FlipScore of ${prediction.flipScore}/100.`;
 
   /** Hero animations */
   const heroTranslateY = scrollY.interpolate({
@@ -106,16 +86,6 @@ export default function PublicListing() {
   return (
     <View style={styles.container}>
       <SparklesOverlay />
-
-      {/* Sticky CTA */}
-      <View style={styles.stickyCTA}>
-        <TouchableOpacity
-          onPress={() => router.push(`/marketplace/${id}`)}
-          style={styles.ctaButton}
-        >
-          <Text style={styles.ctaText}>🔍 View Full FlipPilot Analysis</Text>
-        </TouchableOpacity>
-      </View>
 
       <Animated.ScrollView
         style={{ padding: 20 }}
@@ -155,39 +125,11 @@ export default function PublicListing() {
           </Animated.View>
         )}
 
-        {/* TITLE + PRICE + DEAL HEAT */}
+        {/* TITLE + PRICE */}
         <GlowPulseCard style={{ marginTop: 10 }}>
           <Text style={styles.title}>{listingName}</Text>
 
           <Text style={styles.price}>£{listing.price}</Text>
-
-          <View style={styles.dealHeatRow}>
-            <Text style={styles.scoreText}>
-              FlipScore: {prediction.flipScore}/100
-            </Text>
-
-            <View
-              style={[
-                styles.dealHeatBadge,
-                {
-                  backgroundColor:
-                    dealHeat === "🔥 Hot"
-                      ? "#FF5252"
-                      : dealHeat === "Warm"
-                      ? "#FFD700"
-                      : "#555",
-                },
-              ]}
-            >
-              <Text style={styles.dealHeatText}>{dealHeat}</Text>
-            </View>
-          </View>
-        </GlowPulseCard>
-
-        {/* AI SUMMARY */}
-        <GlowPulseCard style={{ marginTop: 20 }}>
-          <Text style={styles.sectionTitle}>FlipPilot AI Summary</Text>
-          <Text style={styles.sectionText}>{aiSummary}</Text>
         </GlowPulseCard>
 
         {/* GALLERY */}
@@ -273,58 +215,6 @@ export default function PublicListing() {
           </GlowPulseCard>
         )}
 
-        {/* FLIPSCORE PREDICTOR */}
-        <GlowPulseCard style={{ marginTop: 20 }}>
-          <Text style={styles.sectionTitle}>FlipScore Predictor</Text>
-
-          <Text style={styles.highlightText}>
-            Deal Score: {prediction.flipScore}/100
-          </Text>
-          <Text style={styles.detailText}>
-            Risk Score: {prediction.riskScore}/100
-          </Text>
-          <Text style={styles.detailText}>
-            Estimated Profit: £{prediction.profitEstimate}
-          </Text>
-          <Text style={styles.detailText}>
-            Sell Time: {prediction.sellTimeEstimate}
-          </Text>
-
-          <Text style={styles.recommendationText}>
-            Recommendation: {prediction.recommendation}
-          </Text>
-
-          {/* Profit Gauge */}
-          <View style={styles.profitRow}>
-            <View
-              style={[
-                styles.profitGauge,
-                {
-                  borderColor:
-                    profitLevel === "High"
-                      ? "#4CAF50"
-                      : profitLevel === "Medium"
-                      ? "#FFD700"
-                      : "#FF5252",
-                },
-              ]}
-            >
-              <Text style={styles.profitGaugeText}>
-                £{prediction.profitEstimate}
-              </Text>
-            </View>
-
-            <View>
-              <Text style={styles.detailText}>
-                Profit Level: {profitLevel}
-              </Text>
-              <Text style={styles.detailText}>
-                Confidence: {prediction.flipScore}%
-              </Text>
-            </View>
-          </View>
-        </GlowPulseCard>
-
         {/* SELLER TRUST */}
         <GlowPulseCard style={{ marginTop: 20 }}>
           <Text style={styles.sectionTitle}>Seller Trust Meter</Text>
@@ -351,38 +241,6 @@ export default function PublicListing() {
             {Math.round(sellerTrust)}%
           </Text>
         </GlowPulseCard>
-
-        {/* PRO TEASER */}
-        <GlowPulseCard style={{ marginTop: 20 }}>
-          <Text style={styles.sectionTitle}>FlipPilot Pro Insights</Text>
-
-          <Text style={styles.sectionText}>
-            Unlock full AI analysis including:
-          </Text>
-
-          <Text style={styles.bulletText}>
-            • Deal Probability{"\n"}
-            • Price Drop Prediction{"\n"}
-            • Mileage Risk{"\n"}
-            • Depreciation Curve{"\n"}
-            • Seller Trust Score{"\n"}
-            • Flip Difficulty
-          </Text>
-
-          <Text style={styles.sectionText}>
-            Tap below to view the full intelligence suite.
-          </Text>
-        </GlowPulseCard>
-
-        {/* FULL ANALYSIS BUTTON */}
-        <TouchableOpacity
-          onPress={() => router.push(`/marketplace/${id}`)}
-          style={styles.fullAnalysisButton}
-        >
-          <Text style={styles.fullAnalysisText}>
-            ✨ View Full FlipPilot Analysis
-          </Text>
-        </TouchableOpacity>
 
         {/* DESCRIPTION */}
         {listing.description && (
@@ -430,34 +288,6 @@ const styles = StyleSheet.create({
     width: 140,
     height: 140,
     borderRadius: 12,
-  },
-
-  stickyCTA: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "#0A1128",
-    padding: 10,
-    borderTopWidth: 1,
-    borderTopColor: "#FFD700",
-    zIndex: 50,
-  },
-
-  ctaButton: {
-    backgroundColor: "#FFD700",
-    padding: 12,
-    borderRadius: 999,
-    alignItems: "center",
-    shadowColor: "#FFD700",
-    shadowOpacity: 0.7,
-    shadowRadius: 10,
-    elevation: 6,
-  },
-
-  ctaText: {
-    fontWeight: "bold",
-    fontSize: 16,
   },
 
   heroWrapper: {
@@ -511,30 +341,6 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
 
-  dealHeatRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 8,
-  },
-
-  scoreText: {
-    color: "#ccc",
-    fontSize: 16,
-  },
-
-  dealHeatBadge: {
-    marginLeft: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-  },
-
-  dealHeatText: {
-    color: "#fff",
-    fontSize: 12,
-    fontWeight: "bold",
-  },
-
   sectionTitle: {
     color: "#FFD700",
     fontSize: 20,
@@ -547,48 +353,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  bulletText: {
-    color: "#FFD700",
-    marginTop: 4,
-    fontSize: 14,
-  },
-
   detailText: {
     color: "#ccc",
     marginTop: 4,
-  },
-
-  highlightText: {
-    color: "#FFD700",
-    marginTop: 10,
-    fontWeight: "bold",
-  },
-
-  recommendationText: {
-    marginTop: 10,
-    fontWeight: "bold",
-    color: "#FFD700",
-  },
-
-  profitRow: {
-    marginTop: 12,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  profitGauge: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 4,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-
-  profitGaugeText: {
-    color: "#fff",
-    fontWeight: "bold",
   },
 
   trustBar: {
@@ -601,23 +368,6 @@ const styles = StyleSheet.create({
 
   trustFill: {
     height: "100%",
-  },
-
-  fullAnalysisButton: {
-    backgroundColor: "#FFD700",
-    padding: 14,
-    borderRadius: 10,
-    marginTop: 20,
-    alignItems: "center",
-    shadowColor: "#FFD700",
-    shadowOpacity: 0.8,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-
-  fullAnalysisText: {
-    fontWeight: "bold",
-    fontSize: 16,
   },
 
   messageButton: {
