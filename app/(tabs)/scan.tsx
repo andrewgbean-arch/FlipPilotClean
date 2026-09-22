@@ -629,23 +629,29 @@ export default function ScanScreen() {
 
       {/* LOADING */}
       {loading && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color={theme.gold} />
-          <Text style={{ marginTop: 20, color: theme.text, fontSize: 16, fontWeight: "600" }}>
-            Analysing…
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Cancel scan"
-            style={[styles.cancelButton, { borderColor: "rgba(255,255,255,0.3)" }]}
-            onPress={cancelScan}
-          >
-            <Text style={{ color: theme.text, fontWeight: "600", fontSize: 16 }}>
-              Cancel
+        <View style={[styles.loadingOverlay, { backgroundColor: theme.background }]}>
+          <View style={styles.loadingHeader}>
+            <ActivityIndicator size="large" color={theme.gold} />
+            <Text style={{ marginTop: 14, color: theme.text, fontSize: 16, fontWeight: "600" }}>
+              Analysing…
             </Text>
-          </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Cancel scan"
+              style={[styles.cancelButton, { borderColor: theme.hairline }]}
+              onPress={cancelScan}
+            >
+              <Text style={{ color: theme.text, fontWeight: "600", fontSize: 14 }}>
+                Cancel
+              </Text>
+            </Pressable>
+          </View>
 
-          {showWaitingAd ? <ScanWaitingAd /> : null}
+          {showWaitingAd ? (
+            <View style={styles.loadingAdZone}>
+              <ScanWaitingAd />
+            </View>
+          ) : null}
         </View>
       )}
 
@@ -813,17 +819,28 @@ cameraFailed: {
 
 loadingOverlay: {
   ...StyleSheet.absoluteFill,
-  backgroundColor: "rgba(0,0,0,0.7)",
-  justifyContent: "center",
+  justifyContent: "flex-start",
   alignItems: "center",
+  paddingTop: 56,
   zIndex: 40,
 },
 
+loadingHeader: {
+  alignItems: "center",
+},
+
+loadingAdZone: {
+  flex: 1,
+  width: "100%",
+  marginTop: 20,
+  paddingBottom: 24,
+},
+
 cancelButton: {
-  marginTop: 28,
-  minHeight: 48,
+  marginTop: 16,
+  minHeight: 40,
   justifyContent: "center",
-  paddingHorizontal: 32,
+  paddingHorizontal: 24,
   borderRadius: 14,
   borderWidth: 1,
 },

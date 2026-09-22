@@ -42,7 +42,7 @@ export const businessAdverts: BusinessAdvert[] = [
     title: "FlipMaster Scales",
     description: "Digital scales perfect for weighing items before listing online.",
     tagline: "Accuracy that pays",
-    image: "https://images.unsplash.com/photo-1581091012184-5c7b1a5e0f3b",
+    image: "https://images.unsplash.com/photo-1585771724684-38269d6639fd",
     website: "https://flipmasterscales.com",
     category: "Tools",
     rating: 4.9,

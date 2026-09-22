@@ -374,15 +374,22 @@ export default function AiCameraScreen() {
       {/* LOADING OVERLAY */}
       {loading && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color={GOLD} />
-          <Pressable
-            style={[styles.smallActionButton, { marginTop: 24 }]}
-            onPress={() => abortRef.current?.abort()}
-          >
-            <Text style={styles.smallActionText}>Cancel</Text>
-          </Pressable>
+          <View style={styles.loadingHeader}>
+            <ActivityIndicator size="large" color={GOLD} />
+            <Text style={styles.loadingText}>Analysing…</Text>
+            <Pressable
+              style={[styles.smallActionButton, { marginTop: 14 }]}
+              onPress={() => abortRef.current?.abort()}
+            >
+              <Text style={styles.smallActionText}>Cancel</Text>
+            </Pressable>
+          </View>
 
-          {showWaitingAd ? <ScanWaitingAd /> : null}
+          {showWaitingAd ? (
+            <View style={styles.loadingAdZone}>
+              <ScanWaitingAd />
+            </View>
+          ) : null}
         </View>
       )}
     </View>
@@ -468,16 +475,28 @@ const styles = StyleSheet.create({
 
   loadingOverlay: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    justifyContent: "center",
+    backgroundColor: NAVY,
+    justifyContent: "flex-start",
     alignItems: "center",
+    paddingTop: 56,
+  },
 
-    borderColor: "rgba(255,215,0,0.25)",
-    borderWidth: 1.5,
-    shadowColor: "rgba(255,215,0,0.45)",
-    shadowOpacity: 0.4,
-    shadowRadius: 25,
-    shadowOffset: { width: 0, height: 12 },
+  loadingHeader: {
+    alignItems: "center",
+  },
+
+  loadingText: {
+    marginTop: 14,
+    color: "white",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+
+  loadingAdZone: {
+    flex: 1,
+    width: "100%",
+    marginTop: 20,
+    paddingBottom: 24,
   },
 
   cameraFailed: {
