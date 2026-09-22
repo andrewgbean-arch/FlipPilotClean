@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { Animated, StyleSheet, View } from "react-native";
+import { Animated, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 
@@ -42,6 +43,7 @@ function LoadingDots({ color }: { color: string }) {
 
 export default function IntroScreen() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const navigatedRef = useRef(false);
 
   const player = useVideoPlayer(STARTUP_VIDEO, (p) => {
@@ -76,7 +78,14 @@ export default function IntroScreen() {
         nativeControls={false}
         accessibilityLabel="FlipPilot"
       />
-      <View style={styles.loadingWrap} pointerEvents="none">
+      <View
+        style={[
+          styles.loadingWrap,
+          { bottom: insets.bottom + 28, backgroundColor: theme.background },
+        ]}
+        pointerEvents="none"
+      >
+        <Text style={[styles.loadingText, { color: theme.gold }]}>Loading content</Text>
         <LoadingDots color={theme.gold} />
       </View>
     </View>
@@ -88,16 +97,26 @@ const styles = StyleSheet.create({
   video: { flex: 1 },
   loadingWrap: {
     position: "absolute",
-    right: 20,
-    bottom: 28,
+    right: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  loadingText: {
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.3,
   },
   dotsRow: {
     flexDirection: "row",
     gap: 6,
   },
   dot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
 });
