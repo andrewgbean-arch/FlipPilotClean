@@ -1,17 +1,48 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, Image } from "react-native";
+import { Alert, View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, Linking } from "react-native";
 import { router } from "expo-router";
-import { ShareNetwork } from "phosphor-react-native";
+import { Export, ShareNetwork } from "phosphor-react-native";
 import { useTheme } from "@/styles/ThemeContext";
 
 import { BASE_URL } from "@/utils/api";
 import { getDeviceId } from "@/utils/deviceId";
 import { shareListing } from "@/utils/shareListing";
+import { exportListingToEbay } from "@/utils/ebayExport";
 
 export default function MyListings() {
   const theme = useTheme();
 
   const [listings, setListings] = useState<any[]>([]);
+  const [exportingId, setExportingId] = useState<string | number | null>(null);
+
+  const handleEbayExport = async (item: any) => {
+    setExportingId(item.id);
+    try {
+      const result = await exportListingToEbay(item.id);
+      if (result.ok) {
+        Alert.alert("Exported to eBay", result.ebayUrl ? "Your listing is now live on eBay." : "Your listing is now live on eBay.", result.ebayUrl ? [
+          { text: "OK" },
+          { text: "View on eBay", onPress: () => Linking.openURL(result.ebayUrl!) },
+        ] : undefined);
+      } else if (result.error === "not-connected") {
+        Alert.alert("Connect eBay first", "Connect your eBay account in Settings, then try exporting again.", [
+          { text: "Not now", style: "cancel" },
+          { text: "Go to Settings", onPress: () => router.push("/settings") },
+        ]);
+      } else if (result.error === "selling-locked") {
+        Alert.alert("Upgrade to sell", result.message ?? "Selling needs Bolt-on or Pro.", [
+          { text: "Not now", style: "cancel" },
+          { text: "Upgrade", onPress: () => router.push("/upgrade") },
+        ]);
+      } else {
+        Alert.alert("Couldn't export to eBay", result.message ?? "Please try again.");
+      }
+    } catch {
+      Alert.alert("Couldn't export to eBay", "Please check your connection and try again.");
+    } finally {
+      setExportingId(null);
+    }
+  };
 
   useEffect(() => {
     getDeviceId()
@@ -75,6 +106,34 @@ export default function MyListings() {
                 £{item.price}
               </Text>
             </View>
+
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Export this listing to eBay"
+              disabled={exportingId === item.id}
+              onPress={(e) => {
+                e.stopPropagation();
+                handleEbayExport(item);
+              }}
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 22,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: theme.black,
+                borderWidth: 1,
+                borderColor: theme.goldSoftGlow,
+                marginRight: 10,
+                opacity: exportingId === item.id ? 0.6 : 1,
+              }}
+            >
+              {exportingId === item.id ? (
+                <ActivityIndicator size="small" color={theme.goldDeep} />
+              ) : (
+                <Export size={20} color={theme.goldDeep} />
+              )}
+            </TouchableOpacity>
 
             <TouchableOpacity
               accessibilityRole="button"

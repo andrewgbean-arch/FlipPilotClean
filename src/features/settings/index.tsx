@@ -1,13 +1,14 @@
-import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import Constants from "expo-constants";
-import { BookOpen, CaretRight, CreditCard, Crown, Info, Star } from "phosphor-react-native";
+import { BookOpen, CaretRight, CreditCard, Crown, Export, Info, Star } from "phosphor-react-native";
 import type { Icon as PhosphorIcon } from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useSubscription } from "@/context/SubscriptionContext";
 import { useTheme } from "@/styles/ThemeContext";
+import { connectEbay, disconnectEbay, getEbayStatus } from "@/utils/ebayExport";
 
 /* SMALL LOCAL COMPONENTS */
 function SectionTitle({ children }: { children: string }) {
@@ -117,6 +118,53 @@ export default function SettingsScreen() {
   // The purchase state, not the theme (which is never switched to "pro").
   const { isPro } = useSubscription();
 
+  const [ebayConnected, setEbayConnected] = useState(false);
+  const [ebayConfigured, setEbayConfigured] = useState(true);
+  const [ebayBusy, setEbayBusy] = useState(false);
+
+  useEffect(() => {
+    getEbayStatus()
+      .then(({ connected, configured }) => {
+        setEbayConnected(connected);
+        setEbayConfigured(configured);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleEbayRow = async () => {
+    if (!ebayConfigured) {
+      Alert.alert("Not set up yet", "eBay export isn't available in this build yet.");
+      return;
+    }
+    if (ebayBusy) return;
+
+    if (ebayConnected) {
+      Alert.alert("Disconnect eBay?", "FlipPilot will no longer be able to export listings to your eBay account.", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Disconnect",
+          style: "destructive",
+          onPress: async () => {
+            setEbayBusy(true);
+            await disconnectEbay();
+            setEbayConnected(false);
+            setEbayBusy(false);
+          },
+        },
+      ]);
+      return;
+    }
+
+    setEbayBusy(true);
+    const result = await connectEbay();
+    setEbayBusy(false);
+    if (result.ok) {
+      setEbayConnected(true);
+    } else if (result.message) {
+      Alert.alert("Couldn't connect eBay", result.message);
+    }
+  };
+
   const card = { backgroundColor: theme.card, borderColor: theme.hairline };
 
   // Only show what the build actually knows. The build number is not set in
@@ -165,6 +213,21 @@ export default function SettingsScreen() {
               divider
             />
           )}
+        </View>
+
+        {/* SELLING */}
+        <SectionTitle>Selling</SectionTitle>
+        <View style={[styles.group, card]}>
+          <MenuRow
+            Icon={Export}
+            title={ebayConnected ? "eBay connected" : "Connect eBay account"}
+            subtitle={
+              ebayConnected
+                ? "Export your listings straight to eBay"
+                : "Sign in to export your listings to eBay"
+            }
+            onPress={handleEbayRow}
+          />
         </View>
 
         {/* HELP & GUIDES */}
