@@ -24,6 +24,7 @@ import {
   GearSix,
   Stack,
   Star,
+  Storefront,
   Tent,
 } from "phosphor-react-native";
 import type { Icon as PhosphorIcon } from "phosphor-react-native";
@@ -39,6 +40,7 @@ const TOOLS: { key: string; label: string; Icon: PhosphorIcon; route: string; ti
   { key: "scan", label: "AI Scan", Icon: Camera, route: "/scan", tint: "#FFD700" },
   { key: "barcode", label: "Barcode Lookup", Icon: Barcode, route: "/scan", tint: "#4FA3FF" },
   { key: "flips", label: "Your Flips", Icon: Stack, route: "/history", tint: "#4CAF50" },
+  { key: "market", label: "Marketplace", Icon: Storefront, route: "/marketplace", tint: "#FF9F43" },
   { key: "vehicles", label: "Vehicles Hub", Icon: Car, route: "/vehicles", tint: "#B78CFF" },
 ];
 

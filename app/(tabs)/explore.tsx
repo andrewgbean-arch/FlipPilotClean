@@ -13,6 +13,7 @@ import {
   AirplaneTilt,
   Barcode,
   CaretRight,
+  ChartLineUp,
   ClipboardText,
   ClockCounterClockwise,
   CurrencyGbp,
@@ -222,10 +223,20 @@ const QUICK_ACCESS: QuickAccessItem[] = [
     href: "/vehicles/mot-lookup",
     Icon: ClipboardText,
   },
+  {
+    title: "Marketplace",
+    desc: "Buy, sell and message locally",
+    href: "/marketplace",
+    Icon: ChartLineUp,
+  },
 ];
 
 // Two tiles to a row.
-const QUICK_ACCESS_ROWS = [QUICK_ACCESS.slice(0, 2), QUICK_ACCESS.slice(2, 4)];
+const QUICK_ACCESS_ROWS = [
+  QUICK_ACCESS.slice(0, 2),
+  QUICK_ACCESS.slice(2, 4),
+  QUICK_ACCESS.slice(4, 6),
+];
 
 // Category names double as search keys, so they stay as written in FEATURES.
 // This only changes how a section heading reads.

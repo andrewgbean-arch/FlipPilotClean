@@ -19,6 +19,8 @@ import {
   PencilSimple,
   Plus,
   Star,
+  Storefront,
+  Tag,
   TrendUp,
   Trophy,
   Warning,
@@ -332,6 +334,18 @@ export default function MotorsHub() {
           Icon={PencilSimple}
           title="Edit flip"
           onPress={() => router.push("/vehicles/edit-lookup")}
+          divider
+        />
+        <Row
+          Icon={Storefront}
+          title="Marketplace"
+          onPress={() => router.push("/marketplace")}
+          divider
+        />
+        <Row
+          Icon={Tag}
+          title="Create listing"
+          onPress={() => router.push("/marketplace/create")}
           divider
         />
       </Group>
