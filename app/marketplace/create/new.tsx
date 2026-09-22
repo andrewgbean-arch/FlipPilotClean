@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -23,6 +23,8 @@ import SparklesOverlay from "../../../src/components/ui/SparklesOverlay";
 import { aiLookup, BASE_URL } from "../../../src/utils/api";
 import { getDeviceId } from "../../../src/utils/deviceId";
 import { deviceRegionHints } from "../../../src/utils/deviceRegion";
+import { listingFromFlip } from "../../../src/utils/listingFromFlip";
+import { useVehicleHistory } from "../../../src/features/vehicles/context/VehicleHistoryContext";
 import { SELLER_SAFETY_TIPS } from "../../../src/utils/scamSafety";
 import SafetyCard from "../../../src/components/marketplace/SafetyCard";
 import {
@@ -37,26 +39,50 @@ import {
 
 export default function CreateNewListing() {
   const theme = useTheme();
-  const params = useLocalSearchParams<{ category?: string }>();
+  const params = useLocalSearchParams<{ category?: string; fromFlip?: string }>();
+  const { vehicles } = useVehicleHistory();
 
-  // Preselected when you arrive from a category tile. Otherwise nothing is
-  // chosen for you — an item filed in the wrong place never gets found.
+  // Selling something already saved in History or Favourites: its photo and
+  // everything the scan worked out come across, so there is nothing to retype.
+  const flip = params.fromFlip
+    ? vehicles.find((v) => v.id === params.fromFlip) ?? null
+    : null;
+  const draft = useMemo(() => (flip ? listingFromFlip(flip) : null), [flip?.id]);
+
+  // Preselected when you arrive from a category tile or a saved flip. Otherwise
+  // nothing is chosen for you — an item filed in the wrong place never gets found.
   const [category, setCategory] = useState<string | null>(
-    getCategory(params.category)?.id ?? null
+    getCategory(params.category)?.id ?? draft?.category ?? null
   );
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerSearch, setPickerSearch] = useState("");
 
-  const [title, setTitle] = useState("");
-  const [price, setPrice] = useState("");
+  const [title, setTitle] = useState(draft?.title ?? "");
+  const [price, setPrice] = useState(draft?.price ?? "");
   const [location, setLocation] = useState("");
-  const [description, setDescription] = useState("");
-  const [details, setDetails] = useState<Record<string, string>>({});
+  const [description, setDescription] = useState(draft?.description ?? "");
+  const [details, setDetails] = useState<Record<string, string>>(draft?.details ?? {});
 
-  const [photos, setPhotos] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<string[]>(draft?.photos ?? []);
   const [analyzing, setAnalyzing] = useState(false);
   const [suggested, setSuggested] = useState<MarketplaceCategory | null>(null);
   const [publishing, setPublishing] = useState(false);
+
+  // Saved flips are read from storage, so on the first render there is usually
+  // nothing to copy from yet. Fill the form in once the flip turns up, and only
+  // once, so it never overwrites something already typed.
+  const filledFrom = useRef<string | null>(null);
+  useEffect(() => {
+    if (!draft || !flip || filledFrom.current === flip.id) return;
+    filledFrom.current = flip.id;
+
+    setPhotos(draft.photos);
+    setTitle(draft.title);
+    setPrice(draft.price);
+    setDescription(draft.description);
+    setDetails(draft.details);
+    if (draft.category) setCategory((prev) => prev ?? draft.category);
+  }, [draft, flip]);
 
   const chosen = getCategory(category);
   const fields = useMemo(() => fieldsFor(category), [category]);
@@ -286,7 +312,9 @@ export default function CreateNewListing() {
           New listing
         </Text>
         <Text style={{ color: theme.muted, marginBottom: 18 }}>
-          A photo, a price and the right category. The rest takes a minute.
+          {flip
+            ? "Brought over from your saved flip. Check it over, add where it is, and it is ready."
+            : "A photo, a price and the right category. The rest takes a minute."}
         </Text>
 
         {/* PHOTOS */}

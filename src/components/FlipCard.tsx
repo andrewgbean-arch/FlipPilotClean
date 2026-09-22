@@ -5,11 +5,13 @@ import {
   Lightning,
   Package,
   ShareNetwork,
+  Storefront,
   Tag,
   Trash,
   TrendUp,
 } from "phosphor-react-native";
 import type { Icon as PhosphorIcon } from "phosphor-react-native";
+import { router } from "expo-router";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
@@ -169,6 +171,19 @@ export default function FlipCard({ item, onOpen, onToggleFavourite, onDelete }: 
       </Pressable>
 
       <View style={styles.actions}>
+        {/* Straight to a listing, carrying this flip's photo and everything
+            the scan already worked out. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Sell this on the marketplace"
+          style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}
+          onPress={() =>
+            router.push(`/marketplace/create/new?fromFlip=${encodeURIComponent(item.id)}`)
+          }
+        >
+          <Storefront size={22} color={theme.gold} />
+        </Pressable>
+
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Share flip"
