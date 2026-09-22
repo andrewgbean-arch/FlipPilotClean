@@ -1,97 +1,56 @@
-import { useEffect, useRef, useState } from "react";
-import { Animated, Easing, StyleSheet, View } from "react-native";
+import { useEffect, useRef } from "react";
+import { StyleSheet, View } from "react-native";
 import { router } from "expo-router";
+import { useVideoPlayer, VideoView } from "expo-video";
 
 import { useTheme } from "@/styles/useTheme";
 
-const LOGO = require("../assets/images/logo5.png");
+const STARTUP_VIDEO = require("../src/assets/videos/startup.mp4");
+// Safety net: never strand the user on this screen if the video's end
+// event never fires (a slow device, a codec issue, an empty video track).
+const FALLBACK_MS = 8000;
 
 export default function IntroScreen() {
   const theme = useTheme();
+  const navigatedRef = useRef(false);
 
-  const spin = useRef(new Animated.Value(0)).current;
-  const scale = useRef(new Animated.Value(0.4)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
-
-  // The logo is a large image and, in dev, is fetched over the network
-  // from the Metro server rather than bundled — don't start the reveal
-  // (or the auto-navigate timer) until it has actually finished loading,
-  // otherwise the animation can complete and navigate away before the
-  // image ever appears on a real device.
-  const [imageReady, setImageReady] = useState(false);
-
-  useEffect(() => {
-    // Safety net: never strand the user on this screen if the image
-    // somehow never fires onLoad/onError.
-    const fallback = setTimeout(() => setImageReady(true), 4000);
-    return () => clearTimeout(fallback);
-  }, []);
-
-  useEffect(() => {
-    if (!imageReady) return;
-
-    Animated.sequence([
-      Animated.parallel([
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(spin, {
-          toValue: 1,
-          duration: 1100,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.spring(scale, {
-          toValue: 1,
-          friction: 5,
-          tension: 40,
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.delay(650),
-    ]).start(() => {
-      router.replace("/home");
-    });
-  }, [imageReady]);
-
-  const rotate = spin.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["-540deg", "0deg"],
+  const player = useVideoPlayer(STARTUP_VIDEO, (p) => {
+    p.loop = false;
+    p.muted = true;
+    p.play();
   });
+
+  const goHome = () => {
+    if (navigatedRef.current) return;
+    navigatedRef.current = true;
+    router.replace("/home");
+  };
+
+  useEffect(() => {
+    const sub = player.addListener("playToEnd", goHome);
+    const fallback = setTimeout(goHome, FALLBACK_MS);
+    return () => {
+      sub.remove();
+      clearTimeout(fallback);
+    };
+  }, [player]);
 
   // The background is exactly the app's own, so the screen flows straight
   // on from the native splash and into Home with no colour change.
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <Animated.Image
-        source={LOGO}
-        resizeMode="cover"
-        accessible
-        accessibilityRole="image"
+      <VideoView
+        player={player}
+        style={styles.video}
+        contentFit="cover"
+        nativeControls={false}
         accessibilityLabel="FlipPilot"
-        onLoadEnd={() => setImageReady(true)}
-        style={[
-          styles.logo,
-          {
-            opacity,
-            transform: [{ rotate }, { scale }],
-          },
-        ]}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  logo: {
-    width: "100%",
-    height: "100%",
-  },
+  container: { flex: 1 },
+  video: { flex: 1 },
 });
