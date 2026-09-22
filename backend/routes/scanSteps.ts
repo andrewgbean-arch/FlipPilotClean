@@ -6,7 +6,10 @@ import { extractPackCount } from "../market-backend/bulkListingFilter";
 import { getEbayAccessToken } from "../market-backend/ebayBrowseApi";
 import type { AgeBand, Grade } from "../market-backend/priceModel";
 import { paidLookupBudget } from "../middleware/dailyBudget";
-import { freeScanLimit } from "../middleware/freeScanLimit";
+// freeScanLimit (the 5-scans-a-week Free cap) is TEMPORARILY DISABLED below,
+// not removed - the owner is still testing the app itself and kept hitting
+// their own cap. Re-add it to both routes before this ships to real users.
+// import { freeScanLimit } from "../middleware/freeScanLimit";
 import { rateLimit } from "../middleware/rateLimit";
 import { askVision, DESCRIBE_PROMPT, IDENTIFY_PROMPT } from "./searchImage";
 import { buildAiBlock, fetchOpenFoodFacts } from "./search";
@@ -110,7 +113,7 @@ export async function identifyBarcode(code: string): Promise<BarcodeIdentity | n
   return identity;
 }
 
-router.get("/identify-barcode", rateLimit(30), paidLookupBudget, freeScanLimit, async (req, res) => {
+router.get("/identify-barcode", rateLimit(30), paidLookupBudget, async (req, res) => {
   try {
     const code = String(req.query.q ?? "").replace(/\D/g, "");
     if (code.length < 6) return res.json({ error: "bad-barcode", message: "That doesn't look like a barcode. Try scanning it again." });
@@ -139,7 +142,7 @@ router.get("/identify-barcode", rateLimit(30), paidLookupBudget, freeScanLimit, 
 
 /* ---------------- photo -> product ---------------- */
 
-router.post("/identify-image", rateLimit(6), paidLookupBudget, freeScanLimit, async (req, res) => {
+router.post("/identify-image", rateLimit(6), paidLookupBudget, async (req, res) => {
   try {
     const { imageBase64 } = req.body ?? {};
     if (!imageBase64 || typeof imageBase64 !== "string" || imageBase64.length < 50) {
