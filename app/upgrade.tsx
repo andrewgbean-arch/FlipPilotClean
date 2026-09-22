@@ -54,6 +54,8 @@ const TIERS: Tier[] = [
     included: [
       "Unlimited AI lookups",
       "Sell unlimited items on the Marketplace",
+      "Export listings straight to eBay",
+      "Share listings to Facebook, Gumtree, Vinted & more",
       "2 vehicle listings free",
       "Extra vehicles billed per vehicle",
       "Everything in Bolt-on",
@@ -65,6 +67,7 @@ const TIERS: Tier[] = [
 const COMPARISON: [string, string, string, string][] = [
   ["AI lookups", "5 / week", "200 / month", "Unlimited"],
   ["Sell on Marketplace", "—", "Up to 5 items", "Unlimited"],
+  ["Export to eBay", "—", "—", "Included"],
   ["Vehicle listings", "—", "—", "2 free, then billed"],
 ];
 
