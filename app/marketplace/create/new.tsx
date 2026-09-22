@@ -23,6 +23,7 @@ import SparklesOverlay from "../../../src/components/ui/SparklesOverlay";
 import { aiLookup, BASE_URL } from "../../../src/utils/api";
 import { getDeviceId } from "../../../src/utils/deviceId";
 import { deviceRegionHints } from "../../../src/utils/deviceRegion";
+import { getSellerName } from "../../../src/utils/sellerName";
 import { listingFromFlip } from "../../../src/utils/listingFromFlip";
 import { useVehicleHistory } from "../../../src/features/vehicles/context/VehicleHistoryContext";
 import { SELLER_SAFETY_TIPS } from "../../../src/utils/scamSafety";
@@ -179,6 +180,8 @@ export default function CreateNewListing() {
           photos,
           bestThumbnail: photos[0] ?? null,
           deviceId,
+          // What they chose to be called, if they have set one in Settings.
+          sellerName: await getSellerName(),
           ...deviceRegionHints(),
         }),
       });

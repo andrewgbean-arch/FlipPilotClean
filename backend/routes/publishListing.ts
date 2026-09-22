@@ -75,7 +75,8 @@ export default function registerPublishListingRoute(app: Express) {
       photos,
       bestThumbnail,
       flipScore,
-      deviceId
+      deviceId,
+      sellerName
     } = req.body;
 
     if (!title || !price) {
@@ -106,7 +107,7 @@ export default function registerPublishListingRoute(app: Express) {
       flipScore: flipScore ?? null,
       deviceId: typeof deviceId === "string" ? deviceId : null,
       // The public side of who is selling it, so a buyer can see their history.
-      sellerId: ensureSeller(deviceId)?.id ?? null,
+      sellerId: ensureSeller(deviceId, sellerName)?.id ?? null,
       soldAt: null,
       // A private review flag. Stripped from everything the public can read.
       sellerOrigin: readSellerOrigin(req),

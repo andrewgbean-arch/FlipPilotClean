@@ -26,6 +26,12 @@ type Seller = {
   id: string;        // public
   deviceId: string;  // private, never sent to a client
   joinedAt: string;
+  /**
+   * What they want to be called. Chosen by them and not checked against
+   * anything, so it is a name and nothing more — it carries no more weight
+   * than the name on a market stall.
+   */
+  displayName?: string | null;
 };
 
 type Review = {
@@ -58,21 +64,45 @@ function saveStore(store: SellerStore) {
   fs.writeFileSync(SELLERS_PATH, JSON.stringify(store, null, 2));
 }
 
+/** A display name worth storing, or nothing. */
+function cleanDisplayName(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  // One line, no runs of whitespace, short enough to fit on a card.
+  const name = raw.replace(/\s+/g, " ").trim().slice(0, 40);
+  return name === "" ? null : name;
+}
+
 /**
  * The seller for this device, created on their first listing. Joined date is
  * that first listing, because that is the first thing we actually know.
+ *
+ * A name given later replaces the one on record, so changing it in Settings
+ * takes effect — but it never wipes an existing name just because a listing
+ * arrived without one.
  */
-export function ensureSeller(deviceId: string | null | undefined): Seller | null {
+export function ensureSeller(
+  deviceId: string | null | undefined,
+  displayName?: unknown
+): Seller | null {
   if (typeof deviceId !== "string" || !deviceId.trim()) return null;
 
   const store = loadStore();
+  const name = cleanDisplayName(displayName);
   const existing = store.sellers.find((s) => s.deviceId === deviceId);
-  if (existing) return existing;
+
+  if (existing) {
+    if (name && name !== existing.displayName) {
+      existing.displayName = name;
+      saveStore(store);
+    }
+    return existing;
+  }
 
   const seller: Seller = {
     id: crypto.randomUUID(),
     deviceId,
     joinedAt: new Date().toISOString(),
+    displayName: name,
   };
 
   store.sellers.push(seller);
@@ -104,6 +134,7 @@ export default function registerSellersRoute(app: Express) {
       ok: true,
       seller: {
         id: seller.id,
+        displayName: seller.displayName ?? null,
         joinedAt: seller.joinedAt,
         // Counted from the listings themselves, so there is no tally to drift.
         itemsSold: theirListings.filter((l: any) => l.soldAt).length,

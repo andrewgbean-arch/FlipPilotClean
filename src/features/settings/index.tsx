@@ -1,14 +1,35 @@
 import React, { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useRouter } from "expo-router";
 import Constants from "expo-constants";
-import { BookOpen, CaretRight, CreditCard, Crown, Export, Info, Star } from "phosphor-react-native";
+import {
+  BookOpen,
+  CaretRight,
+  CreditCard,
+  Crown,
+  Export,
+  Info,
+  Star,
+  Storefront,
+} from "phosphor-react-native";
 import type { Icon as PhosphorIcon } from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useSubscription } from "@/context/SubscriptionContext";
 import { useTheme } from "@/styles/ThemeContext";
 import { connectEbay, disconnectEbay, getEbayStatus } from "@/utils/ebayExport";
+import { getDeviceId } from "@/utils/deviceId";
+import { getSellerName, setSellerName, SELLER_NAME_MAX } from "@/utils/sellerName";
 
 /* SMALL LOCAL COMPONENTS */
 function SectionTitle({ children }: { children: string }) {
@@ -122,6 +143,12 @@ export default function SettingsScreen() {
   const [ebayConfigured, setEbayConfigured] = useState(true);
   const [ebayBusy, setEbayBusy] = useState(false);
 
+  const [sellerName, setName] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+
+  const [deviceId, setDeviceId] = useState<string | null>(null);
+
   useEffect(() => {
     getEbayStatus()
       .then(({ connected, configured }) => {
@@ -129,7 +156,23 @@ export default function SettingsScreen() {
         setEbayConfigured(configured);
       })
       .catch(() => {});
+
+    getSellerName().then(setName).catch(() => {});
+    getDeviceId().then(setDeviceId).catch(() => {});
   }, []);
+
+  const saveName = async () => {
+    await setSellerName(nameDraft);
+    setName(await getSellerName());
+    setEditingName(false);
+  };
+
+  // No clipboard in this build, so sharing it is how you get the id off the
+  // phone and into the server's settings.
+  const shareDeviceId = () => {
+    if (!deviceId) return;
+    Share.share({ message: deviceId, title: "FlipPilot device ID" }).catch(() => {});
+  };
 
   const handleEbayRow = async () => {
     if (!ebayConfigured) {
@@ -219,6 +262,20 @@ export default function SettingsScreen() {
         <SectionTitle>Selling</SectionTitle>
         <View style={[styles.group, card]}>
           <MenuRow
+            Icon={Storefront}
+            title={sellerName ? `Selling as ${sellerName}` : "Your seller name"}
+            subtitle={
+              sellerName
+                ? "What buyers see on your listings"
+                : "Buyers see a name instead of just “Seller”"
+            }
+            onPress={() => {
+              setNameDraft(sellerName ?? "");
+              setEditingName(true);
+            }}
+          />
+
+          <MenuRow
             Icon={Export}
             title={ebayConnected ? "eBay connected" : "Connect eBay account"}
             subtitle={
@@ -227,6 +284,7 @@ export default function SettingsScreen() {
                 : "Sign in to export your listings to eBay"
             }
             onPress={handleEbayRow}
+            divider
           />
         </View>
 
@@ -256,12 +314,86 @@ export default function SettingsScreen() {
         <SectionTitle>About</SectionTitle>
         <View style={[styles.group, card]}>
           <InfoRow Icon={Info} title="FlipPilot" subtitle={versionText} />
+
+          {/* Needed when a test phone has to be let through the selling gate. */}
+          {deviceId && (
+            <MenuRow
+              Icon={Info}
+              title="Device ID"
+              subtitle={`${deviceId} — tap to share it`}
+              onPress={shareDeviceId}
+              divider
+            />
+          )}
         </View>
 
         <Text style={[styles.caption, { color: theme.muted }]}>
           Your flips, favourites and boot fairs are stored on this phone.
         </Text>
       </ScrollView>
+
+      {/* SELLER NAME */}
+      <Modal
+        visible={editingName}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditingName(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, card]}>
+            <Text style={[styles.rowTitle, { color: theme.text, fontSize: 18 }]}>
+              Your seller name
+            </Text>
+            <Text style={[styles.rowSubtitle, { color: theme.muted, marginBottom: 12 }]}>
+              Buyers see this on your listings. Leave it empty to go back to just
+              &ldquo;Seller&rdquo;.
+            </Text>
+
+            <TextInput
+              value={nameDraft}
+              onChangeText={setNameDraft}
+              maxLength={SELLER_NAME_MAX}
+              autoFocus
+              placeholder="e.g. Bean Motors"
+              placeholderTextColor={theme.muted}
+              style={{
+                backgroundColor: theme.background,
+                color: theme.text,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: theme.hairline,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                fontSize: 16,
+              }}
+            />
+
+            <View style={styles.modalButtons}>
+              <Pressable
+                onPress={() => setEditingName(false)}
+                style={({ pressed }) => [
+                  styles.modalButton,
+                  { borderColor: theme.muted, borderWidth: 1 },
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={{ color: theme.text, fontWeight: "600" }}>Cancel</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={saveName}
+                style={({ pressed }) => [
+                  styles.modalButton,
+                  { backgroundColor: theme.gold },
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={{ color: theme.black, fontWeight: "800" }}>Save</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -293,6 +425,22 @@ const styles = StyleSheet.create({
   rowSubtitle: { fontSize: 13, lineHeight: 18, marginTop: 2 },
 
   caption: { fontSize: 13, lineHeight: 18, marginTop: 16, paddingHorizontal: 4 },
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    padding: 20,
+  },
+  modalCard: { borderRadius: 16, borderWidth: 1, padding: 16 },
+  modalButtons: { flexDirection: "row", gap: 10, marginTop: 16 },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
   pressed: { opacity: 0.7 },
 });
