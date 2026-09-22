@@ -1,5 +1,6 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
+  Calculator,
   Car,
   CaretRight,
   CheckCircle,
@@ -25,6 +26,7 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -48,8 +50,16 @@ import {
   realisedProfit,
 } from "@/features/vehicles/utils/vehicleStats";
 import { buildVehicleTimeline } from "@/features/vehicles/utils/vehicleUtils";
+import { estimateVehiclePrice, type VehicleCondition, type VehiclePriceResult } from "@/utils/vehiclePrice";
 import { useTheme } from "@/styles/ThemeContext";
 import type { Theme } from "@/styles/theme";
+
+const CONDITION_OPTIONS: { key: VehicleCondition; label: string }[] = [
+  { key: "excellent", label: "Excellent" },
+  { key: "good", label: "Good" },
+  { key: "fair", label: "Fair" },
+  { key: "poor", label: "Poor" },
+];
 
 // Scrims that sit over a photo or a screen; the theme has no translucent black.
 const SCRIM = "rgba(0, 0, 0, 0.6)";
@@ -320,6 +330,11 @@ export default function VehicleDetails() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [viewerUri, setViewerUri] = useState<string | null>(null);
 
+  const [priceModalVisible, setPriceModalVisible] = useState(false);
+  const [priceCondition, setPriceCondition] = useState<VehicleCondition>("good");
+  const [priceLoading, setPriceLoading] = useState(false);
+  const [priceResult, setPriceResult] = useState<VehiclePriceResult | null>(null);
+
   if (!vehicle) {
     // Saved vehicles are read from storage after launch; don't call one
     // missing before that has finished.
@@ -345,6 +360,35 @@ export default function VehicleDetails() {
     } else {
       router.replace("/vehicles/list");
     }
+  };
+
+  const openPriceEstimate = () => {
+    setPriceResult(null);
+    setPriceModalVisible(true);
+  };
+
+  const runPriceEstimate = async () => {
+    if (!vehicle.mot?.make || !vehicle.mot?.model || !vehicle.mot?.year) {
+      setPriceResult({
+        ok: false,
+        error: "missing-vehicle-data",
+        message: "This vehicle needs a make, model and year saved (from an MOT lookup) before it can be priced.",
+      });
+      return;
+    }
+
+    setPriceLoading(true);
+    const result = await estimateVehiclePrice({
+      make: vehicle.mot.make,
+      model: vehicle.mot.model,
+      year: vehicle.mot.year,
+      mileage: vehicle.mot.mileage ?? null,
+      condition: priceCondition,
+      motAdvisoryCount: vehicle.mot.advisories?.length ?? 0,
+      motFailureCount: vehicle.mot.failures?.length ?? 0,
+    });
+    setPriceResult(result);
+    setPriceLoading(false);
   };
 
   /* HERO */
@@ -608,6 +652,13 @@ export default function VehicleDetails() {
             title="Market scan"
             subtitle="Price range, demand and similar listings"
             onPress={() => openScreen(`/vehicles/market/${vehicle.id}`)}
+            divider
+          />
+          <ActionRow
+            Icon={Calculator}
+            title="Price estimate"
+            subtitle="Based on real comparable listings on eBay"
+            onPress={openPriceEstimate}
             divider
           />
         </Group>
@@ -907,6 +958,147 @@ export default function VehicleDetails() {
                 <Text style={[styles.modalButtonText, { color: theme.white }]}>Delete</Text>
               </Pressable>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* PRICE ESTIMATE */}
+      <Modal
+        visible={priceModalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setPriceModalVisible(false)}
+      >
+        <View style={styles.priceSheetBackdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            accessibilityRole="button"
+            accessibilityLabel="Close price estimate"
+            onPress={() => setPriceModalVisible(false)}
+          />
+          <View
+            style={[
+              styles.priceSheet,
+              {
+                backgroundColor: theme.card,
+                borderColor: theme.hairline,
+                paddingBottom: Math.max(insets.bottom, 16) + 8,
+              },
+            ]}
+          >
+            <View style={[styles.priceSheetGrabber, { backgroundColor: theme.muted }]} />
+
+            <View style={styles.priceSheetHeader}>
+              <Text style={[styles.priceSheetTitle, { color: theme.text }]} accessibilityRole="header">
+                Price estimate
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Close price estimate"
+                hitSlop={8}
+                style={({ pressed }) => [styles.priceSheetClose, pressed && styles.pressed]}
+                onPress={() => setPriceModalVisible(false)}
+              >
+                <X size={22} color={theme.muted} />
+              </Pressable>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={styles.priceSheetScroll}>
+              <Text style={[styles.priceSheetLabel, { color: theme.muted }]}>Condition</Text>
+              <View style={styles.priceConditionRow} accessibilityRole="radiogroup">
+                {CONDITION_OPTIONS.map((o) => {
+                  const selected = priceCondition === o.key;
+                  return (
+                    <Pressable
+                      key={o.key}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: selected }}
+                      onPress={() => setPriceCondition(o.key)}
+                      style={({ pressed }) => [
+                        styles.priceConditionChip,
+                        selected
+                          ? { backgroundColor: theme.goldTint, borderColor: theme.gold }
+                          : { backgroundColor: theme.background, borderColor: theme.hairline },
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Text style={{ color: selected ? theme.gold : theme.text, fontWeight: "600" }}>
+                        {o.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Get price estimate"
+                disabled={priceLoading}
+                onPress={runPriceEstimate}
+                style={({ pressed }) => [
+                  styles.priceEstimateButton,
+                  { backgroundColor: theme.gold },
+                  priceLoading && styles.disabled,
+                  pressed && styles.pressed,
+                ]}
+              >
+                {priceLoading ? (
+                  <ActivityIndicator size="small" color={theme.black} />
+                ) : (
+                  <Text style={{ color: theme.black, fontWeight: "700", fontSize: 16 }}>
+                    Get price estimate
+                  </Text>
+                )}
+              </Pressable>
+
+              {priceResult && !priceResult.ok ? (
+                <Text style={[styles.priceSheetError, { color: theme.danger }]} accessibilityLiveRegion="polite">
+                  {priceResult.message}
+                </Text>
+              ) : null}
+
+              {priceResult && priceResult.ok ? (
+                <View style={styles.priceResultBlock}>
+                  <Text style={[styles.priceEstimateValue, { color: theme.text }]}>
+                    {formatMoney(priceResult.estimatedValue)}
+                  </Text>
+                  <Text style={[styles.priceSheetLabel, { color: theme.muted }]}>
+                    Likely range {formatMoney(priceResult.range.min)} – {formatMoney(priceResult.range.max)} ·{" "}
+                    {priceResult.confidence} confidence
+                  </Text>
+
+                  {priceResult.notes.map((note, i) => (
+                    <Text key={i} style={[styles.priceNote, { color: theme.muted }]}>
+                      • {note}
+                    </Text>
+                  ))}
+
+                  <Text style={[styles.priceSheetLabel, { color: theme.muted, marginTop: 16 }]}>
+                    {plural(priceResult.comparableCount, "comparable listing", "comparable listings")} on
+                    eBay right now
+                  </Text>
+                  {priceResult.comparables.map((c, i) => (
+                    <Pressable
+                      key={i}
+                      accessibilityRole="link"
+                      onPress={() => c.url && Linking.openURL(c.url)}
+                      style={({ pressed }) => [
+                        styles.comparableRow,
+                        { borderTopColor: theme.hairline },
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Text style={[styles.comparableTitle, { color: theme.text }]} numberOfLines={1}>
+                        {c.title}
+                      </Text>
+                      <Text style={[styles.comparablePrice, { color: theme.muted }]}>
+                        {formatMoney(c.price)}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -1382,6 +1574,75 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
   },
+
+  /* PRICE ESTIMATE SHEET */
+  priceSheetBackdrop: {
+    flex: 1,
+    backgroundColor: SCRIM,
+    justifyContent: "flex-end",
+  },
+  priceSheet: {
+    maxHeight: "85%",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    borderTopWidth: 1,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+  },
+  priceSheetGrabber: {
+    alignSelf: "center",
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    opacity: 0.5,
+    marginBottom: 14,
+  },
+  priceSheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  priceSheetTitle: { fontSize: 18, fontWeight: "700" },
+  priceSheetClose: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: -10,
+  },
+  priceSheetScroll: { flexGrow: 0 },
+  priceSheetLabel: { fontSize: 13, marginBottom: 8 },
+  priceConditionRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 },
+  priceConditionChip: {
+    minHeight: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  priceEstimateButton: {
+    minHeight: 52,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  priceSheetError: { fontSize: 14, lineHeight: 20, marginTop: 8 },
+  priceResultBlock: { marginTop: 20, paddingBottom: 8 },
+  priceEstimateValue: { fontSize: 32, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  priceNote: { fontSize: 13, lineHeight: 19, marginTop: 4 },
+  comparableRow: {
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  comparableTitle: { flex: 1, fontSize: 14 },
+  comparablePrice: { fontSize: 14, fontWeight: "600", fontVariant: ["tabular-nums"] },
 
   /* PHOTO VIEWER */
   lightbox: {

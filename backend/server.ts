@@ -13,6 +13,7 @@ import searchRoute from "./routes/search";
 import searchImageRoute from "./routes/searchImage";
 import scanStepsRoute from "./routes/scanSteps";
 import vehiclePhotoAnalysisRoute from "./routes/vehiclePhotoAnalysis";
+import vehiclePriceRoute from "./routes/vehiclePrice";
 import { rateLimit } from "./middleware/rateLimit";
 
 
@@ -61,6 +62,7 @@ app.use(searchRoute);
 app.use(searchImageRoute);
 app.use(scanStepsRoute);
 app.use(vehiclePhotoAnalysisRoute);
+app.use(vehiclePriceRoute);
 
 /* -------------------------------------------------------
    ENV VALIDATION
