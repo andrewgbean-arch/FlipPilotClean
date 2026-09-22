@@ -2,6 +2,7 @@ import { Express, Request, Response } from "express";
 import { loadListings, saveListings } from "./publishedListings";
 import { rateLimit } from "../middleware/rateLimit";
 import { sellingGate } from "../middleware/sellingGate";
+import { readSellerOrigin, toPublicListing } from "../utils/sellerOrigin";
 
 /**
  * The per-category answers, kept as a flat map of short strings.
@@ -45,6 +46,7 @@ export default function registerPublishListingRoute(app: Express) {
       description,
       location,
       deviceId: typeof deviceId === "string" ? deviceId : null,
+      sellerOrigin: readSellerOrigin(req),
       createdAt: new Date().toISOString(),
       messages: []
     };
@@ -52,7 +54,7 @@ export default function registerPublishListingRoute(app: Express) {
     listings.push(listing);
     saveListings(listings);
 
-    res.json({ ok: true, listing });
+    res.json({ ok: true, listing: toPublicListing(listing) });
   });
 
   /* -------------------------------------------------------
@@ -100,6 +102,8 @@ export default function registerPublishListingRoute(app: Express) {
       bestThumbnail: bestThumbnail ?? photos?.[0] ?? null,
       flipScore: flipScore ?? null,
       deviceId: typeof deviceId === "string" ? deviceId : null,
+      // A private review flag. Stripped from everything the public can read.
+      sellerOrigin: readSellerOrigin(req),
       createdAt: new Date().toISOString(),
       messages: []
     };
@@ -107,7 +111,7 @@ export default function registerPublishListingRoute(app: Express) {
     listings.push(listing);
     saveListings(listings);
 
-    res.json({ ok: true, listing });
+    res.json({ ok: true, listing: toPublicListing(listing) });
   });
 
   /* -------------------------------------------------------
@@ -118,6 +122,35 @@ export default function registerPublishListingRoute(app: Express) {
   app.get("/my-listings", (req: Request, res: Response) => {
     const deviceId = typeof req.query.deviceId === "string" ? req.query.deviceId : null;
     const listings = loadListings();
-    res.json(deviceId ? listings.filter((l: any) => l.deviceId === deviceId) : listings);
+    const mine = deviceId ? listings.filter((l: any) => l.deviceId === deviceId) : listings;
+    res.json(mine.map(toPublicListing));
+  });
+
+  /* -------------------------------------------------------
+     FLAGGED LISTINGS — for whoever runs the marketplace, nobody else.
+     Off unless ADMIN_TOKEN is set on the server, and then it needs that
+     token in the x-admin-token header. Without this the origin flag would
+     be data nobody can ever see.
+  ------------------------------------------------------- */
+  app.get("/admin/flagged-listings", (req: Request, res: Response) => {
+    const expected = process.env.ADMIN_TOKEN;
+    if (!expected) return res.status(404).json({ ok: false, error: "Not enabled" });
+
+    const given = req.headers["x-admin-token"];
+    if (given !== expected) return res.status(401).json({ ok: false, error: "Unauthorised" });
+
+    const flagged = loadListings()
+      .filter((l: any) => l.sellerOrigin?.flagged)
+      .map((l: any) => ({
+        id: l.id,
+        title: l.title,
+        price: l.price,
+        category: l.category,
+        location: l.location,
+        createdAt: l.createdAt,
+        sellerOrigin: l.sellerOrigin
+      }));
+
+    res.json({ ok: true, count: flagged.length, listings: flagged });
   });
 }

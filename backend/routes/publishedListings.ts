@@ -1,6 +1,7 @@
 import { Express, Request, Response } from "express";
 import fs from "fs";
 import path from "path";
+import { toPublicListing } from "../utils/sellerOrigin";
 
 const LISTINGS_PATH = path.join(__dirname, "../data/published-listings.json");
 
@@ -15,7 +16,7 @@ export function saveListings(listings: any[]) {
 
 export default function registerPublishedListingsRoute(app: Express) {
   app.get("/published-listings", (_req: Request, res: Response) => {
-    res.json(loadListings());
+    res.json(loadListings().map(toPublicListing));
   });
 
   app.get("/published-listings/:id", (req: Request, res: Response) => {
@@ -26,6 +27,6 @@ export default function registerPublishedListingsRoute(app: Express) {
       return res.status(404).json({ ok: false, error: "Listing not found" });
     }
 
-    res.json(listing);
+    res.json(toPublicListing(listing));
   });
 }

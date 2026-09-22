@@ -22,6 +22,7 @@ import SparklesOverlay from "../../../src/components/ui/SparklesOverlay";
 
 import { aiLookup, BASE_URL } from "../../../src/utils/api";
 import { getDeviceId } from "../../../src/utils/deviceId";
+import { deviceRegionHints } from "../../../src/utils/deviceRegion";
 import { SELLER_SAFETY_TIPS } from "../../../src/utils/scamSafety";
 import SafetyCard from "../../../src/components/marketplace/SafetyCard";
 import {
@@ -152,6 +153,7 @@ export default function CreateNewListing() {
           photos,
           bestThumbnail: photos[0] ?? null,
           deviceId,
+          ...deviceRegionHints(),
         }),
       });
       const data = await res.json().catch(() => null);
