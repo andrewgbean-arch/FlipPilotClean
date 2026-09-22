@@ -91,10 +91,11 @@ export default function HomeScreen() {
   // The logo is a square image; size it from the screen width rather than
   // flex/aspectRatio, which doesn't reliably combine on React Native Web and
   // was rendering the header near the image's raw 1024px resolution instead
-  // of the space actually available next to the settings button.
+  // of the space actually available. It's the hero of the screen, so it gets
+  // almost the full width - the settings gear floats over the corner instead
+  // of sharing a row with it and shrinking it.
   const { width: windowWidth } = useWindowDimensions();
-  const HEADER_RESERVED_WIDTH = 32 + 44 + 10; // horizontal padding + gear button + gap
-  const logoSize = Math.min(windowWidth - HEADER_RESERVED_WIDTH, 340);
+  const logoSize = Math.min(windowWidth - 32, 420);
 
   // ⭐ Bottom sheet
   const [showSheet, setShowSheet] = useState(false);
@@ -173,7 +174,7 @@ export default function HomeScreen() {
         <View style={[styles.logoHeaderWrapper, { paddingTop: insets.top + 10 }]}>
           <Image
             source={require("@/assets/images/logopulse.png")}
-            style={[styles.logoHeaderImage, { width: logoSize, height: logoSize }]}
+            style={{ width: logoSize, height: logoSize }}
             resizeMode="contain"
           />
 
@@ -182,7 +183,7 @@ export default function HomeScreen() {
             accessibilityLabel="Settings"
             style={({ pressed }) => [
               styles.settingsButton,
-              { borderColor: theme.hairline, backgroundColor: theme.card },
+              { top: insets.top + 10, borderColor: theme.hairline, backgroundColor: theme.card },
               pressed && styles.pressed,
             ]}
             onPress={() => router.push("/settings")}
@@ -374,25 +375,27 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  // The logo is the hero of the screen: centered, near-full-width (see
+  // logoSize - width/height are set inline, since flex:1 + aspectRatio:1
+  // doesn't reliably combine on React Native Web and was inflating this
+  // section to the image's raw pixel height instead of its real size).
   logoHeaderWrapper: {
-    flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
   },
-  // width/height are set inline from the screen width (see logoSize above) -
-  // flex:1 + aspectRatio:1 doesn't reliably combine on React Native Web and
-  // was inflating this row to the image's raw pixel height instead.
-  logoHeaderImage: {
-    marginRight: 10,
-  },
 
+  // Floats over the hero logo's corner instead of sharing a row with it,
+  // so the logo itself isn't shrunk to make room for it.
   settingsButton: {
+    position: "absolute",
+    right: 16,
     width: 44,
     height: 44,
     borderRadius: 22,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
+    zIndex: 5,
   },
 
   weatherCard: { marginHorizontal: 16, marginTop: 8 },
