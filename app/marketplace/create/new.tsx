@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -7,41 +7,61 @@ import {
   ScrollView,
   Image,
   Alert,
+  Modal,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
-import { useTheme } from "../../../src/styles/ThemeContext";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 
+import { useTheme } from "../../../src/styles/ThemeContext";
 import AnimatedHeroHeader from "../../../src/components/ui/AnimatedHeroHeader";
-import GoldButton from "../../../src/components/ui/GoldButton";
 import SparklesOverlay from "../../../src/components/ui/SparklesOverlay";
 
 import { aiLookup, BASE_URL } from "../../../src/utils/api";
 import { getDeviceId } from "../../../src/utils/deviceId";
-
-const CATEGORIES = [
-  { name: "Motors", icon: "🚗" },
-  { name: "Electronics", icon: "📱" },
-  { name: "Tools", icon: "🛠️" },
-  { name: "Books", icon: "📚" },
-  { name: "Collectibles", icon: "🎖️" },
-  { name: "General", icon: "📦" },
-];
+import { SELLER_SAFETY_TIPS } from "../../../src/utils/scamSafety";
+import SafetyCard from "../../../src/components/marketplace/SafetyCard";
+import {
+  MARKETPLACE_CATEGORIES,
+  CategoryField,
+  MarketplaceCategory,
+  fieldsFor,
+  getCategory,
+  matchCategory,
+  missingRequiredFields,
+} from "../../../src/constants/marketplaceCategories";
 
 export default function CreateNewListing() {
   const theme = useTheme();
+  const params = useLocalSearchParams<{ category?: string }>();
+
+  // Preselected when you arrive from a category tile. Otherwise nothing is
+  // chosen for you — an item filed in the wrong place never gets found.
+  const [category, setCategory] = useState<string | null>(
+    getCategory(params.category)?.id ?? null
+  );
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState("");
 
   const [title, setTitle] = useState("");
   const [price, setPrice] = useState("");
+  const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("Motors");
+  const [details, setDetails] = useState<Record<string, string>>({});
 
   const [photos, setPhotos] = useState<string[]>([]);
-  const [photoAI, setPhotoAI] = useState<any[]>([]);
   const [analyzing, setAnalyzing] = useState(false);
-  const [bestThumbnail, setBestThumbnail] = useState<string | null>(null);
-  const [flipScore, setFlipScore] = useState<number | null>(null);
+  const [suggested, setSuggested] = useState<MarketplaceCategory | null>(null);
+  const [publishing, setPublishing] = useState(false);
+
+  const chosen = getCategory(category);
+  const fields = useMemo(() => fieldsFor(category), [category]);
+
+  const setDetail = (key: string, value: string) =>
+    setDetails((prev) => ({ ...prev, [key]: value }));
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -52,62 +72,87 @@ export default function CreateNewListing() {
     if (result.canceled) return;
 
     const uri = result.assets[0].uri;
+    const isFirst = photos.length === 0;
     setPhotos((prev) => [...prev, uri]);
-    if (!bestThumbnail) setBestThumbnail(uri);
+
+    // The first photo is the one we read, to fill in what we can.
+    if (!isFirst) return;
 
     setAnalyzing(true);
     try {
       const base64 = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
-      const result2 = await aiLookup(base64);
-      const analysis = result2?.ai ?? null;
+      const analysis = (await aiLookup(base64))?.ai ?? null;
+      if (!analysis) return;
 
-      setPhotoAI((prev) => [...prev, analysis]);
+      if (!title.trim() && analysis.title) setTitle(String(analysis.title));
 
-      if (analysis) {
-        // Auto-fill title/category from the first photo's AI read, if the user hasn't typed one yet
-        if (!title.trim() && analysis.title) setTitle(analysis.title);
-        if (analysis.category) {
-          const match = CATEGORIES.find(
-            (c) => c.name.toLowerCase() === String(analysis.category).toLowerCase()
-          );
-          if (match) setCategory(match.name);
-        }
+      // Guess from what it was called, then from the title as a fallback.
+      const guess = matchCategory(analysis.category) ?? matchCategory(analysis.title);
+      if (guess) {
+        setSuggested(guess);
+        setCategory((prev) => prev ?? guess.id);
+      }
 
-        const conditionScore = Number(analysis.conditionScore) || 5; // 1-10
-        setFlipScore((prev) =>
-          Math.max(20, Math.min(100, (prev ?? 50) + (conditionScore - 5) * 6))
-        );
+      if (analysis.condition && !details.condition) {
+        const named = String(analysis.condition).trim().toLowerCase();
+        const match = fieldsFor(guess?.id ?? category)
+          .find((f) => f.key === "condition")
+          ?.options?.find((o) => o.toLowerCase() === named);
+        if (match) setDetail("condition", match);
       }
     } catch (err) {
       console.log("Photo analysis error:", err);
-      setPhotoAI((prev) => [...prev, null]);
     } finally {
       setAnalyzing(false);
     }
   };
 
-  const handleSubmit = async () => {
-    if (!title.trim()) return Alert.alert("Title required");
-    if (!price.trim()) return Alert.alert("Price required");
-    if (photos.length === 0) return Alert.alert("Add at least one photo");
+  const removePhoto = (uri: string) =>
+    setPhotos((prev) => prev.filter((p) => p !== uri));
 
+  const missing = missingRequiredFields(category, details);
+
+  const blocker = (): string | null => {
+    if (photos.length === 0) return "Add at least one photo";
+    if (!title.trim()) return "Give it a title";
+    if (!price.trim() || !Number(price)) return "Add a price";
+    if (!category) return "Choose a category";
+    if (!location.trim()) return "Say where it is";
+    if (missing.length) return `Fill in ${missing[0].label.toLowerCase()}`;
+    return null;
+  };
+
+  const stopper = blocker();
+
+  const handleSubmit = async () => {
+    if (stopper) return Alert.alert(stopper);
+
+    setPublishing(true);
     try {
       const deviceId = await getDeviceId();
-      const payload = {
-        title,
-        price: Number(price),
-        description,
-        category,
-        photos,
-        bestThumbnail,
-        flipScore,
-        deviceId,
-      };
+
+      // Only the questions this category actually asked get stored.
+      const kept: Record<string, string> = {};
+      for (const f of fields) {
+        const value = String(details[f.key] ?? "").trim();
+        if (value) kept[f.key] = value;
+      }
 
       const res = await fetch(`${BASE_URL}/create-listing`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          title: title.trim(),
+          price: Number(price),
+          description: description.trim(),
+          category,
+          location: location.trim(),
+          condition: kept.condition ?? null,
+          details: kept,
+          photos,
+          bestThumbnail: photos[0] ?? null,
+          deviceId,
+        }),
       });
       const data = await res.json().catch(() => null);
 
@@ -125,64 +170,260 @@ export default function CreateNewListing() {
 
       router.push("/marketplace");
     } catch (err) {
-      Alert.alert("Failed to publish listing");
+      Alert.alert("Couldn't publish", "Check your connection and try again.");
+    } finally {
+      setPublishing(false);
     }
   };
 
-  return (
-    <View style={{ flex: 1, backgroundColor: theme.background }}>
-      <AnimatedHeroHeader title="Create Listing" />
+  /* ---------------- field rendering ---------------- */
 
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 80 }}>
+  const inputStyle = {
+    backgroundColor: theme.card,
+    color: theme.white,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.goldDeep,
+  } as const;
+
+  const labelFor = (f: CategoryField) => (
+    <Text style={{ color: theme.text, marginBottom: 6 }}>
+      {f.label}
+      {f.required ? <Text style={{ color: theme.goldDeep }}> *</Text> : null}
+    </Text>
+  );
+
+  const renderField = (f: CategoryField) => {
+    if (f.type === "choice") {
+      return (
+        <View key={f.key} style={{ marginBottom: 16 }}>
+          {labelFor(f)}
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {(f.options ?? []).map((option) => {
+              const active = details[f.key] === option;
+              return (
+                <TouchableOpacity
+                  key={option}
+                  onPress={() => setDetail(f.key, active ? "" : option)}
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: theme.goldDeep,
+                    backgroundColor: active ? theme.goldDeep : theme.card,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: active ? theme.black : theme.white,
+                      fontWeight: "600",
+                      fontSize: 13,
+                    }}
+                  >
+                    {option}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <View key={f.key} style={{ marginBottom: 16 }}>
+        {labelFor(f)}
+        <TextInput
+          value={details[f.key] ?? ""}
+          onChangeText={(v) => setDetail(f.key, v)}
+          placeholder={f.placeholder ?? ""}
+          placeholderTextColor={theme.muted}
+          keyboardType={f.type === "number" ? "numeric" : "default"}
+          multiline={f.multiline}
+          style={[
+            inputStyle,
+            f.multiline ? { minHeight: 80, textAlignVertical: "top" as const } : null,
+          ]}
+        />
+      </View>
+    );
+  };
+
+  /* ---------------- category picker ---------------- */
+
+  const pickerResults = useMemo(() => {
+    const q = pickerSearch.trim().toLowerCase();
+    if (!q) return MARKETPLACE_CATEGORIES;
+    return MARKETPLACE_CATEGORIES.filter(
+      (c) =>
+        c.label.toLowerCase().includes(q) ||
+        c.keywords.some((k) => k.includes(q) || q.includes(k))
+    );
+  }, [pickerSearch]);
+
+  return (
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: theme.background }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+    >
+      <AnimatedHeroHeader title="Sell something" />
+
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
         <SparklesOverlay />
 
         <Text
           style={{
             color: theme.goldDeep,
-            fontSize: 28,
+            fontSize: 26,
             fontWeight: "900",
-            marginBottom: 12,
+            marginBottom: 4,
           }}
         >
-          New Listing
+          New listing
+        </Text>
+        <Text style={{ color: theme.muted, marginBottom: 18 }}>
+          A photo, a price and the right category. The rest takes a minute.
         </Text>
 
+        {/* PHOTOS */}
+        <Text style={{ color: theme.text, marginBottom: 6 }}>
+          Photos<Text style={{ color: theme.goldDeep }}> *</Text>
+        </Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
+          {photos.map((uri) => (
+            <TouchableOpacity
+              key={uri}
+              onLongPress={() => removePhoto(uri)}
+              style={{ marginRight: 10 }}
+            >
+              <Image source={{ uri }} style={{ width: 92, height: 92, borderRadius: 12 }} />
+            </TouchableOpacity>
+          ))}
+
+          <TouchableOpacity
+            onPress={pickImage}
+            style={{
+              width: 92,
+              height: 92,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderStyle: "dashed",
+              borderColor: theme.goldDeep,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: theme.card,
+            }}
+          >
+            <Text style={{ color: theme.goldDeep, fontSize: 28 }}>+</Text>
+          </TouchableOpacity>
+        </ScrollView>
+        <Text style={{ color: theme.muted, fontSize: 12, marginBottom: 18 }}>
+          {photos.length > 0
+            ? "Press and hold a photo to remove it."
+            : "The first one is what buyers see in the list."}
+        </Text>
+
+        {analyzing && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16 }}>
+            <ActivityIndicator color={theme.goldDeep} />
+            <Text style={{ color: theme.muted }}>Reading your photo…</Text>
+          </View>
+        )}
+
+        {/* CATEGORY */}
+        <Text style={{ color: theme.text, marginBottom: 6 }}>
+          Category<Text style={{ color: theme.goldDeep }}> *</Text>
+        </Text>
+        <TouchableOpacity
+          onPress={() => setPickerOpen(true)}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            backgroundColor: theme.card,
+            padding: 14,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: chosen ? theme.goldDeep : theme.danger,
+          }}
+        >
+          <Text style={{ color: chosen ? theme.white : theme.muted, fontSize: 15 }}>
+            {chosen ? `${chosen.emoji}  ${chosen.label}` : "Choose a category"}
+          </Text>
+          <Text style={{ color: theme.goldDeep, fontWeight: "700" }}>
+            {chosen ? "Change" : "Choose"}
+          </Text>
+        </TouchableOpacity>
+
+        {suggested && chosen?.id === suggested.id && (
+          <Text style={{ color: theme.muted, fontSize: 12, marginTop: 6 }}>
+            Suggested from your photo. Change it if it is wrong.
+          </Text>
+        )}
+        <View style={{ height: 18 }} />
+
         {/* TITLE */}
-        <Text style={{ color: theme.text, marginBottom: 6 }}>Title</Text>
+        <Text style={{ color: theme.text, marginBottom: 6 }}>
+          Title<Text style={{ color: theme.goldDeep }}> *</Text>
+        </Text>
         <TextInput
           value={title}
           onChangeText={setTitle}
-          placeholder="e.g. Ford Fiesta 2014"
+          placeholder="What is it? Brand and model if you know them"
           placeholderTextColor={theme.muted}
-          style={{
-            backgroundColor: theme.card,
-            color: theme.white,
-            padding: 12,
-            borderRadius: 12,
-            borderWidth: 1,
-            borderColor: theme.goldDeep,
-            marginBottom: 16,
-          }}
+          style={[inputStyle, { marginBottom: 16 }]}
         />
 
-        {/* PRICE */}
-        <Text style={{ color: theme.text, marginBottom: 6 }}>Price (£)</Text>
-        <TextInput
-          value={price}
-          onChangeText={setPrice}
-          keyboardType="numeric"
-          placeholder="e.g. 2495"
-          placeholderTextColor={theme.muted}
-          style={{
-            backgroundColor: theme.card,
-            color: theme.white,
-            padding: 12,
-            borderRadius: 12,
-            borderWidth: 1,
-            borderColor: theme.goldDeep,
-            marginBottom: 16,
-          }}
-        />
+        {/* PRICE + LOCATION */}
+        <View style={{ flexDirection: "row", gap: 12, marginBottom: 16 }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: theme.text, marginBottom: 6 }}>
+              Price (£)<Text style={{ color: theme.goldDeep }}> *</Text>
+            </Text>
+            <TextInput
+              value={price}
+              onChangeText={setPrice}
+              keyboardType="numeric"
+              placeholder="e.g. 45"
+              placeholderTextColor={theme.muted}
+              style={inputStyle}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: theme.text, marginBottom: 6 }}>
+              Location<Text style={{ color: theme.goldDeep }}> *</Text>
+            </Text>
+            <TextInput
+              value={location}
+              onChangeText={setLocation}
+              placeholder="e.g. Paignton"
+              placeholderTextColor={theme.muted}
+              style={inputStyle}
+            />
+          </View>
+        </View>
+
+        {/* CATEGORY QUESTIONS */}
+        {chosen && (
+          <>
+            <Text
+              style={{
+                color: theme.goldDeep,
+                fontSize: 18,
+                fontWeight: "800",
+                marginBottom: 4,
+              }}
+            >
+              About your {chosen.label.toLowerCase()}
+            </Text>
+            <Text style={{ color: theme.muted, fontSize: 12, marginBottom: 14 }}>
+              What buyers ask before they message you.
+            </Text>
+            {fields.map(renderField)}
+          </>
+        )}
 
         {/* DESCRIPTION */}
         <Text style={{ color: theme.text, marginBottom: 6 }}>Description</Text>
@@ -190,146 +431,109 @@ export default function CreateNewListing() {
           value={description}
           onChangeText={setDescription}
           multiline
-          placeholder="Describe the item..."
+          placeholder="Anything else worth knowing"
           placeholderTextColor={theme.muted}
-          style={{
-            backgroundColor: theme.card,
-            color: theme.white,
-            padding: 12,
-            borderRadius: 12,
-            borderWidth: 1,
-            borderColor: theme.goldDeep,
-            minHeight: 120,
-            marginBottom: 20,
-          }}
+          style={[
+            inputStyle,
+            { minHeight: 100, textAlignVertical: "top" as const, marginBottom: 20 },
+          ]}
         />
 
-        {/* CATEGORY */}
-        <Text style={{ color: theme.text, marginBottom: 6 }}>Category</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
-          {CATEGORIES.map((cat) => {
-            const active = category === cat.name;
-            return (
-              <TouchableOpacity
-                key={cat.name}
-                onPress={() => setCategory(cat.name)}
-                style={{
-                  paddingHorizontal: 14,
-                  paddingVertical: 8,
-                  borderRadius: 999,
-                  borderWidth: 1,
-                  borderColor: theme.goldDeep,
-                  backgroundColor: active ? theme.goldDeep : theme.card,
-                  marginRight: 10,
-                }}
-              >
-                <Text
-                  style={{
-                    color: active ? theme.black : theme.white,
-                    fontWeight: "700",
-                  }}
-                >
-                  {cat.icon} {cat.name}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        {/* SAFETY — open, because this is the moment it matters */}
+        <SafetyCard title="Selling safely" tips={SELLER_SAFETY_TIPS} startOpen />
 
-        {/* PHOTOS + AI */}
-        <Text style={{ color: theme.text, marginBottom: 6 }}>Photos & AI Analysis</Text>
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
-          {photos.map((uri, idx) => (
-            <View key={idx} style={{ marginRight: 10 }}>
-              <View style={{ position: "relative" }}>
-                <Image
-                  source={{ uri }}
-                  style={{
-                    width: 140,
-                    height: 140,
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: theme.goldDeep,
-                  }}
-                />
-              </View>
-
-              <View style={{ marginTop: 6, width: 140 }}>
-                {photoAI[idx] ? (
-                  <>
-                    <Text style={{ color: theme.goldDeep, fontWeight: "700" }} numberOfLines={1}>
-                      {photoAI[idx]?.title ?? "Identified"}
-                    </Text>
-                    <Text style={{ color: theme.muted, fontSize: 12 }}>
-                      Condition: {photoAI[idx]?.condition ?? "Unknown"}
-                    </Text>
-                    <Text style={{ color: theme.muted, fontSize: 12 }}>
-                      {photoAI[idx]?.confidence != null
-                        ? `${photoAI[idx].confidence}% confidence`
-                        : ""}
-                    </Text>
-                  </>
-                ) : (
-                  <Text style={{ color: theme.muted, fontSize: 12 }}>Analysing…</Text>
-                )}
-
-                {bestThumbnail === uri && (
-                  <Text style={{ color: theme.goldDeep, fontWeight: "900", marginTop: 4 }}>
-                    ⭐ Cover Photo
-                  </Text>
-                )}
-              </View>
-            </View>
-          ))}
-
-          <TouchableOpacity
-            onPress={pickImage}
-            disabled={analyzing}
+        {/* PUBLISH */}
+        <TouchableOpacity
+          onPress={handleSubmit}
+          disabled={publishing}
+          style={{
+            backgroundColor: stopper ? theme.card : theme.goldDeep,
+            borderWidth: 1,
+            borderColor: theme.goldDeep,
+            padding: 16,
+            borderRadius: 14,
+            alignItems: "center",
+            opacity: publishing ? 0.6 : 1,
+          }}
+        >
+          <Text
             style={{
-              width: 100,
-              height: 100,
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: theme.goldDeep,
-              backgroundColor: theme.card,
-              justifyContent: "center",
-              alignItems: "center",
-              opacity: analyzing ? 0.6 : 1,
+              color: stopper ? theme.muted : theme.black,
+              fontWeight: "900",
+              fontSize: 16,
             }}
           >
-            <Text style={{ color: theme.goldDeep, fontWeight: "700" }}>
-              {analyzing ? "…" : "+ Add"}
-            </Text>
-          </TouchableOpacity>
-        </ScrollView>
+            {publishing ? "Publishing…" : stopper ?? "Publish listing"}
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
 
-        {/* FLIPSCORE */}
-        {flipScore != null && (
+      {/* CATEGORY PICKER */}
+      <Modal visible={pickerOpen} animationType="slide" onRequestClose={() => setPickerOpen(false)}>
+        <View style={{ flex: 1, backgroundColor: theme.background, padding: 20 }}>
           <View
             style={{
-              backgroundColor: theme.card,
-              padding: 14,
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: theme.goldDeep,
-              marginBottom: 20,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 14,
             }}
           >
-            <Text style={{ color: theme.text, fontSize: 18, fontWeight: "700" }}>
-              FlipScore Preview: {flipScore}/100
+            <Text style={{ color: theme.goldDeep, fontSize: 22, fontWeight: "900" }}>
+              Category
             </Text>
-            <Text style={{ color: theme.muted, marginTop: 4 }}>
-              Based on AI-assessed condition of your photos.
-            </Text>
+            <TouchableOpacity onPress={() => setPickerOpen(false)}>
+              <Text style={{ color: theme.white, fontSize: 16 }}>Close</Text>
+            </TouchableOpacity>
           </View>
-        )}
 
-       <GoldButton onPress={handleSubmit}>
-  Publish Listing
-</GoldButton>
+          <TextInput
+            value={pickerSearch}
+            onChangeText={setPickerSearch}
+            placeholder="Type what it is — sofa, iPhone, trainers…"
+            placeholderTextColor={theme.muted}
+            style={[inputStyle, { marginBottom: 14 }]}
+          />
 
-      </ScrollView>
-    </View>
+          <ScrollView>
+            {pickerResults.length === 0 && (
+              <Text style={{ color: theme.muted }}>
+                Nothing matches that. Try another word, or pick Everything Else.
+              </Text>
+            )}
+
+            {pickerResults.map((cat) => {
+              const active = cat.id === category;
+              return (
+                <TouchableOpacity
+                  key={cat.id}
+                  onPress={() => {
+                    setCategory(cat.id);
+                    setPickerOpen(false);
+                    setPickerSearch("");
+                  }}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: 14,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: active ? theme.goldDeep : theme.hairline,
+                    backgroundColor: active ? theme.goldTint : theme.card,
+                    marginBottom: 10,
+                  }}
+                >
+                  <Text style={{ fontSize: 22 }}>{cat.emoji}</Text>
+                  <Text style={{ color: theme.white, fontSize: 16, fontWeight: "600" }}>
+                    {cat.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </Modal>
+    </KeyboardAvoidingView>
   );
 }

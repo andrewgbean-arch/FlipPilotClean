@@ -345,7 +345,9 @@ export default function MotorsHub() {
         <Row
           Icon={Tag}
           title="Create listing"
-          onPress={() => router.push("/marketplace/create")}
+          // Straight into the form with Motors chosen, rather than a screen
+          // whose only job is one more button.
+          onPress={() => router.push("/marketplace/create/new?category=motors")}
           divider
         />
       </Group>

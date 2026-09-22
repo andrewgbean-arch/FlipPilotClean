@@ -8,12 +8,20 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 
 import { useTheme } from "@/styles/ThemeContext";
 import { BASE_URL } from "@/utils/api";
+import {
+  checkMessage,
+  ScamWarning,
+  MESSAGE_SAFETY_TIPS,
+  RISKY_TO_SEND,
+} from "@/utils/scamSafety";
+import SafetyCard from "@/components/marketplace/SafetyCard";
 
 type ChatMessage = {
   sender: string;
@@ -22,6 +30,57 @@ type ChatMessage = {
 };
 
 const MY_SENDER_NAME = "You";
+
+/** One last look before your own details leave the phone. */
+function confirmRiskySend(warnings: ScamWarning[]): Promise<boolean> {
+  return new Promise((resolve) => {
+    Alert.alert(
+      "Send this?",
+      `${warnings.map((w) => w.advice).join("\n\n")}\n\nSend it anyway?`,
+      [
+        { text: "Don't send", style: "cancel", onPress: () => resolve(false) },
+        { text: "Send anyway", style: "destructive", onPress: () => resolve(true) },
+      ],
+      { cancelable: true, onDismiss: () => resolve(false) }
+    );
+  });
+}
+
+/**
+ * A named scam, under the message that looks like it. Deliberately says what
+ * the pattern is rather than accusing the person — plenty of honest people
+ * mention a courier.
+ */
+function ScamWarningNote({ warning }: { warning: ScamWarning }) {
+  const theme = useTheme();
+  const high = warning.severity === "high";
+  const colour = high ? theme.danger : theme.warning;
+
+  return (
+    <View
+      style={{
+        alignSelf: "stretch",
+        backgroundColor: theme.card,
+        borderRadius: theme.radius.md,
+        borderWidth: 1,
+        borderLeftWidth: 4,
+        borderColor: colour,
+        padding: 12,
+        marginBottom: 12,
+      }}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <Feather name="alert-triangle" size={16} color={colour} />
+        <Text style={{ color: colour, fontWeight: "800", fontSize: 13, flex: 1 }}>
+          {warning.title}
+        </Text>
+      </View>
+      <Text style={{ color: theme.text, fontSize: 13, lineHeight: 19 }}>
+        {warning.advice}
+      </Text>
+    </View>
+  );
+}
 
 export default function MessagesScreen() {
   const theme = useTheme();
@@ -55,6 +114,11 @@ export default function MessagesScreen() {
     if (!draft.trim() || !listingId) return;
 
     const text = draft.trim();
+
+    // Before your own bank details or a code go out, one look at it.
+    const risky = checkMessage(text).filter((w) => RISKY_TO_SEND.includes(w.id));
+    if (risky.length > 0 && !(await confirmRiskySend(risky))) return;
+
     setDraft("");
     setSending(true);
 
@@ -118,6 +182,8 @@ export default function MessagesScreen() {
           contentContainerStyle={{ padding: 16 }}
           onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
         >
+          <SafetyCard title="Watch out for scams" tips={MESSAGE_SAFETY_TIPS} />
+
           {messages.length === 0 && (
             <Text style={{ color: theme.muted, textAlign: "center", marginTop: 20 }}>
               No messages yet. Say hello!
@@ -126,9 +192,13 @@ export default function MessagesScreen() {
 
           {messages.map((m, i) => {
             const isMine = m.sender === MY_SENDER_NAME;
+            // Only what the other person sends is checked. Warning someone
+            // about their own words would just be noise.
+            const warnings = isMine ? [] : checkMessage(m.message);
+
             return (
+              <React.Fragment key={i}>
               <View
-                key={i}
                 style={{
                   alignSelf: isMine ? "flex-end" : "flex-start",
                   backgroundColor: isMine ? theme.goldDeep : theme.card,
@@ -158,6 +228,12 @@ export default function MessagesScreen() {
                   {new Date(m.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                 </Text>
               </View>
+
+              {/* Named right under the message it came from. */}
+              {warnings.map((warning) => (
+                <ScamWarningNote key={`${i}-${warning.id}`} warning={warning} />
+              ))}
+              </React.Fragment>
             );
           })}
         </ScrollView>

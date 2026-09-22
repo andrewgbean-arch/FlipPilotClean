@@ -8,28 +8,28 @@ import {
   ActivityIndicator,
   TextInput,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useTheme } from "@/styles/ThemeContext";
 
 import { BASE_URL } from "@/utils/api";
-
-const CATEGORIES = [
-  "All",
-  "Motors",
-  "Electronics",
-  "Tools",
-  "Books",
-  "Collectibles",
-  "General",
-];
+import {
+  MARKETPLACE_CATEGORIES,
+  categoryLabel,
+  getCategory,
+} from "@/constants/marketplaceCategories";
+import { matchesSearch } from "@/utils/listingSearch";
 
 export default function Listings() {
   const theme = useTheme();
+  const params = useLocalSearchParams<{ category?: string }>();
 
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("All");
+  // Arriving from a category tile opens that category, instead of ignoring it.
+  const [category, setCategory] = useState<string>(
+    getCategory(params.category)?.id ?? "All"
+  );
 
   useEffect(() => {
     fetch(`${BASE_URL}/published-listings`)
@@ -43,17 +43,21 @@ export default function Listings() {
 
   const filtered = useMemo(() => {
     return (listings || [])
-      .filter((item) => {
-        if (!search.trim()) return true;
-        const text = `${item.title ?? ""} ${item.vehicle?.make ?? ""} ${item.vehicle?.model ?? ""}`.toLowerCase();
-        return text.includes(search.toLowerCase().trim());
-      })
+      .filter((item) => matchesSearch(item, search))
       .filter((item) => {
         if (category === "All") return true;
-        const cat = item.category ?? "General";
-        return cat.toLowerCase() === category.toLowerCase();
+        // Listings made before the categories were tidied up still match.
+        return getCategory(item.category)?.id === category;
       });
   }, [listings, search, category]);
+
+  const filterChips = useMemo(
+    () => [
+      { id: "All", label: "All" },
+      ...MARKETPLACE_CATEGORIES.map((c) => ({ id: c.id, label: c.label })),
+    ],
+    []
+  );
 
   return (
     <ScrollView
@@ -79,7 +83,7 @@ export default function Listings() {
       <TextInput
         value={search}
         onChangeText={setSearch}
-        placeholder="Search by make, model, year..."
+        placeholder="Search anything — sofa, iPhone 13, size 10, Paignton…"
         placeholderTextColor={theme.muted}
         style={{
           backgroundColor: theme.card,
@@ -98,12 +102,12 @@ export default function Listings() {
         showsHorizontalScrollIndicator={false}
         style={{ marginBottom: 16 }}
       >
-        {CATEGORIES.map((cat) => {
-          const active = category === cat;
+        {filterChips.map((cat) => {
+          const active = category === cat.id;
           return (
             <TouchableOpacity
-              key={cat}
-              onPress={() => setCategory(cat)}
+              key={cat.id}
+              onPress={() => setCategory(cat.id)}
               style={{
                 paddingHorizontal: 12,
                 paddingVertical: 6,
@@ -121,7 +125,7 @@ export default function Listings() {
                   fontWeight: "600",
                 }}
               >
-                {cat}
+                {cat.label}
               </Text>
             </TouchableOpacity>
           );
@@ -139,13 +143,14 @@ export default function Listings() {
       )}
 
       {!loading &&
-        filtered.map((item, index) => {
+        filtered.map((item) => {
           const thumbnail =
             item.photos?.[0] ||
             "https://placehold.co/300x200/0A1128/FFFFFF?text=FlipPilot";
 
           const flipScore = item.flipScore ?? item.ai?.flipScore ?? null;
-          const isSponsored = item.sponsored === true || index === 0;
+          // Only a listing that really is sponsored gets the badge.
+          const isSponsored = item.sponsored === true;
 
           return (
             <TouchableOpacity
@@ -194,7 +199,9 @@ export default function Listings() {
                 {/* PRICE + META */}
                 <Text style={priceStyle(theme)}>£{item.price}</Text>
                 <Text style={metaStyle(theme)}>
-                  {item.category ?? "General"}
+                  {categoryLabel(item.category)}
+                  {item.condition ? ` • ${item.condition}` : ""}
+                  {item.details?.size ? ` • Size ${item.details.size}` : ""}
                   {item.mileage != null ? ` • ${item.mileage} miles` : ""}
                   {item.location ? ` • ${item.location}` : ""}
                 </Text>

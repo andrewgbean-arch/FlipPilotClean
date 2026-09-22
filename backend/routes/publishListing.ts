@@ -3,6 +3,26 @@ import { loadListings, saveListings } from "./publishedListings";
 import { rateLimit } from "../middleware/rateLimit";
 import { sellingGate } from "../middleware/sellingGate";
 
+/**
+ * The per-category answers, kept as a flat map of short strings.
+ * Anything else a client sends — nested objects, huge blobs, hundreds of keys —
+ * is dropped rather than stored.
+ */
+function cleanDetails(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (Object.keys(out).length >= 24) break;
+    if (!/^[a-zA-Z][a-zA-Z0-9_]{0,31}$/.test(key)) continue;
+    if (typeof value !== "string" && typeof value !== "number") continue;
+
+    const text = String(value).trim();
+    if (text) out[key] = text.slice(0, 300);
+  }
+  return out;
+}
+
 export default function registerPublishListingRoute(app: Express) {
   /* -------------------------------------------------------
      PUBLISH A FLIP (from marketplace/PublishFlip.tsx)
@@ -39,10 +59,28 @@ export default function registerPublishListingRoute(app: Express) {
      CREATE A GENERAL LISTING (from marketplace/create/new.tsx)
   ------------------------------------------------------- */
   app.post("/create-listing", rateLimit(10), sellingGate, (req: Request, res: Response) => {
-    const { title, price, description, category, photos, bestThumbnail, flipScore, deviceId } = req.body;
+    const {
+      title,
+      price,
+      description,
+      category,
+      location,
+      condition,
+      details,
+      photos,
+      bestThumbnail,
+      flipScore,
+      deviceId
+    } = req.body;
 
     if (!title || !price) {
       return res.status(400).json({ ok: false, error: "Missing required fields" });
+    }
+
+    // A listing with no category is a listing nobody finds, so it is not optional.
+    // Which categories exist is the app's business; the server only insists there is one.
+    if (typeof category !== "string" || !category.trim()) {
+      return res.status(400).json({ ok: false, error: "Missing category" });
     }
 
     const listings = loadListings();
@@ -53,7 +91,11 @@ export default function registerPublishListingRoute(app: Express) {
       title,
       price: Number(price),
       description: description ?? "",
-      category: category ?? "General",
+      category: category.trim(),
+      location: typeof location === "string" && location.trim() ? location.trim() : null,
+      condition: typeof condition === "string" && condition.trim() ? condition.trim() : null,
+      // The category's own questions — size, dimensions, network lock and so on.
+      details: cleanDetails(details),
       photos: photos ?? [],
       bestThumbnail: bestThumbnail ?? photos?.[0] ?? null,
       flipScore: flipScore ?? null,

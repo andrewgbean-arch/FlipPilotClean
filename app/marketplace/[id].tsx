@@ -16,6 +16,9 @@ import SellerProfileCard from "@/features/seller/SellerProfileCard";
 import SellerBadges from "@/components/core/SellerBadges";
 
 import { BASE_URL } from "@/utils/api";
+import { categoryLabel, fieldsFor } from "@/constants/marketplaceCategories";
+import { BUYER_SAFETY_TIPS } from "@/utils/scamSafety";
+import SafetyCard from "@/components/marketplace/SafetyCard";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -60,6 +63,17 @@ export default function ListingDetails() {
   const listingName = listing.vehicle
     ? `${listing.vehicle.year ?? ""} ${listing.vehicle.make ?? ""} ${listing.vehicle.model ?? ""}`.trim()
     : listing.title ?? "This listing";
+
+  // The category's own questions, in the order they were asked, skipping any
+  // the seller left blank. Older listings kept condition on its own.
+  const details: Record<string, string> = {
+    ...(listing.condition ? { condition: String(listing.condition) } : {}),
+    ...(listing.details && typeof listing.details === "object" ? listing.details : {}),
+  };
+
+  const answered = fieldsFor(listing.category)
+    .map((f) => ({ label: f.label, value: String(details[f.key] ?? "").trim() }))
+    .filter((row) => row.value !== "");
 
   const heroTranslateY = scrollY.interpolate({
     inputRange: [0, 200],
@@ -119,6 +133,32 @@ export default function ListingDetails() {
 
           <Text style={styles.price}>£{listing.price}</Text>
 
+          <Text style={styles.subMeta}>
+            {categoryLabel(listing.category)}
+            {listing.location ? ` • ${listing.location}` : ""}
+          </Text>
+
+          {/* ⭐ What the seller told us about it */}
+          {answered.length > 0 && (
+            <GlowPulseCard style={{ marginTop: 20 }}>
+              <Text style={styles.sectionTitle}>Details</Text>
+              {answered.map(({ label, value }) => (
+                <View key={label} style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>{label}</Text>
+                  <Text style={styles.detailValue}>{value}</Text>
+                </View>
+              ))}
+            </GlowPulseCard>
+          )}
+
+          {/* ⭐ Description */}
+          {typeof listing.description === "string" && listing.description.trim() !== "" && (
+            <GlowPulseCard style={{ marginTop: 20 }}>
+              <Text style={styles.sectionTitle}>Description</Text>
+              <Text style={styles.body}>{listing.description}</Text>
+            </GlowPulseCard>
+          )}
+
           {/* ⭐ Seller */}
           <GlowPulseCard style={{ marginTop: 20 }}>
             <Text style={styles.sectionTitle}>Seller</Text>
@@ -126,6 +166,8 @@ export default function ListingDetails() {
             <SellerProfileCard seller={listing.seller} />
             <SellerBadges seller={listing.seller} />
           </GlowPulseCard>
+
+          <SafetyCard title="Before you buy this" tips={BUYER_SAFETY_TIPS} />
         </View>
       </Animated.ScrollView>
     </View>
@@ -182,7 +224,39 @@ const styles = StyleSheet.create({
   price: {
     color: MUTED,
     fontSize: 20,
-    marginBottom: 10,
+    marginBottom: 6,
+  },
+  subMeta: {
+    color: MUTED,
+    fontSize: 14,
+    opacity: 0.8,
+  },
+
+  detailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 16,
+    paddingVertical: 6,
+  },
+  detailLabel: {
+    color: MUTED,
+    fontSize: 14,
+    opacity: 0.8,
+    flexShrink: 0,
+  },
+  detailValue: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "600",
+    flexShrink: 1,
+    textAlign: "right",
+  },
+
+  body: {
+    color: MUTED,
+    fontSize: 15,
+    lineHeight: 22,
   },
 
   sectionTitle: {

@@ -14,6 +14,7 @@ import { useTheme } from "@/styles/ThemeContext";
 import { BASE_URL } from "@/utils/api";
 import { findBestDeals } from "@/utils/dealFinder";
 import GoldParticles from "@/components/ui/GoldParticles";
+import { MARKETPLACE_CATEGORIES } from "@/constants/marketplaceCategories";
 
 export default function MarketplaceHub() {
   const theme = useTheme();
@@ -56,7 +57,7 @@ export default function MarketplaceHub() {
 
       {/* ACTION BUTTONS */}
       <View style={{ paddingHorizontal: 20 }}>
-        {/* Publish Flip */}
+        {/* Sell something */}
         <Pressable
           style={{
             backgroundColor: theme.accent,
@@ -64,10 +65,10 @@ export default function MarketplaceHub() {
             borderRadius: 14,
             marginBottom: 14,
           }}
-          onPress={() => router.push("/marketplace/PublishFlip")}
+          onPress={() => router.push("/marketplace/create/new")}
         >
           <Text style={{ color: theme.black, fontSize: 16, fontWeight: "700" }}>
-            📤 Publish a Flip
+            📤 Sell something
           </Text>
         </Pressable>
 
@@ -109,16 +110,9 @@ export default function MarketplaceHub() {
             justifyContent: "space-between",
           }}
         >
-          {[
-            { icon: "cpu", label: "Electronics" },
-            { icon: "tool", label: "Tools" },
-            { icon: "book", label: "Books" },
-            { icon: "image", label: "Collectibles" },
-            { icon: "shopping-bag", label: "General" },
-            { icon: "truck", label: "Motors" },
-          ].map((cat, idx) => (
+          {MARKETPLACE_CATEGORIES.map((cat) => (
             <Pressable
-              key={idx}
+              key={cat.id}
               style={{
                 width: "48%",
                 backgroundColor: theme.card,
@@ -130,7 +124,7 @@ export default function MarketplaceHub() {
                 alignItems: "center",
               }}
               onPress={() =>
-                router.push(`/marketplace/Listings?category=${cat.label}`)
+                router.push(`/marketplace/Listings?category=${cat.id}`)
               }
             >
               <Feather name={cat.icon as any} size={26} color={theme.text} />
@@ -139,6 +133,7 @@ export default function MarketplaceHub() {
                   color: theme.text,
                   marginTop: 6,
                   fontWeight: "700",
+                  textAlign: "center",
                 }}
               >
                 {cat.label}
