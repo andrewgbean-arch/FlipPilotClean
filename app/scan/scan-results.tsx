@@ -14,7 +14,7 @@ import {
   WarningCircle,
   X,
 } from "phosphor-react-native";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -25,6 +25,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -154,6 +155,12 @@ export default function ScanResultsScreen() {
   const [savedId, setSavedId] = useState<string | null>(null);
   // A scan opens this screen after step 1 (what is it?); step 2 (what is it worth?) runs here.
   const [priceState, setPriceState] = useState<"ready" | "loading" | "failed">("ready");
+  // The AI's identification can be too vague to price well ("White Bluetooth Speaker"
+  // covers everything from a £10 mini speaker to a £150 one) — this lets the name be
+  // corrected and the price looked up again against the better name.
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const retitleAbortRef = useRef<AbortController | null>(null);
   const [source, setSource] = useState<SourceKey>("charity");
   const [imageFailed, setImageFailed] = useState(false);
 
@@ -214,6 +221,61 @@ export default function ScanResultsScreen() {
     // `data` is read once when the lookup starts; the lookup must not restart when it is updated.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data?.pendingId, priceState]);
+
+  // A price check the user asked for by hand (after correcting the name), rather than the
+  // one that runs automatically when the screen opens. Always overwrites the prices shown,
+  // since the point of asking again is that the old ones were for the wrong item.
+  const recheckPriceForTitle = async (newTitle: string) => {
+    retitleAbortRef.current?.abort();
+    const controller = new AbortController();
+    retitleAbortRef.current = controller;
+
+    setPriceState("loading");
+    setBuyPrice(null);
+    setSellPrice(null);
+    // Show the corrected name straight away, so "Checking prices…" doesn't look like
+    // the edit was thrown away.
+    setData((prev: any) => (prev ? { ...prev, title: newTitle, ai: { ...prev.ai, title: newTitle } } : prev));
+
+    try {
+      const res = await fetchPrices(
+        { title: newTitle, barcode: data?.barcode ?? null, condition: data?.ai?.condition ?? null },
+        controller.signal
+      );
+      if (controller.signal.aborted) return;
+
+      const next = applyPrices(
+        { ...data, title: newTitle, ai: { ...data?.ai, title: newTitle } },
+        res
+      );
+      setData(next);
+      setBuyPrice(next.ai.suggested_buy ?? null);
+      setSellPrice(next.ai.suggested_sell ?? null);
+      setPriceState("ready");
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      console.log("Price re-check failed:", err);
+      setPriceState("failed");
+    }
+  };
+
+  const startEditTitle = () => {
+    setTitleDraft(title);
+    setEditingTitle(true);
+  };
+
+  const cancelEditTitle = () => setEditingTitle(false);
+
+  const confirmEditTitle = () => {
+    const next = titleDraft.trim();
+    setEditingTitle(false);
+    if (!next || next === title) return;
+    recheckPriceForTitle(next);
+  };
+
+  useEffect(() => {
+    return () => retitleAbortRef.current?.abort();
+  }, []);
 
   const profit = useMemo(() => {
     if (buyPrice == null || sellPrice == null) return null;
@@ -387,6 +449,7 @@ export default function ScanResultsScreen() {
   }
 
   const title = data.title ?? data.product?.title ?? "Unknown Item";
+  const titleLocked = saved || priceState === "loading" || editingTitle;
   const barcode = data.barcode ?? data.product?.barcode ?? null;
 
   const card = { backgroundColor: theme.card, borderColor: theme.hairline };
@@ -440,13 +503,69 @@ export default function ScanResultsScreen() {
           ) : null}
 
           <View style={styles.headerText}>
-            <Text
-              style={[styles.title, { color: theme.text }]}
-              numberOfLines={3}
-              accessibilityRole="header"
-            >
-              {title}
-            </Text>
+            {editingTitle ? (
+              <View style={styles.titleEditRow}>
+                <TextInput
+                  value={titleDraft}
+                  onChangeText={setTitleDraft}
+                  style={[styles.titleInput, { color: theme.text, borderColor: theme.gold }]}
+                  placeholder="What is it?"
+                  placeholderTextColor={theme.muted}
+                  autoFocus
+                  multiline
+                  accessibilityLabel="Item name"
+                  returnKeyType="done"
+                  onSubmitEditing={confirmEditTitle}
+                />
+                <View style={styles.titleEditActions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Cancel editing the name"
+                    hitSlop={8}
+                    style={({ pressed }) => [
+                      styles.titleEditButton,
+                      { borderColor: theme.hairline },
+                      pressed && styles.pressed,
+                    ]}
+                    onPress={cancelEditTitle}
+                  >
+                    <X size={18} color={theme.muted} />
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Save the name and check the price again"
+                    hitSlop={8}
+                    style={({ pressed }) => [
+                      styles.titleEditButton,
+                      { backgroundColor: theme.gold, borderColor: theme.gold },
+                      pressed && styles.pressed,
+                    ]}
+                    onPress={confirmEditTitle}
+                  >
+                    <Check size={18} weight="bold" color={theme.black} />
+                  </Pressable>
+                </View>
+              </View>
+            ) : (
+              <Pressable
+                accessibilityRole={titleLocked ? undefined : "button"}
+                accessibilityLabel={
+                  titleLocked ? undefined : `${title}. Not quite right? Tap to correct the name and check the price again`
+                }
+                disabled={titleLocked}
+                onPress={startEditTitle}
+                style={({ pressed }) => [styles.titleRow, pressed && !titleLocked && styles.pressed]}
+              >
+                <Text
+                  style={[styles.title, { color: theme.text }]}
+                  numberOfLines={3}
+                  accessibilityRole="header"
+                >
+                  {title}
+                </Text>
+                {titleLocked ? null : <PencilSimple size={16} color={theme.muted} />}
+              </Pressable>
+            )}
             <View style={styles.metaRow}>
               {barcode ? (
                 <Barcode size={14} color={theme.muted} />
@@ -897,7 +1016,27 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   headerText: { flex: 1 },
-  title: { fontSize: 24, fontWeight: "700", lineHeight: 30 },
+  titleRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  title: { flex: 1, fontSize: 24, fontWeight: "700", lineHeight: 30 },
+  titleEditRow: { gap: 8 },
+  titleInput: {
+    fontSize: 20,
+    fontWeight: "700",
+    lineHeight: 26,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  titleEditActions: { flexDirection: "row", justifyContent: "flex-end", gap: 8 },
+  titleEditButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   metaRow: {
     flexDirection: "row",
     alignItems: "center",
