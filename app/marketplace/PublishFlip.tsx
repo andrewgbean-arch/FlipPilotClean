@@ -17,7 +17,6 @@ import GoldButton from "@/components/ui/GoldButton";
 import FlipScoreMeter from "@/components/analytics/FlipScoreMeter";
 import MileageRiskScore from "@/components/motors/MileageRiskScore";
 import ListingQualityScore from "@/components/marketplace/ListingQualityScore";
-import ValuationEngine from "@/components/ai/ValuationEngine";
 import MarketHeatIndex from "@/components/analytics/MarketHeatIndex";
 import GlowPulseCard from "@/components/ui/GlowPulseCard";
 import HeroHeader from "@/components/ui/HeroHeader";
@@ -235,21 +234,6 @@ function PublishFlipForm({ router }: { router: ReturnType<typeof useRouter> }) {
                 mileage: numericMileage,
               },
               price: numericPrice,
-            }}
-            prediction={{
-              flipScore: 0,
-            }}
-          />
-
-          <ValuationEngine
-            listing={{
-              vehicle: {
-                year: 2010,
-                mileage: numericMileage,
-              },
-              price: numericPrice,
-              mileage: numericMileage,
-              condition: "excellent",
             }}
             prediction={{
               flipScore: 0,

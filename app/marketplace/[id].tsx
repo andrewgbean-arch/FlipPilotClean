@@ -19,7 +19,6 @@ import ConfidenceMeter from "@/components/analytics/ConfidenceMeter";
 import OfferCalculator from "@/components/core/OfferCalculator";
 import BuyerSafetyScore from "@/components/core/BuyerSafetyScore";
 import SellerBadges from "@/components/core/SellerBadges";
-import ValuationEngine from "@/components/ai/ValuationEngine";
 
 import ListingQualityScore from "@/components/marketplace/ListingQualityScore";
 import PhotoAnalyzer from "@/components/ai/PhotoAnalyzer";
@@ -213,7 +212,6 @@ export default function ListingDetails() {
             <Text style={styles.sectionTitle}>Core FlipPilot Intelligence</Text>
 
             <ConfidenceMeter score={prediction.flipScore} />
-            <ValuationEngine listing={listing} prediction={prediction} />
             <BuyerSafetyScore listing={listing} prediction={prediction} />
             <SellerProfileCard seller={listing.seller} />
             <SellerBadges seller={listing.seller} />
