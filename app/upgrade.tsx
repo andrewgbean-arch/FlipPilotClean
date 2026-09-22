@@ -11,6 +11,12 @@ import { useTheme } from "@/styles/ThemeContext";
 
 type TierId = "free" | "boltOn" | "pro";
 
+// A plain string is a checked benefit; { heading } is a small section label
+// with no checkmark, for grouping a run of related benefits (e.g. Pro's
+// vehicle perks, which otherwise sit unexplained between Marketplace and
+// export benefits).
+type IncludedItem = string | { heading: string };
+
 type Tier = {
   id: TierId;
   name: string;
@@ -18,7 +24,7 @@ type Tier = {
   price: string;
   period: string;
   badge?: string;
-  included: string[];
+  included: IncludedItem[];
   notIncluded?: string[];
 };
 
@@ -56,8 +62,9 @@ const TIERS: Tier[] = [
       "Sell unlimited items on the Marketplace",
       "Export listings straight to eBay",
       "Share listings to Facebook, Gumtree, Vinted & more",
-      "2 vehicle listings free",
-      "Extra vehicles billed per vehicle",
+      { heading: "For your vehicles" },
+      "2 free",
+      "Extra ones billed per vehicle",
       "Everything in Bolt-on",
     ],
   },
@@ -208,14 +215,23 @@ export default function UpgradeScreen() {
           What's in {tier.name}
         </Text>
         <View style={[styles.group, styles.benefits, card]}>
-          {tier.included.map((item) => (
-            <View key={item} style={styles.benefitRow}>
-              <View style={[styles.benefitCheck, { backgroundColor: theme.gold + "1F" }]}>
-                <Check size={14} weight="bold" color={theme.gold} />
+          {tier.included.map((item, i) =>
+            typeof item === "string" ? (
+              <View key={item} style={styles.benefitRow}>
+                <View style={[styles.benefitCheck, { backgroundColor: theme.gold + "1F" }]}>
+                  <Check size={14} weight="bold" color={theme.gold} />
+                </View>
+                <Text style={[styles.benefitText, { color: theme.text }]}>{item}</Text>
               </View>
-              <Text style={[styles.benefitText, { color: theme.text }]}>{item}</Text>
-            </View>
-          ))}
+            ) : (
+              <Text
+                key={`heading-${i}-${item.heading}`}
+                style={[styles.benefitGroupLabel, { color: theme.muted }, i > 0 && styles.benefitGroupLabelSpaced]}
+              >
+                {item.heading}
+              </Text>
+            )
+          )}
           {tier.notIncluded?.map((item) => (
             <View key={item} style={styles.benefitRow}>
               <View style={[styles.benefitCheck, { backgroundColor: theme.muted + "1A" }]}>
@@ -383,6 +399,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   benefitText: { flex: 1, fontSize: 16 },
+  benefitGroupLabel: { fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
+  benefitGroupLabelSpaced: { marginTop: 6 },
 
   /* COMPARISON */
   compareHead: {
