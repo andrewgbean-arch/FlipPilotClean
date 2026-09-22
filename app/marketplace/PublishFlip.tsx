@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import {
+  Alert,
   View,
   Text,
   TextInput,
@@ -25,6 +26,7 @@ import GoldParticlesBurst from "@/components/ui/GoldParticlesBurst";
 import AnimatedButton from "@/components/ui/AnimatedButton";
 
 import { BASE_URL } from "@/utils/api";
+import { getDeviceId } from "@/utils/deviceId";
 
 export default function PublishFlip() {
   const router = useRouter();
@@ -77,7 +79,8 @@ function PublishFlipForm({ router }: { router: ReturnType<typeof useRouter> }) {
     setSubmitting(true);
 
     try {
-      await fetch(`${BASE_URL}/publish-flip`, {
+      const deviceId = await getDeviceId();
+      const res = await fetch(`${BASE_URL}/publish-flip`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -86,8 +89,23 @@ function PublishFlipForm({ router }: { router: ReturnType<typeof useRouter> }) {
           mileage: numericMileage,
           description,
           location,
+          deviceId,
         }),
       });
+      const data = await res.json().catch(() => null);
+
+      if (!data?.ok) {
+        setSubmitting(false);
+        if (data?.error === "selling-locked") {
+          Alert.alert("Upgrade to sell", data.message, [
+            { text: "Not now", style: "cancel" },
+            { text: "Upgrade", onPress: () => router.push("/upgrade") },
+          ]);
+        } else {
+          Alert.alert("Couldn't publish", data?.message ?? "Please try again.");
+        }
+        return;
+      }
 
       setSuccess(true);
       setSubmitting(false);
@@ -99,6 +117,7 @@ function PublishFlipForm({ router }: { router: ReturnType<typeof useRouter> }) {
     } catch (err) {
       console.log("Publish error:", err);
       setSubmitting(false);
+      Alert.alert("Couldn't publish", "Please check your connection and try again.");
     }
   };
 

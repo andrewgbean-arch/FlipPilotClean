@@ -18,6 +18,7 @@ import GoldButton from "../../../src/components/ui/GoldButton";
 import SparklesOverlay from "../../../src/components/ui/SparklesOverlay";
 
 import { aiLookup, BASE_URL } from "../../../src/utils/api";
+import { getDeviceId } from "../../../src/utils/deviceId";
 
 const CATEGORIES = [
   { name: "Motors", icon: "🚗" },
@@ -90,22 +91,37 @@ export default function CreateNewListing() {
     if (!price.trim()) return Alert.alert("Price required");
     if (photos.length === 0) return Alert.alert("Add at least one photo");
 
-    const payload = {
-      title,
-      price: Number(price),
-      description,
-      category,
-      photos,
-      bestThumbnail,
-      flipScore,
-    };
-
     try {
-      await fetch(`${BASE_URL}/create-listing`, {
+      const deviceId = await getDeviceId();
+      const payload = {
+        title,
+        price: Number(price),
+        description,
+        category,
+        photos,
+        bestThumbnail,
+        flipScore,
+        deviceId,
+      };
+
+      const res = await fetch(`${BASE_URL}/create-listing`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      const data = await res.json().catch(() => null);
+
+      if (!data?.ok) {
+        if (data?.error === "selling-locked") {
+          Alert.alert("Upgrade to sell", data.message, [
+            { text: "Not now", style: "cancel" },
+            { text: "Upgrade", onPress: () => router.push("/upgrade") },
+          ]);
+        } else {
+          Alert.alert("Couldn't publish", data?.message ?? "Please try again.");
+        }
+        return;
+      }
 
       router.push("/marketplace");
     } catch (err) {

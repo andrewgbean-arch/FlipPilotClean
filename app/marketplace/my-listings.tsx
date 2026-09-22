@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import { useTheme } from "@/styles/ThemeContext";
 
 import { BASE_URL } from "@/utils/api";
+import { getDeviceId } from "@/utils/deviceId";
 
 export default function MyListings() {
   const theme = useTheme();
@@ -11,7 +12,8 @@ export default function MyListings() {
   const [listings, setListings] = useState<any[]>([]);
 
   useEffect(() => {
-    fetch(`${BASE_URL}/my-listings`)
+    getDeviceId()
+      .then((deviceId) => fetch(`${BASE_URL}/my-listings?deviceId=${encodeURIComponent(deviceId)}`))
       .then((res) => res.json())
       .then((data) => setListings(data || []))
       .catch(() => setListings([]));

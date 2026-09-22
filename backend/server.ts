@@ -48,7 +48,9 @@ app.use((req, res, next) => {
 
 // The Marketplace has no sign-in yet (anyone can post a listing or a message,
 // under whatever name they type in), so the write routes below carry their own
-// rate limit. /ai/description writes a fixed template, not a paid AI call.
+// rate limit. Publishing a listing also needs a verified Pro subscriber
+// (sellingGate, applied in publishListing.ts) - browsing and messaging stay
+// open. /ai/description writes a fixed template, not a paid AI call.
 registerPublishedListingsRoute(app);
 registerPublishListingRoute(app);
 registerMessagesRoute(app);
