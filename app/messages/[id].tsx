@@ -15,6 +15,7 @@ import { Feather } from "@expo/vector-icons";
 
 import { useTheme } from "@/styles/ThemeContext";
 import { BASE_URL } from "@/utils/api";
+import { getDeviceId } from "@/utils/deviceId";
 import {
   checkMessage,
   ScamWarning,
@@ -123,10 +124,13 @@ export default function MessagesScreen() {
     setSending(true);
 
     try {
+      // The device id is what lets this person review the seller afterwards.
+      // It is stored on the message and never sent back out to anyone.
+      const deviceId = await getDeviceId();
       const res = await fetch(`${BASE_URL}/messages/${listingId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sender: MY_SENDER_NAME, message: text }),
+        body: JSON.stringify({ sender: MY_SENDER_NAME, message: text, deviceId }),
       });
       const data = await res.json();
 

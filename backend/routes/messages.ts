@@ -1,10 +1,11 @@
 import { Express, Request, Response } from "express";
 import { loadListings, saveListings } from "./publishedListings";
 import { rateLimit } from "../middleware/rateLimit";
+import { toPublicMessage } from "../utils/sellerOrigin";
 
 export default function registerMessagesRoute(app: Express) {
   app.post("/messages/:listingId", rateLimit(20), (req: Request, res: Response) => {
-    const { sender, message } = req.body;
+    const { sender, message, deviceId } = req.body;
 
     if (!sender || !message) {
       return res.status(400).json({ ok: false, error: "Missing sender or message" });
@@ -20,6 +21,9 @@ export default function registerMessagesRoute(app: Express) {
     const newMessage = {
       sender,
       message,
+      // Kept so we can tell who is entitled to leave this seller a review.
+      // Never sent back out — see toPublicMessage.
+      deviceId: typeof deviceId === "string" && deviceId.trim() ? deviceId : null,
       timestamp: new Date().toISOString()
     };
 
@@ -28,7 +32,7 @@ export default function registerMessagesRoute(app: Express) {
 
     saveListings(listings);
 
-    res.json({ ok: true, message: newMessage });
+    res.json({ ok: true, message: toPublicMessage(newMessage) });
   });
 
   app.get("/messages/:listingId", (req: Request, res: Response) => {
@@ -39,6 +43,6 @@ export default function registerMessagesRoute(app: Express) {
       return res.status(404).json({ ok: false, error: "Listing not found" });
     }
 
-    res.json({ ok: true, messages: listing.messages ?? [] });
+    res.json({ ok: true, messages: (listing.messages ?? []).map(toPublicMessage) });
   });
 }

@@ -107,11 +107,26 @@ export function readSellerOrigin(req: Request): SellerOrigin {
 }
 
 /**
- * A listing as everyone else is allowed to see it. Strips the review flag, and
- * the seller's device id, which had no business being public either.
+ * A listing as everyone else is allowed to see it. Strips the review flag and
+ * the seller's device id, which had no business being public either — including
+ * the device ids on its messages, which are only there to tell who may leave a
+ * review.
  */
 export function toPublicListing(listing: any): any {
   if (!listing || typeof listing !== "object") return listing;
-  const { sellerOrigin, deviceId, ...rest } = listing;
+  const { sellerOrigin, deviceId, messages, ...rest } = listing;
+
+  return {
+    ...rest,
+    ...(messages === undefined
+      ? {}
+      : { messages: Array.isArray(messages) ? messages.map(toPublicMessage) : messages }),
+  };
+}
+
+/** A message with the sender's device id taken off. */
+export function toPublicMessage(message: any): any {
+  if (!message || typeof message !== "object") return message;
+  const { deviceId, ...rest } = message;
   return rest;
 }

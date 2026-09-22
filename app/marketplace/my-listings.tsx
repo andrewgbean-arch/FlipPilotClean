@@ -14,6 +14,7 @@ export default function MyListings() {
 
   const [listings, setListings] = useState<any[]>([]);
   const [exportingId, setExportingId] = useState<string | number | null>(null);
+  const [markingId, setMarkingId] = useState<string | number | null>(null);
 
   const handleEbayExport = async (item: any) => {
     setExportingId(item.id);
@@ -51,6 +52,44 @@ export default function MyListings() {
       .then((data) => setListings(data || []))
       .catch(() => setListings([]));
   }, []);
+
+  // Marking it sold is the only thing "items sold" on your seller profile
+  // counts, so the number on your profile is one you have earned.
+  const markSold = async (item: any) => {
+    setMarkingId(item.id);
+    try {
+      const deviceId = await getDeviceId();
+      const res = await fetch(`${BASE_URL}/listings/${item.id}/sold`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deviceId }),
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!data?.ok) {
+        Alert.alert("Couldn't mark it sold", data?.error ?? "Please try again.");
+        return;
+      }
+
+      setListings((prev) =>
+        prev.map((l) => (l.id === item.id ? { ...l, soldAt: data.soldAt } : l))
+      );
+    } catch {
+      Alert.alert("Couldn't mark it sold", "Please check your connection and try again.");
+    } finally {
+      setMarkingId(null);
+    }
+  };
+
+  const confirmSold = (item: any) =>
+    Alert.alert(
+      "Mark as sold?",
+      "It will show as sold, and count towards the items sold on your seller profile.",
+      [
+        { text: "Not yet", style: "cancel" },
+        { text: "Sold", onPress: () => markSold(item) },
+      ]
+    );
 
   return (
     <ScrollView
@@ -105,6 +144,36 @@ export default function MyListings() {
               <Text style={{ color: theme.text, marginTop: 4 }}>
                 £{item.price}
               </Text>
+
+              {item.soldAt ? (
+                <Text style={{ color: theme.success, marginTop: 6, fontWeight: "700" }}>
+                  Sold
+                </Text>
+              ) : (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel="Mark this listing as sold"
+                  disabled={markingId === item.id}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    confirmSold(item);
+                  }}
+                  style={{
+                    alignSelf: "flex-start",
+                    marginTop: 8,
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    borderColor: theme.goldDeep,
+                    opacity: markingId === item.id ? 0.6 : 1,
+                  }}
+                >
+                  <Text style={{ color: theme.goldDeep, fontWeight: "700", fontSize: 13 }}>
+                    {markingId === item.id ? "Marking…" : "Mark as sold"}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             <TouchableOpacity

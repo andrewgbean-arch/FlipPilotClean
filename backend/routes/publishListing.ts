@@ -3,6 +3,7 @@ import { loadListings, saveListings } from "./publishedListings";
 import { rateLimit } from "../middleware/rateLimit";
 import { sellingGate } from "../middleware/sellingGate";
 import { readSellerOrigin, toPublicListing } from "../utils/sellerOrigin";
+import { ensureSeller } from "./sellers";
 
 /**
  * The per-category answers, kept as a flat map of short strings.
@@ -46,6 +47,8 @@ export default function registerPublishListingRoute(app: Express) {
       description,
       location,
       deviceId: typeof deviceId === "string" ? deviceId : null,
+      sellerId: ensureSeller(deviceId)?.id ?? null,
+      soldAt: null,
       sellerOrigin: readSellerOrigin(req),
       createdAt: new Date().toISOString(),
       messages: []
@@ -102,6 +105,9 @@ export default function registerPublishListingRoute(app: Express) {
       bestThumbnail: bestThumbnail ?? photos?.[0] ?? null,
       flipScore: flipScore ?? null,
       deviceId: typeof deviceId === "string" ? deviceId : null,
+      // The public side of who is selling it, so a buyer can see their history.
+      sellerId: ensureSeller(deviceId)?.id ?? null,
+      soldAt: null,
       // A private review flag. Stripped from everything the public can read.
       sellerOrigin: readSellerOrigin(req),
       createdAt: new Date().toISOString(),
