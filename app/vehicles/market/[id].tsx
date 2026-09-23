@@ -365,7 +365,7 @@ function MarketScanContent({
         </Text>
 
         {loading ? (
-          <StateBlock loading title="Checking eBay, Amazon and Google for real prices" />
+          <StateBlock loading title="Checking eBay and Google for real prices" />
         ) : null}
 
         {!loading && error ? (

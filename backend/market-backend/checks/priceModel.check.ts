@@ -10,7 +10,7 @@ const between = (label: string, got: number | null, lo: number, hi: number) => {
   if (got === null || got < lo || got > hi) { fail++; console.log("FAIL", label, "got", got, "want", `${lo}-${hi}`); }
 };
 
-const none = { ebay: null, amazonNew: null, googleNew: null, aiNew: null, aiUsedMin: null, aiUsedMax: null };
+const none = { ebay: null, googleNew: null, aiNew: null, aiUsedMin: null, aiUsedMax: null };
 
 // A bag of crisps: Google is full of 18-packs (£18.84), the AI knows the shelf price.
 {
@@ -65,7 +65,7 @@ const none = { ebay: null, amazonNew: null, googleNew: null, aiNew: null, aiUsed
 
 // Lozenges where the AI is a bit high and the listings (scaled from 80-packs) a bit low.
 {
-  const d = decidePrices({ ...none, used: false, aiNew: 5.99, amazonNew: 2.75, ebay: 3.0 });
+  const d = decidePrices({ ...none, used: false, aiNew: 5.99, googleNew: 2.75, ebay: 3.0 });
   between("lozenge new between", d.newPrice, 3.5, 4.5);
   eq("lozenge sell from ebay", d.sell, 3);
 }

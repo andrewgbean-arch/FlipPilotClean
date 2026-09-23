@@ -3,8 +3,8 @@
 
    Three prices, worked out from the evidence we have:
 
-   NEW    the shelf price of one unit. Evidence: Amazon, Google Shopping, and the
-          AI's knowledge of UK prices. Multipacks and adverts only ever push a
+   NEW    the shelf price of one unit. Evidence: Google Shopping, new eBay
+          listings, and the AI's knowledge of UK prices. Multipacks and adverts only ever push a
           listed price UP, so when the sources disagree wildly the ones that
           look contaminated are set aside.
    SELL   what it should resell for. Used items: worked out from the NEW price
@@ -67,8 +67,6 @@ export interface PriceEvidence {
   ebayNew?: number | null;
   /** Middle asking price of matching eBay listings, already scaled to the pack size. */
   ebay: number | null;
-  /** Amazon's shelf price for the item. */
-  amazonNew: number | null;
   /** Google Shopping's shelf price for the item. */
   googleNew: number | null;
   /** The AI's idea of the price of one new unit. */
@@ -114,7 +112,7 @@ export function decidePrices(e: PriceEvidence): PriceDecision {
   /* ---- NEW ---- */
   // What the shops and eBay's new listings say. With three opinions the middle
   // one wins; with two, the lower (contamination only pushes a price up).
-  const shelfList = [e.amazonNew, e.googleNew, e.ebayNew].filter(valid);
+  const shelfList = [e.googleNew, e.ebayNew].filter(valid);
   const shelf = shelfList.length ? [shelfList.length >= 3 ? median(shelfList) : Math.min(...shelfList)] : [];
   let newPrice: number | null = null;
 

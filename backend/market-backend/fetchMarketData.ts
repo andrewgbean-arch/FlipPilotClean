@@ -1,6 +1,5 @@
 import axios from "axios";
-import fetchAmazonMarket from "./amazonMarket";
-import fetchEbayMarket, { EbayMarketResult } from "./ebayMarket";
+import type { EbayMarketResult } from "./ebayMarket";
 import fetchEbayBrowseMarket from "./ebayBrowseApi";
 import { extractPackCount, isNotTheItem, matchesQuery, priceForPack } from "./bulkListingFilter";
 import { decidePrices, type AgeBand, type Grade } from "./priceModel";
@@ -19,7 +18,7 @@ function hasEbayBrowseCreds() {
 export interface UnifiedMarketResult {
   // Core prices
   usedPrice: number | null;        // eBay sold = realistic used price
-  retailPrice: number | null;      // Amazon/Google = realistic new price
+  retailPrice: number | null;      // Google/eBay-new = realistic new price
 
   // Google-style range
   googlePriceMin: number | null;
@@ -44,11 +43,6 @@ export interface UnifiedMarketResult {
 
   // Raw sources
   ebay: EbayMarketResult | null;
-  amazon: {
-    newPrice: number | null;
-    usedPrice: number | null;
-    image: string | null;
-  } | null;
 
   // Items (for UI)
   ebayItems: any[];
@@ -297,7 +291,6 @@ export default async function fetchMarketData(
       aiPriceMax: null,
       aiPriceConfidence: null,
       ebay: null,
-      amazon: null,
       ebayItems: [],
       googleItems: [],
       image: null,
@@ -305,15 +298,17 @@ export default async function fetchMarketData(
   }
 
   try {
-    // 1️⃣-3️⃣ eBay, Amazon and Google are independent lookups — run them
-    // concurrently instead of one after another (was costing 3x the latency
-    // for no benefit, since none of these depend on each other's result).
+    // eBay and Google are independent lookups — run them concurrently instead
+    // of one after another, since neither depends on the other's result.
     const startedAt = Date.now();
 
+    // eBay data comes only from eBay's own Browse API. With no keys set there is
+    // simply no eBay data: the old fallback scraped eBay search pages, which
+    // eBay's API License Agreement does not allow.
     const ebayPromise = withDeadline(
       hasEbayBrowseCreds()
         ? fetchEbayBrowseMarket(query, wantedCount, condition)
-        : fetchEbayMarket(query, wantedCount),
+        : Promise.resolve(null),
       6500,
       null
     );
@@ -326,12 +321,11 @@ export default async function fetchMarketData(
     // The AI's idea of the new price and the used range, asked alongside the
     // searches: the cross-check if what the searches found is far off.
     const aiEstimatePromise = withDeadline(fetchAiPriceEstimate(query, wantedCount), 5000, null);
-    const amazonPromise = withDeadline(fetchAmazonMarket(query, wantedCount), 3000, null);
     const googlePromise = fetchGoogleShopping(query, wantedCount);
 
-    const [ebay, amazon] = await Promise.all([ebayPromise, amazonPromise]);
+    const ebay = await ebayPromise;
 
-    // Google Shopping is the slowest and least reliable of the three (anywhere
+    // Google Shopping is the slowest and least reliable source (anywhere
     // from a third of a second to twenty), so it does not hold the answer up:
     // once the others are in it gets a short grace period and is used only if
     // it made it. The AI's price estimate is the cross-check that doesn't wait.
@@ -354,7 +348,6 @@ export default async function fetchMarketData(
       age,
       ebayNew: safeNumber(ebayNew?.average ?? null),
       ebay: usedPrice,
-      amazonNew: safeNumber(amazon?.newPrice),
       googleNew: safeNumber(google?.avg),
       aiNew: safeNumber(aiEstimate?.newPrice),
       aiUsedMin: aiPriceMin,
@@ -390,7 +383,6 @@ export default async function fetchMarketData(
 
     // 8️⃣ Image + items
 const image =
-  amazon?.image ??
   ebay?.items?.[0]?.thumbnail ??
   google?.items?.[0]?.thumbnail ??
   null;
@@ -419,13 +411,6 @@ const image =
       aiPriceMax,
       aiPriceConfidence,
       ebay,
-      amazon: amazon
-        ? {
-            newPrice: amazon.newPrice ?? null,
-            usedPrice: amazon.usedPrice ?? null,
-            image: amazon.image ?? null,
-          }
-        : null,
       ebayItems,
       googleItems,
       image,
@@ -453,7 +438,6 @@ const image =
       aiPriceMax: null,
       aiPriceConfidence: null,
       ebay: null,
-      amazon: null,
       ebayItems: [],
       googleItems: [],
       image: null,
