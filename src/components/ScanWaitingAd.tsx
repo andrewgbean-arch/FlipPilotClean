@@ -11,12 +11,8 @@ import { useTheme } from "@/styles/ThemeContext";
  * paid slot, so it's built to look like one: a real image, a clear
  * "Sponsored" label and a tap-through, not a small aside.
  *
- * IMPORTANT: `businessAdverts` (src/lib/businessAdverts.ts) is still the same
- * placeholder demo data used on the Boot Fairs page (invented businesses,
- * made-up ratings, stock photos) — showing it here as well does not make it
- * any more real. Swap that file for genuine paying sponsors, or wire this up
- * to a real ad source, before anyone sees it. Until then this is a mock-up
- * of the idea, not a live ad slot.
+ * It shows nothing until src/lib/businessAdverts.ts has real, paying sponsors
+ * in it (it is empty now; the invented placeholder businesses were removed).
  */
 
 // A step 1 lookup (barcode ~0.6s, photo ~2s) is often over before anyone could

@@ -12,39 +12,13 @@ export type BusinessAdvert = {
   clicks?: number;
 };
 
-export const businessAdverts: BusinessAdvert[] = [
-  {
-    id: "AD-001",
-    title: "Torbay Van Hire",
-    description: "Affordable van rentals for sellers attending local boot fairs.",
-    tagline: "Move more, earn more",
-    image: "https://images.unsplash.com/photo-1503376780353-7e6692767b70",
-    website: "https://torbayvanhire.co.uk",
-    phone: "01803 123456",
-    category: "Transport",
-    rating: 4.7,
-    isFeatured: true,
-  },
-  {
-    id: "AD-002",
-    title: "Paignton Coffee Co.",
-    description: "Fresh artisan coffee served hot every weekend near major fairs.",
-    tagline: "Fuel your flipping",
-    image: "https://images.unsplash.com/photo-1509042239860-f550ce710b93",
-    website: "https://paigntoncoffee.co.uk",
-    phone: "01803 987654",
-    category: "Food & Drink",
-    rating: 4.8,
-    isFeatured: true,
-  },
-  {
-    id: "AD-003",
-    title: "FlipMaster Scales",
-    description: "Digital scales perfect for weighing items before listing online.",
-    tagline: "Accuracy that pays",
-    image: "https://images.unsplash.com/photo-1585771724684-38269d6639fd",
-    website: "https://flipmasterscales.com",
-    category: "Tools",
-    rating: 4.9,
-  }
-];
+/**
+ * Sponsor slots, on the Boot Fairs page and while a scan is loading.
+ *
+ * Empty on purpose: only add a business that has really agreed to advertise,
+ * with its own name, image and link. This list used to hold three invented
+ * businesses with made-up star ratings, which is misleading advertising, so
+ * it was cleared. While it is empty every sponsor slot simply doesn't show.
+ * A `rating` must come from a real source, never be typed in.
+ */
+export const businessAdverts: BusinessAdvert[] = [];
