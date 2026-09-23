@@ -77,6 +77,24 @@ export default function MarketplaceHub() {
           </Text>
         </Pressable>
 
+        {/* Every conversation, as buyer and as seller */}
+        <Pressable
+          accessibilityRole="button"
+          style={{
+            backgroundColor: theme.card,
+            padding: 14,
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: theme.goldDeep,
+            marginBottom: 14,
+          }}
+          onPress={() => router.push("/messages")}
+        >
+          <Text style={{ color: theme.text, fontSize: 16, fontWeight: "700" }}>
+            💬 Messages
+          </Text>
+        </Pressable>
+
         {/* Public: Browse Listings */}
         <Pressable
           style={{

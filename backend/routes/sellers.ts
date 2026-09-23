@@ -192,14 +192,14 @@ export default function registerSellersRoute(app: Express) {
       return res.status(400).json({ ok: false, error: "That isn't one of their listings" });
     }
 
-    // The gate: you have to have messaged them about it. Otherwise anybody
-    // could rate anybody, and a rating nobody earned is worth nothing.
-    const talked = (listing.messages ?? []).some((m: any) => m.deviceId === deviceId);
-    if (!talked) {
+    // The gate: only the person the seller marked the item as sold to. That is
+    // a verified sale, so a rating is always one somebody earned; without it
+    // anybody who sent a message could rate anybody.
+    if (!listing.soldAt || listing.soldToDeviceId !== deviceId) {
       return res.status(403).json({
         ok: false,
-        error: "no-contact",
-        message: "You can review a seller once you've messaged them about the item.",
+        error: "not-the-buyer",
+        message: "Only the buyer can review, once the seller has marked the item as sold to them.",
       });
     }
 
@@ -239,7 +239,7 @@ export default function registerSellersRoute(app: Express) {
      what it says.
   ------------------------------------------------------- */
   app.post("/listings/:id/sold", rateLimit(20), (req: Request, res: Response) => {
-    const { deviceId } = req.body ?? {};
+    const { deviceId, buyerThread } = req.body ?? {};
     if (typeof deviceId !== "string" || !deviceId.trim()) {
       return res.status(400).json({ ok: false, error: "Missing deviceId" });
     }
@@ -252,12 +252,67 @@ export default function registerSellersRoute(app: Express) {
       return res.status(403).json({ ok: false, error: "Not your listing" });
     }
 
+    // Who bought it, if it was one of the people who wrote to them here. That
+    // person, and only that person, can then review it, and is asked to.
+    let reviewRequested = false;
+    if (typeof buyerThread === "string" && buyerThread && !listing.soldToDeviceId) {
+      const buyerMessage = (Array.isArray(listing.messages) ? listing.messages : []).find(
+        (m: any) => m?.threadId === buyerThread && m?.author === "buyer" && m?.deviceId
+      );
+      if (!buyerMessage) {
+        return res.status(400).json({ ok: false, error: "No such conversation" });
+      }
+      if (buyerMessage.deviceId === deviceId) {
+        return res.status(400).json({ ok: false, error: "You can't sell it to yourself" });
+      }
+
+      listing.soldToDeviceId = buyerMessage.deviceId;
+      listing.soldToThreadId = buyerThread;
+      listing.messages.push({
+        author: "system",
+        kind: "review-request",
+        message:
+          "This has been marked as sold to you. FlipPilot is a new community, so please find the time to leave the seller a review. It really helps the next person.",
+        deviceId: null,
+        threadId: buyerThread,
+        timestamp: new Date().toISOString(),
+      });
+      reviewRequested = true;
+    }
+
     listing.soldAt = listing.soldAt ?? new Date().toISOString();
     // Sold ends any reservation: the outcome is known.
     listing.reservedAt = null;
     saveListings(listings);
 
-    res.json({ ok: true, soldAt: listing.soldAt, status: "sold" });
+    res.json({ ok: true, soldAt: listing.soldAt, status: "sold", reviewRequested });
+  });
+
+  /* -------------------------------------------------------
+     CAN I REVIEW THIS? For the buyer's chat and the listing page: whether
+     the caller is the person the seller marked it sold to and has not yet
+     reviewed it, and who to review.
+  ------------------------------------------------------- */
+  app.get("/listings/:id/review-status", (req: Request, res: Response) => {
+    const caller = callerDeviceId(req);
+    if (!caller) return res.status(401).json({ ok: false, error: "Missing device id" });
+
+    const listing = loadListings().find((l: any) => String(l.id) === req.params.id);
+    if (!listing) return res.status(404).json({ ok: false, error: "Listing not found" });
+
+    const isBuyer = Boolean(listing.soldAt) && listing.soldToDeviceId === caller;
+    const already = isBuyer
+      ? loadSellerStore().reviews.some(
+          (r) => r.byDeviceId === caller && String(r.listingId) === String(listing.id)
+        )
+      : false;
+
+    res.json({
+      ok: true,
+      canReview: isBuyer && !already,
+      alreadyReviewed: already,
+      sellerId: listing.sellerId ?? null,
+    });
   });
 
   /* -------------------------------------------------------

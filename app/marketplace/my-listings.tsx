@@ -1,5 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { Alert, View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, Linking } from "react-native";
+import {
+  Alert,
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  Image,
+  ActivityIndicator,
+  Linking,
+  Modal,
+  Pressable,
+} from "react-native";
 import { router } from "expo-router";
 import { Export, ShareNetwork } from "phosphor-react-native";
 import { useTheme } from "@/styles/ThemeContext";
@@ -12,12 +23,16 @@ import { deleteMyListing } from "@/utils/myData";
 import { setReserved } from "@/utils/listingActions";
 import StatusBadge from "@/components/marketplace/StatusBadge";
 
+type SoldThread = { threadId: string; lastMessage: string };
+
 export default function MyListings() {
   const theme = useTheme();
 
   const [listings, setListings] = useState<any[]>([]);
   const [exportingId, setExportingId] = useState<string | number | null>(null);
   const [markingId, setMarkingId] = useState<string | number | null>(null);
+  // The listing being marked sold, and the conversations to choose the buyer from.
+  const [soldFor, setSoldFor] = useState<{ item: any; threads: SoldThread[] } | null>(null);
 
   const handleEbayExport = async (item: any) => {
     setExportingId(item.id);
@@ -58,14 +73,14 @@ export default function MyListings() {
 
   // Marking it sold is the only thing "items sold" on your seller profile
   // counts, so the number on your profile is one you have earned.
-  const markSold = async (item: any) => {
+  const markSold = async (item: any, buyerThread?: string) => {
     setMarkingId(item.id);
     try {
       const deviceId = await getDeviceId();
       const res = await fetch(`${BASE_URL}/listings/${item.id}/sold`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deviceId }),
+        body: JSON.stringify({ deviceId, buyerThread }),
       });
       const data = await res.json().catch(() => null);
 
@@ -77,6 +92,9 @@ export default function MyListings() {
       setListings((prev) =>
         prev.map((l) => (l.id === item.id ? { ...l, soldAt: data.soldAt, status: "sold" } : l))
       );
+      if (data.reviewRequested) {
+        Alert.alert("Marked as sold", "The buyer has been asked to leave you a review.");
+      }
     } catch {
       Alert.alert("Couldn't mark it sold", "Please check your connection and try again.");
     } finally {
@@ -120,17 +138,40 @@ export default function MyListings() {
       ]
     );
 
-  const confirmSold = (item: any) =>
-    Alert.alert(
-      "Mark as sold?",
-      "It will show as sold, and count towards the items sold on your seller profile.",
-      [
-        { text: "Not yet", style: "cancel" },
-        { text: "Sold", onPress: () => markSold(item) },
-      ]
-    );
+  // Tapping Sold asks who bought it, out of the people who wrote to you. That
+  // person is asked for a review and is the only one who can leave one, which
+  // is what makes a star rating mean a real sale. No conversations, or sold
+  // somewhere else, and it is simply marked sold.
+  const confirmSold = async (item: any) => {
+    let threads: SoldThread[] = [];
+    try {
+      const deviceId = await getDeviceId();
+      const res = await fetch(`${BASE_URL}/messages/${item.id}`, {
+        headers: { "x-device-id": deviceId },
+      });
+      const data = await res.json();
+      if (Array.isArray(data?.threads)) threads = data.threads;
+    } catch {
+      // Without the list it can still be marked sold, just without a buyer.
+    }
+
+    if (threads.length === 0) {
+      Alert.alert(
+        "Mark as sold?",
+        "It will show as sold, and count towards the items sold on your seller profile.",
+        [
+          { text: "Not yet", style: "cancel" },
+          { text: "Sold", onPress: () => markSold(item) },
+        ]
+      );
+      return;
+    }
+
+    setSoldFor({ item, threads });
+  };
 
   return (
+    <>
     <ScrollView
       style={{ flex: 1, backgroundColor: theme.black }}
       contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
@@ -311,5 +352,94 @@ export default function MyListings() {
         </TouchableOpacity>
       ))}
     </ScrollView>
+
+      {/* WHO BOUGHT IT? */}
+      <Modal
+        visible={soldFor !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSoldFor(null)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}
+          onPress={() => setSoldFor(null)}
+        >
+          <Pressable
+            onPress={() => {}}
+            style={{
+              backgroundColor: theme.background,
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
+              borderWidth: 1,
+              borderColor: theme.goldSoftGlow,
+              padding: 20,
+              paddingBottom: 32,
+              maxHeight: "80%",
+            }}
+          >
+            <Text style={{ color: theme.goldDeep, fontSize: 20, fontWeight: "800", marginBottom: 4 }}>
+              Who bought it?
+            </Text>
+            <Text style={{ color: theme.muted, fontSize: 13, marginBottom: 14 }}>
+              They'll be asked to leave you a review, and they're the only one who can.
+            </Text>
+
+            <ScrollView>
+              {soldFor?.threads.map((t) => (
+                <TouchableOpacity
+                  key={t.threadId}
+                  accessibilityRole="button"
+                  onPress={() => {
+                    const pick = soldFor;
+                    setSoldFor(null);
+                    if (pick) markSold(pick.item, t.threadId);
+                  }}
+                  style={{
+                    backgroundColor: theme.card,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: theme.goldSoftGlow,
+                    padding: 12,
+                    marginBottom: 8,
+                  }}
+                >
+                  <Text style={{ color: theme.text, fontWeight: "700" }}>
+                    Buyer #{t.threadId.slice(-4)}
+                  </Text>
+                  <Text style={{ color: theme.muted, fontSize: 13, marginTop: 2 }} numberOfLines={2}>
+                    {t.lastMessage}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+
+              <TouchableOpacity
+                accessibilityRole="button"
+                onPress={() => {
+                  const pick = soldFor;
+                  setSoldFor(null);
+                  if (pick) markSold(pick.item);
+                }}
+                style={{
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: theme.muted,
+                  padding: 12,
+                  marginBottom: 8,
+                }}
+              >
+                <Text style={{ color: theme.text, fontWeight: "700" }}>Sold outside FlipPilot</Text>
+                <Text style={{ color: theme.muted, fontSize: 13, marginTop: 2 }}>
+                  No review can be left for this one.
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={() => setSoldFor(null)} style={{ alignItems: "center", paddingTop: 10 }}>
+                <Text style={{ color: theme.muted, fontWeight: "700" }}>Not yet</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </>
   );
 }

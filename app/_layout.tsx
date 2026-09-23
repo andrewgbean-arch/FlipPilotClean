@@ -86,6 +86,7 @@ const SCREEN_TITLES: Record<string, string> = {
   "scan/scan-results": "Scan result",
   "flip/[id]": "Flip details",
   "mot/[id]": "MOT history",
+  "messages/index": "Messages",
   "messages/[id]": "Message seller",
   bootfairs: "Bootfairs & Events",
   vehicles: "Vehicles",

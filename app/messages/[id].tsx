@@ -24,12 +24,16 @@ import {
 } from "@/utils/scamSafety";
 import SafetyCard from "@/components/marketplace/SafetyCard";
 import ReportSheet from "@/components/marketplace/ReportSheet";
+import ReviewSheet from "@/components/marketplace/ReviewSheet";
+import { getReviewStatus, type ReviewStatus } from "@/utils/reviewStatus";
 
 type ChatMessage = {
   from: "me" | "them";
   sender: string;
   message: string;
   timestamp: string;
+  // Set on FlipPilot's own "please leave a review" note to the buyer.
+  kind?: "review-request";
 };
 
 type Thread = {
@@ -95,16 +99,20 @@ function ScamWarningNote({ warning }: { warning: ScamWarning }) {
 
 export default function MessagesScreen() {
   const theme = useTheme();
-  const { id } = useLocalSearchParams<{ id?: string | string[] }>();
+  const { id, thread } = useLocalSearchParams<{ id?: string | string[]; thread?: string | string[] }>();
   const listingId = Array.isArray(id) ? id[0] : id;
+  // Opened from the inbox, a seller lands straight in that buyer's conversation.
+  const initialThread = Array.isArray(thread) ? thread[0] : thread;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [threads, setThreads] = useState<Thread[]>([]);
   // The seller sees one conversation per buyer; a buyer only ever has one.
   const [role, setRole] = useState<"buyer" | "seller" | null>(null);
-  const [activeThread, setActiveThread] = useState<string | null>(null);
+  const [activeThread, setActiveThread] = useState<string | null>(initialThread ?? null);
   const [blocked, setBlocked] = useState(false);
   const [reporting, setReporting] = useState(false);
+  const [reviewStatus, setReviewStatus] = useState<ReviewStatus | null>(null);
+  const [reviewing, setReviewing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -142,6 +150,15 @@ export default function MessagesScreen() {
   }, [listingId, activeThread]);
 
   const inInbox = role === "seller" && !activeThread;
+
+  // Once the seller has marked it sold to this buyer, FlipPilot leaves a note in
+  // the chat asking for a review. Ask the server whether this person may still
+  // leave one, so the button only shows when it will work.
+  const hasReviewRequest = role === "buyer" && messages.some((m) => m.kind === "review-request");
+  useEffect(() => {
+    if (!hasReviewRequest || !listingId) return;
+    getReviewStatus(listingId).then(setReviewStatus);
+  }, [hasReviewRequest, listingId]);
 
   const sendMessage = async () => {
     if (!draft.trim() || !listingId) return;
@@ -367,6 +384,23 @@ export default function MessagesScreen() {
                 </Text>
               </View>
 
+              {m.kind === "review-request" && reviewStatus?.canReview ? (
+                <TouchableOpacity
+                  onPress={() => setReviewing(true)}
+                  accessibilityRole="button"
+                  style={{
+                    alignSelf: "flex-start",
+                    backgroundColor: theme.goldDeep,
+                    borderRadius: theme.radius.full,
+                    paddingHorizontal: 16,
+                    paddingVertical: 10,
+                    marginBottom: 12,
+                  }}
+                >
+                  <Text style={{ color: theme.black, fontWeight: "800" }}>Leave a review</Text>
+                </TouchableOpacity>
+              ) : null}
+
               {/* Named right under the message it came from. */}
               {warnings.map((warning) => (
                 <ScamWarningNote key={`${i}-${warning.id}`} warning={warning} />
@@ -430,6 +464,16 @@ export default function MessagesScreen() {
         </TouchableOpacity>
       </View>
       )}
+
+      {reviewStatus?.sellerId && listingId ? (
+        <ReviewSheet
+          visible={reviewing}
+          onClose={() => setReviewing(false)}
+          onDone={() => setReviewStatus({ ...reviewStatus, canReview: false, alreadyReviewed: true })}
+          sellerId={reviewStatus.sellerId}
+          listingId={listingId}
+        />
+      ) : null}
 
       <ReportSheet
         visible={reporting}

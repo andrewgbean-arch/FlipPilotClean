@@ -1,6 +1,8 @@
 import { Express, Request, Response } from "express";
 import { rateLimit } from "../middleware/rateLimit";
-import { callerDeviceId } from "./messages";
+import { callerDeviceId, threadIdFor } from "./messages";
+import { listingStatus } from "../utils/listingStatus";
+import { mediaForListing } from "../utils/media";
 import { loadListings, saveListings } from "./publishedListings";
 import { loadFairs, saveFairs } from "./fairs";
 import { deleteUploads } from "../utils/uploadStore";
@@ -35,6 +37,68 @@ function adminOk(req: Request, res: Response): boolean {
 }
 
 export default function registerMeRoute(app: Express) {
+  /* -------------------------------------------------------
+     MY MESSAGES: every conversation across every listing, newest first.
+     Ones where you are the buyer (one per listing you wrote to) and ones where
+     you are the seller (one per person who wrote to you, per listing).
+  ------------------------------------------------------- */
+  app.get("/me/conversations", rateLimit(60), (req: Request, res: Response) => {
+    const caller = callerDeviceId(req);
+    if (!caller) return res.status(401).json({ ok: false, error: "Missing device id" });
+
+    type Entry = {
+      listingId: number | string;
+      title: string;
+      thumbnail: string | null;
+      status: string;
+      role: "buyer" | "seller";
+      threadId: string | null;
+      lastMessage: string;
+      lastFrom: "me" | "them";
+      lastAt: string;
+      count: number;
+    };
+    const out: Entry[] = [];
+
+    for (const l of loadListings()) {
+      const messages: any[] = (Array.isArray(l.messages) ? l.messages : []).filter(
+        (m: any) => typeof m?.threadId === "string" && m.threadId
+      );
+      if (messages.length === 0) continue;
+
+      const asSeller = l.deviceId === caller;
+      const threads = new Map<string, any[]>();
+      for (const m of messages) {
+        if (!asSeller && m.threadId !== threadIdFor(l.id, caller)) continue;
+        (threads.get(m.threadId) ?? threads.set(m.threadId, []).get(m.threadId)!).push(m);
+      }
+
+      const thumb = mediaForListing({ photos: l.photos, bestThumbnail: null }, req).photos?.[0] ?? null;
+
+      for (const [threadId, msgs] of threads) {
+        const last = msgs[msgs.length - 1];
+        // "me" is whoever is asking: the buyer's own words if a buyer, the seller's if a seller.
+        const mine = asSeller ? last.author === "seller" : last.author === "buyer";
+        out.push({
+          listingId: l.id,
+          title: typeof l.title === "string" ? l.title : "Listing",
+          thumbnail: typeof thumb === "string" ? thumb : null,
+          status: listingStatus(l),
+          role: asSeller ? "seller" : "buyer",
+          threadId: asSeller ? threadId : null,
+          lastMessage: String(last.message ?? "").slice(0, 120),
+          // FlipPilot's own note is the seller's action to the seller and news to the buyer.
+          lastFrom: last.author === "system" ? (asSeller ? "me" : "them") : mine ? "me" : "them",
+          lastAt: String(last.timestamp ?? ""),
+          count: msgs.length,
+        });
+      }
+    }
+
+    out.sort((a, b) => b.lastAt.localeCompare(a.lastAt));
+    res.json({ ok: true, conversations: out });
+  });
+
   app.get("/me/export", rateLimit(10), (req: Request, res: Response) => {
     const deviceId = callerDeviceId(req);
     if (!deviceId) return res.status(401).json({ ok: false, error: "Missing device id" });

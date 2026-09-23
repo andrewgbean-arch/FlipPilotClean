@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, ActivityIndicator, Pressable, TextInput, Alert } from "react-native";
+import { View, Text, ActivityIndicator, Pressable } from "react-native";
 
 import { useTheme } from "@/styles/ThemeContext";
 import { BASE_URL } from "@/utils/api";
-import { getDeviceId } from "@/utils/deviceId";
+import { getReviewStatus } from "@/utils/reviewStatus";
 import StarRating from "@/components/marketplace/StarRating";
+import ReviewSheet from "@/components/marketplace/ReviewSheet";
 
 type Review = {
   id: string;
@@ -55,9 +56,8 @@ export default function SellerPanel({
   const [state, setState] = useState<"loading" | "ready" | "failed">("loading");
 
   const [writing, setWriting] = useState(false);
-  const [stars, setStars] = useState(0);
-  const [comment, setComment] = useState("");
-  const [sending, setSending] = useState(false);
+  // Only the person the seller marked this item as sold to may review it.
+  const [canReview, setCanReview] = useState(false);
 
   const load = useCallback(async () => {
     if (!sellerId) return setState("failed");
@@ -74,38 +74,8 @@ export default function SellerPanel({
 
   useEffect(() => {
     load();
-  }, [load]);
-
-  const submitReview = async () => {
-    if (stars < 1) return Alert.alert("Pick a number of stars first");
-
-    setSending(true);
-    try {
-      const deviceId = await getDeviceId();
-      const res = await fetch(`${BASE_URL}/sellers/${sellerId}/reviews`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deviceId, listingId, stars, comment }),
-      });
-      const data = await res.json().catch(() => null);
-
-      if (!data?.ok) {
-        // The server's own words: you can't review yourself, you haven't
-        // messaged them, or you have already left one.
-        Alert.alert("Couldn't leave that review", data?.message ?? "Please try again.");
-        return;
-      }
-
-      setWriting(false);
-      setStars(0);
-      setComment("");
-      await load();
-    } catch {
-      Alert.alert("Couldn't leave that review", "Check your connection and try again.");
-    } finally {
-      setSending(false);
-    }
-  };
+    getReviewStatus(listingId).then((status) => setCanReview(status.canReview));
+  }, [load, listingId]);
 
   const card = {
     backgroundColor: theme.card,
@@ -198,84 +168,36 @@ export default function SellerPanel({
         </View>
       )}
 
-      {/* LEAVE ONE */}
-      {!writing ? (
-        <Pressable
-          onPress={() => setWriting(true)}
-          style={{
-            marginTop: 14,
-            paddingVertical: 10,
-            borderRadius: 999,
-            borderWidth: 1,
-            borderColor: theme.goldDeep,
-            alignItems: "center",
-          }}
-        >
-          <Text style={{ color: theme.goldDeep, fontWeight: "700" }}>
-            Leave a review
-          </Text>
-        </Pressable>
-      ) : (
-        <View style={{ marginTop: 14, gap: 10 }}>
-          <Text style={{ color: theme.text, fontSize: 14 }}>How did it go?</Text>
-          <StarRating stars={stars || null} size={26} onPick={setStars} />
-
-          <TextInput
-            value={comment}
-            onChangeText={setComment}
-            multiline
-            placeholder="Anything worth saying (optional)"
-            placeholderTextColor={theme.muted}
+      {/* LEAVE ONE: only for the person the seller sold this to. Nobody else is
+          shown a button, because nobody else can post one. */}
+      {canReview && sellerId ? (
+        <>
+          <Pressable
+            onPress={() => setWriting(true)}
             style={{
-              backgroundColor: theme.background,
-              color: theme.white,
-              borderRadius: 12,
+              marginTop: 14,
+              paddingVertical: 10,
+              borderRadius: 999,
               borderWidth: 1,
-              borderColor: theme.hairline,
-              padding: 12,
-              minHeight: 70,
-              textAlignVertical: "top",
+              borderColor: theme.goldDeep,
+              alignItems: "center",
             }}
+          >
+            <Text style={{ color: theme.goldDeep, fontWeight: "700" }}>Leave a review</Text>
+          </Pressable>
+
+          <ReviewSheet
+            visible={writing}
+            onClose={() => setWriting(false)}
+            onDone={() => {
+              setCanReview(false);
+              load();
+            }}
+            sellerId={sellerId}
+            listingId={listingId}
           />
-
-          <Text style={{ color: theme.muted, fontSize: 12 }}>
-            You can review a seller once you've messaged them about the item.
-          </Text>
-
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            <Pressable
-              onPress={() => setWriting(false)}
-              style={{
-                flex: 1,
-                paddingVertical: 10,
-                borderRadius: 999,
-                borderWidth: 1,
-                borderColor: theme.muted,
-                alignItems: "center",
-              }}
-            >
-              <Text style={{ color: theme.text }}>Cancel</Text>
-            </Pressable>
-
-            <Pressable
-              onPress={submitReview}
-              disabled={sending}
-              style={{
-                flex: 1,
-                paddingVertical: 10,
-                borderRadius: 999,
-                backgroundColor: theme.goldDeep,
-                alignItems: "center",
-                opacity: sending ? 0.6 : 1,
-              }}
-            >
-              <Text style={{ color: theme.black, fontWeight: "800" }}>
-                {sending ? "Sending…" : "Post review"}
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-      )}
+        </>
+      ) : null}
     </View>
   );
 }

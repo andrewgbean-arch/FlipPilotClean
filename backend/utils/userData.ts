@@ -39,7 +39,7 @@ export function exportUserData(deviceId: string) {
         .filter((m: any) => m?.threadId)
         .reduce((acc: Record<string, any[]>, m: any) => {
           (acc[m.threadId] ??= []).push({
-            from: m.author === "seller" ? "you" : "buyer",
+            from: m.author === "system" ? "FlipPilot" : m.author === "seller" ? "you" : "buyer",
             message: m.message,
             timestamp: iso(m.timestamp),
           });
@@ -61,7 +61,7 @@ export function exportUserData(deviceId: string) {
             listingId: l.id,
             listingTitle: l.title ?? null,
             messages: thread.map((m: any) => ({
-              from: m.author === "buyer" ? "you" : "seller",
+              from: m.author === "system" ? "FlipPilot" : m.author === "buyer" ? "you" : "seller",
               message: m.message,
               timestamp: iso(m.timestamp),
             })),

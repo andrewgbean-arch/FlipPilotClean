@@ -33,20 +33,24 @@ export function threadIdFor(listingId: string | number, buyerDeviceId: string): 
 }
 
 type StoredMessage = {
-  author: "buyer" | "seller";
+  // "system" is FlipPilot itself, for example asking the buyer for a review once
+  // the seller has marked the item sold to them. Nobody can post as it.
+  author: "buyer" | "seller" | "system";
   message: string;
-  deviceId: string;
+  deviceId: string | null;
   threadId: string;
   timestamp: string;
+  kind?: "review-request";
 };
 
 /** What a client is allowed to see of a message. */
 function view(m: StoredMessage, role: "buyer" | "seller") {
   return {
-    from: m.author === role ? "me" : "them",
-    sender: m.author === "seller" ? "Seller" : "Buyer",
+    from: m.author === "system" ? "them" : m.author === role ? "me" : "them",
+    sender: m.author === "system" ? "FlipPilot" : m.author === "seller" ? "Seller" : "Buyer",
     message: m.message,
     timestamp: m.timestamp,
+    ...(m.kind ? { kind: m.kind } : {}),
   };
 }
 
@@ -102,10 +106,11 @@ export default function registerMessagesRoute(app: Express) {
       if (!buyerMessage) {
         return res.status(404).json({ ok: false, error: "No such conversation" });
       }
-      if (isBlockedEitherWay(owner!, buyerMessage.deviceId)) {
+      const buyerDevice = buyerMessage.deviceId as string;
+      if (isBlockedEitherWay(owner!, buyerDevice)) {
         return res.status(403).json({
           ok: false,
-          error: hasBlocked(owner!, buyerMessage.deviceId)
+          error: hasBlocked(owner!, buyerDevice)
             ? "You have blocked this person."
             : "This person isn't taking messages from you.",
         });
@@ -180,7 +185,8 @@ export default function registerMessagesRoute(app: Express) {
         return {
           threadId,
           lastMessage: last.message.slice(0, 120),
-          lastFrom: last.author === "seller" ? "me" : "them",
+          // FlipPilot's own notes are not the buyer speaking, so not "them".
+          lastFrom: last.author === "buyer" ? "them" : "me",
           lastAt: last.timestamp,
           count: msgs.length,
         };
