@@ -12,6 +12,7 @@ import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/styles/ThemeContext";
 
 import { BASE_URL } from "@/utils/api";
+import { getDeviceId } from "@/utils/deviceId";
 import { findBestDeals } from "@/utils/dealFinder";
 import GoldParticles from "@/components/ui/GoldParticles";
 import { MARKETPLACE_CATEGORIES } from "@/constants/marketplaceCategories";
@@ -23,7 +24,10 @@ export default function MarketplaceHub() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${BASE_URL}/published-listings`)
+    getDeviceId()
+      .then((deviceId) =>
+        fetch(`${BASE_URL}/published-listings`, { headers: { "x-device-id": deviceId } })
+      )
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
         const listings = Array.isArray(data) ? data : [];

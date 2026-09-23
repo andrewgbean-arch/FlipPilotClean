@@ -13,6 +13,7 @@ import HeroHeader from "@/components/ui/HeroHeader";
 import GlowPulseCard from "@/components/ui/GlowPulseCard";
 
 import SellerPanel from "@/components/marketplace/SellerPanel";
+import ListingActions from "@/components/marketplace/ListingActions";
 
 import { BASE_URL } from "@/utils/api";
 import { categoryLabel, fieldsFor } from "@/constants/marketplaceCategories";
@@ -160,6 +161,8 @@ export default function ListingDetails() {
 
           {/* ⭐ Seller — counted from what really happened, not defaults */}
           <SellerPanel sellerId={listing.sellerId} listingId={listing.id} />
+
+          <ListingActions listingId={listing.id} sold={Boolean(listing.soldAt)} />
 
           <SafetyCard title="Before you buy this" tips={BUYER_SAFETY_TIPS} />
         </View>

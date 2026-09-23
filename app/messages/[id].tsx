@@ -23,14 +23,24 @@ import {
   RISKY_TO_SEND,
 } from "@/utils/scamSafety";
 import SafetyCard from "@/components/marketplace/SafetyCard";
+import ReportSheet from "@/components/marketplace/ReportSheet";
 
 type ChatMessage = {
+  from: "me" | "them";
   sender: string;
   message: string;
   timestamp: string;
 };
 
-const MY_SENDER_NAME = "You";
+type Thread = {
+  threadId: string;
+  lastMessage: string;
+  lastFrom: "me" | "them";
+  lastAt: string;
+  count: number;
+};
+
+const REFRESH_MS = 8000;
 
 /** One last look before your own details leave the phone. */
 function confirmRiskySend(warnings: ScamWarning[]): Promise<boolean> {
@@ -89,6 +99,12 @@ export default function MessagesScreen() {
   const listingId = Array.isArray(id) ? id[0] : id;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [threads, setThreads] = useState<Thread[]>([]);
+  // The seller sees one conversation per buyer; a buyer only ever has one.
+  const [role, setRole] = useState<"buyer" | "seller" | null>(null);
+  const [activeThread, setActiveThread] = useState<string | null>(null);
+  const [blocked, setBlocked] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -97,9 +113,19 @@ export default function MessagesScreen() {
   const loadMessages = async () => {
     if (!listingId) return;
     try {
-      const res = await fetch(`${BASE_URL}/messages/${listingId}`);
+      // Who you are is your device id; the server decides what you may read.
+      const deviceId = await getDeviceId();
+      const query = activeThread ? `?thread=${encodeURIComponent(activeThread)}` : "";
+      const res = await fetch(`${BASE_URL}/messages/${listingId}${query}`, {
+        headers: { "x-device-id": deviceId },
+      });
       const data = await res.json();
-      if (data.ok) setMessages(data.messages ?? []);
+      if (!data.ok) return;
+
+      setRole(data.role);
+      setBlocked(Boolean(data.blocked));
+      if (data.threads) setThreads(data.threads);
+      if (data.messages) setMessages(data.messages);
     } catch (err) {
       console.log("❌ Load messages error:", err);
     } finally {
@@ -108,8 +134,14 @@ export default function MessagesScreen() {
   };
 
   useEffect(() => {
+    setLoading(true);
     loadMessages();
-  }, [listingId]);
+    // A reply has to turn up without leaving and coming back.
+    const timer = setInterval(loadMessages, REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [listingId, activeThread]);
+
+  const inInbox = role === "seller" && !activeThread;
 
   const sendMessage = async () => {
     if (!draft.trim() || !listingId) return;
@@ -124,25 +156,82 @@ export default function MessagesScreen() {
     setSending(true);
 
     try {
-      // The device id is what lets this person review the seller afterwards.
-      // It is stored on the message and never sent back out to anyone.
+      // The device id is how the server knows who is talking, and what lets a
+      // buyer review the seller afterwards. It is never sent back out.
       const deviceId = await getDeviceId();
       const res = await fetch(`${BASE_URL}/messages/${listingId}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sender: MY_SENDER_NAME, message: text, deviceId }),
+        headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+        body: JSON.stringify({ message: text, thread: activeThread ?? undefined }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => null);
 
-      if (data.ok) {
+      if (data?.ok) {
         setMessages((prev) => [...prev, data.message]);
         setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+      } else {
+        setDraft(text);
+        Alert.alert("Couldn't send", data?.error ?? "Please try again.");
       }
     } catch (err) {
-      console.log("❌ Send message error:", err);
+      setDraft(text);
+      Alert.alert("Couldn't send", "Please check your connection and try again.");
     } finally {
       setSending(false);
     }
+  };
+
+  const setBlock = async (block: boolean) => {
+    try {
+      const deviceId = await getDeviceId();
+      const res = await fetch(`${BASE_URL}/safety/${block ? "block" : "unblock"}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+        body: JSON.stringify({ listingId, thread: activeThread ?? undefined }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!data?.ok) {
+        Alert.alert("Couldn't do that", data?.error ?? "Please try again.");
+        return;
+      }
+      setBlocked(block);
+    } catch {
+      Alert.alert("Couldn't do that", "Please check your connection and try again.");
+    }
+  };
+
+  const openMenu = () =>
+    Alert.alert(
+      "This conversation",
+      blocked ? "You have blocked this person." : undefined,
+      [
+        { text: "Report", onPress: () => setReporting(true) },
+        blocked
+          ? { text: "Unblock", onPress: () => setBlock(false) }
+          : {
+              text: "Block",
+              style: "destructive",
+              onPress: () =>
+                Alert.alert(
+                  "Block this person?",
+                  "They won't be able to message you about this listing, and you won't be able to message them.",
+                  [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Block", style: "destructive", onPress: () => setBlock(true) },
+                  ]
+                ),
+            },
+        { text: "Cancel", style: "cancel" },
+      ]
+    );
+
+  const goBack = () => {
+    if (role === "seller" && activeThread) {
+      setActiveThread(null);
+      setMessages([]);
+      return;
+    }
+    router.canGoBack() ? router.back() : router.push("/marketplace");
   };
 
   return (
@@ -162,16 +251,22 @@ export default function MessagesScreen() {
           borderBottomColor: theme.goldSoftGlow,
         }}
       >
-        <TouchableOpacity
-          onPress={() => (router.canGoBack() ? router.back() : router.push("/marketplace"))}
-          hitSlop={10}
-          style={{ marginRight: 12 }}
-        >
+        <TouchableOpacity onPress={goBack} hitSlop={10} style={{ marginRight: 12 }}>
           <Feather name="chevron-left" size={24} color={theme.muted} />
         </TouchableOpacity>
-        <Text style={{ color: theme.goldDeep, fontSize: 20, fontWeight: "800" }}>
-          Message Seller
+        <Text style={{ color: theme.goldDeep, fontSize: 20, fontWeight: "800", flex: 1 }}>
+          {role === "seller" ? (inInbox ? "Your messages" : "Buyer") : "Message Seller"}
         </Text>
+        {!inInbox && (
+          <TouchableOpacity
+            onPress={openMenu}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Report or block"
+          >
+            <Feather name="more-vertical" size={22} color={theme.muted} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* MESSAGES */}
@@ -179,6 +274,45 @@ export default function MessagesScreen() {
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <ActivityIndicator size="large" color={theme.goldDeep} />
         </View>
+      ) : inInbox ? (
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+          {threads.length === 0 && (
+            <Text style={{ color: theme.muted, textAlign: "center", marginTop: 20 }}>
+              No messages yet. When a buyer writes to you, it will appear here.
+            </Text>
+          )}
+          {threads.map((t) => (
+            <TouchableOpacity
+              key={t.threadId}
+              onPress={() => {
+                setMessages([]);
+                setActiveThread(t.threadId);
+              }}
+              accessibilityRole="button"
+              style={{
+                backgroundColor: theme.card,
+                borderRadius: theme.radius.md,
+                borderWidth: 1,
+                borderColor: theme.goldSoftGlow,
+                padding: 12,
+                marginBottom: 10,
+              }}
+            >
+              <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                <Text style={{ color: theme.goldDeep, fontWeight: "700" }}>
+                  Buyer #{t.threadId.slice(-4)}
+                </Text>
+                <Text style={{ color: theme.muted, fontSize: 11 }}>
+                  {new Date(t.lastAt).toLocaleDateString()}
+                </Text>
+              </View>
+              <Text style={{ color: theme.text, marginTop: 4 }} numberOfLines={2}>
+                {t.lastFrom === "me" ? "You: " : ""}
+                {t.lastMessage}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       ) : (
         <ScrollView
           ref={scrollRef}
@@ -195,7 +329,7 @@ export default function MessagesScreen() {
           )}
 
           {messages.map((m, i) => {
-            const isMine = m.sender === MY_SENDER_NAME;
+            const isMine = m.from === "me";
             // Only what the other person sends is checked. Warning someone
             // about their own words would just be noise.
             const warnings = isMine ? [] : checkMessage(m.message);
@@ -244,6 +378,14 @@ export default function MessagesScreen() {
       )}
 
       {/* COMPOSER */}
+      {!inInbox && blocked && (
+        <View style={{ padding: 14, borderTopWidth: 1, borderTopColor: theme.goldSoftGlow }}>
+          <Text style={{ color: theme.muted, textAlign: "center", fontSize: 13 }}>
+            You have blocked this person. Use the menu at the top to unblock them.
+          </Text>
+        </View>
+      )}
+      {!inInbox && !blocked && (
       <View
         style={{
           flexDirection: "row",
@@ -287,6 +429,14 @@ export default function MessagesScreen() {
           <Feather name="send" size={18} color={theme.black} />
         </TouchableOpacity>
       </View>
+      )}
+
+      <ReportSheet
+        visible={reporting}
+        onClose={() => setReporting(false)}
+        listingId={listingId ?? ""}
+        thread={activeThread}
+      />
     </KeyboardAvoidingView>
   );
 }

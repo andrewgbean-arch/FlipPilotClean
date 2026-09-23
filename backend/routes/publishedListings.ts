@@ -2,6 +2,7 @@ import { Express, Request, Response } from "express";
 import fs from "fs";
 import path from "path";
 import { toPublicListing } from "../utils/sellerOrigin";
+import { blockedBy } from "../utils/safetyStore";
 
 const LISTINGS_PATH = path.join(__dirname, "../data/published-listings.json");
 
@@ -15,8 +16,17 @@ export function saveListings(listings: any[]) {
 }
 
 export default function registerPublishedListingsRoute(app: Express) {
-  app.get("/published-listings", (_req: Request, res: Response) => {
-    res.json(loadListings().map(toPublicListing));
+  app.get("/published-listings", (req: Request, res: Response) => {
+    // Someone you have blocked stops appearing in what you browse.
+    const header = req.headers["x-device-id"];
+    const caller = (Array.isArray(header) ? header[0] : header)?.trim();
+    const hidden = caller ? blockedBy(caller) : [];
+
+    res.json(
+      loadListings()
+        .filter((l: any) => !(typeof l.deviceId === "string" && hidden.includes(l.deviceId)))
+        .map(toPublicListing)
+    );
   });
 
   app.get("/published-listings/:id", (req: Request, res: Response) => {

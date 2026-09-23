@@ -12,6 +12,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useTheme } from "@/styles/ThemeContext";
 
 import { BASE_URL } from "@/utils/api";
+import { getDeviceId } from "@/utils/deviceId";
 import {
   MARKETPLACE_CATEGORIES,
   categoryLabel,
@@ -32,7 +33,11 @@ export default function Listings() {
   );
 
   useEffect(() => {
-    fetch(`${BASE_URL}/published-listings`)
+    // Sending who you are lets the server leave out sellers you've blocked.
+    getDeviceId()
+      .then((deviceId) =>
+        fetch(`${BASE_URL}/published-listings`, { headers: { "x-device-id": deviceId } })
+      )
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
         setListings(Array.isArray(data) ? data : []);

@@ -123,13 +123,13 @@ export default function registerPublishListingRoute(app: Express) {
 
   /* -------------------------------------------------------
      MY LISTINGS
-     Filtered to the caller's own deviceId when sent. An older client
-     that doesn't send one still gets everything, rather than nothing.
+     Only ever the caller's own. With no device id there is no "own", so
+     the answer is nothing rather than everybody's listings.
   ------------------------------------------------------- */
   app.get("/my-listings", (req: Request, res: Response) => {
-    const deviceId = typeof req.query.deviceId === "string" ? req.query.deviceId : null;
-    const listings = loadListings();
-    const mine = deviceId ? listings.filter((l: any) => l.deviceId === deviceId) : listings;
+    const deviceId = typeof req.query.deviceId === "string" ? req.query.deviceId.trim() : "";
+    if (!deviceId) return res.json([]);
+    const mine = loadListings().filter((l: any) => l.deviceId === deviceId);
     res.json(mine.map(toPublicListing));
   });
 
