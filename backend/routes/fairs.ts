@@ -2,6 +2,7 @@ import { Express, Request, Response } from "express";
 import fs from "fs";
 import path from "path";
 import { rateLimit } from "../middleware/rateLimit";
+import { callerDeviceId } from "./messages";
 
 const FAIRS_PATH = path.join(__dirname, "../data/fairs.json");
 
@@ -40,6 +41,22 @@ const REQUIRED_FIELDS = [
 // be wrong the fix is a new listing, not silent edits to a public record.
 const PATCHABLE_FIELDS = ["cancelledDueToWeather", "featuredUntil"];
 
+/**
+ * A fair as the caller may see it. The owner's device id is the only thing that
+ * proves who may manage a fair, so it never leaves the server: the caller is
+ * just told whether the fair is theirs. The organiser's email is only sent
+ * when they chose to show it (or to the organiser themselves).
+ */
+function toPublicFair(fair: any, caller: string | null) {
+  const { ownerDeviceId, ...rest } = fair;
+  const isMine = Boolean(caller) && ownerDeviceId === caller;
+  return {
+    ...rest,
+    email: isMine || rest.displayEmailPublicly ? rest.email : "",
+    isMine,
+  };
+}
+
 function str(v: unknown, fallback = ""): string {
   return typeof v === "string" ? v : fallback;
 }
@@ -53,14 +70,15 @@ export default function registerFairsRoute(app: Express) {
      has listed. Bootfairs/index.tsx and search.tsx both filter
      and sort this client-side (search radius, "featured" etc).
   ------------------------------------------------------- */
-  app.get("/fairs", (_req: Request, res: Response) => {
-    res.json(loadFairs());
+  app.get("/fairs", (req: Request, res: Response) => {
+    const caller = callerDeviceId(req);
+    res.json(loadFairs().map((f) => toPublicFair(f, caller)));
   });
 
   app.get("/fairs/:id", (req: Request, res: Response) => {
     const fair = loadFairs().find((f) => f.id === req.params.id);
     if (!fair) return res.status(404).json({ ok: false, error: "Boot fair not found" });
-    res.json(fair);
+    res.json(toPublicFair(fair, callerDeviceId(req)));
   });
 
   /* -------------------------------------------------------
@@ -137,7 +155,7 @@ export default function registerFairsRoute(app: Express) {
     fairs.unshift(fair);
     saveFairs(fairs);
 
-    res.json({ ok: true, fair });
+    res.json({ ok: true, fair: toPublicFair(fair, body.deviceId) });
   });
 
   /* -------------------------------------------------------
@@ -168,6 +186,6 @@ export default function registerFairsRoute(app: Express) {
     fairs[index] = { ...fairs[index], ...patch, lastUpdated: new Date().toISOString() };
     saveFairs(fairs);
 
-    res.json({ ok: true, fair: fairs[index] });
+    res.json({ ok: true, fair: toPublicFair(fairs[index], deviceId) });
   });
 }

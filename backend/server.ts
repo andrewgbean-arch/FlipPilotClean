@@ -40,7 +40,19 @@ if (trustProxyHops > 0) app.set("trust proxy", trustProxyHops);
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 app.use(helmet());
-app.use(morgan("dev"));
+// Method, path, status and time. The query string is left out on purpose: it
+// carries device ids, barcodes and vehicle registrations, which have no
+// business sitting in the host's logs.
+app.use(
+  morgan((tokens, req, res) =>
+    [
+      tokens.method(req, res),
+      (req.originalUrl || req.url || "").split("?")[0],
+      tokens.status(req, res),
+      `${tokens["response-time"](req, res)}ms`,
+    ].join(" ")
+  )
+);
 
 /* -------------------------------------------------------
    DISABLE ALL CACHING

@@ -3,9 +3,9 @@ import { BASE_URL } from "@/utils/api";
 
 export interface Fair {
   id: string;
-  // Set by the server once a fair exists; a fair this client just built to
-  // POST doesn't have one yet.
-  ownerDeviceId?: string;
+  // Whether this device listed the fair. The server works it out; the owner's
+  // device id itself is never sent to anyone.
+  isMine?: boolean;
 
   name: string;
   postcode: string;
@@ -67,7 +67,8 @@ export function isFeatured(fair: Fair): boolean {
 // organiser's phone.
 export async function getAllFairs(): Promise<Fair[]> {
   try {
-    const res = await fetch(`${BASE_URL}/fairs`);
+    const deviceId = await getDeviceId();
+    const res = await fetch(`${BASE_URL}/fairs`, { headers: { "x-device-id": deviceId } });
     if (!res.ok) return [];
     const data = await res.json();
     return Array.isArray(data) ? data : [];

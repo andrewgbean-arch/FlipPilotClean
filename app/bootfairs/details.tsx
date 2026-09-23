@@ -47,7 +47,6 @@ import { useTheme } from "@/styles/ThemeContext";
 import { useSubscription } from "@/context/SubscriptionContext";
 
 import { Fair, getAllFairs, isFeatured, updateUserFair } from "../../src/lib/fairs";
-import { getDeviceId } from "@/utils/deviceId";
 
 // 30 days is a simple, predictable promotion window - independent of whether
 // the organiser keeps nextDate fresh for a recurring fair.
@@ -244,14 +243,13 @@ export default function BootfairDetails() {
     let active = true;
 
     // Fairs live on the shared backend now, so this is a real network fetch.
-    Promise.all([getAllFairs(), getDeviceId()]).then(([all, deviceId]) => {
+    getAllFairs().then((all) => {
       if (!active) return;
       const found = all.find((f) => f.id === id) ?? null;
       setFair(found);
-      // The only fairs this device is allowed to manage are ones it listed
-      // itself - checked against the server's own ownerDeviceId, not a
-      // locally-remembered list.
-      setIsMine(Boolean(found && found.ownerDeviceId === deviceId));
+      // The server says whether this device listed it; the owner's device id
+      // is never sent to anyone else.
+      setIsMine(Boolean(found?.isMine));
       setLoading(false);
     });
 
