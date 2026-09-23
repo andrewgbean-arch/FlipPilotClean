@@ -13,7 +13,6 @@ import { useTheme } from "@/styles/ThemeContext";
 
 import { BASE_URL } from "@/utils/api";
 import { getDeviceId } from "@/utils/deviceId";
-import { findBestDeals } from "@/utils/dealFinder";
 import GoldParticles from "@/components/ui/GoldParticles";
 import { MARKETPLACE_CATEGORIES } from "@/constants/marketplaceCategories";
 
@@ -31,11 +30,13 @@ export default function MarketplaceHub() {
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
         const listings = Array.isArray(data) ? data : [];
-        // Rank by deal strength (price vs score vs mileage) instead of showing raw insertion order
-        const ranked = findBestDeals(
-          listings.map((l: any) => ({ ...l, score: l.flipScore ?? l.score ?? 0 }))
-        );
-        setTrending(ranked);
+        // Newest first, and only what is still for sale. Ranking by a "deal score"
+        // would mean using eBay-derived pricing inside the marketplace.
+        const newest = listings
+          .filter((l: any) => !l.soldAt)
+          .sort((a: any, b: any) => String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? "")))
+          .slice(0, 5);
+        setTrending(newest);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -55,7 +56,7 @@ export default function MarketplaceHub() {
           Marketplace
         </Text>
         <Text style={{ color: theme.text, fontSize: 14, marginTop: 4 }}>
-          Discover deals, trends & listings
+          Buy and sell with people nearby
         </Text>
       </View>
 
@@ -157,7 +158,7 @@ export default function MarketplaceHub() {
             marginBottom: 12,
           }}
         >
-          Trending Now
+          Just listed
         </Text>
 
         {loading && (
@@ -165,7 +166,7 @@ export default function MarketplaceHub() {
         )}
 
         {!loading && trending.length === 0 && (
-          <Text style={{ color: theme.text }}>No trending listings.</Text>
+          <Text style={{ color: theme.text }}>Nothing listed yet.</Text>
         )}
 
         {!loading &&

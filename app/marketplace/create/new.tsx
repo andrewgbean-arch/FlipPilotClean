@@ -20,7 +20,7 @@ import { useTheme } from "../../../src/styles/ThemeContext";
 import AnimatedHeroHeader from "../../../src/components/ui/AnimatedHeroHeader";
 import SparklesOverlay from "../../../src/components/ui/SparklesOverlay";
 
-import { aiLookup, BASE_URL } from "../../../src/utils/api";
+import { identifyPhoto, BASE_URL } from "../../../src/utils/api";
 import { getDeviceId } from "../../../src/utils/deviceId";
 import { deviceRegionHints } from "../../../src/utils/deviceRegion";
 import { getSellerName } from "../../../src/utils/sellerName";
@@ -109,7 +109,10 @@ export default function CreateNewListing() {
     setAnalyzing(true);
     try {
       const base64 = await FileSystem.readAsStringAsync(uri, { encoding: "base64" });
-      const analysis = (await aiLookup(base64))?.ai ?? null;
+      // Identify only (no price lookup): what it is, its category and condition.
+      // Marketplace screens must not touch eBay-derived prices.
+      const identified = await identifyPhoto(base64);
+      const analysis = identified?.ok ? identified : null;
       if (!analysis) return;
 
       if (!title.trim() && analysis.title) setTitle(String(analysis.title));

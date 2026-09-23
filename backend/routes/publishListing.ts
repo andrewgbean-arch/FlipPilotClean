@@ -74,7 +74,6 @@ export default function registerPublishListingRoute(app: Express) {
       details,
       photos,
       bestThumbnail,
-      flipScore,
       deviceId,
       sellerName
     } = req.body;
@@ -104,7 +103,9 @@ export default function registerPublishListingRoute(app: Express) {
       details: cleanDetails(details),
       photos: photos ?? [],
       bestThumbnail: bestThumbnail ?? photos?.[0] ?? null,
-      flipScore: flipScore ?? null,
+      // No FlipScore on a marketplace listing: it is worked out from eBay data,
+      // which eBay's API terms keep out of a competing marketplace. Whatever a
+      // client sends is ignored.
       deviceId: typeof deviceId === "string" ? deviceId : null,
       // The public side of who is selling it, so a buyer can see their history.
       sellerId: ensureSeller(deviceId, sellerName)?.id ?? null,

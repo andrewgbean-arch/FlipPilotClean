@@ -153,7 +153,6 @@ export default function Listings() {
             item.photos?.[0] ||
             "https://placehold.co/300x200/0A1128/FFFFFF?text=FlipPilot";
 
-          const flipScore = item.flipScore ?? item.ai?.flipScore ?? null;
           // Only a listing that really is sponsored gets the badge.
           const isSponsored = item.sponsored === true;
 
@@ -211,44 +210,6 @@ export default function Listings() {
                   {item.location ? ` • ${item.location}` : ""}
                 </Text>
 
-                {/* FLIPSCORE BADGE */}
-                {flipScore != null && (
-                  <View
-                    style={{
-                      marginTop: 8,
-                      flexDirection: "row",
-                      alignItems: "center",
-                      gap: 8,
-                    }}
-                  >
-                    <View
-                      style={{
-                        paddingHorizontal: 10,
-                        paddingVertical: 4,
-                        borderRadius: 999,
-                        backgroundColor:
-                          flipScore >= 80
-                            ? theme.goldDeep
-                            : flipScore >= 60
-                            ? "#FFD966"
-                            : "#FF6666",
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: flipScore >= 60 ? theme.black : theme.white,
-                          fontWeight: "700",
-                          fontSize: 12,
-                        }}
-                      >
-                        {flipScore}/100
-                      </Text>
-                    </View>
-                    <Text style={{ color: theme.muted, fontSize: 12 }}>
-                      FlipScore
-                    </Text>
-                  </View>
-                )}
               </View>
             </TouchableOpacity>
           );

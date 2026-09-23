@@ -21,27 +21,13 @@ function matchCondition(named: string | null | undefined): string | null {
   return CONDITION_OPTIONS.find((o) => o.toLowerCase() === wanted) ?? null;
 }
 
-/** The price to open at: what the flip reckoned it would sell for. */
-function suggestedPrice(flip: FlipRecord): string {
-  const candidates = [
-    flip.sellPrice,
-    flip.pricing?.recommendedSellPrice,
-    flip.market?.average,
-    flip.market?.smartPrice,
-    flip.aiPriceMax,
-  ];
-
-  for (const value of candidates) {
-    const n = Number(value);
-    if (Number.isFinite(n) && n > 0) return String(Math.round(n));
-  }
-  return "";
-}
-
 /**
- * A saved flip, turned into the start of a listing: its photo, its title, what
- * it was reckoned to sell for, and whatever the scan already knew. Nothing is
- * invented — a field the flip has nothing for is left empty for the seller.
+ * A saved flip, turned into the start of a listing: its photo, its title and
+ * whatever the scan already knew about the item itself.
+ *
+ * The price is deliberately NOT carried across. A scan's sell price is worked
+ * out from eBay listings, and eBay's API terms do not allow its content to be
+ * used to build or augment a competing marketplace. The seller sets their own.
  */
 export function listingFromFlip(flip: FlipRecord): ListingDraft {
   // A record from the vehicle flows carries a registration, so it is a vehicle
@@ -80,7 +66,7 @@ export function listingFromFlip(flip: FlipRecord): ListingDraft {
       (uri): uri is string => typeof uri === "string" && uri.trim() !== ""
     ),
     title: flip.title ?? "",
-    price: suggestedPrice(flip),
+    price: "",
     description: flip.ai?.fullDescription ?? flip.ai?.description ?? "",
     category,
     details,
