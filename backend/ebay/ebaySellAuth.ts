@@ -1,6 +1,7 @@
 import axios from "axios";
 import fs from "fs";
 import path from "path";
+import { decryptJson, encryptJson, encryptionConfigured } from "../utils/secretBox";
 
 /* --------------------------------------------------
    ⭐ eBay Seller OAuth (authorization-code grant)
@@ -39,8 +40,10 @@ function ruName() {
   return process.env.EBAY_SELL_RUNAME ?? "";
 }
 
+// Also needs the token encryption key: tokens are never stored unencrypted, so
+// without one there is nowhere safe to keep a login and the feature stays off.
 export function ebaySellConfigured(): boolean {
-  return Boolean(clientId() && clientSecret() && ruName());
+  return Boolean(clientId() && clientSecret() && ruName() && encryptionConfigured());
 }
 
 /** The URL the app opens for the seller to log into eBay and approve access. */
@@ -63,15 +66,33 @@ type StoredTokens = {
 
 const STORE_FILE = path.join(__dirname, "../data/ebaySellTokens.json");
 
+// On disk each device's tokens are one encrypted string (see utils/secretBox.ts).
+// An entry that will not decrypt (wrong key, or altered) counts as not
+// connected. A plain entry from before encryption still reads, and is
+// encrypted the next time the store is saved.
 function loadStore(): Record<string, StoredTokens> {
+  let raw: Record<string, unknown>;
   try {
-    return JSON.parse(fs.readFileSync(STORE_FILE, "utf8"));
+    raw = JSON.parse(fs.readFileSync(STORE_FILE, "utf8"));
   } catch {
     return {};
   }
+
+  const out: Record<string, StoredTokens> = {};
+  for (const [deviceId, entry] of Object.entries(raw)) {
+    const tokens =
+      typeof entry === "string" ? decryptJson<StoredTokens>(entry) : (entry as StoredTokens);
+    if (tokens?.refreshToken) out[deviceId] = tokens;
+  }
+  return out;
 }
 function saveStore(store: Record<string, StoredTokens>) {
-  fs.writeFileSync(STORE_FILE, JSON.stringify(store, null, 2));
+  const encrypted: Record<string, string> = {};
+  for (const [deviceId, tokens] of Object.entries(store)) {
+    encrypted[deviceId] = encryptJson(tokens);
+  }
+  fs.mkdirSync(path.dirname(STORE_FILE), { recursive: true });
+  fs.writeFileSync(STORE_FILE, JSON.stringify(encrypted, null, 2));
 }
 
 function basicAuthHeader() {
