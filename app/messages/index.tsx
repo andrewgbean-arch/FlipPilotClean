@@ -8,6 +8,7 @@ import { useTheme } from "@/styles/ThemeContext";
 import { BASE_URL } from "@/utils/api";
 import { getDeviceId } from "@/utils/deviceId";
 import StatusBadge from "@/components/marketplace/StatusBadge";
+import { useMessageAlerts } from "@/context/MessageAlertsContext";
 
 type Conversation = {
   listingId: number | string;
@@ -20,6 +21,8 @@ type Conversation = {
   lastFrom: "me" | "them";
   lastAt: string;
   count: number;
+  /** The other side has written since you last opened this chat. */
+  unread?: boolean;
 };
 
 function when(iso: string): string {
@@ -78,9 +81,17 @@ const Row = React.memo(function Row({ item, theme }: { item: Conversation; theme
 
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
-          <Text style={{ color: theme.goldDeep, fontWeight: "800", fontSize: 15, flexShrink: 1 }} numberOfLines={1}>
-            {item.title}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1 }}>
+            {item.unread ? (
+              <View
+                accessibilityLabel="Unread"
+                style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: theme.danger }}
+              />
+            ) : null}
+            <Text style={{ color: theme.goldDeep, fontWeight: "800", fontSize: 15, flexShrink: 1 }} numberOfLines={1}>
+              {item.title}
+            </Text>
+          </View>
           <Text style={{ color: theme.muted, fontSize: 11 }}>{when(item.lastAt)}</Text>
         </View>
 
@@ -90,7 +101,10 @@ const Row = React.memo(function Row({ item, theme }: { item: Conversation; theme
             : "Buying"}
         </Text>
 
-        <Text style={{ color: theme.text, fontSize: 14, marginTop: 4 }} numberOfLines={2}>
+        <Text
+          style={{ color: theme.text, fontSize: 14, marginTop: 4, fontWeight: item.unread ? "700" : "400" }}
+          numberOfLines={2}
+        >
           {item.lastFrom === "me" ? "You: " : ""}
           {item.lastMessage}
         </Text>
@@ -108,6 +122,7 @@ const Row = React.memo(function Row({ item, theme }: { item: Conversation; theme
 /** Every conversation, as buyer and as seller, newest first. */
 export default function MessagesInbox() {
   const theme = useTheme();
+  const { refresh: refreshAlerts } = useMessageAlerts();
   const [items, setItems] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -127,6 +142,9 @@ export default function MessagesInbox() {
           if (data?.ok) {
             setItems(data.conversations ?? []);
             setFailed(false);
+            // Loading the inbox is what tells the server it has been seen, so
+            // ask again now and let Home stop flashing.
+            refreshAlerts();
           } else {
             setFailed(true);
           }
@@ -139,7 +157,7 @@ export default function MessagesInbox() {
       return () => {
         active = false;
       };
-    }, [])
+    }, [refreshAlerts])
   );
 
   return (

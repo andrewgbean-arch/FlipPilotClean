@@ -18,6 +18,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useDealerNotifications } from "@/features/vehicles/context/DealerNotificationsContext";
 import { useTheme } from "@/styles/ThemeContext";
 import { hasAcceptedLegal } from "@/utils/legalConsent";
+import { useMessageAlerts } from "@/context/MessageAlertsContext";
+import FlashingMessageIcon from "@/components/FlashingMessageIcon";
 
 const ICON_SIZE = 24;
 
@@ -53,6 +55,7 @@ export default function TabsLayout() {
 
   const { notifications } = useDealerNotifications();
   const unread = notifications.filter((n) => !n.read).length;
+  const { hasNew: hasNewMessage } = useMessageAlerts();
 
   // Room for a 24pt icon and an 11pt label between the padding, whatever the bottom inset is.
   const bottomPadding = Math.max(insets.bottom, 8);
@@ -95,9 +98,29 @@ export default function TabsLayout() {
         },
       }}
     >
+      {/* While there is something new to read, Home becomes a flashing red
+          message icon and tapping it opens Messages. Opening the inbox turns it
+          back into Home, and Back from Messages lands on Home. */}
       <Tabs.Screen
         name="home"
-        options={{ tabBarLabel: "Home", tabBarIcon: tabIcon(House) }}
+        options={
+          hasNewMessage
+            ? {
+                tabBarLabel: "Messages",
+                tabBarIcon: () => <FlashingMessageIcon size={ICON_SIZE} color={theme.danger} />,
+                tabBarActiveTintColor: theme.danger,
+                tabBarInactiveTintColor: theme.danger,
+              }
+            : { tabBarLabel: "Home", tabBarIcon: tabIcon(House) }
+        }
+        listeners={{
+          tabPress: (e) => {
+            if (hasNewMessage) {
+              e.preventDefault();
+              router.push("/messages");
+            }
+          },
+        }}
       />
 
       <Tabs.Screen

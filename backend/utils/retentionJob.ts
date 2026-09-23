@@ -3,6 +3,7 @@ import { loadListings, saveListings } from "../routes/publishedListings";
 import { loadFairs, saveFairs } from "../routes/fairs";
 import { loadSellerStore, saveSellerStore } from "../routes/sellers";
 import { purgeReportsBefore } from "./safetyStore";
+import { pruneReads } from "./readState";
 import { deleteUploads, purgeOrphanUploads } from "./uploadStore";
 import { purgeFreeScanRecords } from "../middleware/freeScanLimit";
 
@@ -113,6 +114,9 @@ export function runRetention(now = new Date()) {
   summary.reviews = reviewCount - sellers.reviews.length;
   // Sold counts were bumped above, so this is saved whenever anything changed.
   saveSellerStore(sellers);
+
+  /* ---- what each device has read: no use once the chats are gone ---- */
+  pruneReads(monthsAgo(RETENTION.messagesMonthsAfterLastMessage, now));
 
   /* ---- reports and counters ---- */
   summary.reports = purgeReportsBefore(monthsAgo(RETENTION.reportMonths, now));

@@ -36,6 +36,8 @@ import { getProfit, hasProfit } from "@/components/FlipCard";
 import { formatMoney, formatSignedMoney } from "@/features/vehicles/utils/vehicleStats";
 import WeatherCard from "@/components/WeatherCard";
 import FeedbackSheet from "@/components/sheets/FeedbackSheet";
+import FlashingMessageIcon from "@/components/FlashingMessageIcon";
+import { useMessageAlerts } from "@/context/MessageAlertsContext";
 
 const TOOLS: { key: string; label: string; Icon: PhosphorIcon; route: string; tint: string }[] = [
   { key: "scan", label: "AI Scan", Icon: Camera, route: "/scan", tint: "#FFD700" },
@@ -86,6 +88,7 @@ function StatBlock({
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const { hasNew: hasNewMessage } = useMessageAlerts();
   const { vehicles: flips } = useVehicleHistory();
   const theme = useTheme();
 
@@ -214,7 +217,11 @@ export default function HomeScreen() {
             ]}
             onPress={() => router.push("/messages")}
           >
-            <ChatCircle size={22} color={theme.muted} />
+            {hasNewMessage ? (
+              <FlashingMessageIcon size={22} color={theme.danger} />
+            ) : (
+              <ChatCircle size={22} color={theme.muted} />
+            )}
           </Pressable>
         </View>
 

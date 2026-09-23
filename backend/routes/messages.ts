@@ -3,6 +3,7 @@ import { Express, Request, Response } from "express";
 import { loadListings, saveListings } from "./publishedListings";
 import { rateLimit } from "../middleware/rateLimit";
 import { hasBlocked, isBlockedEitherWay } from "../utils/safetyStore";
+import { chatKey, markChatRead } from "../utils/readState";
 
 /**
  * Messages are private conversations, one per buyer per listing.
@@ -152,7 +153,10 @@ export default function registerMessagesRoute(app: Express) {
     const owner = ownerOf(listing);
 
     if (!owner || caller !== owner) {
-      const mine = all.filter((m) => m.threadId === threadIdFor(listing.id, caller));
+      const myThread = threadIdFor(listing.id, caller);
+      const mine = all.filter((m) => m.threadId === myThread);
+      // Fetching your own chat is reading it.
+      if (mine.length > 0) markChatRead(caller, chatKey(listing.id, myThread));
       return res.json({
         ok: true,
         role: "buyer",
@@ -164,6 +168,7 @@ export default function registerMessagesRoute(app: Express) {
     const wanted = typeof req.query.thread === "string" ? req.query.thread : "";
     if (wanted) {
       const thread = all.filter((m) => m.threadId === wanted);
+      if (thread.length > 0) markChatRead(caller, chatKey(listing.id, wanted));
       const buyerId = thread.find((m) => m.author === "buyer")?.deviceId;
       return res.json({
         ok: true,

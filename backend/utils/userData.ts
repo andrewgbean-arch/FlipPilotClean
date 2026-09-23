@@ -10,6 +10,7 @@ import {
   reportsBy,
 } from "./safetyStore";
 import { deleteUploads, uploadsBy } from "./uploadStore";
+import { removeReadsFor } from "./readState";
 import { freeScanRecordFor } from "../middleware/freeScanLimit";
 import { disconnect as disconnectEbay, isConnected as ebayConnected } from "../ebay/ebaySellAuth";
 
@@ -161,6 +162,7 @@ export function deleteUserData(deviceId: string) {
   store.sellers = store.sellers.filter((s) => s.deviceId !== deviceId);
   saveSellerStore(store);
 
+  removeReadsFor(deviceId);
   const blocksRemoved = removeAllBlocksFor(deviceId);
   const reportsAnonymised = anonymiseReportsBy(deviceId);
 

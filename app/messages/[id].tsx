@@ -25,6 +25,7 @@ import {
 import SafetyCard from "@/components/marketplace/SafetyCard";
 import ReportSheet from "@/components/marketplace/ReportSheet";
 import ReviewSheet from "@/components/marketplace/ReviewSheet";
+import { useMessageAlerts } from "@/context/MessageAlertsContext";
 import { getReviewStatus, type ReviewStatus } from "@/utils/reviewStatus";
 
 type ChatMessage = {
@@ -110,6 +111,7 @@ export default function MessagesScreen() {
   const [role, setRole] = useState<"buyer" | "seller" | null>(null);
   const [activeThread, setActiveThread] = useState<string | null>(initialThread ?? null);
   const [blocked, setBlocked] = useState(false);
+  const { refresh: refreshAlerts } = useMessageAlerts();
   const [reporting, setReporting] = useState(false);
   const [reviewStatus, setReviewStatus] = useState<ReviewStatus | null>(null);
   const [reviewing, setReviewing] = useState(false);
@@ -134,6 +136,8 @@ export default function MessagesScreen() {
       setBlocked(Boolean(data.blocked));
       if (data.threads) setThreads(data.threads);
       if (data.messages) setMessages(data.messages);
+      // Fetching your own chat is what marks it read, so let Home know.
+      refreshAlerts();
     } catch (err) {
       console.log("❌ Load messages error:", err);
     } finally {

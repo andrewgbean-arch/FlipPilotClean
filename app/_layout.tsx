@@ -10,6 +10,7 @@ import DealerBanner from "../src/components/DealerBanner";
 import ProBadge from "../src/components/ProBadge";
 
 import { SubscriptionProvider } from "../src/context/SubscriptionContext";
+import { MessageAlertsProvider } from "../src/context/MessageAlertsContext";
 import { ThemeProvider, useTheme } from "../src/styles/ThemeContext";
 
 import { VehicleHistoryProvider, useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
@@ -53,7 +54,9 @@ export default function RootLayout() {
                 <ProBadgeOverlay />
                 <GoldFlashOverlayWrapper />
 
-                <ThemedStack />
+                <MessageAlertsProvider>
+                  <ThemedStack />
+                </MessageAlertsProvider>
 
               </VehicleHistoryProvider>
             </DealerNotificationsProvider>
