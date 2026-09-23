@@ -144,20 +144,21 @@ export default function CreateNewListing() {
 
   const missing = missingRequiredFields(category, details);
 
-  const blocker = (): string | null => {
-    if (photos.length === 0) return "Add at least one photo";
-    if (!title.trim()) return "Give it a title";
-    if (!price.trim() || !Number(price)) return "Add a price";
-    if (!category) return "Choose a category";
-    if (!location.trim()) return "Say where it is";
-    if (missing.length) return `Fill in ${missing[0].label.toLowerCase()}`;
-    return null;
-  };
+  // Everything still missing, in the order the form asks for it.
+  const stillNeeded: string[] = [];
+  if (photos.length === 0) stillNeeded.push("a photo");
+  if (!title.trim()) stillNeeded.push("a title");
+  if (!price.trim() || !Number(price)) stillNeeded.push("a price");
+  if (!category) stillNeeded.push("a category");
+  if (!location.trim()) stillNeeded.push("where it is");
+  for (const field of missing) stillNeeded.push(field.label.toLowerCase());
 
-  const stopper = blocker();
+  const incomplete = stillNeeded.length > 0;
 
   const handleSubmit = async () => {
-    if (stopper) return Alert.alert(stopper);
+    if (incomplete) {
+      return Alert.alert("Almost there", `Still needed: ${stillNeeded.join(", ")}.`);
+    }
 
     setPublishing(true);
     try {
@@ -494,27 +495,28 @@ export default function CreateNewListing() {
         <SafetyCard title="Selling safely" tips={SELLER_SAFETY_TIPS} startOpen />
 
         {/* PUBLISH */}
+        {incomplete && !publishing ? (
+          <Text style={{ color: theme.muted, textAlign: "center", marginBottom: 10 }}>
+            Still needed: {stillNeeded.join(", ")}
+          </Text>
+        ) : null}
         <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Publish listing"
           onPress={handleSubmit}
           disabled={publishing}
           style={{
-            backgroundColor: stopper ? theme.card : theme.goldDeep,
-            borderWidth: 1,
-            borderColor: theme.goldDeep,
+            backgroundColor: theme.goldDeep,
             padding: 16,
             borderRadius: 14,
             alignItems: "center",
-            opacity: publishing ? 0.6 : 1,
+            // Dimmed while something is missing, but still a "Publish" button
+            // that says what is missing when tapped.
+            opacity: publishing ? 0.6 : incomplete ? 0.65 : 1,
           }}
         >
-          <Text
-            style={{
-              color: stopper ? theme.muted : theme.black,
-              fontWeight: "900",
-              fontSize: 16,
-            }}
-          >
-            {publishing ? "Publishing…" : stopper ?? "Publish listing"}
+          <Text style={{ color: theme.black, fontWeight: "900", fontSize: 16 }}>
+            {publishing ? "Publishing…" : "Publish listing"}
           </Text>
         </TouchableOpacity>
       </ScrollView>
