@@ -43,3 +43,6 @@ app-example
 /android
 backend/.env
 backend/.env
+
+# Runtime data: listings, device ids, usage, eBay tokens. Never commit (this repo is public).
+backend/data/*.json
