@@ -1,13 +1,14 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useCallback, useEffect, useState, useMemo } from "react";
 import {
   View,
   Text,
+  FlatList,
   ScrollView,
   TouchableOpacity,
-  Image,
   ActivityIndicator,
   TextInput,
 } from "react-native";
+import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTheme } from "@/styles/ThemeContext";
 
@@ -19,6 +20,85 @@ import {
   getCategory,
 } from "@/constants/marketplaceCategories";
 import { matchesSearch } from "@/utils/listingSearch";
+import StatusBadge from "@/components/marketplace/StatusBadge";
+
+/**
+ * One listing card. Memoised, so scrolling or typing in the search box redraws
+ * only the cards whose listing changed, not every card on the page.
+ */
+const ListingCard = React.memo(function ListingCard({ item, theme }: { item: any; theme: any }) {
+  const thumbnail = item.photos?.[0];
+
+  // Only a listing that really is sponsored gets the badge.
+  const isSponsored = item.sponsored === true;
+
+  return (
+    <TouchableOpacity
+      onPress={() => router.push(`/marketplace/${item.id}`)}
+      style={cardStyle(theme, isSponsored)}
+    >
+      {thumbnail ? (
+        <Image
+          source={{ uri: thumbnail }}
+          style={imageStyle}
+          contentFit="cover"
+          // Kept in memory and on disk, and drawn at the size it is shown at,
+          // so scrolling back over a card does not load or decode it again.
+          cachePolicy="memory-disk"
+          recyclingKey={String(item.id)}
+          transition={120}
+        />
+      ) : (
+        <View style={[imageStyle, { backgroundColor: theme.background }]} />
+      )}
+
+      <View style={{ padding: 14 }}>
+        {/* TITLE ROW */}
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 4,
+          }}
+        >
+          <Text style={titleStyle(theme)}>
+            {item.title ?? (`${item.vehicle?.make ?? ""} ${item.vehicle?.model ?? ""}`.trim() || "Untitled listing")}
+          </Text>
+
+          {isSponsored && (
+            <View
+              style={{
+                paddingHorizontal: 8,
+                paddingVertical: 2,
+                borderRadius: 999,
+                backgroundColor: theme.goldDeep,
+              }}
+            >
+              <Text style={{ color: theme.black, fontSize: 10, fontWeight: "700" }}>Sponsored</Text>
+            </View>
+          )}
+        </View>
+
+        {/* PRICE + META */}
+        <Text style={priceStyle(theme)}>£{item.price}</Text>
+        <Text style={metaStyle(theme)}>
+          {categoryLabel(item.category)}
+          {item.condition ? ` • ${item.condition}` : ""}
+          {item.details?.size ? ` • Size ${item.details.size}` : ""}
+          {item.mileage != null ? ` • ${item.mileage} miles` : ""}
+          {item.location ? ` • ${item.location}` : ""}
+        </Text>
+
+        {item.status === "reserved" ? (
+          <View style={{ marginTop: 8 }}>
+            <StatusBadge status="reserved" long />
+          </View>
+        ) : null}
+      </View>
+    </TouchableOpacity>
+  );
+});
 
 export default function Listings() {
   const theme = useTheme();
@@ -48,6 +128,9 @@ export default function Listings() {
 
   const filtered = useMemo(() => {
     return (listings || [])
+      // Sold is over, so it stays out of what people browse. Reserved stays
+      // in, with a badge, so buyers can see it and know where it stands.
+      .filter((item) => item.status !== "sold" && !item.soldAt)
       .filter((item) => matchesSearch(item, search))
       .filter((item) => {
         if (category === "All") return true;
@@ -64,27 +147,23 @@ export default function Listings() {
     []
   );
 
-  return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: theme.black }}
-      contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
-    >
-      {/* HEADER */}
-      <Text
-        style={{
-          color: theme.goldDeep,
-          fontSize: 30,
-          fontWeight: "900",
-          marginBottom: 6,
-        }}
-      >
+  const renderItem = useCallback(
+    ({ item }: { item: any }) => <ListingCard item={item} theme={theme} />,
+    [theme]
+  );
+  const keyExtractor = useCallback((item: any) => String(item.id), []);
+
+  // Passed as an element, not a component, so typing in the search box does not
+  // rebuild it and close the keyboard.
+  const header = (
+    <View>
+      <Text style={{ color: theme.goldDeep, fontSize: 30, fontWeight: "900", marginBottom: 6 }}>
         Listings
       </Text>
       <Text style={{ color: theme.text, marginBottom: 16 }}>
         Browse all public marketplace listings
       </Text>
 
-      {/* SEARCH */}
       <TextInput
         value={search}
         onChangeText={setSearch}
@@ -101,11 +180,11 @@ export default function Listings() {
         }}
       />
 
-      {/* CATEGORY FILTERS */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         style={{ marginBottom: 16 }}
+        keyboardShouldPersistTaps="handled"
       >
         {filterChips.map((cat) => {
           const active = category === cat.id;
@@ -137,87 +216,35 @@ export default function Listings() {
         })}
       </ScrollView>
 
-      {loading && (
-        <ActivityIndicator size="large" color={theme.goldDeep} />
-      )}
+      {loading && <ActivityIndicator size="large" color={theme.goldDeep} />}
+    </View>
+  );
 
-      {!loading && filtered.length === 0 && (
-        <Text style={{ color: theme.text, marginTop: 20 }}>
-          No listings match your filters.
-        </Text>
-      )}
-
-      {!loading &&
-        filtered.map((item) => {
-          const thumbnail =
-            item.photos?.[0] ||
-            "https://placehold.co/300x200/0A1128/FFFFFF?text=FlipPilot";
-
-          // Only a listing that really is sponsored gets the badge.
-          const isSponsored = item.sponsored === true;
-
-          return (
-            <TouchableOpacity
-              key={item.id}
-              onPress={() => router.push(`/marketplace/${item.id}`)}
-              style={cardStyle(theme, isSponsored)}
-            >
-              <Image source={{ uri: thumbnail }} style={imageStyle} />
-
-              <View style={{ padding: 14 }}>
-                {/* TITLE ROW */}
-                <View
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: 4,
-                  }}
-                >
-                  <Text style={titleStyle(theme)}>
-                    {item.title ?? (`${item.vehicle?.make ?? ""} ${item.vehicle?.model ?? ""}`.trim() || "Untitled listing")}
-                  </Text>
-
-                  {isSponsored && (
-                    <View
-                      style={{
-                        paddingHorizontal: 8,
-                        paddingVertical: 2,
-                        borderRadius: 999,
-                        backgroundColor: theme.goldDeep,
-                      }}
-                    >
-                      <Text
-                        style={{
-                          color: theme.black,
-                          fontSize: 10,
-                          fontWeight: "700",
-                        }}
-                      >
-                        Sponsored
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                {/* PRICE + META */}
-                <Text style={priceStyle(theme)}>£{item.price}</Text>
-                <Text style={metaStyle(theme)}>
-                  {categoryLabel(item.category)}
-                  {item.condition ? ` • ${item.condition}` : ""}
-                  {item.details?.size ? ` • Size ${item.details.size}` : ""}
-                  {item.mileage != null ? ` • ${item.mileage} miles` : ""}
-                  {item.location ? ` • ${item.location}` : ""}
-                </Text>
-
-              </View>
-            </TouchableOpacity>
-          );
-        })}
-    </ScrollView>
+  return (
+    <FlatList
+      style={{ flex: 1, backgroundColor: theme.black }}
+      contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+      data={loading ? [] : filtered}
+      renderItem={renderItem}
+      keyExtractor={keyExtractor}
+      ListHeaderComponent={header}
+      ListEmptyComponent={
+        !loading ? (
+          <Text style={{ color: theme.text, marginTop: 20 }}>No listings match your filters.</Text>
+        ) : null
+      }
+      keyboardShouldPersistTaps="handled"
+      // Only what is on screen (plus a little either side) is drawn and kept.
+      initialNumToRender={4}
+      maxToRenderPerBatch={4}
+      windowSize={7}
+      removeClippedSubviews
+    />
   );
 }
 
+// No drop shadow: on many cards at once it is one of the slowest things to
+// draw while scrolling, and the border already separates the cards.
 const cardStyle = (theme: any, sponsored: boolean) => ({
   backgroundColor: theme.card,
   borderRadius: 14,
@@ -225,10 +252,6 @@ const cardStyle = (theme: any, sponsored: boolean) => ({
   borderColor: sponsored ? theme.goldDeep : theme.goldSoftGlow,
   marginBottom: 20,
   overflow: "hidden" as const,
-  shadowColor: sponsored ? theme.goldDeep : "#000",
-  shadowOpacity: sponsored ? 0.35 : 0.2,
-  shadowRadius: sponsored ? 12 : 8,
-  shadowOffset: { width: 0, height: 4 },
 });
 
 const imageStyle = {
@@ -240,6 +263,7 @@ const titleStyle = (theme: any) => ({
   color: theme.goldDeep,
   fontSize: 20,
   fontWeight: "700" as const,
+  flexShrink: 1,
 });
 
 const priceStyle = (theme: any) => ({

@@ -5,6 +5,8 @@ import path from "path";
 
 import { loadListings, saveListings } from "./publishedListings";
 import { rateLimit } from "../middleware/rateLimit";
+import { callerDeviceId } from "./messages";
+import { listingStatus } from "../utils/listingStatus";
 
 /**
  * Seller reputation: when they joined, what they have sold, and what buyers
@@ -251,8 +253,39 @@ export default function registerSellersRoute(app: Express) {
     }
 
     listing.soldAt = listing.soldAt ?? new Date().toISOString();
+    // Sold ends any reservation: the outcome is known.
+    listing.reservedAt = null;
     saveListings(listings);
 
-    res.json({ ok: true, soldAt: listing.soldAt });
+    res.json({ ok: true, soldAt: listing.soldAt, status: "sold" });
   });
+
+  /* -------------------------------------------------------
+     RESERVE ONE OF YOUR OWN LISTINGS, OR PUT IT BACK ON SALE
+     "Reserved, awaiting outcome" tells buyers somebody has said they will
+     take it. It lapses by itself after RETENTION.reservationDays if it is
+     never followed up (see utils/listingStatus.ts), and a sold listing
+     cannot be reserved.
+  ------------------------------------------------------- */
+  for (const action of ["reserve", "unreserve"] as const) {
+    app.post(`/listings/:id/${action}`, rateLimit(20), (req: Request, res: Response) => {
+      const caller = callerDeviceId(req);
+      if (!caller) return res.status(401).json({ ok: false, error: "Missing device id" });
+
+      const listings = loadListings();
+      const listing = listings.find((l: any) => String(l.id) === req.params.id);
+      if (!listing) return res.status(404).json({ ok: false, error: "Listing not found" });
+      if (listing.deviceId !== caller) {
+        return res.status(403).json({ ok: false, error: "Not your listing" });
+      }
+      if (listing.soldAt) {
+        return res.status(409).json({ ok: false, error: "This one is already sold." });
+      }
+
+      listing.reservedAt = action === "reserve" ? new Date().toISOString() : null;
+      saveListings(listings);
+
+      res.json({ ok: true, status: listingStatus(listing), reservedAt: listing.reservedAt });
+    });
+  }
 }

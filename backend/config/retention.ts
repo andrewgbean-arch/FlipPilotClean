@@ -7,6 +7,8 @@
 export const RETENTION = {
   /** A conversation is deleted this long after its last message. */
   messagesMonthsAfterLastMessage: 12,
+  /** A reservation the seller never followed up on lapses after this many days. */
+  reservationDays: 7,
   /** A sold listing is deleted this long after it was marked sold. */
   soldListingMonths: 6,
   /** A listing never marked sold is deleted this long after it was posted. */

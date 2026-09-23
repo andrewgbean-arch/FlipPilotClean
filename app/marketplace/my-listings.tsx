@@ -9,6 +9,8 @@ import { getDeviceId } from "@/utils/deviceId";
 import { shareListing } from "@/utils/shareListing";
 import { exportListingToEbay } from "@/utils/ebayExport";
 import { deleteMyListing } from "@/utils/myData";
+import { setReserved } from "@/utils/listingActions";
+import StatusBadge from "@/components/marketplace/StatusBadge";
 
 export default function MyListings() {
   const theme = useTheme();
@@ -73,10 +75,25 @@ export default function MyListings() {
       }
 
       setListings((prev) =>
-        prev.map((l) => (l.id === item.id ? { ...l, soldAt: data.soldAt } : l))
+        prev.map((l) => (l.id === item.id ? { ...l, soldAt: data.soldAt, status: "sold" } : l))
       );
     } catch {
       Alert.alert("Couldn't mark it sold", "Please check your connection and try again.");
+    } finally {
+      setMarkingId(null);
+    }
+  };
+
+  // Reserve it, or put it back on sale. A reservation tells buyers somebody has
+  // said they'll take it, and lapses by itself after a week if nothing follows.
+  const toggleReserved = async (item: any) => {
+    const reserve = item.status !== "reserved";
+    setMarkingId(item.id);
+    try {
+      const status = await setReserved(item.id, reserve);
+      setListings((prev) => prev.map((l) => (l.id === item.id ? { ...l, status } : l)));
+    } catch (err: any) {
+      Alert.alert("Couldn't update it", err?.message ?? "Please check your connection and try again.");
     } finally {
       setMarkingId(null);
     }
@@ -167,6 +184,61 @@ export default function MyListings() {
                 £{item.price}
               </Text>
 
+              <View style={{ marginTop: 8 }}>
+                <StatusBadge status={item.status ?? (item.soldAt ? "sold" : null)} long />
+              </View>
+
+              {/* Available or reserved: two buttons. Sold is final, so none. */}
+              {item.soldAt || item.status === "sold" ? null : (
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      item.status === "reserved" ? "Put this listing back on sale" : "Reserve this listing"
+                    }
+                    disabled={markingId === item.id}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      toggleReserved(item);
+                    }}
+                    style={{
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: theme.warning,
+                      opacity: markingId === item.id ? 0.6 : 1,
+                    }}
+                  >
+                    <Text style={{ color: theme.warning, fontWeight: "700", fontSize: 13 }}>
+                      {item.status === "reserved" ? "Put back on sale" : "Reserve"}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel="Mark this listing as sold"
+                    disabled={markingId === item.id}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      confirmSold(item);
+                    }}
+                    style={{
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: theme.goldDeep,
+                      opacity: markingId === item.id ? 0.6 : 1,
+                    }}
+                  >
+                    <Text style={{ color: theme.goldDeep, fontWeight: "700", fontSize: 13 }}>
+                      {markingId === item.id ? "Working…" : "Sold"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               <TouchableOpacity
                 accessibilityRole="button"
                 accessibilityLabel="Delete this listing"
@@ -174,42 +246,12 @@ export default function MyListings() {
                   e.stopPropagation();
                   confirmDelete(item);
                 }}
-                style={{ alignSelf: "flex-start", marginTop: 8 }}
+                style={{ alignSelf: "flex-start", marginTop: 12 }}
               >
                 <Text style={{ color: theme.danger, fontWeight: "700", fontSize: 13 }}>
                   Delete listing
                 </Text>
               </TouchableOpacity>
-
-              {item.soldAt ? (
-                <Text style={{ color: theme.success, marginTop: 6, fontWeight: "700" }}>
-                  Sold
-                </Text>
-              ) : (
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  accessibilityLabel="Mark this listing as sold"
-                  disabled={markingId === item.id}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    confirmSold(item);
-                  }}
-                  style={{
-                    alignSelf: "flex-start",
-                    marginTop: 8,
-                    paddingHorizontal: 12,
-                    paddingVertical: 6,
-                    borderRadius: 999,
-                    borderWidth: 1,
-                    borderColor: theme.goldDeep,
-                    opacity: markingId === item.id ? 0.6 : 1,
-                  }}
-                >
-                  <Text style={{ color: theme.goldDeep, fontWeight: "700", fontSize: 13 }}>
-                    {markingId === item.id ? "Marking…" : "Mark as sold"}
-                  </Text>
-                </TouchableOpacity>
-              )}
             </View>
 
             <TouchableOpacity

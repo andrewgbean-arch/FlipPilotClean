@@ -1,4 +1,5 @@
 import type { Request } from "express";
+import { listingStatus } from "./listingStatus";
 
 /**
  * Where a listing looks like it was posted from — as a private review flag,
@@ -114,5 +115,5 @@ export function readSellerOrigin(req: Request): SellerOrigin {
 export function toPublicListing(listing: any): any {
   if (!listing || typeof listing !== "object") return listing;
   const { sellerOrigin, deviceId, messages, ...rest } = listing;
-  return rest;
+  return { ...rest, status: listingStatus(listing) };
 }
