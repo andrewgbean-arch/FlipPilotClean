@@ -41,7 +41,12 @@ const REQUIRED_FIELDS = [
 // on a fair their own device created (see ownerDeviceId check below). Price,
 // dates, facilities etc. are set once at listing time; if that turns out to
 // be wrong the fix is a new listing, not silent edits to a public record.
-const PATCHABLE_FIELDS = ["cancelledDueToWeather", "featuredUntil"];
+//
+// featuredUntil is NOT patchable: the £5 promotion has to be confirmed with the
+// store on the server before it is applied, and until that exists letting the
+// organiser's phone say "I paid" would let anyone feature their own listing
+// for free. (The app's purchase flow is off: there is no product to buy yet.)
+const PATCHABLE_FIELDS = ["cancelledDueToWeather"];
 
 /**
  * A fair as the caller may see it. The owner's device id is the only thing that
