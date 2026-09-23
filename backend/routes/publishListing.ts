@@ -4,6 +4,8 @@ import { rateLimit } from "../middleware/rateLimit";
 import { sellingGate } from "../middleware/sellingGate";
 import { readSellerOrigin, toPublicListing } from "../utils/sellerOrigin";
 import { ensureSeller } from "./sellers";
+import { mediaForListing } from "../utils/media";
+import { ownedUploads } from "../utils/uploadStore";
 
 /**
  * The per-category answers, kept as a flat map of short strings.
@@ -73,7 +75,6 @@ export default function registerPublishListingRoute(app: Express) {
       condition,
       details,
       photos,
-      bestThumbnail,
       deviceId,
       sellerName
     } = req.body;
@@ -88,21 +89,25 @@ export default function registerPublishListingRoute(app: Express) {
       return res.status(400).json({ ok: false, error: "Missing category" });
     }
 
+    // Only photos this device really uploaded (see /uploads) are kept; anything
+    // else, such as a file path on the seller's phone, is dropped.
+    const ownPhotos = ownedUploads(typeof deviceId === "string" ? deviceId : null, photos);
+
     const listings = loadListings();
 
     const listing = {
       id: Date.now(),
       type: "item",
-      title,
+      title: String(title).trim().slice(0, 120),
       price: Number(price),
-      description: description ?? "",
+      description: typeof description === "string" ? description.trim().slice(0, 4000) : "",
       category: category.trim(),
       location: typeof location === "string" && location.trim() ? location.trim() : null,
       condition: typeof condition === "string" && condition.trim() ? condition.trim() : null,
       // The category's own questions — size, dimensions, network lock and so on.
       details: cleanDetails(details),
-      photos: photos ?? [],
-      bestThumbnail: bestThumbnail ?? photos?.[0] ?? null,
+      photos: ownPhotos,
+      bestThumbnail: ownPhotos[0] ?? null,
       // No FlipScore on a marketplace listing: it is worked out from eBay data,
       // which eBay's API terms keep out of a competing marketplace. Whatever a
       // client sends is ignored.
@@ -119,7 +124,7 @@ export default function registerPublishListingRoute(app: Express) {
     listings.push(listing);
     saveListings(listings);
 
-    res.json({ ok: true, listing: toPublicListing(listing) });
+    res.json({ ok: true, listing: mediaForListing(toPublicListing(listing), req) });
   });
 
   /* -------------------------------------------------------
@@ -131,7 +136,7 @@ export default function registerPublishListingRoute(app: Express) {
     const deviceId = typeof req.query.deviceId === "string" ? req.query.deviceId.trim() : "";
     if (!deviceId) return res.json([]);
     const mine = loadListings().filter((l: any) => l.deviceId === deviceId);
-    res.json(mine.map(toPublicListing));
+    res.json(mine.map((l: any) => mediaForListing(toPublicListing(l), req)));
   });
 
   /* -------------------------------------------------------

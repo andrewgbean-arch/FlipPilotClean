@@ -46,3 +46,5 @@ backend/.env
 
 # Runtime data: listings, device ids, usage, eBay tokens. Never commit (this repo is public).
 backend/data/*.json
+
+backend/data/uploads/

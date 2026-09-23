@@ -22,7 +22,7 @@ import { rateLimit } from "../middleware/rateLimit";
 
 const SELLERS_PATH = path.join(__dirname, "../data/sellers.json");
 
-type Seller = {
+export type Seller = {
   id: string;        // public
   deviceId: string;  // private, never sent to a client
   joinedAt: string;
@@ -32,9 +32,14 @@ type Seller = {
    * than the name on a market stall.
    */
   displayName?: string | null;
+  /**
+   * Sales from listings the clean-up has since deleted. Keeps "items sold"
+   * honest without keeping the old listings themselves.
+   */
+  soldArchived?: number;
 };
 
-type Review = {
+export type Review = {
   id: string;
   sellerId: string;
   byDeviceId: string;  // private
@@ -44,9 +49,9 @@ type Review = {
   createdAt: string;
 };
 
-type SellerStore = { sellers: Seller[]; reviews: Review[] };
+export type SellerStore = { sellers: Seller[]; reviews: Review[] };
 
-function loadStore(): SellerStore {
+export function loadSellerStore(): SellerStore {
   if (!fs.existsSync(SELLERS_PATH)) return { sellers: [], reviews: [] };
   try {
     const parsed = JSON.parse(fs.readFileSync(SELLERS_PATH, "utf8"));
@@ -60,7 +65,7 @@ function loadStore(): SellerStore {
   }
 }
 
-function saveStore(store: SellerStore) {
+export function saveSellerStore(store: SellerStore) {
   fs.writeFileSync(SELLERS_PATH, JSON.stringify(store, null, 2));
 }
 
@@ -86,14 +91,14 @@ export function ensureSeller(
 ): Seller | null {
   if (typeof deviceId !== "string" || !deviceId.trim()) return null;
 
-  const store = loadStore();
+  const store = loadSellerStore();
   const name = cleanDisplayName(displayName);
   const existing = store.sellers.find((s) => s.deviceId === deviceId);
 
   if (existing) {
     if (name && name !== existing.displayName) {
       existing.displayName = name;
-      saveStore(store);
+      saveSellerStore(store);
     }
     return existing;
   }
@@ -106,7 +111,7 @@ export function ensureSeller(
   };
 
   store.sellers.push(seller);
-  saveStore(store);
+  saveSellerStore(store);
   return seller;
 }
 
@@ -121,7 +126,7 @@ export default function registerSellersRoute(app: Express) {
      A SELLER, AS A BUYER SEES THEM
   ------------------------------------------------------- */
   app.get("/sellers/:sellerId", (req: Request, res: Response) => {
-    const store = loadStore();
+    const store = loadSellerStore();
     const seller = store.sellers.find((s) => s.id === req.params.sellerId);
     if (!seller) return res.status(404).json({ ok: false, error: "Seller not found" });
 
@@ -137,7 +142,7 @@ export default function registerSellersRoute(app: Express) {
         displayName: seller.displayName ?? null,
         joinedAt: seller.joinedAt,
         // Counted from the listings themselves, so there is no tally to drift.
-        itemsSold: theirListings.filter((l: any) => l.soldAt).length,
+        itemsSold: theirListings.filter((l: any) => l.soldAt).length + (seller.soldArchived ?? 0),
         itemsForSale: theirListings.filter((l: any) => !l.soldAt).length,
         stars: averageStars(reviews),
         reviewCount: reviews.length,
@@ -168,7 +173,7 @@ export default function registerSellersRoute(app: Express) {
       return res.status(400).json({ ok: false, error: "Stars must be 1 to 5" });
     }
 
-    const store = loadStore();
+    const store = loadSellerStore();
     const seller = store.sellers.find((s) => s.id === req.params.sellerId);
     if (!seller) return res.status(404).json({ ok: false, error: "Seller not found" });
 
@@ -218,7 +223,7 @@ export default function registerSellersRoute(app: Express) {
     };
 
     store.reviews.push(review);
-    saveStore(store);
+    saveSellerStore(store);
 
     res.json({
       ok: true,

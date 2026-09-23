@@ -39,6 +39,28 @@ function save(store: Store) {
   fs.writeFileSync(FILE, JSON.stringify(store, null, 2));
 }
 
+/** This device's counter, for a data export. */
+export function freeScanRecordFor(deviceId: string): DeviceRecord | null {
+  return load()[deviceId] ?? null;
+}
+
+/** Counters whose week ended long ago say nothing useful any more. */
+export function purgeFreeScanRecords(olderThanDays: number, now = new Date()): number {
+  const store = load();
+  const cutoff = now.getTime() - olderThanDays * 24 * 60 * 60 * 1000;
+  let removed = 0;
+  for (const [deviceId, record] of Object.entries(store)) {
+    // The record covers a week starting at weekStart; it ended 7 days later.
+    const ended = Date.parse(`${record.weekStart}T00:00:00Z`) + 7 * 24 * 60 * 60 * 1000;
+    if (!Number.isFinite(ended) || ended < cutoff) {
+      delete store[deviceId];
+      removed++;
+    }
+  }
+  if (removed > 0) save(store);
+  return removed;
+}
+
 // Monday 00:00 UTC of the current week, as YYYY-MM-DD — a fixed reset point
 // that doesn't depend on any device's own clock or timezone.
 function currentWeekStart(): string {

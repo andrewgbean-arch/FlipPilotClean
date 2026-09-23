@@ -10,6 +10,9 @@ import registerFairsRoute from "./routes/fairs";
 import registerMessagesRoute from "./routes/messages";
 import registerSellersRoute from "./routes/sellers";
 import registerSafetyRoute from "./routes/safety";
+import registerUploadsRoute from "./routes/uploads";
+import registerMeRoute from "./routes/me";
+import { runRetention } from "./utils/retentionJob";
 import registerAIDescriptionRoute from "./routes/aiDescription";
 import registerEbayExportRoute from "./routes/ebayExport";
 import searchRoute from "./routes/search";
@@ -74,6 +77,8 @@ registerFairsRoute(app);
 registerMessagesRoute(app);
 registerSellersRoute(app);
 registerSafetyRoute(app);
+registerUploadsRoute(app);
+registerMeRoute(app);
 registerAIDescriptionRoute(app);
 registerEbayExportRoute(app);
 app.use(searchRoute);
@@ -340,3 +345,18 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🔥 FlipPilot backend listening on http://0.0.0.0:${PORT}`);
 });
+
+// Delete data that has outlived its retention period (config/retention.ts): once
+// shortly after start, then every six hours. A failed run is logged and tried
+// again next time; it must never take the server down.
+function retentionPass() {
+  try {
+    const removed = runRetention();
+    const total = Object.values(removed).reduce((a, b) => a + b, 0);
+    if (total > 0) console.log("Retention clean-up removed:", JSON.stringify(removed));
+  } catch (err: any) {
+    console.log("Retention clean-up failed:", err?.message || err);
+  }
+}
+setTimeout(retentionPass, 30_000).unref();
+setInterval(retentionPass, 6 * 60 * 60 * 1000).unref();

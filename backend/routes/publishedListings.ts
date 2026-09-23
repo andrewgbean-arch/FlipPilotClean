@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { toPublicListing } from "../utils/sellerOrigin";
 import { blockedBy } from "../utils/safetyStore";
+import { mediaForListing } from "../utils/media";
 
 const LISTINGS_PATH = path.join(__dirname, "../data/published-listings.json");
 
@@ -25,7 +26,7 @@ export default function registerPublishedListingsRoute(app: Express) {
     res.json(
       loadListings()
         .filter((l: any) => !(typeof l.deviceId === "string" && hidden.includes(l.deviceId)))
-        .map(toPublicListing)
+        .map((l: any) => mediaForListing(toPublicListing(l), req))
     );
   });
 
@@ -37,6 +38,6 @@ export default function registerPublishedListingsRoute(app: Express) {
       return res.status(404).json({ ok: false, error: "Listing not found" });
     }
 
-    res.json(toPublicListing(listing));
+    res.json(mediaForListing(toPublicListing(listing), req));
   });
 }

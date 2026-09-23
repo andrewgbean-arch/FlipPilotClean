@@ -66,6 +66,59 @@ export function removeBlock(blocker: string, target: string) {
   fs.writeFileSync(BLOCKS_PATH, JSON.stringify(blocks, null, 2));
 }
 
+/** Everything block-related that names this device: their own list, and their id on anyone else's. */
+export function removeAllBlocksFor(deviceId: string): number {
+  const blocks = loadBlocks();
+  let touched = 0;
+  if (blocks[deviceId]) {
+    touched += blocks[deviceId].length;
+    delete blocks[deviceId];
+  }
+  for (const [blocker, targets] of Object.entries(blocks)) {
+    if (targets.includes(deviceId)) {
+      blocks[blocker] = targets.filter((t) => t !== deviceId);
+      touched++;
+    }
+  }
+  fs.writeFileSync(BLOCKS_PATH, JSON.stringify(blocks, null, 2));
+  return touched;
+}
+
+/** How many people this device has blocked. The ids of the blocked are not theirs to export. */
+export function blockCountFor(deviceId: string): number {
+  return (loadBlocks()[deviceId] ?? []).length;
+}
+
+export function reportsBy(deviceId: string): Report[] {
+  return loadReports().filter((r) => r.reporterDeviceId === deviceId);
+}
+
+/**
+ * A reporter's identity goes, the report stays: it may matter to a safety
+ * decision or a legal claim about the person they reported.
+ */
+export function anonymiseReportsBy(deviceId: string): number {
+  const reports = loadReports();
+  let changed = 0;
+  for (const r of reports) {
+    if (r.reporterDeviceId === deviceId) {
+      r.reporterDeviceId = "deleted";
+      changed++;
+    }
+  }
+  if (changed > 0) fs.writeFileSync(REPORTS_PATH, JSON.stringify(reports, null, 2));
+  return changed;
+}
+
+export function purgeReportsBefore(cutoff: Date): number {
+  const reports = loadReports();
+  const kept = reports.filter((r) => Date.parse(r.createdAt) >= cutoff.getTime());
+  if (kept.length !== reports.length) {
+    fs.writeFileSync(REPORTS_PATH, JSON.stringify(kept, null, 2));
+  }
+  return reports.length - kept.length;
+}
+
 export function loadReports(): Report[] {
   const raw = readJson<unknown>(REPORTS_PATH, []);
   return Array.isArray(raw) ? (raw as Report[]) : [];

@@ -3,6 +3,8 @@ import fs from "fs";
 import path from "path";
 import { rateLimit } from "../middleware/rateLimit";
 import { callerDeviceId } from "./messages";
+import { mediaForFair } from "../utils/media";
+import { ownedUploads } from "../utils/uploadStore";
 
 const FAIRS_PATH = path.join(__dirname, "../data/fairs.json");
 
@@ -47,7 +49,7 @@ const PATCHABLE_FIELDS = ["cancelledDueToWeather", "featuredUntil"];
  * just told whether the fair is theirs. The organiser's email is only sent
  * when they chose to show it (or to the organiser themselves).
  */
-function toPublicFair(fair: any, caller: string | null) {
+export function toPublicFair(fair: any, caller: string | null) {
   const { ownerDeviceId, ...rest } = fair;
   const isMine = Boolean(caller) && ownerDeviceId === caller;
   return {
@@ -72,13 +74,13 @@ export default function registerFairsRoute(app: Express) {
   ------------------------------------------------------- */
   app.get("/fairs", (req: Request, res: Response) => {
     const caller = callerDeviceId(req);
-    res.json(loadFairs().map((f) => toPublicFair(f, caller)));
+    res.json(loadFairs().map((f) => mediaForFair(toPublicFair(f, caller), req)));
   });
 
   app.get("/fairs/:id", (req: Request, res: Response) => {
     const fair = loadFairs().find((f) => f.id === req.params.id);
     if (!fair) return res.status(404).json({ ok: false, error: "Boot fair not found" });
-    res.json(toPublicFair(fair, callerDeviceId(req)));
+    res.json(mediaForFair(toPublicFair(fair, callerDeviceId(req)), req));
   });
 
   /* -------------------------------------------------------
@@ -126,7 +128,8 @@ export default function registerFairsRoute(app: Express) {
       hours: str(body.hours),
       frequency: str(body.frequency, "One‑off"),
 
-      images: strArray(body.images),
+      // Only photos this device really uploaded (see /uploads).
+      images: ownedUploads(body.deviceId, body.images),
       featuredUntil: null,
       busyScore: 0,
       description: str(body.description),
@@ -155,7 +158,7 @@ export default function registerFairsRoute(app: Express) {
     fairs.unshift(fair);
     saveFairs(fairs);
 
-    res.json({ ok: true, fair: toPublicFair(fair, body.deviceId) });
+    res.json({ ok: true, fair: mediaForFair(toPublicFair(fair, body.deviceId), req) });
   });
 
   /* -------------------------------------------------------
@@ -186,6 +189,6 @@ export default function registerFairsRoute(app: Express) {
     fairs[index] = { ...fairs[index], ...patch, lastUpdated: new Date().toISOString() };
     saveFairs(fairs);
 
-    res.json({ ok: true, fair: toPublicFair(fairs[index], deviceId) });
+    res.json({ ok: true, fair: mediaForFair(toPublicFair(fairs[index], deviceId), req) });
   });
 }
