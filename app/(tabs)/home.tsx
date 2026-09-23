@@ -196,6 +196,26 @@ export default function HomeScreen() {
           >
             <GearSix size={22} color={theme.muted} />
           </Pressable>
+
+          {/* Every chat, as buyer and as seller. Mirrors the settings button. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Messages"
+            style={({ pressed }) => [
+              styles.settingsButton,
+              {
+                top: insets.top + 10,
+                left: 16,
+                right: undefined,
+                borderColor: theme.hairline,
+                backgroundColor: theme.card,
+              },
+              pressed && styles.pressed,
+            ]}
+            onPress={() => router.push("/messages")}
+          >
+            <ChatCircle size={22} color={theme.muted} />
+          </Pressable>
         </View>
 
         {/* WEATHER */}
