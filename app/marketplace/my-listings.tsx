@@ -8,6 +8,7 @@ import { BASE_URL } from "@/utils/api";
 import { getDeviceId } from "@/utils/deviceId";
 import { shareListing } from "@/utils/shareListing";
 import { exportListingToEbay } from "@/utils/ebayExport";
+import { deleteMyListing } from "@/utils/myData";
 
 export default function MyListings() {
   const theme = useTheme();
@@ -81,6 +82,27 @@ export default function MyListings() {
     }
   };
 
+  const confirmDelete = (item: any) =>
+    Alert.alert(
+      "Delete this listing?",
+      "It's removed for everyone, along with its photos and any messages about it. This can't be undone.",
+      [
+        { text: "Keep it", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteMyListing(item.id);
+              setListings((prev) => prev.filter((l) => l.id !== item.id));
+            } catch (err: any) {
+              Alert.alert("Couldn't delete it", err?.message ?? "Please try again.");
+            }
+          },
+        },
+      ]
+    );
+
   const confirmSold = (item: any) =>
     Alert.alert(
       "Mark as sold?",
@@ -144,6 +166,20 @@ export default function MyListings() {
               <Text style={{ color: theme.text, marginTop: 4 }}>
                 £{item.price}
               </Text>
+
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Delete this listing"
+                onPress={(e) => {
+                  e.stopPropagation();
+                  confirmDelete(item);
+                }}
+                style={{ alignSelf: "flex-start", marginTop: 8 }}
+              >
+                <Text style={{ color: theme.danger, fontWeight: "700", fontSize: 13 }}>
+                  Delete listing
+                </Text>
+              </TouchableOpacity>
 
               {item.soldAt ? (
                 <Text style={{ color: theme.success, marginTop: 6, fontWeight: "700" }}>

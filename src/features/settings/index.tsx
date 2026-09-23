@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   Alert,
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -17,10 +18,15 @@ import {
   CaretRight,
   CreditCard,
   Crown,
+  DownloadSimple,
+  Envelope,
   Export,
+  FileText,
   Info,
+  ShieldCheck,
   Star,
   Storefront,
+  Trash,
 } from "phosphor-react-native";
 import type { Icon as PhosphorIcon } from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -30,6 +36,8 @@ import { useTheme } from "@/styles/ThemeContext";
 import { connectEbay, disconnectEbay, getEbayStatus } from "@/utils/ebayExport";
 import { getDeviceId } from "@/utils/deviceId";
 import { getSellerName, setSellerName, SELLER_NAME_MAX } from "@/utils/sellerName";
+import { LEGAL } from "@/constants/legal";
+import { deleteMyData, exportMyData } from "@/utils/myData";
 
 /* SMALL LOCAL COMPONENTS */
 function SectionTitle({ children }: { children: string }) {
@@ -174,6 +182,71 @@ export default function SettingsScreen() {
     Share.share({ message: deviceId, title: "FlipPilot device ID" }).catch(() => {});
   };
 
+  const [dataBusy, setDataBusy] = useState(false);
+
+  const openLegalLink = (url: string, what: string) => {
+    if (!url) {
+      Alert.alert(`${what} isn't set up in this build`, "It has to be published before the app is released.");
+      return;
+    }
+    Linking.openURL(url).catch(() => Alert.alert("Couldn't open the link", url));
+  };
+
+  const contactSupport = () => {
+    if (!LEGAL.supportEmail) {
+      Alert.alert("Support email isn't set up in this build", "It has to be added before the app is released.");
+      return;
+    }
+    Linking.openURL(`mailto:${LEGAL.supportEmail}`).catch(() =>
+      Alert.alert("Couldn't open your email app", LEGAL.supportEmail)
+    );
+  };
+
+  const downloadMyData = async () => {
+    if (dataBusy) return;
+    setDataBusy(true);
+    try {
+      const json = await exportMyData();
+      await Share.share({ title: "My FlipPilot data", message: json });
+    } catch (err: any) {
+      Alert.alert("Couldn't get your data", err?.message ?? "Check your connection and try again.");
+    } finally {
+      setDataBusy(false);
+    }
+  };
+
+  const confirmDeleteMyData = () => {
+    if (dataBusy) return;
+    Alert.alert(
+      "Delete my data?",
+      "This permanently deletes your marketplace listings and their photos, your messages, your seller profile and reviews, your boot fairs, and disconnects eBay. It can't be undone.\n\nYour saved flips and photos on this phone are not affected.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete everything",
+          style: "destructive",
+          onPress: async () => {
+            setDataBusy(true);
+            try {
+              const removed = await deleteMyData();
+              await setSellerName("");
+              setName(null);
+              setEbayConnected(false);
+              Alert.alert(
+                "Your data has been deleted",
+                `Removed ${removed.listingsRemoved} listing(s), ${removed.fairsRemoved} boot fair(s), ${removed.messagesRemoved} message(s) and ${removed.photosRemoved} photo(s).`
+              );
+            } catch (err: any) {
+              Alert.alert("Couldn't delete your data", err?.message ?? "Check your connection and try again.");
+            } finally {
+              setDataBusy(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleEbayRow = async () => {
     if (!ebayConfigured) {
       Alert.alert("Not set up yet", "eBay export isn't available in this build yet.");
@@ -310,6 +383,49 @@ export default function SettingsScreen() {
           />
         </View>
 
+        {/* PRIVACY & LEGAL */}
+        <SectionTitle>Privacy & legal</SectionTitle>
+        <View style={[styles.group, card]}>
+          <MenuRow
+            Icon={ShieldCheck}
+            title="Privacy Policy"
+            subtitle="What we collect, why, and who receives it"
+            onPress={() => openLegalLink(LEGAL.privacyPolicyUrl, "The privacy policy")}
+          />
+          <MenuRow
+            Icon={FileText}
+            title="Terms of Use"
+            subtitle="The rules for using FlipPilot and the marketplace"
+            onPress={() => openLegalLink(LEGAL.termsUrl, "The terms of use")}
+            divider
+          />
+          <MenuRow
+            Icon={Envelope}
+            title="Contact us"
+            subtitle="Questions, reports and requests about your data"
+            onPress={contactSupport}
+            divider
+          />
+        </View>
+
+        {/* YOUR DATA */}
+        <SectionTitle>Your data</SectionTitle>
+        <View style={[styles.group, card]}>
+          <MenuRow
+            Icon={DownloadSimple}
+            title="Download my data"
+            subtitle="A copy of everything we hold about you"
+            onPress={downloadMyData}
+          />
+          <MenuRow
+            Icon={Trash}
+            title="Delete my data"
+            subtitle="Remove your listings, messages, profile and boot fairs"
+            onPress={confirmDeleteMyData}
+            divider
+          />
+        </View>
+
         {/* ABOUT */}
         <SectionTitle>About</SectionTitle>
         <View style={[styles.group, card]}>
@@ -328,7 +444,7 @@ export default function SettingsScreen() {
         </View>
 
         <Text style={[styles.caption, { color: theme.muted }]}>
-          Your flips, favourites and boot fairs are stored on this phone.
+          Your flips, favourites and photos are stored on this phone. Marketplace listings, messages and boot fairs you post are stored on our servers.
         </Text>
       </ScrollView>
 

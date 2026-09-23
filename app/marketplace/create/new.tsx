@@ -21,6 +21,7 @@ import AnimatedHeroHeader from "../../../src/components/ui/AnimatedHeroHeader";
 import SparklesOverlay from "../../../src/components/ui/SparklesOverlay";
 
 import { identifyPhoto, BASE_URL } from "../../../src/utils/api";
+import { uploadPhotos } from "../../../src/utils/uploadPhotos";
 import { getDeviceId } from "../../../src/utils/deviceId";
 import { deviceRegionHints } from "../../../src/utils/deviceRegion";
 import { getSellerName } from "../../../src/utils/sellerName";
@@ -169,6 +170,21 @@ export default function CreateNewListing() {
         if (value) kept[f.key] = value;
       }
 
+      // The server only keeps photos this phone uploaded to it, so they go
+      // first; a phone's own file path is no use to a buyer.
+      let uploaded: string[];
+      try {
+        uploaded = await uploadPhotos(photos);
+      } catch (err: any) {
+        Alert.alert(
+          "Couldn't upload your photos",
+          typeof err?.message === "string" && err.message
+            ? err.message
+            : "Check your connection and try again."
+        );
+        return;
+      }
+
       const res = await fetch(`${BASE_URL}/create-listing`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -180,8 +196,7 @@ export default function CreateNewListing() {
           location: location.trim(),
           condition: kept.condition ?? null,
           details: kept,
-          photos,
-          bestThumbnail: photos[0] ?? null,
+          photos: uploaded,
           deviceId,
           // What they chose to be called, if they have set one in Settings.
           sellerName: await getSellerName(),

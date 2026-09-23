@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/styles/ThemeContext";
 
 import { Fair, addUserFair } from "../../src/lib/fairs";
+import { uploadPhotos } from "../../src/utils/uploadPhotos";
 
 // Simple profanity filter. Whole words only (plus common endings), so genuine
 // place names such as Scunthorpe or Shitterton are not rejected.
@@ -415,6 +416,21 @@ export default function AddFairScreen() {
       return;
     }
 
+    // Photos go up first: the server only keeps pictures this phone uploaded,
+    // and a phone's own file path is no use to anyone else.
+    let uploaded: string[] = [];
+    try {
+      uploaded = await uploadPhotos(photos);
+    } catch (err: any) {
+      setSubmitting(false);
+      setFormError(
+        typeof err?.message === "string" && err.message
+          ? err.message
+          : "Couldn't upload your photos. Check your connection and try again."
+      );
+      return;
+    }
+
     // The full fair object, with the fields this form does not ask for filled in.
     const newFair: Fair = {
       id: "BF-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
@@ -440,7 +456,7 @@ export default function AddFairScreen() {
       lng: place.lng,
       hours: `${openingTime} – ${closingTime}`,
       frequency: "One‑off",
-      images: photos,
+      images: uploaded,
       featuredUntil: null,
       busyScore: 0,
       description,

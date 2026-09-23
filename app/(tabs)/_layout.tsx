@@ -1,5 +1,6 @@
 import * as Haptics from "expo-haptics";
-import { Tabs } from "expo-router";
+import { Tabs, useRouter } from "expo-router";
+import { useEffect } from "react";
 
 import {
   Car,
@@ -16,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useDealerNotifications } from "@/features/vehicles/context/DealerNotificationsContext";
 import { useTheme } from "@/styles/ThemeContext";
+import { hasAcceptedLegal } from "@/utils/legalConsent";
 
 const ICON_SIZE = 24;
 
@@ -34,6 +36,20 @@ const tabIcon =
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const theme = useTheme();
+  const router = useRouter();
+
+  // Nobody gets into the app until they have confirmed they are an adult and
+  // agreed to the terms. Every main screen lives under these tabs, so this is
+  // the one place it has to be checked.
+  useEffect(() => {
+    let active = true;
+    hasAcceptedLegal().then((accepted) => {
+      if (active && !accepted) router.replace("/welcome");
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const { notifications } = useDealerNotifications();
   const unread = notifications.filter((n) => !n.read).length;

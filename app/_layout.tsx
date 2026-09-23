@@ -151,6 +151,9 @@ function ThemedStack() {
         {/* Tabs: this loads app/(tabs)/_layout.tsx */}
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 
+        {/* Adult + terms confirmation, shown once before the app is usable */}
+        <Stack.Screen name="welcome" options={{ headerShown: false, gestureEnabled: false }} />
+
         {/* Core non-tab screens */}
         <Stack.Screen name="ai-camera" options={{ headerShown: false }} />
         <Stack.Screen name="upgrade" options={{ title: "Upgrade" }} />

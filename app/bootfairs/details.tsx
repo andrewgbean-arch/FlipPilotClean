@@ -32,6 +32,7 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Linking,
   Pressable,
@@ -47,6 +48,7 @@ import { useTheme } from "@/styles/ThemeContext";
 import { useSubscription } from "@/context/SubscriptionContext";
 
 import { Fair, getAllFairs, isFeatured, updateUserFair } from "../../src/lib/fairs";
+import { deleteMyFair } from "../../src/utils/myData";
 
 // 30 days is a simple, predictable promotion window - independent of whether
 // the organiser keeps nextDate fresh for a recurring fair.
@@ -622,6 +624,40 @@ export default function BootfairDetails() {
                 </Text>
               </View>
             )}
+
+            {/* REMOVE */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Remove my listing"
+              onPress={() =>
+                Alert.alert(
+                  "Remove this listing?",
+                  "It's removed for everyone, along with its photos. This can't be undone.",
+                  [
+                    { text: "Keep it", style: "cancel" },
+                    {
+                      text: "Remove",
+                      style: "destructive",
+                      onPress: async () => {
+                        try {
+                          await deleteMyFair(fair.id);
+                          router.back();
+                        } catch (err: any) {
+                          Alert.alert("Couldn't remove it", err?.message ?? "Please try again.");
+                        }
+                      },
+                    },
+                  ]
+                )
+              }
+              style={({ pressed }) => [
+                styles.manageRow,
+                { marginTop: 12, backgroundColor: theme.card, borderColor: theme.hairline },
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={[styles.toggleLabel, { color: theme.danger }]}>Remove my listing</Text>
+            </Pressable>
           </>
         ) : null}
 
