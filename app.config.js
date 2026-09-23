@@ -10,7 +10,9 @@ export default {
     userInterfaceStyle: "dark",
     assetBundlePatterns: ["**/*"],
     ios: {
-      icon: "./assets/images/app-icon.png"
+      icon: "./assets/images/app-icon.png",
+      // Permanent once the app is published. Keep in step with android.package.
+      bundleIdentifier: "com.flippilot.app"
     },
     android: {
       adaptiveIcon: {
@@ -19,7 +21,7 @@ export default {
         monochromeImage: "./assets/images/android-icon-monochrome.png"
       },
       predictiveBackGestureEnabled: false,
-      package: "com.anonymous.flippilotnew"
+      package: "com.flippilot.app"
     },
     web: {
       output: "single",
