@@ -14,6 +14,7 @@ import registerUploadsRoute from "./routes/uploads";
 import registerMeRoute from "./routes/me";
 import { runRetention } from "./utils/retentionJob";
 import registerAIDescriptionRoute from "./routes/aiDescription";
+import registerListingDescriptionRoute from "./routes/listingDescription";
 import registerEbayExportRoute from "./routes/ebayExport";
 import searchRoute from "./routes/search";
 import searchImageRoute from "./routes/searchImage";
@@ -80,6 +81,7 @@ registerSafetyRoute(app);
 registerUploadsRoute(app);
 registerMeRoute(app);
 registerAIDescriptionRoute(app);
+registerListingDescriptionRoute(app);
 registerEbayExportRoute(app);
 app.use(searchRoute);
 app.use(searchImageRoute);
@@ -110,7 +112,7 @@ if (missingDvlaEnv.length > 0) {
   console.warn(`⚠️  Missing environment variable(s): ${missingDvlaEnv.join(", ")} — DVLA lookup disabled until these are set in backend/.env`);
 }
 if (missingEbayBrowseEnv.length > 0) {
-  console.warn(`⚠️  Missing environment variable(s): ${missingEbayBrowseEnv.join(", ")} — using the older SerpAPI eBay scraper (less reliable) until these are set in backend/.env. Get them free at developer.ebay.com.`);
+  console.warn(`⚠️  Missing environment variable(s): ${missingEbayBrowseEnv.join(", ")} — eBay price data is off until these are set in backend/.env. Get them free at developer.ebay.com.`);
 }
 
 /* -------------------------------------------------------

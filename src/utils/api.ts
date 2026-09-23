@@ -198,6 +198,25 @@ export async function searchBarcode(barcode: string, signal?: AbortSignal) {
 }
 
 // -----------------------------
+// SELLER'S DESCRIPTION (asked for on demand from the scan result)
+// -----------------------------
+export async function writeListingDescription(
+  input: { title: string; condition?: string | null; age?: string | null; intro?: string | null; packCount?: number | null },
+  signal?: AbortSignal
+): Promise<string> {
+  const data = await request("/listing-description", {
+    method: "POST",
+    body: input,
+    signal,
+    timeoutMs: 30_000,
+  });
+  if (!data?.ok || typeof data.description !== "string") {
+    throw new ApiError("lookup", data?.error ?? "Couldn't write a description just now.");
+  }
+  return data.description;
+}
+
+// -----------------------------
 // AI LOOKUP (VISION)
 // -----------------------------
 export async function aiLookup(imageBase64: string, signal?: AbortSignal) {

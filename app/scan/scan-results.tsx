@@ -33,6 +33,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { useTheme } from "@/styles/ThemeContext";
 import { fetchPrices, type ItemAge, type ItemGrade } from "@/utils/api";
+import SellerDescriptionCard from "@/components/scan/SellerDescriptionCard";
 import { dropPending, getPending } from "@/utils/pendingScan";
 import { applyPrices, SCAN_AGAIN_EVENT } from "@/utils/scanTransform";
 
@@ -908,6 +909,15 @@ export default function ScanResultsScreen() {
             </View>
           </>
         ) : null}
+
+        {/* A description they can paste into a listing, written when asked for */}
+        <SellerDescriptionCard
+          title={title}
+          condition={data.ai?.condition ? String(data.ai.condition) : null}
+          age={AGE_OPTIONS.find((o) => o.key === age)?.label ?? null}
+          intro={data.ai?.fullDescription ?? data.ai?.description ?? null}
+          packCount={Number(data.ai?.packCount) > 1 ? Number(data.ai.packCount) : null}
+        />
       </ScrollView>
 
       {/* ACTIONS */}
