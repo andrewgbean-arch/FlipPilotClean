@@ -1,0 +1,31 @@
+[project]
+name = "genesis-companion"
+version = "1.0.0"
+description = "Genesis: a local-first AI companion with long-term memory, personality, emotions and goals."
+requires-python = ">=3.11"
+readme = "../README.md"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn[standard]>=0.30",
+  "sqlalchemy>=2.0.30,<3",
+  "pydantic>=2.7,<3",
+  "pydantic-settings>=2.3,<3",
+  "httpx>=0.27,<1",
+  "python-multipart>=0.0.9",
+  "chromadb>=0.5",
+]
+
+[project.optional-dependencies]
+voice = ["faster-whisper>=1.0", "piper-tts>=1.2"]
+pdf = ["pypdf>=4"]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[project.scripts]
+genesis = "genesis.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["genesis*"]
