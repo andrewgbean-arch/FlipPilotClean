@@ -13,6 +13,7 @@ import {
   bootfairAdverts,
   feedAdverts,
   placementFull,
+  allPictures,
   imagesOf,
   loadAdverts,
   performanceReport,
@@ -26,6 +27,7 @@ import { adminOk } from "../utils/adminAuth";
 import { checkAdvert, blocking } from "../utils/advertCheck";
 import { reviewAdvert } from "../utils/advertReview";
 import { cleanPostcode, geocodePostcode, looksLikeUkPoint } from "../utils/geocode";
+import { imageSize } from "../utils/imageSize";
 import { mediaForAdvert } from "../utils/media";
 import { deleteUploads, saveUpload, sniffImage } from "../utils/uploadStore";
 import { callerDeviceId } from "./messages";
@@ -102,6 +104,35 @@ function storeImage(raw: unknown): { path: string } | { error: string } {
   if (buffer.length > MAX_IMAGE_BYTES) return { error: "That picture is too large" };
   const type = sniffImage(buffer);
   if (!type) return { error: "Only JPEG, PNG or WebP pictures are allowed" };
+  return { path: saveUpload(IMAGE_OWNER, buffer, type) };
+}
+
+// A designed full page fills a phone screen, so it must really be portrait (about 9:16, like
+// 1080 x 1920) and big enough to stay sharp. Anything else is refused with the reason.
+const MIN_ARTWORK_WIDTH = 720;
+const MAX_ARTWORK_SIDE = 4500;
+const MIN_ARTWORK_RATIO = 1.4; // height / width
+const MAX_ARTWORK_RATIO = 2.3;
+
+function storeArtwork(raw: unknown): { path: string } | { error: string } {
+  const encoded = typeof raw === "string" ? raw.replace(/^data:image\/[a-z+]+;base64,/i, "") : "";
+  if (encoded.length < 100) return { error: "No design received" };
+  const buffer = Buffer.from(encoded, "base64");
+  if (buffer.length > MAX_IMAGE_BYTES) return { error: "That design file is too large (3 MB at most)" };
+  const type = sniffImage(buffer);
+  if (!type) return { error: "A design must be a JPEG, PNG or WebP picture" };
+  const size = imageSize(buffer, type);
+  if (!size) return { error: "We couldn't read the size of that picture" };
+  if (size.width < MIN_ARTWORK_WIDTH) {
+    return { error: `That design is ${size.width} x ${size.height}: it must be at least ${MIN_ARTWORK_WIDTH} pixels wide to look sharp on a phone` };
+  }
+  if (size.width > MAX_ARTWORK_SIDE || size.height > MAX_ARTWORK_SIDE) {
+    return { error: `That design is ${size.width} x ${size.height}: at most ${MAX_ARTWORK_SIDE} pixels on a side` };
+  }
+  const ratio = size.height / size.width;
+  if (ratio < MIN_ARTWORK_RATIO || ratio > MAX_ARTWORK_RATIO) {
+    return { error: `That design is ${size.width} x ${size.height}. It must be a portrait picture, about 9:16 (for example 1080 x 1920), to fill a phone screen` };
+  }
   return { path: saveUpload(IMAGE_OWNER, buffer, type) };
 }
 
@@ -347,12 +378,30 @@ export default function registerAdvertsRoute(app: Express) {
     const problems = blocking(checkAdvert(advert), b.reviewed === true);
     if (problems.length > 0) return contentReply(res, problems);
 
-    const stored = storeImages(b.imagesBase64 ?? b.imageBase64);
-    if ("error" in stored) return res.status(400).json({ ok: false, error: stored.error });
+    // A ready-made full-page design: only for the scan full page.
+    let artworkPath: string | null = null;
+    if (b.artworkBase64 !== undefined) {
+      if (!placements.includes("scan-full")) {
+        return res.status(400).json({ ok: false, error: "A designed full page only works for the scan-full placement" });
+      }
+      const art = storeArtwork(b.artworkBase64);
+      if ("error" in art) return res.status(400).json({ ok: false, error: art.error });
+      artworkPath = art.path;
+    }
+
+    // Pictures and words are optional extras with a design; without one they are required.
+    const gaveExtras = b.imagesBase64 !== undefined || b.imageBase64 !== undefined;
+    const stored: { paths: string[] } | { error: string } =
+      gaveExtras || !artworkPath ? storeImages(b.imagesBase64 ?? b.imageBase64) : { paths: [artworkPath] };
+    if ("error" in stored) {
+      if (artworkPath) deleteUploads([artworkPath]);
+      return res.status(400).json({ ok: false, error: stored.error });
+    }
     advert.images = stored.paths;
     advert.image = stored.paths[0];
+    advert.artwork = artworkPath;
 
-    advert.aiReview = await reviewAdvert(advert);
+    advert.aiReview = await reviewAdvert({ ...advert, images: allPictures(advert) });
 
     // Asking for it to be approved only sticks when the AI found nothing to look at.
     // Otherwise it waits for a person, using the PATCH route, having read the AI's reasons.
@@ -454,14 +503,36 @@ export default function registerAdvertsRoute(app: Express) {
       next.image = stored.paths[0];
     }
 
+    let oldArtwork: string | null = null;
+    if (b.artworkBase64 !== undefined || b.removeArtwork === true) {
+      oldArtwork = ad.artwork ?? null;
+      if (b.artworkBase64 !== undefined) {
+        const art = storeArtwork(b.artworkBase64);
+        if ("error" in art) {
+          if (oldImages.length > 0) deleteUploads(next.images);
+          return res.status(400).json({ ok: false, error: art.error });
+        }
+        next.artwork = art.path;
+        // When the old design was also the advert's only picture, the new one replaces it there too.
+        if (oldArtwork) next.images = next.images.map((p) => (p === oldArtwork ? art.path : p));
+        if (next.image === oldArtwork && oldArtwork) next.image = art.path;
+      } else {
+        next.artwork = null;
+      }
+    }
+    if (next.artwork && !next.placements.includes("scan-full")) {
+      deleteUploads([...(oldImages.length > 0 ? next.images : []), ...(oldArtwork && next.artwork !== ad.artwork ? [next.artwork] : [])]);
+      return res.status(400).json({ ok: false, error: "A designed full page only works for the scan-full placement. Remove the design first." });
+    }
+
     // Different words or pictures, or never looked at (an older record): the AI looks again.
-    if (wordingChanged || oldImages.length > 0 || !ad.aiReview) {
-      next.aiReview = await reviewAdvert(next);
+    if (wordingChanged || oldImages.length > 0 || oldArtwork !== null || !ad.aiReview) {
+      next.aiReview = await reviewAdvert({ ...next, images: allPictures(next) });
     }
 
     if (approving) {
       if (next.aiReview?.verdict === "reject" && b.reviewed !== true) {
-        if (oldImages.length > 0) deleteUploads(next.images);
+        deleteUploads([...(oldImages.length > 0 ? next.images : []), ...(oldArtwork !== null && next.artwork && next.artwork !== ad.artwork ? [next.artwork] : [])]);
         return res.status(422).json({
           ok: false,
           error: "ai-rejected",
@@ -489,7 +560,9 @@ export default function registerAdvertsRoute(app: Express) {
       if (JSON.stringify(next[key]) !== JSON.stringify(ad[key])) (merged as any)[key] = next[key];
     }
     saveAdverts(latest.map((a) => (a.id === ad.id ? merged : a)));
-    if (oldImages.length > 0) deleteUploads(oldImages);
+    // Old files go, unless the saved advert still uses them.
+    const stillUsed = new Set(allPictures(merged));
+    deleteUploads([...oldImages, ...(oldArtwork ? [oldArtwork] : [])].filter((p) => !stillUsed.has(p)));
     res.json({ ok: true, advert: forAdmin(merged, req) });
   }));
 
@@ -499,7 +572,7 @@ export default function registerAdvertsRoute(app: Express) {
     const all = loadAdverts();
     const ad = all.find((a) => a.id === req.params.id);
     if (!ad) return res.status(404).json({ ok: false, error: "No such advert" });
-    const review = await reviewAdvert({ ...ad, images: imagesOf(ad) });
+    const review = await reviewAdvert({ ...ad, images: allPictures(ad) });
     // Read again after the slow call, so a delete or report in the meantime isn't undone.
     const latest = loadAdverts();
     const current = latest.find((a) => a.id === ad.id);
@@ -515,7 +588,7 @@ export default function registerAdvertsRoute(app: Express) {
     const ad = all.find((a) => a.id === req.params.id);
     if (!ad) return res.status(404).json({ ok: false, error: "No such advert" });
     saveAdverts(all.filter((a) => a.id !== ad.id));
-    deleteUploads(imagesOf(ad));
+    deleteUploads(allPictures(ad));
     res.json({ ok: true });
   });
 }

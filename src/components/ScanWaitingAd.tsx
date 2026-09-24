@@ -103,18 +103,20 @@ function PaidPanel({ advert }: { advert: BusinessAdvert }) {
   );
 }
 
-/** Up to three pictures to swipe through, with dots showing where you are. */
-function Gallery({ pictures }: { pictures: string[] }) {
+/** Up to three pictures to swipe through, with dots showing where you are. `fill` makes it cover the whole card. */
+function Gallery({ pictures, fill }: { pictures: string[]; fill?: boolean }) {
   const theme = useTheme();
   const [width, setWidth] = useState(0);
   const [page, setPage] = useState(0);
 
+  const frame = fill ? styles.fillAll : styles.fullImage;
+
   if (pictures.length <= 1) {
-    return <Image source={{ uri: pictures[0] }} style={styles.fullImage} resizeMode="cover" />;
+    return <Image source={{ uri: pictures[0] }} style={frame} resizeMode="cover" />;
   }
 
   return (
-    <View style={styles.fullImage} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+    <View style={frame} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       {width > 0 ? (
         <ScrollView
           horizontal
@@ -127,7 +129,7 @@ function Gallery({ pictures }: { pictures: string[] }) {
           ))}
         </ScrollView>
       ) : null}
-      <View style={styles.dots} pointerEvents="none">
+      <View style={[styles.dots, fill && styles.dotsHigh]} pointerEvents="none">
         {pictures.map((uri, i) => (
           <View
             key={uri}
@@ -139,8 +141,56 @@ function Gallery({ pictures }: { pictures: string[] }) {
   );
 }
 
-/** One advertiser has the whole screen to themselves. */
+/** One advertiser's turn on the full page: their own design if they made one, else our template. */
 function FullAd({ advert }: { advert: BusinessAdvert }) {
+  return advert.artwork ? <DesignedAd advert={advert} /> : <TemplateAd advert={advert} />;
+}
+
+/**
+ * The advertiser's own portrait design, edge to edge. Any extra photos are more
+ * pages to swipe to. Our buttons sit on a dark strip along the bottom, so a design
+ * should keep its own writing out of roughly the bottom fifth.
+ */
+function DesignedAd({ advert }: { advert: BusinessAdvert }) {
+  const theme = useTheme();
+  useEffect(() => {
+    markShown(advert.id);
+    reportAdvertEvent(advert.id, "view");
+  }, [advert.id]);
+  const pictures = [advert.artwork!, ...(advert.images ?? []).filter((p) => p !== advert.artwork)];
+
+  return (
+    <View style={[styles.full, { backgroundColor: theme.black, borderColor: theme.hairline }]}>
+      <Gallery pictures={pictures} fill />
+      <View style={styles.designPill} pointerEvents="none">
+        <Text style={styles.designPillText}>SPONSORED</Text>
+      </View>
+      <View style={styles.designBar}>
+        {advert.tagline ? (
+          <Text style={styles.designTagline} numberOfLines={2}>
+            <Text style={styles.designTitle}>{advert.title}</Text>
+            {"  "}
+            {advert.tagline}
+          </Text>
+        ) : (
+          <Text style={styles.designTitle} numberOfLines={1}>
+            {advert.title}
+          </Text>
+        )}
+        <View style={styles.fullActions}>
+          <View style={styles.buttons}>
+            <SaveSponsorButton advert={advert} />
+            <VisitButton advert={advert} label="Visit website" />
+          </View>
+          <AdReportButton advertId={advert.id} onPhoto />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+/** One advertiser has the whole screen to themselves, laid out by us from their picture and words. */
+function TemplateAd({ advert }: { advert: BusinessAdvert }) {
   const theme = useTheme();
   useEffect(() => {
     markShown(advert.id);
@@ -252,6 +302,31 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   fullImage: { width: "100%", flex: 1.6 },
+  fillAll: { width: "100%", flex: 1 },
+  dotsHigh: { bottom: 96 },
+  designPill: {
+    position: "absolute",
+    top: 12,
+    left: 12,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  designPillText: { color: "#fff", fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
+  designBar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.74)",
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 12,
+    gap: 8,
+  },
+  designTitle: { color: "#fff", fontSize: 15, fontWeight: "800" },
+  designTagline: { color: "#fff", fontSize: 13 },
   fullBody: { flex: 1.2, padding: 18, gap: 8, justifyContent: "center" },
   fullTitle: { fontSize: 24, fontWeight: "900" },
   fullTagline: { fontSize: 15, fontWeight: "700" },

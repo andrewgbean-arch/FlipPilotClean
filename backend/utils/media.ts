@@ -35,6 +35,7 @@ export function mediaForAdvert<T extends Record<string, any>>(ad: T, req: Reques
     ...ad,
     image: absolute(ad.image, base),
     ...(Array.isArray(ad.images) ? { images: ad.images.map((p: unknown) => absolute(p, base)) } : {}),
+    ...(typeof ad.artwork === "string" ? { artwork: absolute(ad.artwork, base) } : {}),
   };
 }
 

@@ -7,7 +7,7 @@ import { purgeReportsBefore } from "./safetyStore";
 import { pruneReads } from "./readState";
 import { deleteUploads, purgeOrphanUploads } from "./uploadStore";
 import { purgeFreeScanRecords } from "../middleware/freeScanLimit";
-import { imagesOf, loadAdverts } from "./advertStore";
+import { allPictures, loadAdverts } from "./advertStore";
 
 /**
  * Deletes what has outlived its retention period (config/retention.ts).
@@ -133,7 +133,7 @@ export function runRetention(now = new Date()) {
   }
   for (const f of keptFairs) for (const p of Array.isArray(f.images) ? f.images : []) inUse.add(p);
   // Advert pictures are ours and belong to a booking, so they are never orphans.
-  for (const a of loadAdverts()) for (const p of imagesOf(a)) inUse.add(p);
+  for (const a of loadAdverts()) for (const p of allPictures(a)) inUse.add(p);
   summary.photos += purgeOrphanUploads(inUse, RETENTION.orphanUploadHours, now);
 
   return summary;

@@ -15,6 +15,8 @@ export type BusinessAdvert = {
   image: string;
   /** All its pictures (up to three), the main one first. */
   images?: string[];
+  /** A ready-made portrait design the advertiser made themselves: the full page is this picture, edge to edge. */
+  artwork?: string;
   website?: string;
   /** Boot Fairs only: the big banner rather than a small card. */
   featured?: boolean;

@@ -56,6 +56,12 @@ export type Advert = {
   images: string[];
   /** The first picture, kept for anything that only wants one. */
   image: string;
+  /**
+   * A ready-made portrait design the advertiser made themselves, for the scan full page.
+   * It fills the whole screen; our buttons sit over its bottom edge. Any pictures and
+   * words are optional extras.
+   */
+  artwork?: string | null;
   website: string;
   placements: Placement[];
   /** Who can see it: people near the advertiser, or everyone. */
@@ -101,6 +107,13 @@ export function saveAdverts(adverts: Advert[]) {
 }
 
 const ms = (iso: string) => new Date(iso).getTime();
+
+/** Every picture we hold for an advert, artwork included: what the AI looks at and what cleanup must keep. */
+export function allPictures(ad: { image?: string; images?: string[]; artwork?: string | null }): string[] {
+  const list = [...imagesOf(ad)];
+  if (ad.artwork && !list.includes(ad.artwork)) list.unshift(ad.artwork);
+  return list;
+}
 
 /** Every picture of an advert, first one first. */
 export function imagesOf(ad: { image?: string; images?: string[] }): string[] {
