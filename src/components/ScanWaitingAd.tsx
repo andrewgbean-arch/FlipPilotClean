@@ -4,6 +4,7 @@ import { ArrowSquareOut } from "phosphor-react-native";
 
 import AdReportButton from "@/components/AdReportButton";
 import { HousePanel } from "@/components/HousePromo";
+import SaveSponsorButton from "@/components/SaveSponsorButton";
 import { lastShownAt, markShown, useRotated } from "@/lib/adRotation";
 import { reportAdvertEvent, useAdverts, type ScanAdverts } from "@/lib/adverts";
 import type { BusinessAdvert } from "@/lib/businessAdverts";
@@ -83,7 +84,10 @@ function PaidPanel({ advert }: { advert: BusinessAdvert }) {
           <View style={[styles.pill, { backgroundColor: theme.background }]}>
             <Text style={[styles.pillText, { color: theme.muted }]}>Sponsored</Text>
           </View>
-          <VisitButton advert={advert} />
+          <View style={styles.buttons}>
+            <SaveSponsorButton advert={advert} />
+            <VisitButton advert={advert} />
+          </View>
         </View>
         <Text style={[styles.panelTitle, { color: theme.text }]} numberOfLines={1}>
           {advert.title}
@@ -166,7 +170,10 @@ function FullAd({ advert }: { advert: BusinessAdvert }) {
           </Text>
         ) : null}
         <View style={styles.fullActions}>
-          <VisitButton advert={advert} label="Visit website" />
+          <View style={styles.buttons}>
+            <SaveSponsorButton advert={advert} />
+            <VisitButton advert={advert} label="Visit website" />
+          </View>
           <AdReportButton advertId={advert.id} />
         </View>
       </View>
@@ -241,6 +248,7 @@ const styles = StyleSheet.create({
   fullTitle: { fontSize: 24, fontWeight: "900" },
   fullTagline: { fontSize: 15, fontWeight: "700" },
   fullDescription: { fontSize: 14, lineHeight: 20 },
+  buttons: { flexDirection: "row", alignItems: "center", gap: 8 },
   fullActions: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
   dots: {
     position: "absolute",

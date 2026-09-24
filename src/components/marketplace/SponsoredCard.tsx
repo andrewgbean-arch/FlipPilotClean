@@ -3,6 +3,7 @@ import { Image, Linking, Text, TouchableOpacity, View } from "react-native";
 
 import AdReportButton from "@/components/AdReportButton";
 import { HouseFeedCard } from "@/components/HousePromo";
+import SaveSponsorButton from "@/components/SaveSponsorButton";
 import { markShown } from "@/lib/adRotation";
 import { reportAdvertEvent } from "@/lib/adverts";
 import type { BusinessAdvert } from "@/lib/businessAdverts";
@@ -79,6 +80,8 @@ const PaidCard = React.memo(function PaidCard({ advert }: { advert: BusinessAdve
 
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
             <AdReportButton advertId={advert.id} />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <SaveSponsorButton advert={advert} />
             {advert.website ? (
               <TouchableOpacity
                 onPress={open}
@@ -95,6 +98,7 @@ const PaidCard = React.memo(function PaidCard({ advert }: { advert: BusinessAdve
                 <Text style={{ color: theme.black, fontSize: 13, fontWeight: "800" }}>Visit</Text>
               </TouchableOpacity>
             ) : null}
+            </View>
           </View>
         </View>
       </View>

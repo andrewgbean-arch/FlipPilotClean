@@ -92,7 +92,7 @@ const lastCounted = new Map<string, number>();
  * quiet period so scrolling back past the same advert in a feed isn't counted
  * again and again.
  */
-export function reportAdvertEvent(id: string, type: "view" | "click", quietMinutes = 0): void {
+export function reportAdvertEvent(id: string, type: "view" | "click" | "save", quietMinutes = 0): void {
   if (type === "view" && quietMinutes > 0) {
     const last = lastCounted.get(id) ?? 0;
     if (Date.now() - last < quietMinutes * 60_000) return;

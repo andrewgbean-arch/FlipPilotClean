@@ -248,7 +248,7 @@ export default function registerAdvertsRoute(app: Express) {
   // A view or a tap. Counts only: who did it is never recorded.
   app.post("/adverts/:id/event", rateLimit(240), (req: Request, res: Response) => {
     const type = req.body?.type;
-    if (type !== "view" && type !== "click") {
+    if (type !== "view" && type !== "click" && type !== "save") {
       return res.status(400).json({ ok: false, error: "Unknown event" });
     }
     res.json({ ok: true, counted: recordEvent(String(req.params.id), type) });

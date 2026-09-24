@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { ActivityIndicator, FlatList, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, FlatList, Linking, Text, TouchableOpacity, View } from "react-native";
 import { Image } from "expo-image";
 import { router, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
@@ -9,6 +9,8 @@ import { BASE_URL } from "@/utils/api";
 import { getDeviceId } from "@/utils/deviceId";
 import StatusBadge from "@/components/marketplace/StatusBadge";
 import { useMessageAlerts } from "@/context/MessageAlertsContext";
+import { reportAdvertEvent } from "@/lib/adverts";
+import { removeSponsor, useSavedSponsors } from "@/lib/savedSponsors";
 
 type Conversation = {
   listingId: number | string;
@@ -119,6 +121,74 @@ const Row = React.memo(function Row({ item, theme }: { item: Conversation; theme
   );
 });
 
+/**
+ * Sponsors kept from an advert with Save, so they can be looked at now without
+ * having interrupted a scan. Only on this phone; shown above the conversations.
+ */
+function SavedSponsors({ theme }: { theme: any }) {
+  const saved = useSavedSponsors();
+  if (saved.length === 0) return null;
+
+  return (
+    <View style={{ marginBottom: 18 }}>
+      <Text style={{ color: theme.text, fontSize: 16, fontWeight: "800" }}>Saved sponsors</Text>
+      <Text style={{ color: theme.muted, fontSize: 12, marginTop: 2, marginBottom: 10 }}>
+        Kept on this phone so you can look whenever suits you.
+      </Text>
+      {saved.map((s) => (
+        <View
+          key={s.id}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 10,
+            backgroundColor: theme.card,
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: theme.goldDeep,
+            padding: 10,
+            marginBottom: 8,
+          }}
+        >
+          <Image source={{ uri: s.image }} style={{ width: 48, height: 48, borderRadius: 10 }} contentFit="cover" />
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: theme.goldDeep, fontWeight: "800", fontSize: 14 }} numberOfLines={1}>
+              {s.title}
+            </Text>
+            {s.tagline ?? s.description ? (
+              <Text style={{ color: theme.muted, fontSize: 12 }} numberOfLines={1}>
+                {s.tagline ?? s.description}
+              </Text>
+            ) : null}
+            <Text style={{ color: theme.muted, fontSize: 10, marginTop: 2 }}>SPONSORED</Text>
+          </View>
+          {s.website ? (
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel={`Visit ${s.title}`}
+              onPress={() => {
+                reportAdvertEvent(s.id, "click");
+                Linking.openURL(s.website!);
+              }}
+              style={{ backgroundColor: theme.goldDeep, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999 }}
+            >
+              <Text style={{ color: theme.black, fontWeight: "800", fontSize: 13 }}>Visit</Text>
+            </TouchableOpacity>
+          ) : null}
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={`Remove ${s.title} from saved sponsors`}
+            hitSlop={8}
+            onPress={() => removeSponsor(s.id)}
+          >
+            <Feather name="x" size={18} color={theme.muted} />
+          </TouchableOpacity>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 /** Every conversation, as buyer and as seller, newest first. */
 export default function MessagesInbox() {
   const theme = useTheme();
@@ -168,9 +238,12 @@ export default function MessagesInbox() {
       keyExtractor={(c) => `${c.listingId}:${c.threadId ?? "buyer"}`}
       renderItem={({ item }) => <Row item={item} theme={theme} />}
       ListHeaderComponent={
-        <Text style={{ color: theme.goldDeep, fontSize: 28, fontWeight: "900", marginBottom: 14 }}>
-          Messages
-        </Text>
+        <View>
+          <Text style={{ color: theme.goldDeep, fontSize: 28, fontWeight: "900", marginBottom: 14 }}>
+            Messages
+          </Text>
+          <SavedSponsors theme={theme} />
+        </View>
       }
       ListEmptyComponent={
         loading ? (

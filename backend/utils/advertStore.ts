@@ -35,7 +35,8 @@ export const RADIUS_OPTIONS_MILES = [10, 25, 50] as const;
 export const DEFAULT_RADIUS_MILES = 50;
 export const MAX_IMAGES = 3;
 
-export type DayCount = { views: number; clicks: number };
+/** views = shown, clicks = went to the advertiser's site, saves = kept for later in the phone's Messages. */
+export type DayCount = { views: number; clicks: number; saves?: number };
 
 export type AdvertReport = { deviceId: string; reason: string; details: string; at: string };
 
@@ -259,13 +260,14 @@ export function bootfairAdverts(now = new Date(), all = readAdverts(), viewer: V
 }
 
 /** Counts a view or a tap against today, if the advert is live. False when it isn't. */
-export function recordEvent(id: string, type: "view" | "click", now = new Date()): boolean {
+export function recordEvent(id: string, type: "view" | "click" | "save", now = new Date()): boolean {
   const all = readAdverts();
   const ad = all.find((a) => a.id === id);
   if (!ad || !isLive(ad, now)) return false;
   const day = now.toISOString().slice(0, 10);
   const counts = ad.stats[day] ?? { views: 0, clicks: 0 };
   if (type === "view") counts.views += 1;
+  else if (type === "save") counts.saves = (counts.saves ?? 0) + 1;
   else counts.clicks += 1;
   ad.stats[day] = counts;
   saveAdverts(all);
@@ -301,10 +303,10 @@ export function addAdvertReport(
   return { paused };
 }
 
-export function totals(ad: Advert): DayCount {
-  return Object.values(ad.stats).reduce(
-    (sum, d) => ({ views: sum.views + d.views, clicks: sum.clicks + d.clicks }),
-    { views: 0, clicks: 0 }
+export function totals(ad: Advert): { views: number; clicks: number; saves: number } {
+  return Object.values(ad.stats).reduce<{ views: number; clicks: number; saves: number }>(
+    (sum, d) => ({ views: sum.views + d.views, clicks: sum.clicks + d.clicks, saves: sum.saves + (d.saves ?? 0) }),
+    { views: 0, clicks: 0, saves: 0 }
   );
 }
 
@@ -316,7 +318,7 @@ export function performanceReport(ad: Advert) {
   const t = totals(ad);
   const byDay = Object.keys(ad.stats)
     .sort()
-    .map((day) => ({ day, views: ad.stats[day].views, taps: ad.stats[day].clicks }));
+    .map((day) => ({ day, views: ad.stats[day].views, taps: ad.stats[day].clicks, saves: ad.stats[day].saves ?? 0 }));
   const tapRate = t.views > 0 ? Math.round((t.clicks / t.views) * 1000) / 10 : 0;
   return {
     advertiser: ad.advertiser,
@@ -329,11 +331,13 @@ export function performanceReport(ad: Advert) {
         : "Nationwide",
     timesShown: t.views,
     timesTapped: t.clicks,
+    timesSaved: t.saves,
     tapRatePercent: tapRate,
     byDay,
     summary:
       `${ad.title}: shown ${t.views} time${t.views === 1 ? "" : "s"} and tapped ${t.clicks} time${t.clicks === 1 ? "" : "s"}` +
       (t.views > 0 ? ` (${tapRate}% of showings led to a tap)` : "") +
+      (t.saves > 0 ? `, and saved ${t.saves} time${t.saves === 1 ? "" : "s"} for later` : "") +
       `. These count showings on phones, not separate people.`,
   };
 }
