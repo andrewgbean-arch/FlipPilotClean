@@ -15,7 +15,9 @@
 export const LEGAL = {
   privacyPolicyUrl: process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL?.trim() ?? "",
   termsUrl: process.env.EXPO_PUBLIC_TERMS_URL?.trim() ?? "",
-  supportEmail: process.env.EXPO_PUBLIC_SUPPORT_EMAIL?.trim() ?? "",
+  // The public contact address. A build can override it with the variable above; otherwise this is used,
+  // so "For dealers" and "Advertise your business" open an email to us from day one.
+  supportEmail: process.env.EXPO_PUBLIC_SUPPORT_EMAIL?.trim() || "flippilot@hotmail.com",
   businessName: process.env.EXPO_PUBLIC_BUSINESS_NAME?.trim() ?? "",
   // Where "For dealers" and "Advertise your business" go. Until a page exists
   // they open an email enquiry to the support address instead (partnerLinks.ts).

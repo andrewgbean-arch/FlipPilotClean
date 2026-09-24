@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FlipPilot Dealer OS</title>
+<meta name="description" content="FlipPilot Dealer OS: stock, diary, rota, customers, invoices and an AI assistant for UK car dealers, with an app for your staff's phones. Ask for a demo.">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<main class="page">
+
+  <header class="mast">
+    <nav class="crumbs"><a href="../">FlipPilot</a> &rsaquo; Dealers</nav>
+    <span class="label">FlipPilot &middot; Dealer OS</span>
+    <h1>Run your dealership from one place.</h1>
+    <p class="lede">FlipPilot Dealer OS is software for UK car dealers: your stock, your diary, your team and your customers together, with a phone app your staff can use on the forecourt. Ask for a demo and we’ll show you it working with a dealership like yours.</p>
+  </header>
+
+  <section aria-labelledby="does-h">
+    <h2 id="does-h">What it does today</h2>
+    <div class="cards">
+      <div class="card"><h3>Stock and photos</h3><p>Every vehicle in one list with its details and photos, and a public page for each car with a QR code you can put on the windscreen.</p></div>
+      <div class="card"><h3>Diary, rota and jobs</h3><p>Who is in, what is booked, and a job board the whole team can see. Staff clock in and out from their phones.</p></div>
+      <div class="card"><h3>Customers and wanted cars</h3><p>A customer database, and a “tell me when you get one” form so people can ask for the car they want and you can see it.</p></div>
+      <div class="card"><h3>Invoices and the books</h3><p>Invoices and simple bookkeeping that understands VAT, with the profit on each car worked out honestly.</p></div>
+      <div class="card"><h3>MOT and reminders</h3><p>Keep track of MOT and service dates so nothing is missed.</p></div>
+      <div class="card gold"><h3>Pilot Brain, your AI assistant</h3><p>Ask questions about your own business in plain English. It is for owners and managers only, and it never sees wages or private messages.</p></div>
+    </div>
+    <p class="notice">We are building this with dealers, so it grows quickly. If something you need isn’t here yet, tell us: it shapes what we build next.</p>
+  </section>
+
+  <section aria-labelledby="ask-h">
+    <h2 id="ask-h">Ask for a demo</h2>
+    <p class="muted">This builds an email to us with your details filled in. There’s no obligation, and we’ll never share your details.</p>
+
+    <form id="enquiry" novalidate>
+      <fieldset>
+        <legend>About your dealership</legend>
+        <div class="row2">
+          <div class="field"><label for="biz">Dealership name</label><input id="biz" type="text" autocomplete="organization" required></div>
+          <div class="field"><label for="contact">Your name</label><input id="contact" type="text" autocomplete="name" required></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label for="email">Your email</label><input id="email" type="email" autocomplete="email" required></div>
+          <div class="field"><label for="phone">Phone <span class="muted">(optional)</span></label><input id="phone" type="tel" autocomplete="tel"></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label for="postcode">Postcode</label><input id="postcode" type="text" autocomplete="postal-code"></div>
+          <div class="field"><label for="stock">Cars in stock, roughly</label>
+            <select id="stock"><option value="">Not sure</option><option>Under 10</option><option>10 to 30</option><option>30 to 60</option><option>Over 60</option></select></div>
+        </div>
+        <div class="field"><label for="staff">People on the team, roughly</label>
+          <select id="staff"><option value="">Not sure</option><option>Just me</option><option>2 to 5</option><option>6 to 15</option><option>Over 15</option></select></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>What are you most interested in?</legend>
+        <div class="check"><input type="checkbox" name="int" value="Stock and photos"><div class="t"><b>Stock and photos</b></div></div>
+        <div class="check"><input type="checkbox" name="int" value="Diary, rota and jobs"><div class="t"><b>Diary, rota and jobs</b></div></div>
+        <div class="check"><input type="checkbox" name="int" value="Customers and wanted cars"><div class="t"><b>Customers and wanted cars</b></div></div>
+        <div class="check"><input type="checkbox" name="int" value="Invoices and bookkeeping"><div class="t"><b>Invoices and bookkeeping</b></div></div>
+        <div class="check"><input type="checkbox" name="int" value="Pilot Brain AI assistant"><div class="t"><b>Pilot Brain AI assistant</b></div></div>
+        <div class="check"><input type="checkbox" name="int" value="Listing cars on the FlipPilot marketplace"><div class="t"><b>Listing cars on the FlipPilot marketplace</b></div></div>
+        <div class="field"><label for="notes">Anything else? <span class="muted">(optional)</span></label><textarea id="notes"></textarea></div>
+      </fieldset>
+
+      <div class="actions">
+        <button class="btn" type="submit">Prepare my email to FlipPilot</button>
+        <span class="muted" id="msg" role="status"></span>
+      </div>
+
+      <div id="fallback" hidden>
+        <p class="notice">If your email app didn’t open, copy the text below and send it to <b id="fbEmail"></b>.</p>
+        <div class="copybox" id="copybox"></div>
+        <div class="actions"><button class="btn ghost" type="button" id="copy">Copy the text</button></div>
+      </div>
+    </form>
+  </section>
+
+  <footer>Emails you send us are used only to answer your enquiry. Pricing depends on the size of your dealership, so we quote after a demo.</footer>
+
+</main>
+
+<script>
+(function () {
+  "use strict";
+  // Where dealer enquiries go. Written in parts so it isn't one ready-made address for bots to collect.
+  // To use a separate Dealer OS address, change these two parts.
+  var EMAIL = ["flippilot", "hotmail.com"].join("@");
+
+  var $ = function (id) { return document.getElementById(id); };
+  $("fbEmail").textContent = EMAIL;
+
+  function line(label, value) { return value ? label + ": " + value + "\n" : ""; }
+
+  function buildText() {
+    var interests = Array.prototype.slice.call(document.querySelectorAll('input[name="int"]:checked')).map(function (i) { return i.value; });
+    return (
+      "FlipPilot Dealer OS enquiry\n\n" +
+      line("Dealership", $("biz").value.trim()) +
+      line("Contact", $("contact").value.trim()) +
+      line("Email", $("email").value.trim()) +
+      line("Phone", $("phone").value.trim()) +
+      line("Postcode", $("postcode").value.trim().toUpperCase()) +
+      line("Cars in stock", $("stock").value) +
+      line("Team size", $("staff").value) +
+      (interests.length ? "\nInterested in: " + interests.join(", ") + "\n" : "") +
+      line("\nNotes", $("notes").value.trim()) +
+      "\nI'd like a demo, please."
+    );
+  }
+
+  $("enquiry").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var missing = [];
+    if (!$("biz").value.trim()) missing.push("your dealership name");
+    if (!$("contact").value.trim()) missing.push("your name");
+    if (!/^\S+@\S+\.\S+$/.test($("email").value.trim())) missing.push("a valid email");
+    if (missing.length) { $("msg").textContent = "Still needed: " + missing.join(", ") + "."; return; }
+    var text = buildText();
+    $("copybox").textContent = text;
+    $("fallback").hidden = false;
+    window.location.href = "mailto:" + EMAIL + "?subject=" + encodeURIComponent("Dealer OS enquiry: " + $("biz").value.trim()) + "&body=" + encodeURIComponent(text);
+    $("msg").textContent = "Opening your email app. If nothing opens, use the copy box below.";
+  });
+
+  $("copy").addEventListener("click", function () {
+    var text = $("copybox").textContent;
+    var done = function () { $("msg").textContent = "Copied. Paste it into an email to " + EMAIL + "."; };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { $("msg").textContent = "Select the text and copy it by hand."; });
+    } else {
+      $("msg").textContent = "Select the text and copy it by hand.";
+    }
+  });
+})();
+</script>
+</body>
+</html>

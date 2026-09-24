@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Advertise with FlipPilot</title>
+<meta name="description" content="Put your business in front of local buyers and sellers in the FlipPilot app. Choose where, see the price, and send us your booking request.">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<main class="page">
+
+  <header class="mast">
+    <nav class="crumbs"><a href="../">FlipPilot</a> &rsaquo; Advertise</nav>
+    <span class="label">FlipPilot &middot; Advertising</span>
+    <h1>Reach people while they’re buying, selling and scanning.</h1>
+    <p class="lede">FlipPilot is a UK app for reselling and second-hand buying. Your advert appears inside the moments people are already using it, clearly marked as sponsored. Pick where, see your price, and send us your booking request below.</p>
+  </header>
+
+  <div class="offer" id="offerBanner" role="note">
+    <strong>Half price for your first 2 months.</strong>
+    <span>Prices below cover people within 50 miles of your business. Nationwide is available on request.</span>
+  </div>
+
+  <section aria-labelledby="where-h">
+    <h2 id="where-h">Where your advert can appear</h2>
+    <div class="cards">
+      <div class="card"><h3>Messages banner</h3><p>A banner at the top of the inbox, where people talk to buyers and sellers. Advertisers take turns.</p><div class="price num">£15 <small>a month</small></div></div>
+      <div class="card"><h3>Marketplace feed</h3><p>A sponsored card between listings, about once every two screens of scrolling. Each person sees a different advertiser next.</p><div class="price num">£25 <small>a month</small></div></div>
+      <div class="card"><h3>Scan cross-over</h3><p>Two advertisers share the screen while a scan is looked up. A fresh pair on every scan.</p><div class="price num">£29 <small>a month</small></div></div>
+      <div class="card gold"><h3>Scan full page</h3><p>Your advert takes the whole screen on your turn. Up to three advertisers share it in each area. Use our layout, or bring your own design.</p><div class="price num">£99 <small>a month</small></div></div>
+    </div>
+    <p class="muted">All three shared placements together: <b class="num">£59</b> a month. Not sure which? Book what you like here and tell us your aim; we will suggest.</p>
+  </section>
+
+  <section aria-labelledby="book-h">
+    <h2 id="book-h">Send us your booking request</h2>
+    <p class="muted">This builds an email to us with everything filled in. Nothing is booked or charged until we have checked your advert and agreed it with you.</p>
+
+    <form id="booking" novalidate>
+      <fieldset>
+        <legend>1. About your business</legend>
+        <div class="row2">
+          <div class="field"><label for="biz">Business name</label><input id="biz" type="text" autocomplete="organization" required></div>
+          <div class="field"><label for="contact">Your name</label><input id="contact" type="text" autocomplete="name" required></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label for="email">Your email</label><input id="email" type="email" autocomplete="email" required></div>
+          <div class="field"><label for="phone">Phone <span class="muted">(optional)</span></label><input id="phone" type="tel" autocomplete="tel"></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label for="site">Website people should visit</label><input id="site" type="url" placeholder="https://" required><span class="hint">Must start with https://</span></div>
+          <div class="field"><label for="postcode">Business postcode</label><input id="postcode" type="text" autocomplete="postal-code" required><span class="hint">Used only to work out who is within reach of you.</span></div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>2. Where you’d like to appear</legend>
+        <div class="check" id="c-messages"><input type="checkbox" id="messages"><div class="t"><b>Messages banner</b><span>Top of the inbox</span></div><div class="p num">£15</div></div>
+        <div class="check" id="c-feed"><input type="checkbox" id="feed"><div class="t"><b>Marketplace feed</b><span>Card between listings</span></div><div class="p num">£25</div></div>
+        <div class="check" id="c-scan"><input type="checkbox" id="scan"><div class="t"><b>Scan cross-over</b><span>Shares the scan screen with one other advertiser</span></div><div class="p num">£29</div></div>
+        <div class="check" id="c-full"><input type="checkbox" id="full"><div class="t"><b>Scan full page</b><span>The whole screen on your turn (replaces the cross-over)</span></div><div class="p num">£99</div></div>
+        <div class="check" id="c-design" hidden><input type="checkbox" id="design"><div class="t"><b>I will send my own full-page design</b><span>A picture, portrait about 1080 × 1920 (best) or landscape about 1920 × 1080. We show it whole, never cropped. Attach it when you email us.</span></div></div>
+        <div class="row2">
+          <div class="field"><label for="area">Who should see it</label>
+            <select id="area"><option value="50">People within 50 miles of me</option><option value="25">People within 25 miles of me</option><option value="10">People within 10 miles of me</option><option value="nationwide">Nationwide (we’ll quote you)</option></select></div>
+          <div class="field"><label for="start">Start date</label><input id="start" type="date"></div>
+        </div>
+        <div class="field"><label for="months">How many months</label>
+          <select id="months"><option value="1">1</option><option value="2" selected>2</option><option value="3">3</option><option value="6">6</option></select></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>3. Your advert</legend>
+        <div class="field"><label for="headline">Headline</label><input id="headline" type="text" maxlength="80"><span class="hint">Up to 80 characters. Plain and honest works best.</span></div>
+        <div class="field"><label for="tagline">A line about you <span class="muted">(optional)</span></label><input id="tagline" type="text" maxlength="120"></div>
+        <div class="field"><label for="notes">Anything else <span class="muted">(optional)</span></label><textarea id="notes"></textarea><span class="hint">Send up to three photos by replying to your email. We can’t take attachments here.</span></div>
+      </fieldset>
+
+      <div class="summary" id="summary" aria-live="polite"></div>
+
+      <div class="actions">
+        <button class="btn" type="submit" id="go">Prepare my email to FlipPilot</button>
+        <span class="muted" id="msg" role="status"></span>
+      </div>
+
+      <div id="fallback" hidden>
+        <p class="notice">If your email app didn’t open, copy the text below and send it to <b id="fbEmail"></b>.</p>
+        <div class="copybox" id="copybox"></div>
+        <div class="actions"><button class="btn ghost" type="button" id="copy">Copy the text</button></div>
+      </div>
+    </form>
+  </section>
+
+  <section aria-labelledby="terms-h">
+    <h2 id="terms-h">The small print, in plain English</h2>
+    <div class="terms">
+      <div><h3>Booked by the month</h3><p>Paid monthly in advance, no long contract. Stop any time and you keep your slot until the month you paid for runs out.</p></div>
+      <div><h3>Every advert is checked</h3><p>We review the wording and pictures before anything goes live. If we can’t approve it you aren’t charged, and we’ll tell you what to change.</p></div>
+      <div><h3>Clearly marked</h3><p>Every advert says “Sponsored”, and anyone can report one. No fake reviews, star ratings or guarantees.</p></div>
+      <div><h3>Honest numbers</h3><p>You get a report of how many times your advert was shown, tapped and saved for later, by day, as counted by the app. We are new and audiences grow, so we don’t promise a number of views. That is why launch prices are half price, and why, if your first month is quieter than we’d both like, we add a month free.</p></div>
+      <div><h3>Your area</h3><p>Local adverts are shown to people within your chosen distance of your postcode. The app uses a rounded position, from phones that have already shared it, only to choose adverts, and we don’t store it.</p></div>
+      <div><h3>Fair rotation</h3><p>Nobody is shown the same advertiser over and over. Each phone sees the advertiser it saw longest ago, and the cycle restarts once everyone booked in that area has had a turn.</p></div>
+    </div>
+  </section>
+
+  <footer>All prices are per month. We are not currently VAT registered, so no VAT is added. Prices and the launch offer may change for new bookings; a booking you’ve made keeps its price for the months you’ve paid for. Emails you send us are used only to answer your booking.</footer>
+
+</main>
+
+<script>
+(function () {
+  "use strict";
+  // The one place to switch the launch offer off: set to false when it ends.
+  var LAUNCH_HALF_PRICE = true;
+  var OFFER_MONTHS = 2;
+  // Written in parts so it isn't sitting in the page as one ready-made address for bots to collect.
+  var EMAIL = ["flippilot", "hotmail.com"].join("@");
+
+  var PRICE = { messages: 15, feed: 25, scan: 29, full: 99 };
+  var SHARED_BUNDLE = 59; // messages + feed + scan cross-over together
+  var NAMES = { messages: "Messages banner", feed: "Marketplace feed", scan: "Scan cross-over", full: "Scan full page" };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var money = function (n) { return "£" + (Math.round(n * 100) / 100).toFixed(2).replace(/\.00$/, ""); };
+
+  if (!LAUNCH_HALF_PRICE) $("offerBanner").hidden = true;
+  $("fbEmail").textContent = EMAIL;
+
+  // today as the earliest start
+  var today = new Date(); today.setHours(0, 0, 0, 0);
+  var iso = function (d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+  $("start").min = iso(today);
+  var soon = new Date(today); soon.setDate(soon.getDate() + 7); $("start").value = iso(soon);
+
+  function chosen() {
+    return Object.keys(PRICE).filter(function (k) { return $(k).checked; });
+  }
+
+  // one advertiser can't be on the cross-over and the full page at once
+  function sync(changed) {
+    if (changed === "full" && $("full").checked) $("scan").checked = false;
+    if (changed === "scan" && $("scan").checked) $("full").checked = false;
+    $("c-scan").classList.toggle("off", $("full").checked);
+    $("c-full").classList.toggle("off", $("scan").checked);
+    $("c-design").hidden = !$("full").checked;
+    if (!$("full").checked) $("design").checked = false;
+  }
+
+  function monthly(sel) {
+    var shared = sel.filter(function (k) { return k !== "full"; });
+    var t = shared.length === 3 ? SHARED_BUNDLE : shared.reduce(function (s, k) { return s + PRICE[k]; }, 0);
+    if (sel.indexOf("full") >= 0) t += PRICE.full;
+    return t;
+  }
+
+  function figures() {
+    var sel = chosen();
+    var std = monthly(sel);
+    var months = parseInt($("months").value, 10);
+    var launch = LAUNCH_HALF_PRICE ? std / 2 : std;
+    var offerMonths = LAUNCH_HALF_PRICE ? Math.min(months, OFFER_MONTHS) : 0;
+    var total = offerMonths * launch + (months - offerMonths) * std;
+    return { sel: sel, std: std, launch: launch, months: months, offerMonths: offerMonths, total: total, nationwide: $("area").value === "nationwide" };
+  }
+
+  function render() {
+    var f = figures();
+    var el = $("summary");
+    if (f.sel.length === 0) { el.innerHTML = '<span class="muted">Choose where you’d like to appear to see your price.</span>'; return; }
+    var lines = f.sel.map(function (k) { return "<div class=\"line\"><span>" + NAMES[k] + "</span><span class=\"num\">" + money(PRICE[k]) + "</span></div>"; }).join("");
+    var bundle = f.sel.filter(function (k) { return k !== "full"; }).length === 3
+      ? "<div class=\"line\"><span class=\"muted\">All three shared placements together</span><span class=\"num\">−" + money(15 + 25 + 29 - SHARED_BUNDLE) + "</span></div>" : "";
+    if (f.nationwide) {
+      el.innerHTML = "<div class=\"label\">Your booking</div>" + lines + "<p class=\"muted\">Nationwide adverts are quoted on request. Send your request and we’ll come back with a price.</p>";
+      return;
+    }
+    el.innerHTML =
+      "<div class=\"label\">Your price</div>" + lines + bundle +
+      "<div class=\"big num\">" + money(f.launch) + " <small class=\"muted\" style=\"font-size:.9rem;font-weight:400\">a month" + (LAUNCH_HALF_PRICE ? ", for your first " + OFFER_MONTHS + " months" : "") + "</small></div>" +
+      (LAUNCH_HALF_PRICE ? "<p class=\"muted\">Then " + money(f.std) + " a month. Half price applies to your first " + OFFER_MONTHS + " months.</p>" : "") +
+      "<p class=\"muted\">For " + f.months + " month" + (f.months > 1 ? "s" : "") + ", about <b class=\"num\">" + money(f.total) + "</b> in all. No VAT: we’re not VAT registered.</p>";
+  }
+
+  ["messages", "feed", "scan", "full"].forEach(function (k) {
+    $(k).addEventListener("change", function () { sync(k); render(); });
+  });
+  $("months").addEventListener("change", render);
+  $("area").addEventListener("change", render);
+  sync(); render();
+
+  function line(label, value) { return value ? label + ": " + value + "\n" : ""; }
+
+  function buildText() {
+    var f = figures();
+    var area = $("area").value === "nationwide" ? "Nationwide (please quote)" : "Within " + $("area").value + " miles of " + $("postcode").value.trim().toUpperCase();
+    var pricing = f.nationwide
+      ? "Price: nationwide, to be quoted"
+      : "Price shown to me: " + money(f.launch) + " a month" + (LAUNCH_HALF_PRICE ? " for the first " + OFFER_MONTHS + " months, then " + money(f.std) + " a month" : "") + " (about " + money(f.total) + " for " + f.months + " month" + (f.months > 1 ? "s" : "") + ", no VAT)";
+    return (
+      "Advert booking request\n\n" +
+      line("Business", $("biz").value.trim()) +
+      line("Contact", $("contact").value.trim()) +
+      line("Email", $("email").value.trim()) +
+      line("Phone", $("phone").value.trim()) +
+      line("Website", $("site").value.trim()) +
+      line("Postcode", $("postcode").value.trim().toUpperCase()) +
+      "\nWhere: " + f.sel.map(function (k) { return NAMES[k]; }).join(", ") + "\n" +
+      "Area: " + area + "\n" +
+      line("Start date", $("start").value) +
+      "Length: " + f.months + " month" + (f.months > 1 ? "s" : "") + "\n" +
+      pricing + "\n" +
+      ($("design").checked ? "I will send my own full-page design (attached, or in a reply).\n" : "") +
+      "\nHeadline: " + $("headline").value.trim() + "\n" +
+      line("A line about us", $("tagline").value.trim()) +
+      line("Notes", $("notes").value.trim()) +
+      "\nI understand nothing is booked or charged until my advert has been checked and agreed."
+    );
+  }
+
+  function problems() {
+    var list = [];
+    if (!$("biz").value.trim()) list.push("your business name");
+    if (!$("contact").value.trim()) list.push("your name");
+    if (!/^\S+@\S+\.\S+$/.test($("email").value.trim())) list.push("a valid email");
+    if (!/^https:\/\/\S+\.\S+/.test($("site").value.trim())) list.push("a website starting with https://");
+    if ($("area").value !== "nationwide" && !/^[A-Za-z]{1,2}\d[A-Za-z\d]?\s*\d[A-Za-z]{2}$/.test($("postcode").value.trim())) list.push("a UK postcode");
+    if (chosen().length === 0) list.push("at least one place to appear");
+    if (!$("headline").value.trim()) list.push("a headline");
+    return list;
+  }
+
+  $("booking").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var missing = problems();
+    if (missing.length) { $("msg").textContent = "Still needed: " + missing.join(", ") + "."; return; }
+    $("msg").textContent = "";
+    var text = buildText();
+    $("copybox").textContent = text;
+    $("fallback").hidden = false;
+    var subject = "Advert booking request: " + $("biz").value.trim();
+    window.location.href = "mailto:" + EMAIL + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(text);
+    $("msg").textContent = "Opening your email app. If nothing opens, use the copy box below.";
+  });
+
+  $("copy").addEventListener("click", function () {
+    var text = $("copybox").textContent;
+    var done = function () { $("msg").textContent = "Copied. Paste it into an email to " + EMAIL + "."; };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { $("msg").textContent = "Select the text and copy it by hand."; });
+    } else {
+      $("msg").textContent = "Select the text and copy it by hand.";
+    }
+  });
+})();
+</script>
+</body>
+</html>
