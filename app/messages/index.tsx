@@ -9,7 +9,10 @@ import { BASE_URL } from "@/utils/api";
 import { getDeviceId } from "@/utils/deviceId";
 import StatusBadge from "@/components/marketplace/StatusBadge";
 import { useMessageAlerts } from "@/context/MessageAlertsContext";
-import { reportAdvertEvent } from "@/lib/adverts";
+import { markShown, useRotated } from "@/lib/adRotation";
+import { reportAdvertEvent, useAdverts, type FeedAdverts } from "@/lib/adverts";
+import { HOUSE_ADVERTS } from "@/lib/houseAdverts";
+import SponsoredCard from "@/components/marketplace/SponsoredCard";
 import { removeSponsor, useSavedSponsors } from "@/lib/savedSponsors";
 
 type Conversation = {
@@ -120,6 +123,46 @@ const Row = React.memo(function Row({ item, theme }: { item: Conversation; theme
     </TouchableOpacity>
   );
 });
+
+const NO_BANNER: FeedAdverts = { adverts: [] };
+
+/**
+ * The banner at the top of the inbox: one advertiser at a time, the one this phone saw longest ago,
+ * so every visit brings a different one until each has had a turn. When nobody has booked it, one of
+ * FlipPilot's own promos takes the place. Only its buttons open anything.
+ */
+function MessagesBanner() {
+  const data = useAdverts<FeedAdverts>("messages", NO_BANNER);
+  const paid = useRotated(data.adverts);
+  const house = useRotated(HOUSE_ADVERTS);
+  // Chosen once per visit, so the banner never swaps while you read.
+  const chosen = React.useRef<string | null>(null);
+
+  // Nothing back from the server yet, or the lists aren't sorted yet.
+  if (data === NO_BANNER) return null;
+  if ((data.adverts.length > 0 && paid.length === 0) || house.length === 0) return null;
+
+  const advert = chosen.current
+    ? [...paid, ...house].find((a) => a.id === chosen.current)
+    : paid[0] ?? house[0];
+  if (!advert) return null;
+  if (!chosen.current) chosen.current = advert.id;
+
+  return <BannerCard advert={advert} />;
+}
+
+function BannerCard({ advert }: { advert: import("@/lib/businessAdverts").BusinessAdvert }) {
+  // It is on screen the moment the inbox opens, so this is when it counts as seen.
+  React.useEffect(() => {
+    markShown(advert.id);
+    if (!advert.house) reportAdvertEvent(advert.id, "view", 30);
+  }, [advert.id]);
+  return (
+    <View style={{ marginBottom: 6 }}>
+      <SponsoredCard advert={advert} />
+    </View>
+  );
+}
 
 /**
  * Sponsors kept from an advert with Save, so they can be looked at now without
@@ -242,6 +285,7 @@ export default function MessagesInbox() {
           <Text style={{ color: theme.goldDeep, fontSize: 28, fontWeight: "900", marginBottom: 14 }}>
             Messages
           </Text>
+          <MessagesBanner />
           <SavedSponsors theme={theme} />
         </View>
       }

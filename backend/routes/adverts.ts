@@ -18,6 +18,7 @@ import {
   imagesOf,
   isTrusted,
   loadAdverts,
+  messagesAdverts,
   performanceReport,
   recordEvent,
   saveAdverts,
@@ -277,6 +278,9 @@ export default function registerAdvertsRoute(app: Express) {
     if (placement === "feed") {
       const f = feedAdverts(undefined, undefined, viewer);
       return res.json({ ok: true, adverts: shape(f.adverts) });
+    }
+    if (placement === "messages") {
+      return res.json({ ok: true, adverts: shape(messagesAdverts(undefined, undefined, viewer).adverts) });
     }
     if (placement === "bootfairs") {
       return res.json({ ok: true, adverts: shape(bootfairAdverts(undefined, undefined, viewer)) });

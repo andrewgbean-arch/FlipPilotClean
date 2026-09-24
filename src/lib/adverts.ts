@@ -25,7 +25,7 @@ export type ScanAdverts = {
 export type FeedAdverts = { adverts: BusinessAdvert[] };
 export type BootfairAdverts = { adverts: BusinessAdvert[] };
 
-type Placement = "scan" | "feed" | "bootfairs";
+type Placement = "scan" | "feed" | "messages" | "bootfairs";
 
 const KEEP_MS = 5 * 60_000;
 const TIMEOUT_MS = 4000;

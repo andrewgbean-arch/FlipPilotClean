@@ -28,7 +28,7 @@ import type { AiReview } from "./advertReview";
 
 const ADVERTS_PATH = path.join(__dirname, "../data/adverts.json");
 
-export const PLACEMENTS = ["scan-full", "scan-panel", "feed", "bootfairs"] as const;
+export const PLACEMENTS = ["scan-full", "scan-panel", "feed", "messages", "bootfairs"] as const;
 export type Placement = (typeof PLACEMENTS)[number];
 
 export const RADIUS_OPTIONS_MILES = [10, 25, 50] as const;
@@ -165,6 +165,7 @@ export function reaches(ad: Advert, viewer: Viewer): boolean {
 /** Placements where a limited number of advertisers share a place and take turns. */
 const LIMITED: { placement: Placement; env: string; fallback: number; label: string }[] = [
   { placement: "feed", env: "MAX_FEED_ADVERTS_PER_AREA", fallback: 10, label: "The marketplace feed" },
+  { placement: "messages", env: "MAX_MESSAGES_ADVERTS_PER_AREA", fallback: 10, label: "The Messages banner" },
   { placement: "scan-full", env: "MAX_FULL_PAGE_PER_AREA", fallback: 3, label: "The scan full page" },
 ];
 
@@ -273,6 +274,11 @@ export function scanAdverts(now = new Date(), all = readAdverts(), viewer: Viewe
 /** Everything booked for the feed right now that reaches this phone. They share it and take turns. */
 export function feedAdverts(now = new Date(), all = readAdverts(), viewer: Viewer = null): FeedAdverts {
   return { adverts: liveFor(all, now, viewer).filter((a) => a.placements.includes("feed")) };
+}
+
+/** The banner at the top of the Messages inbox: everything booked for it that reaches this phone. They take turns. */
+export function messagesAdverts(now = new Date(), all = readAdverts(), viewer: Viewer = null): FeedAdverts {
+  return { adverts: liveFor(all, now, viewer).filter((a) => a.placements.includes("messages")) };
 }
 
 export function bootfairAdverts(now = new Date(), all = readAdverts(), viewer: Viewer = null): Advert[] {
