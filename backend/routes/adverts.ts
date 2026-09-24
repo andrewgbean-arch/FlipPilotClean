@@ -107,12 +107,14 @@ function storeImage(raw: unknown): { path: string } | { error: string } {
   return { path: saveUpload(IMAGE_OWNER, buffer, type) };
 }
 
-// A designed full page fills a phone screen, so it must really be portrait (about 9:16, like
-// 1080 x 1920) and big enough to stay sharp. Anything else is refused with the reason.
+// A designed full page is shown whole, so it can be portrait (about 9:16, like 1080 x 1920, which
+// uses the most of the screen), square, or landscape (about 16:9, like 1920 x 1080, which shows
+// smaller with dark space above and below). It must be big enough to stay sharp and not so thin a
+// strip that it can't be read. Anything else is refused with the reason.
 const MIN_ARTWORK_WIDTH = 720;
 const MAX_ARTWORK_SIDE = 4500;
-const MIN_ARTWORK_RATIO = 1.4; // height / width
-const MAX_ARTWORK_RATIO = 2.3;
+const MIN_ARTWORK_RATIO = 0.5; // height / width: nothing wider than 2:1
+const MAX_ARTWORK_RATIO = 2.3; // nothing taller than about 9:21
 
 function storeArtwork(raw: unknown): { path: string } | { error: string } {
   const encoded = typeof raw === "string" ? raw.replace(/^data:image\/[a-z+]+;base64,/i, "") : "";
@@ -131,7 +133,7 @@ function storeArtwork(raw: unknown): { path: string } | { error: string } {
   }
   const ratio = size.height / size.width;
   if (ratio < MIN_ARTWORK_RATIO || ratio > MAX_ARTWORK_RATIO) {
-    return { error: `That design is ${size.width} x ${size.height}. It must be a portrait picture, about 9:16 (for example 1080 x 1920), to fill a phone screen` };
+    return { error: `That design is ${size.width} x ${size.height}. It must be portrait (about 9:16, like 1080 x 1920), square, or landscape (about 16:9, like 1920 x 1080), and not wider than 2:1 or taller than about 9:21` };
   }
   return { path: saveUpload(IMAGE_OWNER, buffer, type) };
 }
