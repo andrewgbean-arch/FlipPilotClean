@@ -11,8 +11,10 @@ export type BusinessAdvert = {
   title: string;
   description?: string;
   tagline?: string;
-  /** A full address for a picture the server holds. */
+  /** A full address for the main picture the server holds. */
   image: string;
+  /** All its pictures (up to three), the main one first. */
+  images?: string[];
   website?: string;
   /** Boot Fairs only: the big banner rather than a small card. */
   featured?: boolean;

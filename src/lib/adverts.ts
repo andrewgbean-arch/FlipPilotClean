@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { loadRotation } from "@/lib/adRotation";
+import { approxLocation } from "@/lib/approxLocation";
 import { BASE_URL } from "@/utils/api";
 import type { BusinessAdvert } from "@/lib/businessAdverts";
 
@@ -37,7 +38,15 @@ export function refreshAdverts(placement: Placement, force = false): Promise<voi
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
-  inflight[placement] = fetch(`${BASE_URL}/adverts?placement=${placement}`, { signal: controller.signal })
+  // Local adverts are chosen by where the phone roughly is (if it has shared that).
+  // It goes in a header, not the address, so it isn't written to any request log.
+  inflight[placement] = approxLocation()
+    .then((where) =>
+      fetch(`${BASE_URL}/adverts?placement=${placement}`, {
+        signal: controller.signal,
+        headers: where ? { "x-approx-location": where } : undefined,
+      })
+    )
     .then((res) => (res.ok ? res.json() : null))
     .then((data) => {
       if (data?.ok && Array.isArray(data.adverts)) cache[placement] = { at: Date.now(), data };

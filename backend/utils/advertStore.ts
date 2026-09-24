@@ -9,13 +9,20 @@ import type { AiReview } from "./advertReview";
  * been approved: there is no default list and no filler. Each one is booked for
  * a period, and switches itself off when the period ends.
  *
+ * Where it is shown: an advert is either "local" (people within a radius, 50
+ * miles by default, of the advertiser's postcode) or "nationwide". The phone
+ * sends only a rounded position with each request, used to choose adverts and
+ * then forgotten; it is never stored (see routes/adverts.ts).
+ *
  * One placement is exclusive: "scan-full" (the whole scan-wait screen). Only one
- * advert can hold it at a time, so two bookings for overlapping dates are refused.
- * The marketplace feed is deliberately never exclusive: its adverts are shared
- * and rotate, and are spaced out by the app (see src/utils/feedAdverts.ts).
+ * advert can hold it at a time in any place: two bookings clash only when their
+ * dates overlap AND their areas overlap, so a Brighton garage and a Glasgow
+ * garage can both hold it at once. The marketplace feed is deliberately never
+ * exclusive: its adverts are shared and rotate, and are spaced out by the app
+ * (see src/utils/feedAdverts.ts).
  *
  * Only counts are kept about how an advert performed (views and taps per day).
- * Nothing about who saw it: no device id, no address.
+ * Nothing about who saw it: no device id, no address, no position.
  */
 
 const ADVERTS_PATH = path.join(__dirname, "../data/adverts.json");
@@ -23,8 +30,12 @@ const ADVERTS_PATH = path.join(__dirname, "../data/adverts.json");
 export const PLACEMENTS = ["scan-full", "scan-panel", "feed", "bootfairs"] as const;
 export type Placement = (typeof PLACEMENTS)[number];
 
-/** Only one advert at a time can hold these, over any given dates. */
+/** Only one advert at a time can hold these, over any given dates and area. */
 export const EXCLUSIVE_PLACEMENTS: Placement[] = ["scan-full"];
+
+export const RADIUS_OPTIONS_MILES = [10, 25, 50] as const;
+export const DEFAULT_RADIUS_MILES = 50;
+export const MAX_IMAGES = 3;
 
 export type DayCount = { views: number; clicks: number };
 
@@ -33,16 +44,27 @@ export type AdvertReport = { deviceId: string; reason: string; details: string; 
 /** This many different phones reporting an advert takes it off until someone has looked. */
 export const REPORTS_TO_PAUSE = 3;
 
+/** Where a phone is, roughly. Rounded, never stored. */
+export type Viewer = { lat: number; lng: number } | null;
+
 export type Advert = {
   id: string;
   advertiser: string;
   title: string;
   tagline: string;
   description: string;
-  /** "/uploads/<name>": a picture we hold, never a link to someone else's server. */
+  /** "/uploads/<name>": pictures we hold, never links to someone else's server. The first is the main one. */
+  images: string[];
+  /** The first picture, kept for anything that only wants one. */
   image: string;
   website: string;
   placements: Placement[];
+  /** Who can see it: people near the advertiser, or everyone. */
+  scope: "local" | "nationwide";
+  postcode?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  radiusMiles?: number;
   /** Boot Fairs only: the big banner rather than a small card. */
   featured: boolean;
   startsAt: string;
@@ -51,7 +73,7 @@ export type Advert = {
   approved: boolean;
   createdAt: string;
   stats: Record<string, DayCount>;
-  /** What the AI made of the wording and picture, for whoever approves it. Never approves anything itself. */
+  /** What the AI made of the wording and pictures, for whoever approves it. Never approves anything itself. */
   aiReview?: AiReview;
   /** Reports from people who saw it. Private to whoever runs the marketplace. */
   reports?: AdvertReport[];
@@ -81,25 +103,73 @@ export function saveAdverts(adverts: Advert[]) {
 
 const ms = (iso: string) => new Date(iso).getTime();
 
+/** Every picture of an advert, first one first. */
+export function imagesOf(ad: { image?: string; images?: string[] }): string[] {
+  return Array.isArray(ad.images) && ad.images.length > 0 ? ad.images : ad.image ? [ad.image] : [];
+}
+
 /** Approved, and today falls inside the booked dates. */
 export function isLive(ad: Advert, now = new Date()): boolean {
   return ad.approved && ms(ad.startsAt) <= now.getTime() && now.getTime() < ms(ad.endsAt);
 }
 
+/* ------------------------------- geography ------------------------------- */
+
+/** Straight-line distance in miles between two points (great circle). */
+export function milesBetween(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 3958.8; // miles
+  const rad = (d: number) => (d * Math.PI) / 180;
+  const dLat = rad(lat2 - lat1);
+  const dLng = rad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
+const isLocal = (ad: Advert) =>
+  ad.scope === "local" && typeof ad.lat === "number" && typeof ad.lng === "number";
+
+/**
+ * Can this phone see this advert? Nationwide adverts reach everyone, including
+ * phones that share no position. A local advert reaches only a phone that has
+ * shared one, and only within the advert's radius. A local advert with no point
+ * on the map reaches nobody, rather than everybody.
+ */
+export function reaches(ad: Advert, viewer: Viewer): boolean {
+  if (ad.scope === "nationwide" || ad.scope === undefined) return true;
+  if (!isLocal(ad) || !viewer) return false;
+  return milesBetween(ad.lat!, ad.lng!, viewer.lat, viewer.lng) <= (ad.radiusMiles ?? DEFAULT_RADIUS_MILES);
+}
+
+/** Do two adverts' areas share any ground? Nationwide meets everything. */
+export function areasOverlap(a: Advert, b: Advert): boolean {
+  if (!isLocal(a) || !isLocal(b)) {
+    // A nationwide advert overlaps everything. A local one with no point overlaps nothing.
+    return a.scope !== "local" || b.scope !== "local";
+  }
+  const gap = milesBetween(a.lat!, a.lng!, b.lat!, b.lng!);
+  return gap < (a.radiusMiles ?? DEFAULT_RADIUS_MILES) + (b.radiusMiles ?? DEFAULT_RADIUS_MILES);
+}
+
 /**
  * The exclusive placement this booking would clash on, and the advert it
- * clashes with, or null when the dates are free. Dates that only touch (one
- * ends the moment the next starts) are fine.
+ * clashes with, or null when it is free. It only clashes when the dates AND the
+ * areas both overlap. Dates that only touch (one ends the moment the next
+ * starts) are fine.
  */
 export function findClash(
-  candidate: Pick<Advert, "id" | "placements" | "startsAt" | "endsAt">,
+  candidate: Advert,
   all: Advert[]
 ): { placement: Placement; with: Advert } | null {
   for (const placement of EXCLUSIVE_PLACEMENTS) {
     if (!candidate.placements.includes(placement)) continue;
     for (const other of all) {
       if (other.id === candidate.id || !other.placements.includes(placement)) continue;
-      if (ms(candidate.startsAt) < ms(other.endsAt) && ms(other.startsAt) < ms(candidate.endsAt)) {
+      if (
+        ms(candidate.startsAt) < ms(other.endsAt) &&
+        ms(other.startsAt) < ms(candidate.endsAt) &&
+        areasOverlap(candidate, other)
+      ) {
         return { placement, with: other };
       }
     }
@@ -107,24 +177,29 @@ export function findClash(
   return null;
 }
 
+/* ------------------------------- what to show ------------------------------ */
+
 export type ScanAdverts = { layout: "full" | "panels"; adverts: Advert[] };
 export type FeedAdverts = { adverts: Advert[] };
 
+const liveFor = (all: Advert[], now: Date, viewer: Viewer) =>
+  all.filter((a) => isLive(a, now) && reaches(a, viewer));
+
 /** One advertiser owns the whole scan-wait screen while booked; otherwise the shared panels. */
-export function scanAdverts(now = new Date(), all = readAdverts()): ScanAdverts {
-  const live = all.filter((a) => isLive(a, now));
+export function scanAdverts(now = new Date(), all = readAdverts(), viewer: Viewer = null): ScanAdverts {
+  const live = liveFor(all, now, viewer);
   const full = live.filter((a) => a.placements.includes("scan-full")).sort((a, b) => ms(a.startsAt) - ms(b.startsAt))[0];
   if (full) return { layout: "full", adverts: [full] };
   return { layout: "panels", adverts: live.filter((a) => a.placements.includes("scan-panel")) };
 }
 
-/** Everything booked for the feed right now. They share it and take turns. */
-export function feedAdverts(now = new Date(), all = readAdverts()): FeedAdverts {
-  return { adverts: all.filter((a) => isLive(a, now) && a.placements.includes("feed")) };
+/** Everything booked for the feed right now that reaches this phone. They share it and take turns. */
+export function feedAdverts(now = new Date(), all = readAdverts(), viewer: Viewer = null): FeedAdverts {
+  return { adverts: liveFor(all, now, viewer).filter((a) => a.placements.includes("feed")) };
 }
 
-export function bootfairAdverts(now = new Date(), all = readAdverts()): Advert[] {
-  return all.filter((a) => isLive(a, now) && a.placements.includes("bootfairs"));
+export function bootfairAdverts(now = new Date(), all = readAdverts(), viewer: Viewer = null): Advert[] {
+  return liveFor(all, now, viewer).filter((a) => a.placements.includes("bootfairs"));
 }
 
 /** Counts a view or a tap against today, if the advert is live. False when it isn't. */
@@ -177,8 +252,41 @@ export function totals(ad: Advert): DayCount {
   );
 }
 
-/** What anyone may see of an advert: nothing about the booking, the money or the counts. */
+/**
+ * What an advertiser is shown about how their advert did: how many times it
+ * was shown and tapped, by day. Counts only, from what the app really reported.
+ */
+export function performanceReport(ad: Advert) {
+  const t = totals(ad);
+  const byDay = Object.keys(ad.stats)
+    .sort()
+    .map((day) => ({ day, views: ad.stats[day].views, taps: ad.stats[day].clicks }));
+  const tapRate = t.views > 0 ? Math.round((t.clicks / t.views) * 1000) / 10 : 0;
+  return {
+    advertiser: ad.advertiser,
+    title: ad.title,
+    bookedFrom: ad.startsAt,
+    bookedTo: ad.endsAt,
+    area:
+      ad.scope === "local"
+        ? `Within ${ad.radiusMiles ?? DEFAULT_RADIUS_MILES} miles of ${ad.postcode ?? "the advertiser"}`
+        : "Nationwide",
+    timesShown: t.views,
+    timesTapped: t.clicks,
+    tapRatePercent: tapRate,
+    byDay,
+    summary:
+      `${ad.title}: shown ${t.views} time${t.views === 1 ? "" : "s"} and tapped ${t.clicks} time${t.clicks === 1 ? "" : "s"}` +
+      (t.views > 0 ? ` (${tapRate}% of showings led to a tap)` : "") +
+      `. These count showings on phones, not separate people.`,
+  };
+}
+
+/** What anyone may see of an advert: nothing about the booking, the money, the place or the counts. */
 export function toPublicAdvert(ad: Advert) {
-  const { advertiser, stats, approved, createdAt, startsAt, endsAt, placements, aiReview, reports, pausedAt, ...rest } = ad;
-  return rest;
+  const {
+    advertiser, stats, approved, createdAt, startsAt, endsAt, placements,
+    aiReview, reports, pausedAt, scope, postcode, lat, lng, radiusMiles, ...rest
+  } = ad;
+  return { ...rest, images: imagesOf(ad) };
 }

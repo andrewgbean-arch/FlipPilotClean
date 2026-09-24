@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { ArrowSquareOut } from "phosphor-react-native";
 
 import AdReportButton from "@/components/AdReportButton";
@@ -12,13 +12,17 @@ import { useTheme } from "@/styles/ThemeContext";
  * What is shown while a scan is being looked up: the only genuinely idle moment
  * in the app, so the one place a real ad placement doesn't get in the way.
  * Built to look like the paid slot it is: a real picture, a clear "Sponsored"
- * label and a tap-through, not a small aside.
+ * label and a way through to the advertiser, not a small aside.
  *
- * Two layouts, chosen by the server from what has been booked:
+ * Two layouts, chosen by the server from what has been booked near this phone:
  *  - "full": one advertiser has booked the whole screen to themselves;
  *  - "panels": two smaller advertisers share it.
  * With nothing booked it shows nothing at all. It goes the moment the result is
  * ready, and never holds anything up.
+ *
+ * Only the Visit button opens the advertiser's website. Touching the advert
+ * anywhere else does nothing, so a stray tap during a scan can't throw someone
+ * out of the app before their result arrives.
  */
 
 // A step 1 lookup (barcode ~0.6s, photo ~2s) is often over before anyone could
@@ -32,6 +36,23 @@ function open(advert: BusinessAdvert) {
   if (advert.website) Linking.openURL(advert.website);
 }
 
+function VisitButton({ advert, label = "Visit" }: { advert: BusinessAdvert; label?: string }) {
+  const theme = useTheme();
+  if (!advert.website) return null;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Sponsored: ${advert.title}. Visit website`}
+      hitSlop={8}
+      onPress={() => open(advert)}
+      style={({ pressed }) => [styles.cta, { backgroundColor: theme.goldDeep }, pressed && styles.pressed]}
+    >
+      <Text style={[styles.ctaText, { color: theme.black }]}>{label}</Text>
+      <ArrowSquareOut size={14} color={theme.black} />
+    </Pressable>
+  );
+}
+
 function AdPanel({ advert }: { advert: BusinessAdvert }) {
   const theme = useTheme();
   useEffect(() => {
@@ -41,34 +62,60 @@ function AdPanel({ advert }: { advert: BusinessAdvert }) {
 
   return (
     <View style={[styles.panel, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
-      <Pressable
-        accessibilityRole={advert.website ? "button" : undefined}
-        accessibilityLabel={
-          advert.website ? `Sponsored: ${advert.title}. Visit website` : `Sponsored: ${advert.title}`
-        }
-        disabled={!advert.website}
-        onPress={() => open(advert)}
-        style={({ pressed }) => [styles.panelTap, pressed && styles.pressed]}
-      >
-        <Image source={{ uri: advert.image }} style={styles.panelImage} resizeMode="cover" />
+      <Image source={{ uri: advert.image }} style={styles.panelImage} resizeMode="cover" />
 
-        <View style={styles.panelBody}>
-          <View style={styles.panelHeaderRow}>
-            <View style={[styles.pill, { backgroundColor: theme.background }]}>
-              <Text style={[styles.pillText, { color: theme.muted }]}>Sponsored</Text>
-            </View>
-            {advert.website ? <ArrowSquareOut size={16} color={theme.muted} /> : null}
+      <View style={styles.panelBody}>
+        <View style={styles.panelHeaderRow}>
+          <View style={[styles.pill, { backgroundColor: theme.background }]}>
+            <Text style={[styles.pillText, { color: theme.muted }]}>Sponsored</Text>
           </View>
-          <Text style={[styles.panelTitle, { color: theme.text }]} numberOfLines={1}>
-            {advert.title}
-          </Text>
-          <Text style={[styles.panelTagline, { color: theme.muted }]} numberOfLines={2}>
-            {advert.tagline ?? advert.description}
-          </Text>
+          <VisitButton advert={advert} />
         </View>
-      </Pressable>
+        <Text style={[styles.panelTitle, { color: theme.text }]} numberOfLines={1}>
+          {advert.title}
+        </Text>
+        <Text style={[styles.panelTagline, { color: theme.muted }]} numberOfLines={2}>
+          {advert.tagline ?? advert.description}
+        </Text>
+      </View>
       <View style={styles.reportRow}>
         <AdReportButton advertId={advert.id} />
+      </View>
+    </View>
+  );
+}
+
+/** Up to three pictures to swipe through, with dots showing where you are. */
+function Gallery({ pictures }: { pictures: string[] }) {
+  const theme = useTheme();
+  const [width, setWidth] = useState(0);
+  const [page, setPage] = useState(0);
+
+  if (pictures.length <= 1) {
+    return <Image source={{ uri: pictures[0] }} style={styles.fullImage} resizeMode="cover" />;
+  }
+
+  return (
+    <View style={styles.fullImage} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+      {width > 0 ? (
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={(e) => setPage(Math.round(e.nativeEvent.contentOffset.x / width))}
+        >
+          {pictures.map((uri) => (
+            <Image key={uri} source={{ uri }} style={{ width, height: "100%" }} resizeMode="cover" />
+          ))}
+        </ScrollView>
+      ) : null}
+      <View style={styles.dots} pointerEvents="none">
+        {pictures.map((uri, i) => (
+          <View
+            key={uri}
+            style={[styles.dot, { backgroundColor: i === page ? theme.goldDeep : theme.white, opacity: i === page ? 1 : 0.6 }]}
+          />
+        ))}
       </View>
     </View>
   );
@@ -78,47 +125,33 @@ function AdPanel({ advert }: { advert: BusinessAdvert }) {
 function FullAd({ advert }: { advert: BusinessAdvert }) {
   const theme = useTheme();
   useEffect(() => reportAdvertEvent(advert.id, "view"), [advert.id]);
+  const pictures = advert.images && advert.images.length > 0 ? advert.images : [advert.image];
 
   return (
     <View style={[styles.full, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
-      <Pressable
-        accessibilityRole={advert.website ? "button" : undefined}
-        accessibilityLabel={
-          advert.website ? `Sponsored: ${advert.title}. Visit website` : `Sponsored: ${advert.title}`
-        }
-        disabled={!advert.website}
-        onPress={() => open(advert)}
-        style={({ pressed }) => [styles.fullTap, pressed && styles.pressed]}
-      >
-        <Image source={{ uri: advert.image }} style={styles.fullImage} resizeMode="cover" />
+      <Gallery pictures={pictures} />
 
-        <View style={styles.fullBody}>
-          <View style={[styles.pill, { backgroundColor: theme.background }]}>
-            <Text style={[styles.pillText, { color: theme.muted }]}>Sponsored</Text>
-          </View>
-          <Text style={[styles.fullTitle, { color: theme.text }]} numberOfLines={2}>
-            {advert.title}
-          </Text>
-          {advert.tagline ? (
-            <Text style={[styles.fullTagline, { color: theme.goldDeep }]} numberOfLines={2}>
-              {advert.tagline}
-            </Text>
-          ) : null}
-          {advert.description ? (
-            <Text style={[styles.fullDescription, { color: theme.muted }]} numberOfLines={4}>
-              {advert.description}
-            </Text>
-          ) : null}
-          {advert.website ? (
-            <View style={[styles.cta, { backgroundColor: theme.goldDeep }]}>
-              <Text style={[styles.ctaText, { color: theme.black }]}>Visit website</Text>
-              <ArrowSquareOut size={16} color={theme.black} />
-            </View>
-          ) : null}
+      <View style={styles.fullBody}>
+        <View style={[styles.pill, { backgroundColor: theme.background }]}>
+          <Text style={[styles.pillText, { color: theme.muted }]}>Sponsored</Text>
         </View>
-      </Pressable>
-      <View style={styles.reportRow}>
-        <AdReportButton advertId={advert.id} />
+        <Text style={[styles.fullTitle, { color: theme.text }]} numberOfLines={2}>
+          {advert.title}
+        </Text>
+        {advert.tagline ? (
+          <Text style={[styles.fullTagline, { color: theme.goldDeep }]} numberOfLines={2}>
+            {advert.tagline}
+          </Text>
+        ) : null}
+        {advert.description ? (
+          <Text style={[styles.fullDescription, { color: theme.muted }]} numberOfLines={4}>
+            {advert.description}
+          </Text>
+        ) : null}
+        <View style={styles.fullActions}>
+          <VisitButton advert={advert} label="Visit website" />
+          <AdReportButton advertId={advert.id} />
+        </View>
       </View>
     </View>
   );
@@ -158,7 +191,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: "hidden",
   },
-  panelTap: { flex: 1 },
   panelImage: { width: "100%", flex: 1.4 },
   panelBody: { flex: 1, padding: 14, justifyContent: "center", gap: 4 },
   panelHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
@@ -168,23 +200,31 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: "hidden",
   },
-  fullTap: { flex: 1 },
   fullImage: { width: "100%", flex: 1.6 },
   fullBody: { flex: 1.2, padding: 18, gap: 8, justifyContent: "center" },
   fullTitle: { fontSize: 24, fontWeight: "900" },
   fullTagline: { fontSize: 15, fontWeight: "700" },
   fullDescription: { fontSize: 14, lineHeight: 20 },
+  fullActions: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 },
+  dots: {
+    position: "absolute",
+    bottom: 10,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
+  },
+  dot: { width: 7, height: 7, borderRadius: 4 },
   cta: {
-    alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 999,
-    marginTop: 4,
   },
-  ctaText: { fontSize: 15, fontWeight: "800" },
+  ctaText: { fontSize: 14, fontWeight: "800" },
   reportRow: { paddingHorizontal: 14, paddingBottom: 8 },
   pill: {
     alignSelf: "flex-start",

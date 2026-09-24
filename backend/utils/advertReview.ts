@@ -68,7 +68,8 @@ export async function reviewAdvert(advert: {
   tagline: string;
   description: string;
   website: string;
-  image: string;
+  /** Every picture of the advert; the AI looks at each. */
+  images: string[];
 }): Promise<AiReview> {
   const mode = process.env.ADVERT_AI_REVIEW;
   // Off, or a fixed answer for tests, so the rest can be proven without paying for calls.
@@ -79,7 +80,9 @@ export async function reviewAdvert(advert: {
 
   if (!process.env.OPENAI_API_KEY) return unchecked("No AI key is set, so nobody has looked at it yet");
 
-  const picture = pictureAsDataUrl(advert.image);
+  const pictures = advert.images
+    .map(pictureAsDataUrl)
+    .filter((p): p is string => typeof p === "string");
   const facts =
     `Advertiser: ${advert.advertiser}\nTitle: ${advert.title}\nTagline: ${advert.tagline || "(none)"}\n` +
     `Description: ${advert.description || "(none)"}\nLinks to: ${advert.website}`;
@@ -98,7 +101,7 @@ export async function reviewAdvert(advert: {
             role: "user",
             content: [
               { type: "text", text: facts },
-              ...(picture ? [{ type: "image_url", image_url: { url: picture, detail: "low" } }] : []),
+              ...pictures.map((url) => ({ type: "image_url", image_url: { url, detail: "low" } })),
             ],
           },
         ],

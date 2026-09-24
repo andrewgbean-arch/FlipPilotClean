@@ -3,13 +3,19 @@ import { Express, Request, Response } from "express";
 import { rateLimit } from "../middleware/rateLimit";
 import {
   Advert,
+  DEFAULT_RADIUS_MILES,
+  MAX_IMAGES,
   PLACEMENTS,
   Placement,
+  RADIUS_OPTIONS_MILES,
+  Viewer,
   addAdvertReport,
   bootfairAdverts,
   feedAdverts,
   findClash,
+  imagesOf,
   loadAdverts,
+  performanceReport,
   recordEvent,
   saveAdverts,
   scanAdverts,
@@ -18,6 +24,7 @@ import {
 } from "../utils/advertStore";
 import { checkAdvert, blocking } from "../utils/advertCheck";
 import { reviewAdvert } from "../utils/advertReview";
+import { cleanPostcode, geocodePostcode, looksLikeUkPoint } from "../utils/geocode";
 import { mediaForAdvert } from "../utils/media";
 import { deleteUploads, saveUpload, sniffImage } from "../utils/uploadStore";
 import { callerDeviceId } from "./messages";
@@ -26,15 +33,21 @@ import { REPORT_REASONS } from "./safety";
 /**
  * Adverts.
  *
- * The public side only ever returns what is booked, approved and in date right
- * now, so an advert that has ended, or was never approved, simply isn't there.
+ * The public side only ever returns what is booked, approved, in date and
+ * within reach of the phone asking, so an advert that has ended, was never
+ * approved, or is for another part of the country simply isn't there.
+ *
+ * Where a phone is: it may send a rounded position in the x-approx-location
+ * header ("lat,lng"). It is used to pick adverts for that one request and is
+ * never stored or logged (a header, not the address, so the request log does not
+ * carry it). A phone that sends none is only shown nationwide adverts.
  *
  * The admin side is for whoever runs FlipPilot: off unless ADMIN_TOKEN is set,
  * and then it needs that token in the x-admin-token header. Every advert goes
  * through three checks on the way to being live:
  *   1. wording and link rules (swearing is always refused; scam wording and
  *      dodgy links are refused unless the approver says they have looked),
- *   2. an AI look at the wording and picture, saved with the advert,
+ *   2. an AI look at the wording and pictures, saved with the advert,
  *   3. a person approving it. Nothing else can approve an advert.
  * And once live, enough different people reporting it takes it off again.
  */
@@ -81,7 +94,20 @@ function cleanDate(v: unknown): string | null {
   return Number.isFinite(t) ? new Date(t).toISOString() : null;
 }
 
-/** Saves a picture sent as base64, judged by its own bytes. */
+/** Where the phone says it is, rounded to about a mile. Nothing is kept. */
+function parseViewer(req: Request): Viewer {
+  const raw = req.headers["x-approx-location"];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const m = typeof value === "string" ? value.match(/^\s*(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$/) : null;
+  if (!m) return null;
+  const lat = Math.round(Number(m[1]) * 100) / 100;
+  const lng = Math.round(Number(m[2]) * 100) / 100;
+  return Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180
+    ? { lat, lng }
+    : null;
+}
+
+/** Saves one picture sent as base64, judged by its own bytes. */
 function storeImage(raw: unknown): { path: string } | { error: string } {
   const encoded = typeof raw === "string" ? raw.replace(/^data:image\/[a-z+]+;base64,/i, "") : "";
   if (encoded.length < 100) return { error: "No picture received" };
@@ -90,6 +116,70 @@ function storeImage(raw: unknown): { path: string } | { error: string } {
   const type = sniffImage(buffer);
   if (!type) return { error: "Only JPEG, PNG or WebP pictures are allowed" };
   return { path: saveUpload(IMAGE_OWNER, buffer, type) };
+}
+
+/** Saves up to MAX_IMAGES pictures; if any is bad, none are kept. */
+function storeImages(raw: unknown): { paths: string[] } | { error: string } {
+  const list = Array.isArray(raw) ? raw : raw === undefined ? [] : [raw];
+  if (list.length === 0) return { error: "No picture received" };
+  if (list.length > MAX_IMAGES) return { error: `An advert can have at most ${MAX_IMAGES} pictures` };
+  const paths: string[] = [];
+  for (const item of list) {
+    const one = storeImage(item);
+    if ("error" in one) {
+      deleteUploads(paths);
+      return { error: one.error };
+    }
+    paths.push(one.path);
+  }
+  return { paths };
+}
+
+type Area = Pick<Advert, "scope" | "postcode" | "lat" | "lng" | "radiusMiles">;
+
+/**
+ * Works out where an advert is for from what the booking says. "local" needs a
+ * point on the map, from a postcode (looked up once, then only the point is
+ * kept) or given directly; "nationwide" needs nothing. Anything unclear is
+ * refused rather than guessed, since a wrong area shows an advert to the wrong
+ * people.
+ */
+async function resolveArea(b: any, current?: Advert): Promise<{ area: Area } | { error: string }> {
+  const scope = b.scope ?? current?.scope;
+  if (scope !== "local" && scope !== "nationwide") {
+    return { error: 'scope must be "local" (people near the advertiser) or "nationwide"' };
+  }
+  if (scope === "nationwide") {
+    return { area: { scope, postcode: null, lat: null, lng: null, radiusMiles: DEFAULT_RADIUS_MILES } };
+  }
+
+  const radius = b.radiusMiles ?? current?.radiusMiles ?? DEFAULT_RADIUS_MILES;
+  if (!(RADIUS_OPTIONS_MILES as readonly number[]).includes(radius)) {
+    return { error: `radiusMiles must be one of: ${RADIUS_OPTIONS_MILES.join(", ")}` };
+  }
+
+  // The same place as before, unless a new postcode or point is given.
+  const changingPlace = b.postcode !== undefined || b.lat !== undefined || b.lng !== undefined;
+  if (!changingPlace && current?.scope === "local" && typeof current.lat === "number") {
+    return { area: { scope, postcode: current.postcode ?? null, lat: current.lat, lng: current.lng ?? null, radiusMiles: radius } };
+  }
+
+  const postcode = b.postcode === undefined ? null : cleanPostcode(b.postcode);
+  if (b.postcode !== undefined && !postcode) return { error: "That does not look like a UK postcode" };
+
+  if (b.lat !== undefined || b.lng !== undefined) {
+    const lat = Number(b.lat);
+    const lng = Number(b.lng);
+    if (!looksLikeUkPoint(lat, lng)) return { error: "lat and lng must be a point in the UK" };
+    return { area: { scope, postcode, lat, lng, radiusMiles: radius } };
+  }
+  if (!postcode) return { error: "A local advert needs a postcode (or lat and lng) for where the advertiser is" };
+
+  const point = await geocodePostcode(postcode);
+  if (!point || !looksLikeUkPoint(point.lat, point.lng)) {
+    return { error: `We could not find ${postcode} on the map. Check it, or give lat and lng.` };
+  }
+  return { area: { scope, postcode, lat: point.lat, lng: point.lng, radiusMiles: radius } };
 }
 
 function stateOf(ad: Advert, now = new Date()): string {
@@ -103,7 +193,7 @@ function stateOf(ad: Advert, now = new Date()): string {
 function forAdmin(ad: Advert, req: Request) {
   const state = stateOf(ad);
   return {
-    ...mediaForAdvert(ad, req),
+    ...mediaForAdvert({ ...ad, images: imagesOf(ad) }, req),
     totals: totals(ad),
     state,
     // Something a person has to look at: not approved yet (or taken off), and not already over.
@@ -113,10 +203,11 @@ function forAdmin(ad: Advert, req: Request) {
 }
 
 function clashReply(res: Response, clash: NonNullable<ReturnType<typeof findClash>>) {
+  const where = clash.with.scope === "local" ? `${clash.with.radiusMiles ?? DEFAULT_RADIUS_MILES} miles around ${clash.with.postcode ?? "its postcode"}` : "nationwide";
   return res.status(409).json({
     ok: false,
     error: "placement-taken",
-    message: `${clash.placement} is already booked by ${clash.with.advertiser} from ${clash.with.startsAt} to ${clash.with.endsAt}.`,
+    message: `${clash.placement} is already booked by ${clash.with.advertiser} (${where}) from ${clash.with.startsAt} to ${clash.with.endsAt}, and that area overlaps.`,
   });
 }
 
@@ -136,19 +227,21 @@ export default function registerAdvertsRoute(app: Express) {
 
   app.get("/adverts", rateLimit(120), (req: Request, res: Response) => {
     const placement = String(req.query.placement ?? "");
+    const viewer = parseViewer(req);
     const shape = (ads: Advert[]) => ads.map((a) => mediaForAdvert(toPublicAdvert(a), req));
 
-    res.setHeader("Cache-Control", "no-store");
+    // Depends on who asks (where they are), so nothing may be shared between people.
+    res.setHeader("Cache-Control", "private, no-store");
     if (placement === "scan") {
-      const s = scanAdverts();
+      const s = scanAdverts(undefined, undefined, viewer);
       return res.json({ ok: true, layout: s.layout, adverts: shape(s.adverts) });
     }
     if (placement === "feed") {
-      const f = feedAdverts();
+      const f = feedAdverts(undefined, undefined, viewer);
       return res.json({ ok: true, adverts: shape(f.adverts) });
     }
     if (placement === "bootfairs") {
-      return res.json({ ok: true, adverts: shape(bootfairAdverts()) });
+      return res.json({ ok: true, adverts: shape(bootfairAdverts(undefined, undefined, viewer)) });
     }
     return res.status(400).json({ ok: false, error: "Unknown placement" });
   });
@@ -193,6 +286,14 @@ export default function registerAdvertsRoute(app: Express) {
     res.json({ ok: true, adverts: ads });
   });
 
+  // What to tell the advertiser about how their advert did.
+  app.get("/admin/adverts/:id/report", (req: Request, res: Response) => {
+    if (!adminOk(req, res)) return;
+    const ad = loadAdverts().find((a) => a.id === req.params.id);
+    if (!ad) return res.status(404).json({ ok: false, error: "No such advert" });
+    res.json({ ok: true, report: performanceReport(ad) });
+  });
+
   app.post("/admin/adverts", async (req: Request, res: Response) => {
     if (!adminOk(req, res)) return;
     const b = req.body ?? {};
@@ -219,47 +320,55 @@ export default function registerAdvertsRoute(app: Express) {
     if (tagline === null) return res.status(400).json({ ok: false, error: "tagline is too long (120 characters at most)" });
     if (description === null) return res.status(400).json({ ok: false, error: "description is too long (300 characters at most)" });
 
-    const draft = { id: crypto.randomBytes(8).toString("hex"), placements, startsAt, endsAt };
-    const clash = findClash(draft, loadAdverts());
-    if (clash) return clashReply(res, clash);
-
-    // Rude or scammy wording is stopped before anything is saved.
-    const wording = { advertiser, title, tagline, description, website };
-    const problems = blocking(checkAdvert(wording), b.reviewed === true);
-    if (problems.length > 0) return contentReply(res, problems);
-
-    const image = storeImage(b.imageBase64);
-    if ("error" in image) return res.status(400).json({ ok: false, error: image.error });
-
-    const aiReview = await reviewAdvert({ ...wording, image: image.path });
-
-    // Asking for it to be approved only sticks when the AI found nothing to look at.
-    // Otherwise it waits for a person, using the PATCH route, having read the AI's reasons.
-    const wantsApproval = b.approved === true;
-    const approved = wantsApproval && aiReview.verdict === "ok";
+    const where = await resolveArea(b);
+    if ("error" in where) return res.status(400).json({ ok: false, error: where.error });
 
     const advert: Advert = {
-      ...draft,
+      id: crypto.randomBytes(8).toString("hex"),
       advertiser,
       title,
       tagline,
       description,
-      image: image.path,
+      images: [],
+      image: "",
       website,
+      placements,
+      ...where.area,
       featured: b.featured === true,
-      approved,
+      startsAt,
+      endsAt,
+      approved: false,
       createdAt: new Date().toISOString(),
       stats: {},
-      aiReview,
       reports: [],
       pausedAt: null,
     };
+
+    const clash = findClash(advert, loadAdverts());
+    if (clash) return clashReply(res, clash);
+
+    // Rude or scammy wording is stopped before anything is saved.
+    const problems = blocking(checkAdvert(advert), b.reviewed === true);
+    if (problems.length > 0) return contentReply(res, problems);
+
+    const stored = storeImages(b.imagesBase64 ?? b.imageBase64);
+    if ("error" in stored) return res.status(400).json({ ok: false, error: stored.error });
+    advert.images = stored.paths;
+    advert.image = stored.paths[0];
+
+    advert.aiReview = await reviewAdvert(advert);
+
+    // Asking for it to be approved only sticks when the AI found nothing to look at.
+    // Otherwise it waits for a person, using the PATCH route, having read the AI's reasons.
+    const wantsApproval = b.approved === true;
+    advert.approved = wantsApproval && advert.aiReview.verdict === "ok";
+
     saveAdverts([...loadAdverts(), advert]);
     res.json({
       ok: true,
       advert: forAdmin(advert, req),
-      ...(wantsApproval && !approved
-        ? { note: `Saved, but not approved: the AI check said "${aiReview.verdict}". Read its reasons, then approve it yourself if you are happy.` }
+      ...(wantsApproval && !advert.approved
+        ? { note: `Saved, but not approved: the AI check said "${advert.aiReview.verdict}". Read its reasons, then approve it yourself if you are happy.` }
         : {}),
     });
   });
@@ -270,7 +379,7 @@ export default function registerAdvertsRoute(app: Express) {
     const ad = all.find((a) => a.id === req.params.id);
     if (!ad) return res.status(404).json({ ok: false, error: "No such advert" });
     const b = req.body ?? {};
-    const next: Advert = { ...ad };
+    const next: Advert = { ...ad, images: imagesOf(ad) };
 
     for (const [key, max] of [["advertiser", 80], ["title", 80]] as const) {
       if (b[key] !== undefined) {
@@ -313,6 +422,12 @@ export default function registerAdvertsRoute(app: Express) {
     }
     if (b.featured !== undefined) next.featured = b.featured === true;
 
+    if (["scope", "postcode", "lat", "lng", "radiusMiles"].some((k) => b[k] !== undefined)) {
+      const where = await resolveArea(b, ad);
+      if ("error" in where) return res.status(400).json({ ok: false, error: where.error });
+      Object.assign(next, where.area);
+    }
+
     const clash = findClash(next, all);
     if (clash) return clashReply(res, clash);
 
@@ -328,22 +443,24 @@ export default function registerAdvertsRoute(app: Express) {
       if (problems.length > 0) return contentReply(res, problems);
     }
 
-    let oldImage: string | null = null;
-    if (b.imageBase64 !== undefined) {
-      const image = storeImage(b.imageBase64);
-      if ("error" in image) return res.status(400).json({ ok: false, error: image.error });
-      oldImage = ad.image;
-      next.image = image.path;
+    let oldImages: string[] = [];
+    const newPictures = b.imagesBase64 ?? b.imageBase64;
+    if (newPictures !== undefined) {
+      const stored = storeImages(newPictures);
+      if ("error" in stored) return res.status(400).json({ ok: false, error: stored.error });
+      oldImages = imagesOf(ad);
+      next.images = stored.paths;
+      next.image = stored.paths[0];
     }
 
-    // Different words or picture, or never looked at (an older record): the AI looks again.
-    if (wordingChanged || oldImage || !ad.aiReview) {
+    // Different words or pictures, or never looked at (an older record): the AI looks again.
+    if (wordingChanged || oldImages.length > 0 || !ad.aiReview) {
       next.aiReview = await reviewAdvert(next);
     }
 
     if (approving) {
       if (next.aiReview?.verdict === "reject" && b.reviewed !== true) {
-        if (oldImage) deleteUploads([next.image]);
+        if (oldImages.length > 0) deleteUploads(next.images);
         return res.status(422).json({
           ok: false,
           error: "ai-rejected",
@@ -358,7 +475,7 @@ export default function registerAdvertsRoute(app: Express) {
     }
 
     saveAdverts(all.map((a) => (a.id === ad.id ? next : a)));
-    if (oldImage) deleteUploads([oldImage]);
+    if (oldImages.length > 0) deleteUploads(oldImages);
     res.json({ ok: true, advert: forAdmin(next, req) });
   });
 
@@ -368,7 +485,7 @@ export default function registerAdvertsRoute(app: Express) {
     const all = loadAdverts();
     const ad = all.find((a) => a.id === req.params.id);
     if (!ad) return res.status(404).json({ ok: false, error: "No such advert" });
-    ad.aiReview = await reviewAdvert(ad);
+    ad.aiReview = await reviewAdvert({ ...ad, images: imagesOf(ad) });
     saveAdverts(all);
     res.json({ ok: true, advert: forAdmin(ad, req) });
   });
@@ -379,7 +496,7 @@ export default function registerAdvertsRoute(app: Express) {
     const ad = all.find((a) => a.id === req.params.id);
     if (!ad) return res.status(404).json({ ok: false, error: "No such advert" });
     saveAdverts(all.filter((a) => a.id !== ad.id));
-    deleteUploads([ad.image]);
+    deleteUploads(imagesOf(ad));
     res.json({ ok: true });
   });
 }

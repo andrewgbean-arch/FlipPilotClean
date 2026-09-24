@@ -30,7 +30,12 @@ export function mediaForListing<T extends Record<string, any>>(listing: T, req: 
 
 export function mediaForAdvert<T extends Record<string, any>>(ad: T, req: Request): T {
   if (!ad || typeof ad !== "object") return ad;
-  return { ...ad, image: absolute(ad.image, baseUrl(req)) };
+  const base = baseUrl(req);
+  return {
+    ...ad,
+    image: absolute(ad.image, base),
+    ...(Array.isArray(ad.images) ? { images: ad.images.map((p: unknown) => absolute(p, base)) } : {}),
+  };
 }
 
 export function mediaForFair<T extends Record<string, any>>(fair: T, req: Request): T {
