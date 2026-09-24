@@ -23,7 +23,7 @@ import { isProSubscriber } from "../subscriptions/revenueCat";
    what it is, but it is why the list lives in the server's own environment
    and not in anything a client can reach.
 -------------------------------------------------- */
-function allowedDeviceIds(): string[] {
+export function allowedDeviceIds(): string[] {
   return (process.env.SELLING_ALLOWED_DEVICE_IDS ?? "")
     .split(",")
     .map((id) => id.trim())

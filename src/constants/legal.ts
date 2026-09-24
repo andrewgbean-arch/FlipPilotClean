@@ -17,6 +17,10 @@ export const LEGAL = {
   termsUrl: process.env.EXPO_PUBLIC_TERMS_URL?.trim() ?? "",
   supportEmail: process.env.EXPO_PUBLIC_SUPPORT_EMAIL?.trim() ?? "",
   businessName: process.env.EXPO_PUBLIC_BUSINESS_NAME?.trim() ?? "",
+  // Where "For dealers" and "Advertise your business" go. Until a page exists
+  // they open an email enquiry to the support address instead (partnerLinks.ts).
+  dealersUrl: process.env.EXPO_PUBLIC_DEALERS_URL?.trim() ?? "",
+  advertiseUrl: process.env.EXPO_PUBLIC_ADVERTISE_URL?.trim() ?? "",
 } as const;
 
 /** Bump when the terms or privacy policy change in a way people must agree to again. */

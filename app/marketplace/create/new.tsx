@@ -69,6 +69,20 @@ export default function CreateNewListing() {
   const [analyzing, setAnalyzing] = useState(false);
   const [suggested, setSuggested] = useState<MarketplaceCategory | null>(null);
   const [publishing, setPublishing] = useState(false);
+  // The launch offer and the limits, from the server.
+  const [policy, setPolicy] = useState<{
+    promoActive: boolean;
+    promoEndsAt: string | null;
+    carCreditCost: number;
+    freeActiveItemsAfterPromo: number;
+  } | null>(null);
+
+  useEffect(() => {
+    fetch(`${BASE_URL}/marketplace/policy`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setPolicy(data?.ok ? data : null))
+      .catch(() => setPolicy(null));
+  }, []);
 
   // Saved flips are read from storage, so on the first render there is usually
   // nothing to copy from yet. Fill the form in once the flip turns up, and only
@@ -338,6 +352,33 @@ export default function CreateNewListing() {
             ? "Brought over from your saved flip. Check it over, add where it is, and it is ready."
             : "A photo, a price and the right category. The rest takes a minute."}
         </Text>
+
+        {/* The launch offer, and the one-car rule, so neither is a surprise */}
+        {policy ? (
+          <View
+            style={{
+              backgroundColor: theme.card,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: theme.goldSoftGlow,
+              padding: 12,
+              marginBottom: 18,
+            }}
+          >
+            <Text style={{ color: theme.goldDeep, fontWeight: "800", marginBottom: 2 }}>
+              {policy.promoActive
+                ? policy.promoEndsAt
+                  ? `Free for everyone until ${new Date(policy.promoEndsAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}`
+                  : "Free for everyone during our launch"
+                : "Listings"}
+            </Text>
+            <Text style={{ color: theme.muted, fontSize: 13, lineHeight: 19 }}>
+              {policy.promoActive
+                ? `One car for sale at a time. After the launch offer, a car costs ${policy.carCreditCost} credits.`
+                : `One car for sale at a time, costing ${policy.carCreditCost} credits. ${policy.freeActiveItemsAfterPromo} items can be for sale free at once.`}
+            </Text>
+          </View>
+        ) : null}
 
         {/* PHOTOS */}
         <Text style={{ color: theme.text, marginBottom: 6 }}>

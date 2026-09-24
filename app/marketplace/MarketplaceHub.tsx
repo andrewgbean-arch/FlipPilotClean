@@ -13,6 +13,7 @@ import { useTheme } from "@/styles/ThemeContext";
 
 import { BASE_URL } from "@/utils/api";
 import { getDeviceId } from "@/utils/deviceId";
+import PartnerLinks from "@/components/marketplace/PartnerLinks";
 import GoldParticles from "@/components/ui/GoldParticles";
 import { MARKETPLACE_CATEGORIES } from "@/constants/marketplaceCategories";
 
@@ -219,6 +220,11 @@ export default function MarketplaceHub() {
               </Text>
             </TouchableOpacity>
           ))}
+
+        {/* FLIPPILOT'S OWN: dealers, and businesses that want to advertise */}
+        <View style={{ paddingHorizontal: 20, marginTop: 20 }}>
+          <PartnerLinks />
+        </View>
 
         {/* SAVED SEARCHES */}
         <View style={{ paddingHorizontal: 20, marginTop: 20 }}>

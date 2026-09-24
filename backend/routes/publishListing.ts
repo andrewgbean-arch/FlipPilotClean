@@ -1,7 +1,8 @@
 import { Express, Request, Response } from "express";
 import { loadListings, saveListings } from "./publishedListings";
 import { rateLimit } from "../middleware/rateLimit";
-import { sellingGate } from "../middleware/sellingGate";
+import { listingPolicy } from "../middleware/listingPolicy";
+import { POLICY, promoActive, promoEndsAt } from "../config/marketplacePolicy";
 import { readSellerOrigin, toPublicListing } from "../utils/sellerOrigin";
 import { ensureSeller } from "./sellers";
 import { mediaForListing } from "../utils/media";
@@ -29,9 +30,24 @@ function cleanDetails(raw: unknown): Record<string, string> {
 
 export default function registerPublishListingRoute(app: Express) {
   /* -------------------------------------------------------
+     THE RULES, for the sell screen: is the launch offer on, when does it end,
+     and what are the limits. Public and harmless.
+  ------------------------------------------------------- */
+  app.get("/marketplace/policy", (_req: Request, res: Response) => {
+    res.json({
+      ok: true,
+      promoActive: promoActive(),
+      promoEndsAt: promoEndsAt()?.toISOString() ?? null,
+      maxActiveCars: POLICY.maxActiveCarsPerSeller,
+      freeActiveItemsAfterPromo: POLICY.freeActiveItemsAfterPromo,
+      carCreditCost: POLICY.carCreditCost,
+    });
+  });
+
+  /* -------------------------------------------------------
      PUBLISH A FLIP (from marketplace/PublishFlip.tsx)
   ------------------------------------------------------- */
-  app.post("/publish-flip", rateLimit(10), sellingGate, (req: Request, res: Response) => {
+  app.post("/publish-flip", rateLimit(10), listingPolicy, (req: Request, res: Response) => {
     const { title, price, mileage, description, location, deviceId } = req.body;
 
     if (!title || !price || !description || !location) {
@@ -65,7 +81,7 @@ export default function registerPublishListingRoute(app: Express) {
   /* -------------------------------------------------------
      CREATE A GENERAL LISTING (from marketplace/create/new.tsx)
   ------------------------------------------------------- */
-  app.post("/create-listing", rateLimit(10), sellingGate, (req: Request, res: Response) => {
+  app.post("/create-listing", rateLimit(10), listingPolicy, (req: Request, res: Response) => {
     const {
       title,
       price,

@@ -38,6 +38,7 @@ import { getDeviceId } from "@/utils/deviceId";
 import { getSellerName, setSellerName, SELLER_NAME_MAX } from "@/utils/sellerName";
 import { LEGAL } from "@/constants/legal";
 import { deleteMyData, exportMyData } from "@/utils/myData";
+import { openPartnerLink } from "@/utils/partnerLinks";
 
 /* SMALL LOCAL COMPONENTS */
 function SectionTitle({ children }: { children: string }) {
@@ -357,6 +358,24 @@ export default function SettingsScreen() {
                 : "Sign in to export your listings to eBay"
             }
             onPress={handleEbayRow}
+            divider
+          />
+        </View>
+
+        {/* FOR BUSINESS */}
+        <SectionTitle>For business</SectionTitle>
+        <View style={[styles.group, card]}>
+          <MenuRow
+            Icon={Storefront}
+            title="Car dealers"
+            subtitle="Manage your stock and list free with FlipPilot Dealer OS"
+            onPress={() => openPartnerLink("dealers")}
+          />
+          <MenuRow
+            Icon={Info}
+            title="Advertise your business"
+            subtitle="A sponsored spot in front of local sellers and buyers"
+            onPress={() => openPartnerLink("advertise")}
             divider
           />
         </View>

@@ -69,9 +69,9 @@ app.use((req, res, next) => {
 
 // The Marketplace has no sign-in yet (anyone can post a listing or a message,
 // under whatever name they type in), so the write routes below carry their own
-// rate limit. Publishing a listing also needs a verified Pro subscriber
-// (sellingGate, applied in publishListing.ts) - browsing and messaging stay
-// open. /ai/description writes a fixed template, not a paid AI call.
+// rate limit. Publishing follows the launch-offer rules in
+// config/marketplacePolicy.ts (listingPolicy, applied in publishListing.ts);
+// browsing and messaging stay open. /ai/description writes a fixed template, not a paid AI call.
 registerPublishedListingsRoute(app);
 registerPublishListingRoute(app);
 registerFairsRoute(app);
@@ -347,6 +347,10 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🔥 FlipPilot backend listening on http://0.0.0.0:${PORT}`);
 });
+
+if (!process.env.MARKETPLACE_PROMO_ENDS_AT || Number.isNaN(new Date(process.env.MARKETPLACE_PROMO_ENDS_AT).getTime())) {
+  console.warn("⚠️  MARKETPLACE_PROMO_ENDS_AT is not set (or not a date): the free-listing launch offer has no end date and will run until you set one.");
+}
 
 // Delete data that has outlived its retention period (config/retention.ts): once
 // shortly after start, then every six hours. A failed run is logged and tried
