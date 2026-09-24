@@ -5,6 +5,7 @@ import path from "path";
 
 import { loadListings, saveListings } from "./publishedListings";
 import { rateLimit } from "../middleware/rateLimit";
+import { requireAccount } from "../middleware/accountGuard";
 import { callerDeviceId } from "./messages";
 import { listingStatus } from "../utils/listingStatus";
 import { evaluatePolicy } from "../middleware/listingPolicy";
@@ -168,7 +169,7 @@ export default function registerSellersRoute(app: Express) {
      Only for a listing you actually talked to them about, only once,
      and never for yourself.
   ------------------------------------------------------- */
-  app.post("/sellers/:sellerId/reviews", rateLimit(6), (req: Request, res: Response) => {
+  app.post("/sellers/:sellerId/reviews", rateLimit(6), requireAccount, (req: Request, res: Response) => {
     const { deviceId, listingId, stars, comment } = req.body ?? {};
 
     if (typeof deviceId !== "string" || !deviceId.trim()) {
@@ -243,7 +244,7 @@ export default function registerSellersRoute(app: Express) {
      This is the only thing "items sold" counts, so the number means
      what it says.
   ------------------------------------------------------- */
-  app.post("/listings/:id/sold", rateLimit(20), (req: Request, res: Response) => {
+  app.post("/listings/:id/sold", rateLimit(20), requireAccount, (req: Request, res: Response) => {
     const { deviceId, buyerThread } = req.body ?? {};
     if (typeof deviceId !== "string" || !deviceId.trim()) {
       return res.status(400).json({ ok: false, error: "Missing deviceId" });
@@ -299,7 +300,7 @@ export default function registerSellersRoute(app: Express) {
      the launch offer, a car costs credits and items past the free allowance
      do too. A sold listing cannot be relisted.
   ------------------------------------------------------- */
-  app.post("/listings/:id/relist", rateLimit(20), (req: Request, res: Response) => {
+  app.post("/listings/:id/relist", rateLimit(20), requireAccount, (req: Request, res: Response) => {
     const caller = callerDeviceId(req);
     if (!caller) return res.status(401).json({ ok: false, error: "Missing device id" });
 
@@ -367,7 +368,7 @@ export default function registerSellersRoute(app: Express) {
      cannot be reserved.
   ------------------------------------------------------- */
   for (const action of ["reserve", "unreserve"] as const) {
-    app.post(`/listings/:id/${action}`, rateLimit(20), (req: Request, res: Response) => {
+    app.post(`/listings/:id/${action}`, rateLimit(20), requireAccount, (req: Request, res: Response) => {
       const caller = callerDeviceId(req);
       if (!caller) return res.status(401).json({ ok: false, error: "Missing device id" });
 

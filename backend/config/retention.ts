@@ -25,6 +25,8 @@ export const RETENTION = {
   freeScanDaysAfterWeek: 30,
   /** A seller with no listings and no activity is deleted after this long. */
   inactiveSellerMonths: 24,
+  /** An account nobody has signed in to for this long is deleted. */
+  inactiveAccountMonths: 24,
   /** An uploaded photo not attached to any listing or fair is deleted after this. */
   orphanUploadHours: 24,
 } as const;

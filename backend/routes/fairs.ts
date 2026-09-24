@@ -2,6 +2,7 @@ import { Express, Request, Response } from "express";
 import fs from "fs";
 import path from "path";
 import { rateLimit } from "../middleware/rateLimit";
+import { requireAccount } from "../middleware/accountGuard";
 import { callerDeviceId } from "./messages";
 import { mediaForFair } from "../utils/media";
 import { ownedUploads } from "../utils/uploadStore";
@@ -94,7 +95,7 @@ export default function registerFairsRoute(app: Express) {
      write routes, this is only rate-limited, not authenticated.
      The deviceId becomes ownerDeviceId, checked on PATCH below.
   ------------------------------------------------------- */
-  app.post("/fairs", rateLimit(10), (req: Request, res: Response) => {
+  app.post("/fairs", rateLimit(10), requireAccount, (req: Request, res: Response) => {
     const body = req.body ?? {};
 
     const missing = REQUIRED_FIELDS.filter((field) => {

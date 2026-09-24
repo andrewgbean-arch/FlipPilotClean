@@ -1,5 +1,6 @@
 import express, { Express, NextFunction, Request, Response } from "express";
 import { rateLimit } from "../middleware/rateLimit";
+import { requireAccount } from "../middleware/accountGuard";
 import { callerDeviceId } from "./messages";
 import { UPLOADS_DIR, saveUpload, sniffImage, uploadsBy } from "../utils/uploadStore";
 
@@ -16,7 +17,7 @@ const MAX_BYTES = 3 * 1024 * 1024;
 const MAX_PHOTOS_PER_DEVICE = 100;
 
 export default function registerUploadsRoute(app: Express) {
-  app.post("/uploads", rateLimit(30), (req: Request, res: Response) => {
+  app.post("/uploads", rateLimit(30), requireAccount, (req: Request, res: Response) => {
     const deviceId = callerDeviceId(req);
     if (!deviceId) return res.status(401).json({ ok: false, error: "Missing device id" });
 

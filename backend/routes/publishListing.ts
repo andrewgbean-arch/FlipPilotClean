@@ -1,6 +1,7 @@
 import { Express, Request, Response } from "express";
 import { loadListings, saveListings } from "./publishedListings";
 import { rateLimit } from "../middleware/rateLimit";
+import { requireAccount } from "../middleware/accountGuard";
 import { adminOk } from "../utils/adminAuth";
 import { listingPolicy } from "../middleware/listingPolicy";
 import { POLICY, promoActive, promoEndsAt } from "../config/marketplacePolicy";
@@ -58,7 +59,7 @@ export default function registerPublishListingRoute(app: Express) {
   /* -------------------------------------------------------
      PUBLISH A FLIP (from marketplace/PublishFlip.tsx)
   ------------------------------------------------------- */
-  app.post("/publish-flip", rateLimit(10), listingPolicy, (req: Request, res: Response) => {
+  app.post("/publish-flip", rateLimit(10), requireAccount, listingPolicy, (req: Request, res: Response) => {
     const { title, price, mileage, description, location, deviceId } = req.body;
 
     if (!title || !price || !description || !location) {
@@ -92,7 +93,7 @@ export default function registerPublishListingRoute(app: Express) {
   /* -------------------------------------------------------
      CREATE A GENERAL LISTING (from marketplace/create/new.tsx)
   ------------------------------------------------------- */
-  app.post("/create-listing", rateLimit(10), listingPolicy, (req: Request, res: Response) => {
+  app.post("/create-listing", rateLimit(10), requireAccount, listingPolicy, (req: Request, res: Response) => {
     const {
       title,
       price,

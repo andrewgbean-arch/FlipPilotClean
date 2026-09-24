@@ -1,4 +1,5 @@
 import { freeScanCapEnabled } from "../middleware/freeScanLimit";
+import { accountRequired } from "../middleware/accountGuard";
 
 /**
  * A list of what is still not set up for real customers, worked out from the
@@ -56,6 +57,12 @@ export function launchIssues(env: Env = process.env): LaunchIssue[] {
   }
   if (!freeScanCapEnabled()) {
     add("must", "FREE_SCAN_CAP", "The 5-scans-a-week free limit is OFF. It is on by default in production; remove FREE_SCAN_CAP=off.");
+  }
+  if (!has(env, "RESEND_API_KEY") || !has(env, "EMAIL_FROM")) {
+    add("must", "RESEND_API_KEY and EMAIL_FROM", "Sign-in codes are sent by email through Resend. Without both, nobody can sign in, so nobody can sell or message.");
+  }
+  if (!accountRequired()) {
+    add("must", "REQUIRE_ACCOUNT", "Selling and messaging are open to anyone without signing in. It is on by default in production; remove REQUIRE_ACCOUNT=off.");
   }
   if (!has(env, "DVLA_API_KEY")) {
     add("should", "DVLA_API_KEY", "Vehicle number-plate lookups need it.");

@@ -3,6 +3,7 @@ import { Express, Request, Response } from "express";
 import { loadListings } from "./publishedListings";
 import { callerDeviceId } from "./messages";
 import { rateLimit } from "../middleware/rateLimit";
+import { requireAccount } from "../middleware/accountGuard";
 import { adminOk } from "../utils/adminAuth";
 import { addBlock, addReport, loadReports, removeBlock } from "../utils/safetyStore";
 
@@ -38,7 +39,7 @@ function targetFor(
 }
 
 export default function registerSafetyRoute(app: Express) {
-  app.post("/safety/report", rateLimit(10), (req: Request, res: Response) => {
+  app.post("/safety/report", rateLimit(10), requireAccount, (req: Request, res: Response) => {
     const caller = callerDeviceId(req);
     if (!caller) return res.status(401).json({ ok: false, error: "Missing device id" });
 

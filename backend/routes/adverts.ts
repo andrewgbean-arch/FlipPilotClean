@@ -27,6 +27,7 @@ import {
   totals,
 } from "../utils/advertStore";
 import { adminOk } from "../utils/adminAuth";
+import { requireAccount } from "../middleware/accountGuard";
 import { checkAdvert, blocking } from "../utils/advertCheck";
 import { reviewAdvert } from "../utils/advertReview";
 import { cleanPostcode, geocodePostcode, looksLikeUkPoint } from "../utils/geocode";
@@ -298,7 +299,7 @@ export default function registerAdvertsRoute(app: Express) {
   });
 
   // "Report this advert". Private: the advertiser is never told who reported.
-  app.post("/adverts/:id/report", rateLimit(10), (req: Request, res: Response) => {
+  app.post("/adverts/:id/report", rateLimit(10), requireAccount, (req: Request, res: Response) => {
     const caller = callerDeviceId(req);
     if (!caller) return res.status(401).json({ ok: false, error: "Missing device id" });
 

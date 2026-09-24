@@ -8,6 +8,7 @@ import { pruneReads } from "./readState";
 import { deleteUploads, purgeOrphanUploads } from "./uploadStore";
 import { purgeFreeScanRecords } from "../middleware/freeScanLimit";
 import { allPictures, loadAdverts } from "./advertStore";
+import { purgeAuth } from "./accountStore";
 
 /**
  * Deletes what has outlived its retention period (config/retention.ts).
@@ -30,6 +31,7 @@ export function runRetention(now = new Date()) {
     sellers: 0,
     reviews: 0,
     photos: 0,
+    accounts: 0,
   };
 
   const doomedPhotos: string[] = [];
@@ -119,6 +121,9 @@ export function runRetention(now = new Date()) {
 
   /* ---- what each device has read: no use once the chats are gone ---- */
   pruneReads(monthsAgo(RETENTION.messagesMonthsAfterLastMessage, now));
+
+  /* ---- sign-in codes, sessions, and accounts nobody uses ---- */
+  summary.accounts = purgeAuth(RETENTION.inactiveAccountMonths, now).accounts;
 
   /* ---- reports and counters ---- */
   summary.reports = purgeReportsBefore(monthsAgo(RETENTION.reportMonths, now));

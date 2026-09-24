@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { Express, Request, Response } from "express";
 import { loadListings, saveListings } from "./publishedListings";
 import { rateLimit } from "../middleware/rateLimit";
+import { requireAccount } from "../middleware/accountGuard";
 import { hasBlocked, isBlockedEitherWay } from "../utils/safetyStore";
 import { chatKey, markChatRead } from "../utils/readState";
 
@@ -61,7 +62,7 @@ function ownerOf(listing: any): string | null {
 }
 
 export default function registerMessagesRoute(app: Express) {
-  app.post("/messages/:listingId", rateLimit(20), (req: Request, res: Response) => {
+  app.post("/messages/:listingId", rateLimit(20), requireAccount, (req: Request, res: Response) => {
     const caller = callerDeviceId(req);
     if (!caller) {
       return res.status(401).json({ ok: false, error: "Missing device id" });
