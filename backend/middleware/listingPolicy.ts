@@ -57,7 +57,7 @@ export function evaluatePolicy(
     const s = listingStatus(l);
     return s === "available" || s === "reserved";
   });
-  const liveCars = live.filter((l: any) => l.category === POLICY.carCategory || l.type === "flip");
+  const liveCars = live.filter((l: any) => String(l.category ?? "").toLowerCase() === POLICY.carCategory || l.type === "flip");
 
   if (isCar && liveCars.length >= POLICY.maxActiveCarsPerSeller) {
     return {
@@ -109,7 +109,12 @@ export function listingPolicy(req: Request, res: Response, next: NextFunction) {
 
   // Cars: the vehicle category, and the older "publish a flip" route which was for vehicles.
   const category = typeof req.body?.category === "string" ? req.body.category.trim().toLowerCase() : "";
-  const isCar = category === POLICY.carCategory || req.path === "/publish-flip";
+  // Express matches routes ignoring case and a trailing slash, so this must too.
+  const isCar = category === POLICY.carCategory || /^\/publish-flip\/?$/i.test(req.path);
+
+  // Handlers store the id they read from the body: hand them the trimmed one, so
+  // "abc " and "abc" can't be two sellers with two sets of limits.
+  req.body.deviceId = deviceId;
 
   const refusal = evaluatePolicy(deviceId, isCar);
   if (refusal) return res.status(refusal.status).json(refusal.body);

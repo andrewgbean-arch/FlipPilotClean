@@ -17,6 +17,14 @@ const REGISTRY_PATH = path.join(__dirname, "../data/uploads.json");
 /** What an app-supplied photo reference must look like to be trusted. */
 export const UPLOAD_PATH_PATTERN = /^\/uploads\/[a-f0-9]{32}\.(jpg|png|webp)$/;
 
+/**
+ * Pictures we hold for ourselves (adverts) are owned by an id starting with this.
+ * A phone's device id may never start with it, so no phone can list, claim or
+ * delete them by naming that owner.
+ */
+export const SYSTEM_OWNER_PREFIX = "system:";
+export const isSystemOwner = (id: unknown) => typeof id === "string" && id.startsWith(SYSTEM_OWNER_PREFIX);
+
 type Registry = Record<string, { deviceId: string; createdAt: string }>;
 
 function loadRegistry(): Registry {
@@ -67,7 +75,7 @@ export function saveUpload(deviceId: string, buffer: Buffer, ext: "jpg" | "png" 
 
 /** Keeps only photo references this device really uploaded. Anything else is dropped. */
 export function ownedUploads(deviceId: string | null | undefined, raw: unknown, max = 6): string[] {
-  if (!deviceId || !Array.isArray(raw)) return [];
+  if (!deviceId || isSystemOwner(deviceId) || !Array.isArray(raw)) return [];
   const registry = loadRegistry();
   const out: string[] = [];
   for (const item of raw) {
@@ -101,6 +109,7 @@ export function deleteUploads(paths: unknown[]): number {
 }
 
 export function uploadsBy(deviceId: string): string[] {
+  if (isSystemOwner(deviceId)) return [];
   const registry = loadRegistry();
   return Object.entries(registry)
     .filter(([, v]) => v.deviceId === deviceId)

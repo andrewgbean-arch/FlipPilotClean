@@ -22,7 +22,7 @@
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundColor": "#E6F4FE"
       },
-      "package": "com.anonymous.flippilotnew"
+      "package": "com.flippilot.app"
     },
     "web": {
       "favicon": "./assets/images/favicon.png"

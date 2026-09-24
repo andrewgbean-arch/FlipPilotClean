@@ -20,7 +20,9 @@ setInterval(() => {
 export function rateLimit(maxPerMinute: number) {
   return (req: Request, res: Response, next: NextFunction) => {
     const ip = req.ip || "unknown";
-    const route = req.path;
+    // The route pattern, not the URL: /uploads, /Uploads/ and /adverts/<random>/event are each ONE
+    // route, so spelling variants can't dodge the limit and unique URLs can't grow the table.
+    const route = `${req.method}:${req.baseUrl}${req.route?.path ?? req.path.toLowerCase().replace(/\/+$/, "")}`;
 
     // One bucket per IP and route. It used to include `body.userId` as well, but the
     // caller chooses that, so sending a different one each time gave unlimited requests.

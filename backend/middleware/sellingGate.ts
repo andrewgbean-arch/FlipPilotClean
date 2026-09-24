@@ -33,10 +33,15 @@ export function allowedDeviceIds(): string[] {
 export async function sellingGate(req: Request, res: Response, next: NextFunction) {
   const deviceId = typeof req.body?.deviceId === "string" ? req.body.deviceId : null;
 
-  // No device id sent (an older app build, or a direct API call) - let it
-  // through rather than block a legitimate request over one missing field,
-  // the same rule freeScanLimit uses.
-  if (!deviceId) return next();
+  // No device id means we can't tell whose Pro status to check, so it can't be
+  // let through: leaving the field out would otherwise skip the gate entirely.
+  if (!deviceId) {
+    return res.status(400).json({
+      ok: false,
+      error: "missing-device",
+      message: "Something went wrong identifying your phone. Please update the app and try again.",
+    });
+  }
 
   if (allowedDeviceIds().includes(deviceId)) {
     // Said out loud, so a device left on the list by accident is visible in

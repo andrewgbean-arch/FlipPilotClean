@@ -3,6 +3,7 @@ import { Express, Request, Response } from "express";
 import { loadListings } from "./publishedListings";
 import { callerDeviceId } from "./messages";
 import { rateLimit } from "../middleware/rateLimit";
+import { adminOk } from "../utils/adminAuth";
 import { addBlock, addReport, loadReports, removeBlock } from "../utils/safetyStore";
 
 /**
@@ -95,11 +96,7 @@ export default function registerSafetyRoute(app: Express) {
      Off unless ADMIN_TOKEN is set, then needs it in x-admin-token.
   ------------------------------------------------------- */
   app.get("/admin/reports", (req: Request, res: Response) => {
-    const expected = process.env.ADMIN_TOKEN;
-    if (!expected) return res.status(404).json({ ok: false, error: "Not enabled" });
-    if (req.headers["x-admin-token"] !== expected) {
-      return res.status(401).json({ ok: false, error: "Unauthorised" });
-    }
+    if (!adminOk(req, res)) return;
     res.json(loadReports());
   });
 }

@@ -1,6 +1,7 @@
 import { Express, Request, Response } from "express";
 import { loadListings, saveListings } from "./publishedListings";
 import { rateLimit } from "../middleware/rateLimit";
+import { adminOk } from "../utils/adminAuth";
 import { listingPolicy } from "../middleware/listingPolicy";
 import { POLICY, promoActive, promoEndsAt } from "../config/marketplacePolicy";
 import { RETENTION } from "../config/retention";
@@ -27,6 +28,14 @@ function cleanDetails(raw: unknown): Record<string, string> {
     if (text) out[key] = text.slice(0, 300);
   }
   return out;
+}
+
+/** A listing id that no existing listing has, even if two arrive in the same millisecond. */
+function nextListingId(): number {
+  const used = new Set(loadListings().map((l: any) => l.id));
+  let id = Date.now();
+  while (used.has(id)) id += 1;
+  return id;
 }
 
 export default function registerPublishListingRoute(app: Express) {
@@ -59,13 +68,13 @@ export default function registerPublishListingRoute(app: Express) {
     const listings = loadListings();
 
     const listing = {
-      id: Date.now(),
+      id: nextListingId(),
       type: "flip",
-      title,
+      title: String(title).trim().slice(0, 120),
       price: Number(price),
       mileage: mileage != null ? Number(mileage) : null,
-      description,
-      location,
+      description: String(description).trim().slice(0, 4000),
+      location: String(location).trim().slice(0, 120),
       deviceId: typeof deviceId === "string" ? deviceId : null,
       sellerId: ensureSeller(deviceId)?.id ?? null,
       soldAt: null,
@@ -114,14 +123,14 @@ export default function registerPublishListingRoute(app: Express) {
     const listings = loadListings();
 
     const listing = {
-      id: Date.now(),
+      id: nextListingId(),
       type: "item",
       title: String(title).trim().slice(0, 120),
       price: Number(price),
       description: typeof description === "string" ? description.trim().slice(0, 4000) : "",
-      category: category.trim(),
-      location: typeof location === "string" && location.trim() ? location.trim() : null,
-      condition: typeof condition === "string" && condition.trim() ? condition.trim() : null,
+      category: category.trim().slice(0, 60),
+      location: typeof location === "string" && location.trim() ? location.trim().slice(0, 120) : null,
+      condition: typeof condition === "string" && condition.trim() ? condition.trim().slice(0, 60) : null,
       // The category's own questions — size, dimensions, network lock and so on.
       details: cleanDetails(details),
       photos: ownPhotos,
@@ -164,11 +173,7 @@ export default function registerPublishListingRoute(app: Express) {
      be data nobody can ever see.
   ------------------------------------------------------- */
   app.get("/admin/flagged-listings", (req: Request, res: Response) => {
-    const expected = process.env.ADMIN_TOKEN;
-    if (!expected) return res.status(404).json({ ok: false, error: "Not enabled" });
-
-    const given = req.headers["x-admin-token"];
-    if (given !== expected) return res.status(401).json({ ok: false, error: "Unauthorised" });
+    if (!adminOk(req, res)) return;
 
     const flagged = loadListings()
       .filter((l: any) => l.sellerOrigin?.flagged)

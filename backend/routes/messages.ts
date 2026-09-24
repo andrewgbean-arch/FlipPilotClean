@@ -22,7 +22,8 @@ export function callerDeviceId(req: Request): string | null {
   const fromHeader = Array.isArray(header) ? header[0] : header;
   const fromBody = typeof req.body?.deviceId === "string" ? req.body.deviceId : undefined;
   const id = (fromHeader ?? fromBody ?? "").trim();
-  return id && id.length <= 200 ? id : null;
+  // Ids starting "system:" belong to the server itself (advert pictures) and are never a phone.
+  return id && id.length <= 200 && !id.startsWith("system:") ? id : null;
 }
 
 export function threadIdFor(listingId: string | number, buyerDeviceId: string): string {

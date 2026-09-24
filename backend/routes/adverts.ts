@@ -22,6 +22,7 @@ import {
   toPublicAdvert,
   totals,
 } from "../utils/advertStore";
+import { adminOk } from "../utils/adminAuth";
 import { checkAdvert, blocking } from "../utils/advertCheck";
 import { reviewAdvert } from "../utils/advertReview";
 import { cleanPostcode, geocodePostcode, looksLikeUkPoint } from "../utils/geocode";
@@ -52,23 +53,9 @@ import { REPORT_REASONS } from "./safety";
  * And once live, enough different people reporting it takes it off again.
  */
 
-const IMAGE_OWNER = "advertiser-images";
+// A "system:" owner can never be a phone (see uploadStore), so no request can name it to list or delete these.
+const IMAGE_OWNER = "system:advert-images";
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
-
-function adminOk(req: Request, res: Response): boolean {
-  const expected = process.env.ADMIN_TOKEN;
-  if (!expected) {
-    res.status(404).json({ ok: false, error: "Not enabled" });
-    return false;
-  }
-  const a = Buffer.from(String(req.headers["x-admin-token"] ?? ""));
-  const b = Buffer.from(expected);
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-    res.status(401).json({ ok: false, error: "Unauthorised" });
-    return false;
-  }
-  return true;
-}
 
 const text = (v: unknown, max: number): string | null => {
   if (typeof v !== "string") return null;
@@ -210,6 +197,16 @@ function fullReply(res: Response, full: NonNullable<ReturnType<typeof placementF
   });
 }
 
+/** Async admin handlers: an error inside one (a corrupt file, a failed write) is a 500, not a dead server. */
+const safe =
+  (fn: (req: Request, res: Response) => Promise<unknown>) =>
+  (req: Request, res: Response) => {
+    fn(req, res).catch((err) => {
+      console.error("advert route failed:", err?.message ?? err);
+      if (!res.headersSent) res.status(500).json({ ok: false, error: "Something went wrong" });
+    });
+  };
+
 function contentReply(res: Response, problems: ReturnType<typeof checkAdvert>) {
   return res.status(422).json({
     ok: false,
@@ -293,7 +290,7 @@ export default function registerAdvertsRoute(app: Express) {
     res.json({ ok: true, report: performanceReport(ad) });
   });
 
-  app.post("/admin/adverts", async (req: Request, res: Response) => {
+  app.post("/admin/adverts", safe(async (req: Request, res: Response) => {
     if (!adminOk(req, res)) return;
     const b = req.body ?? {};
 
@@ -370,9 +367,9 @@ export default function registerAdvertsRoute(app: Express) {
         ? { note: `Saved, but not approved: the AI check said "${advert.aiReview.verdict}". Read its reasons, then approve it yourself if you are happy.` }
         : {}),
     });
-  });
+  }));
 
-  app.patch("/admin/adverts/:id", async (req: Request, res: Response) => {
+  app.patch("/admin/adverts/:id", safe(async (req: Request, res: Response) => {
     if (!adminOk(req, res)) return;
     const all = loadAdverts();
     const ad = all.find((a) => a.id === req.params.id);
@@ -427,7 +424,12 @@ export default function registerAdvertsRoute(app: Express) {
       Object.assign(next, where.area);
     }
 
-    const full = placementFull(next, all);
+    // Only re-checked when where or when it shows changed: retitling or un-approving an advert in
+    // an area that is already full must still be possible.
+    const showsSame =
+      JSON.stringify([next.placements, next.startsAt, next.endsAt, next.scope, next.lat, next.lng, next.radiusMiles]) ===
+      JSON.stringify([ad.placements, ad.startsAt, ad.endsAt, ad.scope, ad.lat, ad.lng, ad.radiusMiles]);
+    const full = showsSame ? null : placementFull(next, all);
     if (full) return fullReply(res, full);
 
     const wordingChanged = (["advertiser", "title", "tagline", "description", "website"] as const).some(
@@ -473,21 +475,39 @@ export default function registerAdvertsRoute(app: Express) {
       next.reports = [];
     }
 
-    saveAdverts(all.map((a) => (a.id === ad.id ? next : a)));
+    // The postcode and AI lookups above take seconds. Anything that changed meanwhile (a report, a
+    // view count, a delete) must not be overwritten by the copy read before them, so read again and
+    // apply only what THIS request changed.
+    const latest = loadAdverts();
+    const current = latest.find((a) => a.id === ad.id);
+    if (!current) {
+      deleteUploads(next.images.filter((p) => !imagesOf(ad).includes(p)));
+      return res.status(404).json({ ok: false, error: "No such advert" });
+    }
+    const merged: Advert = { ...current };
+    for (const key of Object.keys(next) as (keyof Advert)[]) {
+      if (JSON.stringify(next[key]) !== JSON.stringify(ad[key])) (merged as any)[key] = next[key];
+    }
+    saveAdverts(latest.map((a) => (a.id === ad.id ? merged : a)));
     if (oldImages.length > 0) deleteUploads(oldImages);
-    res.json({ ok: true, advert: forAdmin(next, req) });
-  });
+    res.json({ ok: true, advert: forAdmin(merged, req) });
+  }));
 
   // Run the AI check again, for example after switching the key on.
-  app.post("/admin/adverts/:id/review", async (req: Request, res: Response) => {
+  app.post("/admin/adverts/:id/review", safe(async (req: Request, res: Response) => {
     if (!adminOk(req, res)) return;
     const all = loadAdverts();
     const ad = all.find((a) => a.id === req.params.id);
     if (!ad) return res.status(404).json({ ok: false, error: "No such advert" });
-    ad.aiReview = await reviewAdvert({ ...ad, images: imagesOf(ad) });
-    saveAdverts(all);
-    res.json({ ok: true, advert: forAdmin(ad, req) });
-  });
+    const review = await reviewAdvert({ ...ad, images: imagesOf(ad) });
+    // Read again after the slow call, so a delete or report in the meantime isn't undone.
+    const latest = loadAdverts();
+    const current = latest.find((a) => a.id === ad.id);
+    if (!current) return res.status(404).json({ ok: false, error: "No such advert" });
+    current.aiReview = review;
+    saveAdverts(latest);
+    res.json({ ok: true, advert: forAdmin(current, req) });
+  }));
 
   app.delete("/admin/adverts/:id", (req: Request, res: Response) => {
     if (!adminOk(req, res)) return;

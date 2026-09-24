@@ -7,6 +7,7 @@ import { loadListings, saveListings } from "./publishedListings";
 import { loadFairs, saveFairs } from "./fairs";
 import { deleteUploads } from "../utils/uploadStore";
 import { deleteUserData, exportUserData } from "../utils/userData";
+import { adminOk } from "../utils/adminAuth";
 import { runRetention } from "../utils/retentionJob";
 
 /**
@@ -21,19 +22,6 @@ function photosOf(item: any): string[] {
   for (const p of Array.isArray(item?.images) ? item.images : []) if (typeof p === "string") out.push(p);
   if (typeof item?.bestThumbnail === "string") out.push(item.bestThumbnail);
   return out;
-}
-
-function adminOk(req: Request, res: Response): boolean {
-  const expected = process.env.ADMIN_TOKEN;
-  if (!expected) {
-    res.status(404).json({ ok: false, error: "Not enabled" });
-    return false;
-  }
-  if (req.headers["x-admin-token"] !== expected) {
-    res.status(401).json({ ok: false, error: "Unauthorised" });
-    return false;
-  }
-  return true;
 }
 
 export default function registerMeRoute(app: Express) {
