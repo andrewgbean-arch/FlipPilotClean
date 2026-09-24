@@ -116,6 +116,6 @@ export function toPublicListing(listing: any): any {
   if (!listing || typeof listing !== "object") return listing;
   // soldToDeviceId is who the seller said bought it: what lets that one person
   // review, so like deviceId it never goes out.
-  const { sellerOrigin, deviceId, messages, soldToDeviceId, soldToThreadId, ...rest } = listing;
+  const { sellerOrigin, deviceId, messages, soldToDeviceId, soldToThreadId, dealershipId, sourceId, ...rest } = listing;
   return { ...rest, status: listingStatus(listing) };
 }
