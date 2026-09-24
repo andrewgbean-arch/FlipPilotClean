@@ -64,7 +64,9 @@ export default function PublicListing() {
       </View>
     );
 
-  const sellerTrust = (listing.seller?.rating ?? 4) * 20;
+  // Only a rating a seller has really earned is shown. Never a made-up default.
+  const sellerRating: number | null = typeof listing.seller?.rating === "number" ? listing.seller.rating : null;
+  const sellerTrust = sellerRating != null ? sellerRating * 20 : 0;
 
   const listingName = listing.vehicle
     ? `${listing.vehicle.year ?? ""} ${listing.vehicle.make ?? ""} ${listing.vehicle.model ?? ""}`.trim()
@@ -215,7 +217,8 @@ export default function PublicListing() {
           </GlowPulseCard>
         )}
 
-        {/* SELLER TRUST */}
+        {/* SELLER TRUST: only when there is a real rating */}
+        {sellerRating != null && (
         <GlowPulseCard style={{ marginTop: 20 }}>
           <Text style={styles.sectionTitle}>Seller Trust Meter</Text>
 
@@ -237,10 +240,11 @@ export default function PublicListing() {
           </View>
 
           <Text style={styles.detailText}>
-            Rating: {(listing.seller?.rating ?? 4).toFixed(1)}/5 • Trust:{" "}
+            Rating: {sellerRating.toFixed(1)}/5 • Trust:{" "}
             {Math.round(sellerTrust)}%
           </Text>
         </GlowPulseCard>
+        )}
 
         {/* DESCRIPTION */}
         {listing.description && (

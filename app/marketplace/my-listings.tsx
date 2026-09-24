@@ -66,8 +66,8 @@ export default function MyListings() {
   useEffect(() => {
     getDeviceId()
       .then((deviceId) => fetch(`${BASE_URL}/my-listings?deviceId=${encodeURIComponent(deviceId)}`))
-      .then((res) => res.json())
-      .then((data) => setListings(data || []))
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => setListings(Array.isArray(data) ? data : []))
       .catch(() => setListings([]));
   }, []);
 

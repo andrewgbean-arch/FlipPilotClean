@@ -168,7 +168,7 @@ function SavedSponsors({ theme }: { theme: any }) {
               accessibilityLabel={`Visit ${s.title}`}
               onPress={() => {
                 reportAdvertEvent(s.id, "click");
-                Linking.openURL(s.website!);
+                Linking.openURL(s.website!).catch(() => {});
               }}
               style={{ backgroundColor: theme.goldDeep, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999 }}
             >

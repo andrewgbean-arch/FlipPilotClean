@@ -44,7 +44,7 @@ export const FULL_PAGE_REST_MS = 10 * 60_000;
 
 function open(advert: BusinessAdvert) {
   reportAdvertEvent(advert.id, "click");
-  if (advert.website) Linking.openURL(advert.website);
+  if (advert.website) Linking.openURL(advert.website).catch(() => {});
 }
 
 function VisitButton({ advert, label = "Visit" }: { advert: BusinessAdvert; label?: string }) {
@@ -191,7 +191,7 @@ export default function ScanWaitingAd() {
 
   // Chosen once for this scan, so the screen never swaps adverts halfway through a wait
   // (showing a full page marks it as just shown, which would otherwise rest it at once).
-  const choice = useRef<{ fullId: string | null } | null>(null);
+  const choice = useRef<{ fullId: string | null; panelIds: string[] | null } | null>(null);
 
   // Nothing has come back from the server yet, or what was read hasn't been sorted yet.
   if (data === NONE) return null;
@@ -200,7 +200,7 @@ export default function ScanWaitingAd() {
   if (!choice.current) {
     const next = fullOrder[0];
     const resting = next ? Date.now() - lastShownAt(next.id) < FULL_PAGE_REST_MS : false;
-    choice.current = { fullId: next && !resting ? next.id : null };
+    choice.current = { fullId: next && !resting ? next.id : null, panelIds: null };
   }
 
   const full = choice.current.fullId ? fullOrder.find((a) => a.id === choice.current!.fullId) : undefined;
@@ -215,7 +215,15 @@ export default function ScanWaitingAd() {
   // The two this phone saw longest ago, so every scan brings a fresh pair until
   // everyone booked has had a turn. The two panels are always different sponsors.
   // Any place nobody has bought is filled with FlipPilot's own promos, after the paying advertisers.
-  const [first, second] = fillWithHouse(paidPanels, houseOrder, 2);
+  // The pair is fixed the first time it is worked out. Otherwise a late refresh of the adverts
+  // (or these two being marked as just shown) would re-sort them and swap the pair mid-wait.
+  if (!choice.current.panelIds) {
+    choice.current.panelIds = fillWithHouse(paidPanels, houseOrder, 2).map((a) => a.id);
+  }
+  const pool = [...paidPanels, ...houseOrder];
+  const [first, second] = choice.current.panelIds
+    .map((id) => pool.find((a) => a.id === id))
+    .filter((a): a is BusinessAdvert => Boolean(a));
   if (!first) return null;
 
   return (

@@ -69,6 +69,8 @@ export default function CreateNewListing() {
   const [analyzing, setAnalyzing] = useState(false);
   const [suggested, setSuggested] = useState<MarketplaceCategory | null>(null);
   const [publishing, setPublishing] = useState(false);
+  // photo address on this phone -> where the server saved it
+  const uploadedRef = useRef<Record<string, string>>({});
   // The launch offer and the limits, from the server.
   const [policy, setPolicy] = useState<{
     promoActive: boolean;
@@ -188,9 +190,19 @@ export default function CreateNewListing() {
 
       // The server only keeps photos this phone uploaded to it, so they go
       // first; a phone's own file path is no use to a buyer.
+      // Kept between attempts: if publishing fails and is tried again, photos already
+      // uploaded are not sent (and counted against the phone's limit) a second time.
       let uploaded: string[];
       try {
-        uploaded = await uploadPhotos(photos);
+        const missing = photos.filter((uri) => !uploadedRef.current[uri]);
+        if (missing.length > 0) {
+          const paths = await uploadPhotos(missing);
+          missing.forEach((uri, i) => {
+            if (paths[i]) uploadedRef.current[uri] = paths[i];
+          });
+        }
+        uploaded = photos.map((uri) => uploadedRef.current[uri]).filter(Boolean);
+        if (uploaded.length !== photos.length) throw new Error("Some photos didn't upload. Please try again.");
       } catch (err: any) {
         Alert.alert(
           "Couldn't upload your photos",
@@ -233,7 +245,8 @@ export default function CreateNewListing() {
         return;
       }
 
-      router.push("/marketplace");
+      // Replace, not push: going back must not return to the filled-in form and publish it twice.
+      router.replace("/marketplace");
     } catch (err) {
       Alert.alert("Couldn't publish", "Check your connection and try again.");
     } finally {

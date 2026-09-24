@@ -71,7 +71,6 @@ function Button({ kind }: { kind: "dealers" | "advertise" }) {
 export const HouseFeedCard = React.memo(function HouseFeedCard({ advert }: { advert: BusinessAdvert }) {
   const theme = useTheme();
   const kind = advert.house!;
-  useEffect(() => markShown(advert.id), [advert.id]);
 
   return (
     <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.goldDeep }]}>

@@ -123,9 +123,6 @@ export default function ListingDetails() {
 
               <View style={styles.heroOverlay} />
 
-              <View style={styles.proBadge}>
-                <Text style={styles.proBadgeText}>FLIPPILOT PRO</Text>
-              </View>
             </Animated.View>
           )}
 

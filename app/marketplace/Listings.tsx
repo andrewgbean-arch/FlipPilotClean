@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -22,8 +22,8 @@ import {
 import { matchesSearch } from "@/utils/listingSearch";
 import StatusBadge from "@/components/marketplace/StatusBadge";
 import SponsoredCard from "@/components/marketplace/SponsoredCard";
-import { useAdverts, type FeedAdverts } from "@/lib/adverts";
-import { useRotated } from "@/lib/adRotation";
+import { reportAdvertEvent, useAdverts, type FeedAdverts } from "@/lib/adverts";
+import { markShown, useRotated } from "@/lib/adRotation";
 import { HOUSE_ADVERTS, fillWithHouse } from "@/lib/houseAdverts";
 import { LISTINGS_PER_ADVERT, withAdverts, type FeedRow } from "@/utils/feedAdverts";
 
@@ -172,6 +172,18 @@ export default function Listings() {
       ),
     [theme]
   );
+  // An advert counts as seen (and rotation moves on) only when it is really on screen for a moment,
+  // not when the list draws it ahead of the scroll.
+  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 60, minimumViewTime: 400 }).current;
+  const onViewable = useRef(({ viewableItems }: { viewableItems: { item: FeedRow }[] }) => {
+    for (const v of viewableItems) {
+      const row = v.item;
+      if (row?.kind !== "ad") continue;
+      markShown(row.advert.id);
+      if (!row.advert.house) reportAdvertEvent(row.advert.id, "view", 30);
+    }
+  }).current;
+
   const keyExtractor = useCallback(
     (row: FeedRow) => (row.kind === "ad" ? `ad-${row.advert.id}-${row.slot}` : String(row.item.id)),
     []
@@ -259,6 +271,8 @@ export default function Listings() {
       }
       keyboardShouldPersistTaps="handled"
       // Only what is on screen (plus a little either side) is drawn and kept.
+      onViewableItemsChanged={onViewable}
+      viewabilityConfig={viewabilityConfig}
       initialNumToRender={4}
       maxToRenderPerBatch={4}
       windowSize={7}

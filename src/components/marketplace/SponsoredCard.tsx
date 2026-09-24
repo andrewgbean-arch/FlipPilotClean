@@ -1,10 +1,9 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { Image, Linking, Text, TouchableOpacity, View } from "react-native";
 
 import AdReportButton from "@/components/AdReportButton";
 import { HouseFeedCard } from "@/components/HousePromo";
 import SaveSponsorButton from "@/components/SaveSponsorButton";
-import { markShown } from "@/lib/adRotation";
 import { reportAdvertEvent } from "@/lib/adverts";
 import type { BusinessAdvert } from "@/lib/businessAdverts";
 import { useTheme } from "@/styles/ThemeContext";
@@ -24,15 +23,11 @@ import { useTheme } from "@/styles/ThemeContext";
 const PaidCard = React.memo(function PaidCard({ advert }: { advert: BusinessAdvert }) {
   const theme = useTheme();
 
-  // Scrolling back past the same advert shouldn't count as a new view each time.
-  useEffect(() => {
-    markShown(advert.id);
-    reportAdvertEvent(advert.id, "view", 30);
-  }, [advert.id]);
+  // Counting it as seen is done by the feed, when it is really on screen (see Listings).
 
   const open = () => {
     reportAdvertEvent(advert.id, "click");
-    if (advert.website) Linking.openURL(advert.website);
+    if (advert.website) Linking.openURL(advert.website).catch(() => {});
   };
 
   return (
