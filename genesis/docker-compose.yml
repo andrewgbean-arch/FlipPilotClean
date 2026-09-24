@@ -1,0 +1,55 @@
+# Genesis: everything local.
+#   docker compose up -d
+#   docker compose exec ollama ollama pull llama3.1:8b
+#   docker compose exec ollama ollama pull nomic-embed-text
+#   open http://localhost:8080
+#
+# GPU (NVIDIA): uncomment the `deploy` block under `ollama`.
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama:/root/.ollama
+    ports:
+      - "127.0.0.1:11434:11434"
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  backend:
+    build:
+      context: ./backend
+      args:
+        WITH_VOICE: "1"
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    environment:
+      GENESIS_OLLAMA_URL: http://ollama:11434
+      GENESIS_DATA_DIR: /data
+      GENESIS_CHAT_MODEL: ${GENESIS_CHAT_MODEL:-llama3.1:8b}
+      GENESIS_EMBED_MODEL: ${GENESIS_EMBED_MODEL:-nomic-embed-text}
+      GENESIS_API_TOKEN: ${GENESIS_API_TOKEN:-}
+      GENESIS_CORS_ORIGINS: '["http://localhost:8080","http://127.0.0.1:8080"]'
+    volumes:
+      - genesis-data:/data
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:8080:80"
+
+volumes:
+  ollama:
+  genesis-data:

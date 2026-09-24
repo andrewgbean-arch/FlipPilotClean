@@ -64,7 +64,7 @@ class GoalEngine:
             q = q.where(Goal.status == status)
         if owner:
             q = q.where(Goal.owner == owner)
-        return list(s.scalars(q.order_by(Goal.status, Goal.updated_at.desc())))
+        return list(s.scalars(q.order_by(Goal.status, Goal.owner.desc(), Goal.updated_at.desc())))
 
     def find_similar(self, s: Session, title: str, user_id: int = DEFAULT_USER_ID) -> Goal | None:
         best, best_sim = None, 0.0

@@ -5,7 +5,12 @@ Base URL: `http://127.0.0.1:8000/api` (all endpoints below are relative to `/api
 Genesis is single-user and local-first. It binds to localhost by default. If
 `GENESIS_API_TOKEN` is set, every request must send `X-Genesis-Token: <token>`.
 
-Timestamps are ISO-8601 UTC strings. Scores documented as `0-100` are floats.
+Timestamps are ISO-8601 UTC strings.
+
+Scales:
+- **0-1:** `confidence`, `importance_score`, and search/relevance `score`.
+- **0-100:** emotions, personality trait `value`/`baseline`, relationship metrics (`trust`, `familiarity`, `conversation_depth`, `support_level`, `score`, `progress_to_next`), interest `strength`, goal `progress`, and `question_frequency`/`teachability`/`curiosity_level`.
+- **-1 to 1:** `emotional_score`.
 
 ## Shared shapes
 
