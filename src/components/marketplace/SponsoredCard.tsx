@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Image, Linking, Pressable, Text, View } from "react-native";
+import { Image, Linking, Text, TouchableOpacity, View } from "react-native";
 
 import AdReportButton from "@/components/AdReportButton";
 import { markShown } from "@/lib/adRotation";
@@ -11,6 +11,10 @@ import { useTheme } from "@/styles/ThemeContext";
  * A paid advert in the marketplace feed, made to sit between listings but never
  * to pass for one: it always says "Sponsored", and it opens the advertiser's
  * website, not a listing.
+ *
+ * Small like a listing card, and like one only its button (Visit) opens
+ * anything: touching or scrolling past the card never sends anyone off to a
+ * website by accident.
  *
  * Kept plain on purpose (no looping animation): the feed is long and scrolling
  * it smoothly matters more than a glow.
@@ -36,54 +40,62 @@ const SponsoredCard = React.memo(function SponsoredCard({ advert }: { advert: Bu
         borderRadius: 14,
         borderWidth: 1,
         borderColor: theme.goldDeep,
-        marginBottom: 20,
+        marginBottom: 12,
         overflow: "hidden",
       }}
     >
-      <Pressable
-        accessibilityRole={advert.website ? "button" : undefined}
-        accessibilityLabel={
-          advert.website ? `Sponsored: ${advert.title}. Visit website` : `Sponsored: ${advert.title}`
-        }
-        disabled={!advert.website}
-        onPress={open}
-      >
-        <Image source={{ uri: advert.image }} style={{ width: "100%", height: 180 }} resizeMode="cover" />
-        <View style={{ padding: 14 }}>
-          <View
-            style={{
-              alignSelf: "flex-start",
-              paddingHorizontal: 8,
-              paddingVertical: 2,
-              borderRadius: 999,
-              backgroundColor: theme.goldDeep,
-              marginBottom: 8,
-            }}
-          >
-            <Text style={{ color: theme.black, fontSize: 10, fontWeight: "800", letterSpacing: 0.4 }}>
-              SPONSORED
+      <View style={{ flexDirection: "row" }}>
+        <Image
+          source={{ uri: advert.image }}
+          style={{ width: 104, alignSelf: "stretch", minHeight: 112 }}
+          resizeMode="cover"
+        />
+        <View style={{ flex: 1, paddingVertical: 10, paddingHorizontal: 12, justifyContent: "space-between" }}>
+          <View>
+            <View
+              style={{
+                alignSelf: "flex-start",
+                paddingHorizontal: 8,
+                paddingVertical: 2,
+                borderRadius: 999,
+                backgroundColor: theme.goldDeep,
+                marginBottom: 4,
+              }}
+            >
+              <Text style={{ color: theme.black, fontSize: 10, fontWeight: "800", letterSpacing: 0.4 }}>
+                SPONSORED
+              </Text>
+            </View>
+            <Text style={{ color: theme.goldDeep, fontSize: 16, fontWeight: "700" }} numberOfLines={2}>
+              {advert.title}
             </Text>
+            {advert.tagline || advert.description ? (
+              <Text style={{ color: theme.muted, fontSize: 12, marginTop: 2 }} numberOfLines={2}>
+                {advert.tagline ?? advert.description}
+              </Text>
+            ) : null}
           </View>
-          <Text style={{ color: theme.goldDeep, fontSize: 20, fontWeight: "800" }} numberOfLines={2}>
-            {advert.title}
-          </Text>
-          {advert.tagline ? (
-            <Text style={{ color: theme.text, fontWeight: "700", marginTop: 4 }} numberOfLines={2}>
-              {advert.tagline}
-            </Text>
-          ) : null}
-          {advert.description ? (
-            <Text style={{ color: theme.muted, marginTop: 4 }} numberOfLines={3}>
-              {advert.description}
-            </Text>
-          ) : null}
-          {advert.website ? (
-            <Text style={{ color: theme.goldDeep, fontWeight: "800", marginTop: 10 }}>Visit website →</Text>
-          ) : null}
+
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
+            <AdReportButton advertId={advert.id} />
+            {advert.website ? (
+              <TouchableOpacity
+                onPress={open}
+                accessibilityRole="button"
+                accessibilityLabel={`Sponsored: ${advert.title}. Visit website`}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={{
+                  backgroundColor: theme.goldDeep,
+                  paddingHorizontal: 18,
+                  paddingVertical: 6,
+                  borderRadius: 999,
+                }}
+              >
+                <Text style={{ color: theme.black, fontSize: 13, fontWeight: "800" }}>Visit</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
-      </Pressable>
-      <View style={{ paddingHorizontal: 14, paddingBottom: 10 }}>
-        <AdReportButton advertId={advert.id} />
       </View>
     </View>
   );

@@ -29,24 +29,30 @@ import { withAdverts, type FeedRow } from "@/utils/feedAdverts";
 const NO_ADVERTS: FeedAdverts = { adverts: [] };
 
 /**
- * One listing card. Memoised, so scrolling or typing in the search box redraws
- * only the cards whose listing changed, not every card on the page.
+ * One listing card: a small photo, the title, price and a line of details, and
+ * a Look button. Compact on purpose, so several listings fit on one screen.
+ *
+ * Only the Look button opens the listing. The rest of the card is not
+ * tappable, so a finger resting on it or dragging to scroll never throws
+ * someone into a full listing by accident.
+ *
+ * Memoised, so scrolling or typing in the search box redraws only the cards
+ * whose listing changed, not every card on the page.
  */
 const ListingCard = React.memo(function ListingCard({ item, theme }: { item: any; theme: any }) {
   const thumbnail = item.photos?.[0];
 
   // Only a listing that really is sponsored gets the badge.
   const isSponsored = item.sponsored === true;
+  const title =
+    item.title ?? (`${item.vehicle?.make ?? ""} ${item.vehicle?.model ?? ""}`.trim() || "Untitled listing");
 
   return (
-    <TouchableOpacity
-      onPress={() => router.push(`/marketplace/${item.id}`)}
-      style={cardStyle(theme, isSponsored)}
-    >
+    <View style={cardStyle(theme, isSponsored)}>
       {thumbnail ? (
         <Image
           source={{ uri: thumbnail }}
-          style={imageStyle}
+          style={thumbStyle}
           contentFit="cover"
           // Kept in memory and on disk, and drawn at the size it is shown at,
           // so scrolling back over a card does not load or decode it again.
@@ -55,54 +61,45 @@ const ListingCard = React.memo(function ListingCard({ item, theme }: { item: any
           transition={120}
         />
       ) : (
-        <View style={[imageStyle, { backgroundColor: theme.background }]} />
+        <View style={[thumbStyle, { backgroundColor: theme.background }]} />
       )}
 
-      <View style={{ padding: 14 }}>
-        {/* TITLE ROW */}
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 4,
-          }}
-        >
-          <Text style={titleStyle(theme)}>
-            {item.title ?? (`${item.vehicle?.make ?? ""} ${item.vehicle?.model ?? ""}`.trim() || "Untitled listing")}
+      <View style={{ flex: 1, paddingVertical: 10, paddingHorizontal: 12, justifyContent: "space-between" }}>
+        <View>
+          <Text numberOfLines={2} style={titleStyle(theme)}>
+            {title}
           </Text>
-
-          {isSponsored && (
-            <View
-              style={{
-                paddingHorizontal: 8,
-                paddingVertical: 2,
-                borderRadius: 999,
-                backgroundColor: theme.goldDeep,
-              }}
-            >
-              <Text style={{ color: theme.black, fontSize: 10, fontWeight: "700" }}>Sponsored</Text>
-            </View>
-          )}
+          <Text style={priceStyle(theme)}>£{item.price}</Text>
+          <Text numberOfLines={1} style={metaStyle(theme)}>
+            {categoryLabel(item.category)}
+            {item.condition ? ` • ${item.condition}` : ""}
+            {item.details?.size ? ` • Size ${item.details.size}` : ""}
+            {item.mileage != null ? ` • ${item.mileage} miles` : ""}
+            {item.location ? ` • ${item.location}` : ""}
+          </Text>
         </View>
 
-        {/* PRICE + META */}
-        <Text style={priceStyle(theme)}>£{item.price}</Text>
-        <Text style={metaStyle(theme)}>
-          {categoryLabel(item.category)}
-          {item.condition ? ` • ${item.condition}` : ""}
-          {item.details?.size ? ` • Size ${item.details.size}` : ""}
-          {item.mileage != null ? ` • ${item.mileage} miles` : ""}
-          {item.location ? ` • ${item.location}` : ""}
-        </Text>
-
-        {item.status === "reserved" ? (
-          <View style={{ marginTop: 8 }}>
-            <StatusBadge status="reserved" long />
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
+          <View style={{ flexDirection: "row", gap: 6, flexShrink: 1 }}>
+            {isSponsored && (
+              <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, backgroundColor: theme.goldDeep }}>
+                <Text style={{ color: theme.black, fontSize: 10, fontWeight: "700" }}>Sponsored</Text>
+              </View>
+            )}
+            {item.status === "reserved" ? <StatusBadge status="reserved" /> : null}
           </View>
-        ) : null}
+          <TouchableOpacity
+            onPress={() => router.push(`/marketplace/${item.id}`)}
+            accessibilityRole="button"
+            accessibilityLabel={`Look at ${title}, £${item.price}`}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={lookStyle(theme)}
+          >
+            <Text style={{ color: theme.black, fontSize: 13, fontWeight: "800" }}>Look</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-    </TouchableOpacity>
+    </View>
   );
 });
 
@@ -265,34 +262,43 @@ export default function Listings() {
 // No drop shadow: on many cards at once it is one of the slowest things to
 // draw while scrolling, and the border already separates the cards.
 const cardStyle = (theme: any, sponsored: boolean) => ({
+  flexDirection: "row" as const,
   backgroundColor: theme.card,
   borderRadius: 14,
   borderWidth: 1,
   borderColor: sponsored ? theme.goldDeep : theme.goldSoftGlow,
-  marginBottom: 20,
+  marginBottom: 12,
   overflow: "hidden" as const,
 });
 
-const imageStyle = {
-  width: "100%" as const,
-  height: 180,
+const thumbStyle = {
+  width: 104,
+  alignSelf: "stretch" as const,
+  minHeight: 112,
 };
 
 const titleStyle = (theme: any) => ({
   color: theme.goldDeep,
-  fontSize: 20,
+  fontSize: 16,
   fontWeight: "700" as const,
-  flexShrink: 1,
 });
 
 const priceStyle = (theme: any) => ({
   color: theme.text,
-  fontSize: 18,
-  marginTop: 4,
+  fontSize: 16,
+  fontWeight: "600" as const,
+  marginTop: 2,
 });
 
 const metaStyle = (theme: any) => ({
   color: theme.muted,
-  fontSize: 14,
+  fontSize: 12,
   marginTop: 2,
+});
+
+const lookStyle = (theme: any) => ({
+  backgroundColor: theme.goldDeep,
+  paddingHorizontal: 18,
+  paddingVertical: 6,
+  borderRadius: 999,
 });
