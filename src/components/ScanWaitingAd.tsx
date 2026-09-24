@@ -3,6 +3,7 @@ import { Image, Linking, Pressable, StyleSheet, Text, View } from "react-native"
 import { ArrowSquareOut } from "phosphor-react-native";
 
 import AdReportButton from "@/components/AdReportButton";
+import { markShown, useRotated } from "@/lib/adRotation";
 import { reportAdvertEvent, useAdverts, type ScanAdverts } from "@/lib/adverts";
 import type { BusinessAdvert } from "@/lib/businessAdverts";
 import { useTheme } from "@/styles/ThemeContext";
@@ -33,7 +34,10 @@ function open(advert: BusinessAdvert) {
 
 function AdPanel({ advert }: { advert: BusinessAdvert }) {
   const theme = useTheme();
-  useEffect(() => reportAdvertEvent(advert.id, "view"), [advert.id]);
+  useEffect(() => {
+    markShown(advert.id);
+    reportAdvertEvent(advert.id, "view");
+  }, [advert.id]);
 
   return (
     <View style={[styles.panel, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
@@ -122,6 +126,7 @@ function FullAd({ advert }: { advert: BusinessAdvert }) {
 
 export default function ScanWaitingAd() {
   const { layout, adverts } = useAdverts<ScanAdverts>("scan", NONE);
+  const ordered = useRotated(adverts);
   if (adverts.length === 0) return null;
 
   if (layout === "full") {
@@ -132,11 +137,10 @@ export default function ScanWaitingAd() {
     );
   }
 
-  // Rotates every ~10s (or a run of quick scans shows different pairs), and
-  // the two panels are always two different sponsors, never the same twice.
-  const offset = Math.floor(Date.now() / 10_000);
-  const first = adverts[offset % adverts.length];
-  const second = adverts.length > 1 ? adverts[(offset + 1) % adverts.length] : null;
+  // The two this phone saw longest ago, so every scan brings a fresh pair until
+  // everyone booked has had a turn. The two panels are always different sponsors.
+  const [first, second] = ordered;
+  if (!first) return null;
 
   return (
     <View style={styles.stack}>

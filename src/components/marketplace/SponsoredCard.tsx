@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { Image, Linking, Pressable, Text, View } from "react-native";
 
 import AdReportButton from "@/components/AdReportButton";
+import { markShown } from "@/lib/adRotation";
 import { reportAdvertEvent } from "@/lib/adverts";
 import type { BusinessAdvert } from "@/lib/businessAdverts";
 import { useTheme } from "@/styles/ThemeContext";
@@ -18,7 +19,10 @@ const SponsoredCard = React.memo(function SponsoredCard({ advert }: { advert: Bu
   const theme = useTheme();
 
   // Scrolling back past the same advert shouldn't count as a new view each time.
-  useEffect(() => reportAdvertEvent(advert.id, "view", 30), [advert.id]);
+  useEffect(() => {
+    markShown(advert.id);
+    reportAdvertEvent(advert.id, "view", 30);
+  }, [advert.id]);
 
   const open = () => {
     reportAdvertEvent(advert.id, "click");

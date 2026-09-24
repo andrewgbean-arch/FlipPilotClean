@@ -182,7 +182,16 @@ function AdCard({ advert, style }: { advert: BusinessAdvert; style?: StyleProp<V
   const [imageFailed, setImageFailed] = useState(false);
   useEffect(() => reportAdvertEvent(advert.id, "view", 30), [advert.id]);
 
+  // The card and its "Report this ad" link are siblings, not nested: a button
+  // inside a button is invalid on the web and makes taps ambiguous.
   return (
+    <View
+      style={[
+        styles.adCard,
+        { backgroundColor: theme.card, borderColor: theme.hairline },
+        style,
+      ]}
+    >
     <Pressable
       disabled={!website}
       accessibilityRole={website ? "button" : undefined}
@@ -195,12 +204,7 @@ function AdCard({ advert, style }: { advert: BusinessAdvert; style?: StyleProp<V
         reportAdvertEvent(advert.id, "click");
         if (website) Linking.openURL(website);
       }}
-      style={({ pressed }) => [
-        styles.adCard,
-        { backgroundColor: theme.card, borderColor: theme.hairline },
-        style,
-        pressed && styles.pressed,
-      ]}
+      style={({ pressed }) => (pressed ? styles.pressed : undefined)}
     >
       {advert.image && !imageFailed ? (
         <Image
@@ -239,9 +243,12 @@ function AdCard({ advert, style }: { advert: BusinessAdvert; style?: StyleProp<V
           </View>
         ) : null}
 
-        <AdReportButton advertId={advert.id} />
       </View>
     </Pressable>
+    <View style={{ paddingHorizontal: 14, paddingBottom: 10 }}>
+      <AdReportButton advertId={advert.id} />
+    </View>
+    </View>
   );
 }
 

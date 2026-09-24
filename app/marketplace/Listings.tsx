@@ -23,6 +23,7 @@ import { matchesSearch } from "@/utils/listingSearch";
 import StatusBadge from "@/components/marketplace/StatusBadge";
 import SponsoredCard from "@/components/marketplace/SponsoredCard";
 import { useAdverts, type FeedAdverts } from "@/lib/adverts";
+import { useRotated } from "@/lib/adRotation";
 import { withAdverts, type FeedRow } from "@/utils/feedAdverts";
 
 const NO_ADVERTS: FeedAdverts = { adverts: [] };
@@ -153,7 +154,9 @@ export default function Listings() {
   );
 
   const feed = useAdverts<FeedAdverts>("feed", NO_ADVERTS);
-  const rows = useMemo(() => withAdverts(filtered, feed.adverts), [filtered, feed.adverts]);
+  // The advert this phone saw longest ago goes first, so people meet different ones.
+  const ordered = useRotated(feed.adverts);
+  const rows = useMemo(() => withAdverts(filtered, ordered), [filtered, ordered]);
 
   const renderItem = useCallback(
     ({ item }: { item: FeedRow }) =>

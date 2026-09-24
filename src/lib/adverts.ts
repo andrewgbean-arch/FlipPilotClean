@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { loadRotation } from "@/lib/adRotation";
 import { BASE_URL } from "@/utils/api";
 import type { BusinessAdvert } from "@/lib/businessAdverts";
 
@@ -27,6 +28,8 @@ const inflight: Partial<Record<Placement, Promise<void>>> = {};
 
 /** Asks the server again, unless it was asked recently. Quiet on any failure. */
 export function refreshAdverts(placement: Placement, force = false): Promise<void> {
+  // What this phone showed before is needed to choose fairly, so read it early.
+  loadRotation();
   const hit = cache[placement];
   if (!force && hit && Date.now() - hit.at < KEEP_MS) return Promise.resolve();
   if (inflight[placement]) return inflight[placement]!;
