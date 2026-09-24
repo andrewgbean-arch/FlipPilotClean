@@ -18,6 +18,7 @@ import { formatMoney } from "@/features/vehicles/utils/vehicleStats";
 import { useTheme } from "@/styles/ThemeContext";
 import type { Theme } from "@/styles/theme";
 import { BASE_URL } from "@/utils/api";
+import { getDeviceId } from "@/utils/deviceId";
 
 type MarketResult = {
   priceRange: { low: number; mid: number; high: number };
@@ -281,7 +282,11 @@ function MarketScanContent({
       setError(null);
 
       try {
-        const res = await fetch(`${BASE_URL}/search?q=${encodeURIComponent(label)}`);
+        // The free-scan cap needs to know which phone is asking.
+        const deviceId = await getDeviceId();
+        const res = await fetch(
+          `${BASE_URL}/search?q=${encodeURIComponent(label)}&deviceId=${encodeURIComponent(deviceId)}`
+        );
         const data = await res.json();
 
         if (cancelled) return;

@@ -3,6 +3,7 @@ import { Router } from "express";
 import fetchMarketData from "../market-backend/fetchMarketData";
 import { buildFlipMeta } from "../market-backend/buildFlipMeta";
 import { paidLookupBudget } from "../middleware/dailyBudget";
+import { freeScanCap } from "../middleware/freeScanLimit";
 import { rateLimit } from "../middleware/rateLimit";
 import { extractPackCount } from "../market-backend/bulkListingFilter";
 
@@ -101,7 +102,7 @@ Return JSON with:
 /* --------------------------------------------------
    ⭐ 4. MAIN ROUTE — NOW USING UNIFIED ENGINE
 -------------------------------------------------- */
-router.get("/search", rateLimit(10), paidLookupBudget, async (req, res) => {
+router.get("/search", rateLimit(10), freeScanCap, paidLookupBudget, async (req, res) => {
   try {
     const barcode = req.query.q as string;
     if (!barcode) return res.json({ error: "Missing barcode" });

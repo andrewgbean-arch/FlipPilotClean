@@ -87,9 +87,15 @@ export async function freeScanLimit(req: Request, res: Response, next: NextFunct
       ? req.body.deviceId
       : null;
 
-  // No device id sent (an older app build, or a direct API call) — let it
-  // through rather than block a legitimate request over one missing field.
-  if (!deviceId) return next();
+  // No device id means we can't tell whose count to add to, so it can't be let through:
+  // leaving the field out would otherwise skip the cap. The app always sends it.
+  if (!deviceId) {
+    res.status(400).json({
+      error: "missing-device",
+      message: "Something went wrong identifying your phone. Please update the app and try again.",
+    });
+    return;
+  }
 
   const weekStart = currentWeekStart();
   const store = load();
@@ -115,4 +121,22 @@ export async function freeScanLimit(req: Request, res: Response, next: NextFunct
   save(store);
 
   next();
+}
+
+/**
+ * Whether the free-scan cap applies. It is ON in production and OFF everywhere else, so real
+ * users always have it and nobody testing the app on their own machine hits their own limit.
+ * FREE_SCAN_CAP=on or off overrides either way.
+ */
+export function freeScanCapEnabled(): boolean {
+  const setting = (process.env.FREE_SCAN_CAP ?? "").trim().toLowerCase();
+  if (setting === "on") return true;
+  if (setting === "off") return false;
+  return process.env.NODE_ENV === "production";
+}
+
+/** The cap as a route step: applies freeScanLimit when the cap is on, and does nothing when it is off. */
+export function freeScanCap(req: Request, res: Response, next: NextFunction) {
+  if (!freeScanCapEnabled()) return next();
+  return freeScanLimit(req, res, next);
 }

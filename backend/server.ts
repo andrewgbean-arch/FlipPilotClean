@@ -14,6 +14,7 @@ import registerUploadsRoute from "./routes/uploads";
 import registerMeRoute from "./routes/me";
 import registerAdvertsRoute from "./routes/adverts";
 import { runRetention } from "./utils/retentionJob";
+import { logLaunchChecks } from "./utils/launchCheck";
 import registerAIDescriptionRoute from "./routes/aiDescription";
 import registerListingDescriptionRoute from "./routes/listingDescription";
 import registerEbayExportRoute from "./routes/ebayExport";
@@ -349,6 +350,8 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🔥 FlipPilot backend listening on http://0.0.0.0:${PORT}`);
 });
+
+logLaunchChecks();
 
 if (!process.env.MARKETPLACE_PROMO_ENDS_AT || Number.isNaN(new Date(process.env.MARKETPLACE_PROMO_ENDS_AT).getTime())) {
   console.warn("⚠️  MARKETPLACE_PROMO_ENDS_AT is not set (or not a date): the free-listing launch offer has no end date and will run until you set one.");
