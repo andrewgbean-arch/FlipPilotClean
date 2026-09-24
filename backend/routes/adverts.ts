@@ -215,13 +215,19 @@ function stateOf(ad: Advert, now = new Date()): string {
 function forAdmin(ad: Advert, req: Request, all: Advert[] = loadAdverts()) {
   const state = stateOf(ad);
   return {
-    ...mediaForAdvert({ ...ad, images: imagesOf(ad) }, req),
+    ...mediaForAdvert({ ...ad, images: imagesOf(ad), reports: undefined }, req),
     totals: totals(ad),
     state,
     // Something a person has to look at: not approved yet (or taken off), and not already over.
     needsAttention: !ad.approved && new Date(ad.endsAt).getTime() > Date.now(),
     reportCount: new Set((ad.reports ?? []).map((r) => r.deviceId)).size,
     trustedAdvertiser: isTrusted(advertiserKey(ad.website), all),
+    // Why people reported it: how many said each reason, and the words they added. Never who.
+    reportReasons: (ad.reports ?? []).reduce<Record<string, number>>((acc, r) => {
+      acc[r.reason] = (acc[r.reason] ?? 0) + 1;
+      return acc;
+    }, {}),
+    reportNotes: (ad.reports ?? []).map((r) => r.details).filter(Boolean).slice(-10),
   };
 }
 
