@@ -24,9 +24,12 @@ import {
   FileText,
   Info,
   ShieldCheck,
+  SignIn,
+  SignOut,
   Star,
   Storefront,
   Trash,
+  UserCircle,
 } from "phosphor-react-native";
 import type { Icon as PhosphorIcon } from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -38,6 +41,7 @@ import { getDeviceId } from "@/utils/deviceId";
 import { getSellerName, setSellerName, SELLER_NAME_MAX } from "@/utils/sellerName";
 import { LEGAL } from "@/constants/legal";
 import { deleteMyData, exportMyData } from "@/utils/myData";
+import { deleteAccount, signOut, useAccount } from "@/lib/account";
 import { openPartnerLink } from "@/utils/partnerLinks";
 
 /* SMALL LOCAL COMPONENTS */
@@ -191,6 +195,55 @@ export default function SettingsScreen() {
       return;
     }
     Linking.openURL(url).catch(() => Alert.alert("Couldn't open the link", url));
+  };
+
+  const account = useAccount();
+
+  const confirmSignOut = () => {
+    Alert.alert("Sign out?", "Your listings and messages stay safe on your account. Sign back in any time with your email.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Sign out",
+        onPress: async () => {
+          await signOut();
+          await setSellerName("");
+          setName(null);
+          setDeviceId(await getDeviceId());
+        },
+      },
+    ]);
+  };
+
+  const confirmDeleteAccount = () => {
+    if (dataBusy) return;
+    Alert.alert(
+      "Delete my account?",
+      "This permanently deletes your account, your marketplace listings and their photos, your messages, your seller profile and reviews, and your boot fairs. It can't be undone.\n\nYour saved flips and photos on this phone are not affected.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete my account",
+          style: "destructive",
+          onPress: async () => {
+            setDataBusy(true);
+            try {
+              const result = await deleteAccount();
+              if (!result.ok) {
+                Alert.alert("Couldn't delete your account", result.message);
+                return;
+              }
+              await setSellerName("");
+              setName(null);
+              setEbayConnected(false);
+              setDeviceId(await getDeviceId());
+              Alert.alert("Your account has been deleted", "Everything we held under it has been removed.");
+            } finally {
+              setDataBusy(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const contactSupport = () => {
@@ -425,6 +478,37 @@ export default function SettingsScreen() {
             onPress={contactSupport}
             divider
           />
+        </View>
+
+        {/* ACCOUNT */}
+        <SectionTitle>Account</SectionTitle>
+        <View style={[styles.group, card]}>
+          {account.email ? (
+            <>
+              <InfoRow Icon={UserCircle} title="Signed in" subtitle={account.email} />
+              <MenuRow
+                Icon={SignOut}
+                title="Sign out"
+                subtitle="Your listings and messages stay on your account"
+                onPress={confirmSignOut}
+                divider
+              />
+              <MenuRow
+                Icon={Trash}
+                title="Delete my account"
+                subtitle="Remove your account and everything under it"
+                onPress={confirmDeleteAccount}
+                divider
+              />
+            </>
+          ) : (
+            <MenuRow
+              Icon={SignIn}
+              title="Sign in or create an account"
+              subtitle="Needed to sell, message and report. Just your email, no password"
+              onPress={() => router.push("/sign-in")}
+            />
+          )}
         </View>
 
         {/* YOUR DATA */}

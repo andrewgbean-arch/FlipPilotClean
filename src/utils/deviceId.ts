@@ -35,3 +35,25 @@ export async function getDeviceId(): Promise<string> {
   }
   return id;
 }
+
+/**
+ * Signing in hands the phone the id its account owns; from then on that is the id it uses.
+ */
+export async function adoptDeviceId(id: string): Promise<void> {
+  cached = id;
+  try {
+    await AsyncStorage.setItem(STORAGE_KEY, id);
+  } catch {
+    // Storage failed — the id still works for this session.
+  }
+}
+
+/**
+ * After signing out or deleting an account the phone can no longer use that account's id (it is
+ * protected), so it starts again with a fresh one of its own.
+ */
+export async function resetDeviceId(): Promise<string> {
+  const id = randomId();
+  await adoptDeviceId(id);
+  return id;
+}

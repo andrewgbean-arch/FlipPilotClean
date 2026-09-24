@@ -1,8 +1,8 @@
-import { DarkTheme, Stack, ThemeProvider as NavigationThemeProvider } from "expo-router";
+import { DarkTheme, Stack, ThemeProvider as NavigationThemeProvider, usePathname, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
@@ -30,7 +30,14 @@ import GoldConfetti from "@/components/ui/GoldConfetti";
 // ⭐ Gold Lightning Flash (milestone accent)
 import GoldLightning from "@/components/ui/GoldLightning";
 
+import { installAuthFetch, loadAccount, onSignInNeeded } from "../src/lib/account";
+
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+// Every request to our own server carries the person's session, and a "sign in" reply from the
+// server brings up the sign-in screen. Set up once, before any screen makes a request.
+installAuthFetch();
+loadAccount();
 
 // Without this, one render error in any screen unmounts the whole app.
 export { RouteErrorScreen as ErrorBoundary } from "@/components/ErrorScreen";
@@ -55,6 +62,7 @@ export default function RootLayout() {
                 <GoldFlashOverlayWrapper />
 
                 <MessageAlertsProvider>
+                  <SignInWatcher />
                   <ThemedStack />
                 </MessageAlertsProvider>
 
@@ -65,6 +73,27 @@ export default function RootLayout() {
       </SubscriptionProvider>
     </GestureHandlerRootView>
   );
+}
+
+/** Shows the sign-in screen when the server says selling, messaging or reporting needs an account. */
+function SignInWatcher() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const pathRef = useRef(pathname);
+  pathRef.current = pathname;
+  const lastShown = useRef(0);
+
+  useEffect(
+    () =>
+      onSignInNeeded(() => {
+        // Several requests can be refused at once; show the screen once, and never on top of itself.
+        if (pathRef.current === "/sign-in" || Date.now() - lastShown.current < 3000) return;
+        lastShown.current = Date.now();
+        router.push("/sign-in");
+      }),
+    [router]
+  );
+  return null;
 }
 
 function GoldFlashOverlayWrapper() {
@@ -83,6 +112,7 @@ function GoldFlashOverlayWrapper() {
 // Screens declared below set their own; everything else gets a name from here.
 const SCREEN_TITLES: Record<string, string> = {
   rate: "Rate FlipPilot",
+  "sign-in": "Sign in",
   "weather/index": "Weather",
   "settings/index": "Settings",
   "feature/[slug]": "Feature",
