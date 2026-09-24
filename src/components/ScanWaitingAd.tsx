@@ -103,16 +103,21 @@ function PaidPanel({ advert }: { advert: BusinessAdvert }) {
   );
 }
 
-/** Up to three pictures to swipe through, with dots showing where you are. `fill` makes it cover the whole card. */
-function Gallery({ pictures, fill }: { pictures: string[]; fill?: boolean }) {
+/**
+ * Up to three pictures to swipe through, with dots showing where you are. `fill` makes it take all the
+ * room it is given; `whole` shows each picture in full, never cropped or zoomed.
+ */
+function Gallery({ pictures, fill, whole }: { pictures: string[]; fill?: boolean; whole?: boolean }) {
   const theme = useTheme();
   const [width, setWidth] = useState(0);
   const [page, setPage] = useState(0);
 
   const frame = fill ? styles.fillAll : styles.fullImage;
 
+  const mode = whole ? "contain" : "cover";
+
   if (pictures.length <= 1) {
-    return <Image source={{ uri: pictures[0] }} style={frame} resizeMode="cover" />;
+    return <Image source={{ uri: pictures[0] }} style={frame} resizeMode={mode} />;
   }
 
   return (
@@ -125,11 +130,11 @@ function Gallery({ pictures, fill }: { pictures: string[]; fill?: boolean }) {
           onMomentumScrollEnd={(e) => setPage(Math.round(e.nativeEvent.contentOffset.x / width))}
         >
           {pictures.map((uri) => (
-            <Image key={uri} source={{ uri }} style={{ width, height: "100%" }} resizeMode="cover" />
+            <Image key={uri} source={{ uri }} style={{ width, height: "100%" }} resizeMode={mode} />
           ))}
         </ScrollView>
       ) : null}
-      <View style={[styles.dots, fill && styles.dotsHigh]} pointerEvents="none">
+      <View style={styles.dots} pointerEvents="none">
         {pictures.map((uri, i) => (
           <View
             key={uri}
@@ -147,9 +152,9 @@ function FullAd({ advert }: { advert: BusinessAdvert }) {
 }
 
 /**
- * The advertiser's own portrait design, edge to edge. Any extra photos are more
- * pages to swipe to. Our buttons sit on a dark strip along the bottom, so a design
- * should keep its own writing out of roughly the bottom fifth.
+ * The advertiser's own portrait design, shown WHOLE: never cropped, zoomed or covered. It sits in the
+ * space above a bar of ours holding the Sponsored label, their name, and Save / Visit / Report, so
+ * nothing of ours is drawn over their picture. Any extra photos are more pages to swipe to.
  */
 function DesignedAd({ advert }: { advert: BusinessAdvert }) {
   const theme = useTheme();
@@ -161,28 +166,29 @@ function DesignedAd({ advert }: { advert: BusinessAdvert }) {
 
   return (
     <View style={[styles.full, { backgroundColor: theme.black, borderColor: theme.hairline }]}>
-      <Gallery pictures={pictures} fill />
-      <View style={styles.designPill} pointerEvents="none">
-        <Text style={styles.designPillText}>SPONSORED</Text>
+      <View style={styles.designArt}>
+        <Gallery pictures={pictures} fill whole />
       </View>
-      <View style={styles.designBar}>
-        {advert.tagline ? (
-          <Text style={styles.designTagline} numberOfLines={2}>
-            <Text style={styles.designTitle}>{advert.title}</Text>
-            {"  "}
-            {advert.tagline}
-          </Text>
-        ) : (
-          <Text style={styles.designTitle} numberOfLines={1}>
+      <View style={[styles.designBar, { backgroundColor: theme.card }]}>
+        <View style={styles.designLine}>
+          <View style={[styles.pill, { backgroundColor: theme.background }]}>
+            <Text style={[styles.pillText, { color: theme.muted }]}>Sponsored</Text>
+          </View>
+          <Text style={[styles.designTitle, { color: theme.text }]} numberOfLines={1}>
             {advert.title}
           </Text>
-        )}
+        </View>
+        {advert.tagline ? (
+          <Text style={[styles.designTagline, { color: theme.muted }]} numberOfLines={2}>
+            {advert.tagline}
+          </Text>
+        ) : null}
         <View style={styles.fullActions}>
           <View style={styles.buttons}>
             <SaveSponsorButton advert={advert} />
             <VisitButton advert={advert} label="Visit website" />
           </View>
-          <AdReportButton advertId={advert.id} onPhoto />
+          <AdReportButton advertId={advert.id} />
         </View>
       </View>
     </View>
@@ -303,30 +309,11 @@ const styles = StyleSheet.create({
   },
   fullImage: { width: "100%", flex: 1.6 },
   fillAll: { width: "100%", flex: 1 },
-  dotsHigh: { bottom: 96 },
-  designPill: {
-    position: "absolute",
-    top: 12,
-    left: 12,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-  },
-  designPillText: { color: "#fff", fontSize: 10, fontWeight: "800", letterSpacing: 0.5 },
-  designBar: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.74)",
-    paddingHorizontal: 14,
-    paddingTop: 10,
-    paddingBottom: 12,
-    gap: 8,
-  },
-  designTitle: { color: "#fff", fontSize: 15, fontWeight: "800" },
-  designTagline: { color: "#fff", fontSize: 13 },
+  designArt: { flex: 1, width: "100%", backgroundColor: "#000" },
+  designBar: { paddingHorizontal: 14, paddingTop: 10, paddingBottom: 12, gap: 6 },
+  designLine: { flexDirection: "row", alignItems: "center", gap: 8 },
+  designTitle: { fontSize: 15, fontWeight: "800", flexShrink: 1 },
+  designTagline: { fontSize: 13 },
   fullBody: { flex: 1.2, padding: 18, gap: 8, justifyContent: "center" },
   fullTitle: { fontSize: 24, fontWeight: "900" },
   fullTagline: { fontSize: 15, fontWeight: "700" },
