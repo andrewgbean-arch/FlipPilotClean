@@ -14,7 +14,9 @@ import {
   feedAdverts,
   placementFull,
   allPictures,
+  advertiserKey,
   imagesOf,
+  isTrusted,
   loadAdverts,
   performanceReport,
   recordEvent,
@@ -210,7 +212,7 @@ function stateOf(ad: Advert, now = new Date()): string {
   return "live";
 }
 
-function forAdmin(ad: Advert, req: Request) {
+function forAdmin(ad: Advert, req: Request, all: Advert[] = loadAdverts()) {
   const state = stateOf(ad);
   return {
     ...mediaForAdvert({ ...ad, images: imagesOf(ad) }, req),
@@ -219,6 +221,7 @@ function forAdmin(ad: Advert, req: Request) {
     // Something a person has to look at: not approved yet (or taken off), and not already over.
     needsAttention: !ad.approved && new Date(ad.endsAt).getTime() > Date.now(),
     reportCount: new Set((ad.reports ?? []).map((r) => r.deviceId)).size,
+    trustedAdvertiser: isTrusted(advertiserKey(ad.website), all),
   };
 }
 
@@ -309,7 +312,8 @@ export default function registerAdvertsRoute(app: Express) {
 
   app.get("/admin/adverts", (req: Request, res: Response) => {
     if (!adminOk(req, res)) return;
-    let ads = loadAdverts().map((a) => forAdmin(a, req));
+    const everything = loadAdverts();
+    let ads = everything.map((a) => forAdmin(a, req, everything));
     // ?needs=attention: just what is waiting for a person to look at it.
     if (req.query.needs === "attention") ads = ads.filter((a) => a.needsAttention);
     res.json({ ok: true, adverts: ads });
@@ -405,19 +409,36 @@ export default function registerAdvertsRoute(app: Express) {
 
     advert.aiReview = await reviewAdvert({ ...advert, images: allPictures(advert) });
 
-    // Asking for it to be approved only sticks when the AI found nothing to look at.
-    // Otherwise it waits for a person, using the PATCH route, having read the AI's reasons.
-    const wantsApproval = b.approved === true;
-    advert.approved = wantsApproval && advert.aiReview.verdict === "ok";
+    // Who lets it go live. Three cases:
+    //  - approved: true    a person is asking for it. That sticks only if the AI found nothing to look at;
+    //                      otherwise it waits, and they can approve it with PATCH after reading the AI's reasons.
+    //  - approved: false   held for a person, whatever else is true.
+    //  - not said          goes live by itself ONLY for a trusted advertiser (one a person has approved
+    //                      before, never reported or overridden) when the wording rules are completely
+    //                      clean and the AI says ok. Anyone else waits for a person.
+    const existing = loadAdverts();
+    const trusted = isTrusted(advertiserKey(website), existing);
+    const clean = checkAdvert(advert).length === 0 && b.reviewed !== true;
+    const aiOk = advert.aiReview.verdict === "ok";
+    let note: string | undefined;
 
-    saveAdverts([...loadAdverts(), advert]);
-    res.json({
-      ok: true,
-      advert: forAdmin(advert, req),
-      ...(wantsApproval && !advert.approved
-        ? { note: `Saved, but not approved: the AI check said "${advert.aiReview.verdict}". Read its reasons, then approve it yourself if you are happy.` }
-        : {}),
-    });
+    if (b.approved === true) {
+      advert.approved = aiOk;
+      if (aiOk) advert.approvedBy = "person";
+      else note = `Saved, but not approved: the AI check said "${advert.aiReview.verdict}". Read its reasons, then approve it yourself if you are happy.`;
+    } else if (b.approved !== false && trusted && clean && aiOk) {
+      advert.approved = true;
+      advert.approvedBy = "auto";
+      note = "Approved automatically: this advertiser is trusted (you approved an earlier advert of theirs) and the wording rules and the AI check are both clean.";
+    } else if (b.approved !== false) {
+      note = !trusted
+        ? "Waiting for your approval: this is the first advert from this advertiser, so a person has to read it."
+        : `Waiting for your approval: this advertiser is trusted, but ${!clean ? "the wording needed a look" : `the AI check said "${advert.aiReview.verdict}"`}.`;
+    }
+    if (advert.approved) advert.approvedAt = new Date().toISOString();
+
+    saveAdverts([...existing, advert]);
+    res.json({ ok: true, advert: forAdmin(advert, req, [...existing, advert]), ...(note ? { note } : {}) });
   }));
 
   app.patch("/admin/adverts/:id", safe(async (req: Request, res: Response) => {
@@ -532,6 +553,21 @@ export default function registerAdvertsRoute(app: Express) {
       next.aiReview = await reviewAdvert({ ...next, images: allPictures(next) });
     }
 
+    // Changing the words or pictures of an advert that is live must pass again. It stays live by itself
+    // only for a trusted advertiser whose new wording is clean and the AI still says ok; otherwise it
+    // goes back to waiting for a person, so a good advert can't be edited into a bad one unseen.
+    let heldAfterEdit = false;
+    const contentChanged = wordingChanged || oldImages.length > 0 || oldArtwork !== null;
+    if (contentChanged && ad.approved && next.approved && !approving) {
+      const trustedNow = isTrusted(advertiserKey(next.website), all.filter((a) => a.id !== ad.id));
+      const cleanNow = checkAdvert(next).length === 0 && b.reviewed !== true;
+      if (!(trustedNow && cleanNow && next.aiReview?.verdict === "ok")) {
+        next.approved = false;
+        next.approvedBy = null;
+        heldAfterEdit = true;
+      }
+    }
+
     if (approving) {
       if (next.aiReview?.verdict === "reject" && b.reviewed !== true) {
         deleteUploads([...(oldImages.length > 0 ? next.images : []), ...(oldArtwork !== null && next.artwork && next.artwork !== ad.artwork ? [next.artwork] : [])]);
@@ -543,6 +579,10 @@ export default function registerAdvertsRoute(app: Express) {
         });
       }
       next.approved = true;
+      next.approvedBy = "person";
+      next.approvedAt = new Date().toISOString();
+      // Approving against the AI's advice is allowed, but the advertiser is never trusted after it.
+      if (next.aiReview?.verdict === "reject") next.overrodeAi = true;
       next.pausedAt = null;
       // Old reports were about what was there before someone looked again.
       next.reports = [];
@@ -565,7 +605,11 @@ export default function registerAdvertsRoute(app: Express) {
     // Old files go, unless the saved advert still uses them.
     const stillUsed = new Set(allPictures(merged));
     deleteUploads([...oldImages, ...(oldArtwork ? [oldArtwork] : [])].filter((p) => !stillUsed.has(p)));
-    res.json({ ok: true, advert: forAdmin(merged, req) });
+    res.json({
+      ok: true,
+      advert: forAdmin(merged, req, latest.map((a) => (a.id === ad.id ? merged : a))),
+      ...(heldAfterEdit ? { note: "Saved, but it is now waiting for your approval again: the wording or pictures changed and the checks did not all come back clean for a trusted advertiser." } : {}),
+    });
   }));
 
   // Run the AI check again, for example after switching the key on.
@@ -581,7 +625,7 @@ export default function registerAdvertsRoute(app: Express) {
     if (!current) return res.status(404).json({ ok: false, error: "No such advert" });
     current.aiReview = review;
     saveAdverts(latest);
-    res.json({ ok: true, advert: forAdmin(current, req) });
+    res.json({ ok: true, advert: forAdmin(current, req, latest) });
   }));
 
   app.delete("/admin/adverts/:id", (req: Request, res: Response) => {

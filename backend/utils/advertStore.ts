@@ -84,6 +84,13 @@ export type Advert = {
   reports?: AdvertReport[];
   /** Set when reports took it off. Cleared when it is approved again. */
   pausedAt?: string | null;
+  /** Who let it go live: a person read it and approved it, or the rules did because the advertiser is trusted. */
+  approvedBy?: "person" | "auto" | null;
+  approvedAt?: string | null;
+  /** Ever taken off by reports. Never cleared: an advertiser with one of these is not trusted. */
+  everPaused?: boolean;
+  /** A person approved it although the AI said reject. Never trusted afterwards. */
+  overrodeAi?: boolean;
 };
 
 function readAdverts(): Advert[] {
@@ -310,6 +317,7 @@ export function addAdvertReport(
   if (new Set(ad.reports.map((r) => r.deviceId)).size >= REPORTS_TO_PAUSE) {
     ad.approved = false;
     ad.pausedAt = now.toISOString();
+    ad.everPaused = true;
     paused = true;
   }
   saveAdverts(all);
@@ -355,11 +363,35 @@ export function performanceReport(ad: Advert) {
   };
 }
 
+/* ------------------------------- trusted advertisers ------------------------------ */
+
+/** Who an advert is from: its website's address, without "www". Names can be typed any way; the site is the identity. */
+export function advertiserKey(website: string): string {
+  try {
+    return new URL(website).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return website.trim().toLowerCase();
+  }
+}
+
+/**
+ * A trusted advertiser is one whose earlier advert a PERSON read and approved, and who has
+ * never given anyone reason to doubt it: none of their adverts has been taken off by reports,
+ * or approved by a person against the AI's advice. Trust lets later adverts from the same
+ * website go live by themselves, but only when the wording rules and the AI check are also
+ * clean. It is never given for a first advert, and it is lost at the first sign of trouble.
+ */
+export function isTrusted(key: string, all: Advert[]): boolean {
+  const theirs = all.filter((a) => advertiserKey(a.website) === key);
+  if (theirs.some((a) => a.everPaused || a.overrodeAi)) return false;
+  return theirs.some((a) => a.approvedBy === "person");
+}
+
 /** What anyone may see of an advert: nothing about the booking, the money, the place or the counts. */
 export function toPublicAdvert(ad: Advert) {
   const {
     advertiser, stats, approved, createdAt, startsAt, endsAt, placements,
-    aiReview, reports, pausedAt, scope, postcode, lat, lng, radiusMiles, ...rest
+    aiReview, reports, pausedAt, scope, postcode, lat, lng, radiusMiles, approvedBy, approvedAt, everPaused, overrodeAi, ...rest
   } = ad;
   return { ...rest, images: imagesOf(ad) };
 }
