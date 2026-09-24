@@ -9,9 +9,10 @@ import type { AiReview } from "./advertReview";
  * been approved: there is no default list and no filler. Each one is booked for
  * a period, and switches itself off when the period ends.
  *
- * Two placements are exclusive: "scan-full" (the whole scan-wait screen) and
- * "feed-sole" (every sponsored card in the marketplace feed). Only one advert
- * can hold either at a time, so two bookings for overlapping dates are refused.
+ * One placement is exclusive: "scan-full" (the whole scan-wait screen). Only one
+ * advert can hold it at a time, so two bookings for overlapping dates are refused.
+ * The marketplace feed is deliberately never exclusive: its adverts are shared
+ * and rotate, and are spaced out by the app (see src/utils/feedAdverts.ts).
  *
  * Only counts are kept about how an advert performed (views and taps per day).
  * Nothing about who saw it: no device id, no address.
@@ -19,11 +20,11 @@ import type { AiReview } from "./advertReview";
 
 const ADVERTS_PATH = path.join(__dirname, "../data/adverts.json");
 
-export const PLACEMENTS = ["scan-full", "scan-panel", "feed", "feed-sole", "bootfairs"] as const;
+export const PLACEMENTS = ["scan-full", "scan-panel", "feed", "bootfairs"] as const;
 export type Placement = (typeof PLACEMENTS)[number];
 
 /** Only one advert at a time can hold these, over any given dates. */
-export const EXCLUSIVE_PLACEMENTS: Placement[] = ["scan-full", "feed-sole"];
+export const EXCLUSIVE_PLACEMENTS: Placement[] = ["scan-full"];
 
 export type DayCount = { views: number; clicks: number };
 
@@ -107,7 +108,7 @@ export function findClash(
 }
 
 export type ScanAdverts = { layout: "full" | "panels"; adverts: Advert[] };
-export type FeedAdverts = { sole: boolean; adverts: Advert[] };
+export type FeedAdverts = { adverts: Advert[] };
 
 /** One advertiser owns the whole scan-wait screen while booked; otherwise the shared panels. */
 export function scanAdverts(now = new Date(), all = readAdverts()): ScanAdverts {
@@ -117,12 +118,9 @@ export function scanAdverts(now = new Date(), all = readAdverts()): ScanAdverts 
   return { layout: "panels", adverts: live.filter((a) => a.placements.includes("scan-panel")) };
 }
 
-/** A sole sponsor takes every sponsored slot in the feed; otherwise the shared ones. */
+/** Everything booked for the feed right now. They share it and take turns. */
 export function feedAdverts(now = new Date(), all = readAdverts()): FeedAdverts {
-  const live = all.filter((a) => isLive(a, now));
-  const sole = live.filter((a) => a.placements.includes("feed-sole")).sort((a, b) => ms(a.startsAt) - ms(b.startsAt))[0];
-  if (sole) return { sole: true, adverts: [sole] };
-  return { sole: false, adverts: live.filter((a) => a.placements.includes("feed")) };
+  return { adverts: all.filter((a) => isLive(a, now) && a.placements.includes("feed")) };
 }
 
 export function bootfairAdverts(now = new Date(), all = readAdverts()): Advert[] {

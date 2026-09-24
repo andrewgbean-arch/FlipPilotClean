@@ -14,7 +14,7 @@ import type { BusinessAdvert } from "@/lib/businessAdverts";
  */
 
 export type ScanAdverts = { layout: "full" | "panels"; adverts: BusinessAdvert[] };
-export type FeedAdverts = { sole: boolean; adverts: BusinessAdvert[] };
+export type FeedAdverts = { adverts: BusinessAdvert[] };
 export type BootfairAdverts = { adverts: BusinessAdvert[] };
 
 type Placement = "scan" | "feed" | "bootfairs";

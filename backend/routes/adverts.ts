@@ -145,7 +145,7 @@ export default function registerAdvertsRoute(app: Express) {
     }
     if (placement === "feed") {
       const f = feedAdverts();
-      return res.json({ ok: true, sole: f.sole, adverts: shape(f.adverts) });
+      return res.json({ ok: true, adverts: shape(f.adverts) });
     }
     if (placement === "bootfairs") {
       return res.json({ ok: true, adverts: shape(bootfairAdverts()) });

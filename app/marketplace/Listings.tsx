@@ -25,7 +25,7 @@ import SponsoredCard from "@/components/marketplace/SponsoredCard";
 import { useAdverts, type FeedAdverts } from "@/lib/adverts";
 import { withAdverts, type FeedRow } from "@/utils/feedAdverts";
 
-const NO_ADVERTS: FeedAdverts = { sole: false, adverts: [] };
+const NO_ADVERTS: FeedAdverts = { adverts: [] };
 
 /**
  * One listing card. Memoised, so scrolling or typing in the search box redraws
