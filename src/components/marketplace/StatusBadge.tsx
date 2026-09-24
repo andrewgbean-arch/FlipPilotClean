@@ -16,11 +16,20 @@ export default function StatusBadge({
   long?: boolean;
 }) {
   const theme = useTheme();
-  if (status !== "reserved" && status !== "sold") return null;
+  if (status !== "reserved" && status !== "sold" && status !== "expired") return null;
 
   const sold = status === "sold";
-  const colour = sold ? theme.danger : theme.warning;
-  const label = sold ? "Sold" : long ? "Reserved · awaiting outcome" : "Reserved";
+  const expired = status === "expired";
+  const colour = sold ? theme.danger : expired ? theme.muted : theme.warning;
+  const label = sold
+    ? "Sold"
+    : expired
+    ? long
+      ? "Expired · relist to put it back"
+      : "Expired"
+    : long
+    ? "Reserved · awaiting outcome"
+    : "Reserved";
 
   return (
     <View

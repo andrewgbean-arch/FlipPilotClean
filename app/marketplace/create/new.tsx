@@ -75,6 +75,7 @@ export default function CreateNewListing() {
     promoEndsAt: string | null;
     carCreditCost: number;
     freeActiveItemsAfterPromo: number;
+    listingDays?: number;
   } | null>(null);
 
   useEffect(() => {
@@ -374,8 +375,8 @@ export default function CreateNewListing() {
             </Text>
             <Text style={{ color: theme.muted, fontSize: 13, lineHeight: 19 }}>
               {policy.promoActive
-                ? `One car for sale at a time. After the launch offer, a car costs ${policy.carCreditCost} credits.`
-                : `One car for sale at a time, costing ${policy.carCreditCost} credits. ${policy.freeActiveItemsAfterPromo} items can be for sale free at once.`}
+                ? `One car for sale at a time. Listings stay up for ${policy.listingDays ?? 30} days, then you can relist. After the launch offer, a car costs ${policy.carCreditCost} credits.`
+                : `Listings stay up for ${policy.listingDays ?? 30} days, then you can relist. One car for sale at a time, costing ${policy.carCreditCost} credits. ${policy.freeActiveItemsAfterPromo} items can be for sale free at once.`}
             </Text>
           </View>
         ) : null}

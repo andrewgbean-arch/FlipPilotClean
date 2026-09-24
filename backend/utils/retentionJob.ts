@@ -1,4 +1,5 @@
 import { RETENTION, daysAgo, monthsAgo } from "../config/retention";
+import { listedAtMs } from "./listingStatus";
 import { loadListings, saveListings } from "../routes/publishedListings";
 import { loadFairs, saveFairs } from "../routes/fairs";
 import { loadSellerStore, saveSellerStore } from "../routes/sellers";
@@ -34,7 +35,7 @@ export function runRetention(now = new Date()) {
 
   /* ---- listings, and the conversations inside the ones that stay ---- */
   const soldCutoff = monthsAgo(RETENTION.soldListingMonths, now).getTime();
-  const unsoldCutoff = monthsAgo(RETENTION.unsoldListingMonths, now).getTime();
+  const unsoldLifeMs = (RETENTION.listingDays + RETENTION.expiredListingGraceDays) * 24 * 60 * 60 * 1000;
   const messageCutoff = monthsAgo(RETENTION.messagesMonthsAfterLastMessage, now).getTime();
 
   const sellers = loadSellerStore();
@@ -43,10 +44,10 @@ export function runRetention(now = new Date()) {
 
   for (const l of listings) {
     const soldAt = time(l.soldAt);
-    const created = time(l.createdAt);
+    const listed = listedAtMs(l);
     const expired = Number.isFinite(soldAt)
       ? soldAt < soldCutoff
-      : Number.isFinite(created) && created < unsoldCutoff;
+      : Number.isFinite(listed) && listed + unsoldLifeMs < now.getTime();
 
     if (expired) {
       summary.listings++;

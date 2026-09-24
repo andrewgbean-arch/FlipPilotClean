@@ -96,6 +96,24 @@ export default function MarketplaceHub() {
           </Text>
         </Pressable>
 
+        {/* Your own listings: reserve, mark sold, relist, delete */}
+        <Pressable
+          accessibilityRole="button"
+          style={{
+            backgroundColor: theme.card,
+            padding: 14,
+            borderRadius: 14,
+            borderWidth: 1,
+            borderColor: theme.goldDeep,
+            marginBottom: 14,
+          }}
+          onPress={() => router.push("/marketplace/my-listings")}
+        >
+          <Text style={{ color: theme.text, fontSize: 16, fontWeight: "700" }}>
+            🏷️ My listings
+          </Text>
+        </Pressable>
+
         {/* Public: Browse Listings */}
         <Pressable
           style={{

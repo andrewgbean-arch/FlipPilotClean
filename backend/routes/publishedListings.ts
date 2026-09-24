@@ -4,6 +4,7 @@ import path from "path";
 import { toPublicListing } from "../utils/sellerOrigin";
 import { blockedBy } from "../utils/safetyStore";
 import { mediaForListing } from "../utils/media";
+import { listingStatus } from "../utils/listingStatus";
 
 const LISTINGS_PATH = path.join(__dirname, "../data/published-listings.json");
 
@@ -26,6 +27,9 @@ export default function registerPublishedListingsRoute(app: Express) {
     res.json(
       loadListings()
         .filter((l: any) => !(typeof l.deviceId === "string" && hidden.includes(l.deviceId)))
+        // A listing that has run its 30 days is no longer for sale. Its owner still
+        // sees it in "my listings" and can relist it.
+        .filter((l: any) => listingStatus(l) !== "expired")
         .map((l: any) => mediaForListing(toPublicListing(l), req))
     );
   });

@@ -7,11 +7,15 @@
 export const RETENTION = {
   /** A conversation is deleted this long after its last message. */
   messagesMonthsAfterLastMessage: 12,
+  /** A listing stays up this many days from when it was posted or relisted. */
+  listingDays: 30,
+  /** After it ends, an unsold listing stays in its owner's list (to relist) this long, then is deleted. */
+  expiredListingGraceDays: 30,
   /** A reservation the seller never followed up on lapses after this many days. */
   reservationDays: 7,
   /** A sold listing is deleted this long after it was marked sold. */
   soldListingMonths: 6,
-  /** A listing never marked sold is deleted this long after it was posted. */
+  /** A boot fair with no usable date is deleted this long after it was posted. */
   unsoldListingMonths: 12,
   /** A boot fair or event is deleted this long after its date has passed. */
   fairDaysAfterDate: 60,

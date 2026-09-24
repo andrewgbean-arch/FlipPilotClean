@@ -9,7 +9,7 @@ import { getDeviceId } from "@/utils/deviceId";
 import ReportSheet from "@/components/marketplace/ReportSheet";
 import { askToReserve } from "@/utils/listingActions";
 
-type Props = { listingId: string | number; status?: "available" | "reserved" | "sold" };
+type Props = { listingId: string | number; status?: "available" | "reserved" | "sold" | "expired" };
 
 /**
  * The two things you can do about a listing you're looking at: talk to the
@@ -18,7 +18,8 @@ type Props = { listingId: string | number; status?: "available" | "reserved" | "
  */
 export default function ListingActions({ listingId, status = "available" }: Props) {
   const theme = useTheme();
-  const sold = status === "sold";
+  // Sold and run-out listings are closed to buyers: nothing to message about.
+  const sold = status === "sold" || status === "expired";
   const [role, setRole] = useState<"buyer" | "seller" | null>(null);
   const [waiting, setWaiting] = useState(0);
   const [reporting, setReporting] = useState(false);

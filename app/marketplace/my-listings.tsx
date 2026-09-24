@@ -20,7 +20,7 @@ import { getDeviceId } from "@/utils/deviceId";
 import { shareListing } from "@/utils/shareListing";
 import { exportListingToEbay } from "@/utils/ebayExport";
 import { deleteMyListing } from "@/utils/myData";
-import { setReserved } from "@/utils/listingActions";
+import { relistListing, setReserved } from "@/utils/listingActions";
 import StatusBadge from "@/components/marketplace/StatusBadge";
 
 type SoldThread = { threadId: string; lastMessage: string };
@@ -112,6 +112,22 @@ export default function MyListings() {
       setListings((prev) => prev.map((l) => (l.id === item.id ? { ...l, status } : l)));
     } catch (err: any) {
       Alert.alert("Couldn't update it", err?.message ?? "Please check your connection and try again.");
+    } finally {
+      setMarkingId(null);
+    }
+  };
+
+  // A listing runs for 30 days. Relisting starts another 30, and once the launch
+  // offer is over the server may ask for credits, which it explains in its reply.
+  const relist = async (item: any) => {
+    setMarkingId(item.id);
+    try {
+      await relistListing(item.id);
+      setListings((prev) =>
+        prev.map((l) => (l.id === item.id ? { ...l, status: "available", listedAt: new Date().toISOString() } : l))
+      );
+    } catch (err: any) {
+      Alert.alert("Couldn't relist it", err?.message ?? "Please check your connection and try again.");
     } finally {
       setMarkingId(null);
     }
@@ -229,8 +245,32 @@ export default function MyListings() {
                 <StatusBadge status={item.status ?? (item.soldAt ? "sold" : null)} long />
               </View>
 
-              {/* Available or reserved: two buttons. Sold is final, so none. */}
-              {item.soldAt || item.status === "sold" ? null : (
+              {/* Expired: just Relist. Sold is final, so none. */}
+              {item.status === "expired" && !item.soldAt ? (
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel="Relist this listing for another 30 days"
+                    disabled={markingId === item.id}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      relist(item);
+                    }}
+                    style={{
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 999,
+                      borderWidth: 1,
+                      borderColor: theme.goldDeep,
+                      opacity: markingId === item.id ? 0.6 : 1,
+                    }}
+                  >
+                    <Text style={{ color: theme.goldDeep, fontWeight: "700", fontSize: 13 }}>
+                      {markingId === item.id ? "Working…" : "Relist"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              ) : item.soldAt || item.status === "sold" ? null : (
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
                   <TouchableOpacity
                     accessibilityRole="button"

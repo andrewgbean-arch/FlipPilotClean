@@ -7,6 +7,8 @@ import { loadListings, saveListings } from "./publishedListings";
 import { rateLimit } from "../middleware/rateLimit";
 import { callerDeviceId } from "./messages";
 import { listingStatus } from "../utils/listingStatus";
+import { evaluatePolicy } from "../middleware/listingPolicy";
+import { POLICY } from "../config/marketplacePolicy";
 
 /**
  * Seller reputation: when they joined, what they have sold, and what buyers
@@ -145,7 +147,10 @@ export default function registerSellersRoute(app: Express) {
         joinedAt: seller.joinedAt,
         // Counted from the listings themselves, so there is no tally to drift.
         itemsSold: theirListings.filter((l: any) => l.soldAt).length + (seller.soldArchived ?? 0),
-        itemsForSale: theirListings.filter((l: any) => !l.soldAt).length,
+        itemsForSale: theirListings.filter((l: any) => {
+          const st = listingStatus(l);
+          return st === "available" || st === "reserved";
+        }).length,
         stars: averageStars(reviews),
         reviewCount: reviews.length,
         reviews: reviews.slice(0, 20).map((r) => ({
@@ -289,6 +294,45 @@ export default function registerSellersRoute(app: Express) {
   });
 
   /* -------------------------------------------------------
+     RELIST: start another 30 days for one of your own listings that has run
+     out (or is about to). It has to pass the same rules as a new listing: after
+     the launch offer, a car costs credits and items past the free allowance
+     do too. A sold listing cannot be relisted.
+  ------------------------------------------------------- */
+  app.post("/listings/:id/relist", rateLimit(20), (req: Request, res: Response) => {
+    const caller = callerDeviceId(req);
+    if (!caller) return res.status(401).json({ ok: false, error: "Missing device id" });
+
+    const listings = loadListings();
+    const listing = listings.find((l: any) => String(l.id) === req.params.id);
+    if (!listing) return res.status(404).json({ ok: false, error: "Listing not found" });
+    if (listing.deviceId !== caller) {
+      return res.status(403).json({ ok: false, error: "Not your listing" });
+    }
+    if (listing.soldAt) {
+      return res.status(409).json({ ok: false, error: "already-sold", message: "This one is already sold." });
+    }
+
+    const isCar = listing.category === POLICY.carCategory || listing.type === "flip";
+    // Only counts as a new run if it has actually run out; relisting a live one would just waste credits.
+    if (listingStatus(listing) !== "expired") {
+      return res.status(409).json({
+        ok: false,
+        error: "still-live",
+        message: "This listing is still live. You can relist it once it has run out.",
+      });
+    }
+    const refusal = evaluatePolicy(caller, isCar, listing.id);
+    if (refusal) return res.status(refusal.status).json(refusal.body);
+
+    listing.listedAt = new Date().toISOString();
+    listing.reservedAt = null;
+    saveListings(listings);
+
+    res.json({ ok: true, status: listingStatus(listing), listedAt: listing.listedAt });
+  });
+
+  /* -------------------------------------------------------
      CAN I REVIEW THIS? For the buyer's chat and the listing page: whether
      the caller is the person the seller marked it sold to and has not yet
      reviewed it, and who to review.
@@ -335,6 +379,9 @@ export default function registerSellersRoute(app: Express) {
       }
       if (listing.soldAt) {
         return res.status(409).json({ ok: false, error: "This one is already sold." });
+      }
+      if (listingStatus(listing) === "expired") {
+        return res.status(409).json({ ok: false, error: "This listing has run out. Relist it first." });
       }
 
       listing.reservedAt = action === "reserve" ? new Date().toISOString() : null;

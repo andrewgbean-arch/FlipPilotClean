@@ -3,6 +3,7 @@ import { loadListings, saveListings } from "./publishedListings";
 import { rateLimit } from "../middleware/rateLimit";
 import { listingPolicy } from "../middleware/listingPolicy";
 import { POLICY, promoActive, promoEndsAt } from "../config/marketplacePolicy";
+import { RETENTION } from "../config/retention";
 import { readSellerOrigin, toPublicListing } from "../utils/sellerOrigin";
 import { ensureSeller } from "./sellers";
 import { mediaForListing } from "../utils/media";
@@ -41,6 +42,7 @@ export default function registerPublishListingRoute(app: Express) {
       maxActiveCars: POLICY.maxActiveCarsPerSeller,
       freeActiveItemsAfterPromo: POLICY.freeActiveItemsAfterPromo,
       carCreditCost: POLICY.carCreditCost,
+      listingDays: RETENTION.listingDays,
     });
   });
 
