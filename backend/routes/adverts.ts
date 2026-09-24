@@ -12,6 +12,7 @@ import {
   addAdvertReport,
   bootfairAdverts,
   feedAdverts,
+  feedFull,
   findClash,
   imagesOf,
   loadAdverts,
@@ -211,6 +212,14 @@ function clashReply(res: Response, clash: NonNullable<ReturnType<typeof findClas
   });
 }
 
+function feedFullReply(res: Response, full: NonNullable<ReturnType<typeof feedFull>>) {
+  return res.status(409).json({
+    ok: false,
+    error: "feed-full",
+    message: `The marketplace feed already has ${full.limit} advertisers sharing that area over those dates, so it would be ${full.count}. Choose other dates or another placement.`,
+  });
+}
+
 function contentReply(res: Response, problems: ReturnType<typeof checkAdvert>) {
   return res.status(422).json({
     ok: false,
@@ -346,6 +355,8 @@ export default function registerAdvertsRoute(app: Express) {
 
     const clash = findClash(advert, loadAdverts());
     if (clash) return clashReply(res, clash);
+    const full = feedFull(advert, loadAdverts());
+    if (full) return feedFullReply(res, full);
 
     // Rude or scammy wording is stopped before anything is saved.
     const problems = blocking(checkAdvert(advert), b.reviewed === true);
@@ -430,6 +441,8 @@ export default function registerAdvertsRoute(app: Express) {
 
     const clash = findClash(next, all);
     if (clash) return clashReply(res, clash);
+    const full = feedFull(next, all);
+    if (full) return feedFullReply(res, full);
 
     const wordingChanged = (["advertiser", "title", "tagline", "description", "website"] as const).some(
       (k) => next[k] !== ad[k]
