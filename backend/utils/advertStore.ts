@@ -14,12 +14,13 @@ import type { AiReview } from "./advertReview";
  * sends only a rounded position with each request, used to choose adverts and
  * then forgotten; it is never stored (see routes/adverts.ts).
  *
- * One placement is exclusive: "scan-full" (the whole scan-wait screen). Only one
- * advert can hold it at a time in any place: two bookings clash only when their
- * dates overlap AND their areas overlap, so a Brighton garage and a Glasgow
- * garage can both hold it at once. The marketplace feed is deliberately never
- * exclusive: its adverts are shared and rotate, and are spaced out by the app
- * (see src/utils/feedAdverts.ts).
+ * Nothing is exclusive: every placement is shared, and advertisers take turns.
+ * The number who can share a place is limited so each is seen often enough to be
+ * worth paying for: at most 10 in the marketplace feed and 3 on the scan full
+ * page in any one area at any one time (see maxSharing). A full page takes the
+ * whole screen on its advertiser's turn, and turns rotate on each phone, so
+ * nobody is shown the same advert on every scan. Bookings in different parts of
+ * the country never count against each other.
  *
  * Only counts are kept about how an advert performed (views and taps per day).
  * Nothing about who saw it: no device id, no address, no position.
@@ -29,9 +30,6 @@ const ADVERTS_PATH = path.join(__dirname, "../data/adverts.json");
 
 export const PLACEMENTS = ["scan-full", "scan-panel", "feed", "bootfairs"] as const;
 export type Placement = (typeof PLACEMENTS)[number];
-
-/** Only one advert at a time can hold these, over any given dates and area. */
-export const EXCLUSIVE_PLACEMENTS: Placement[] = ["scan-full"];
 
 export const RADIUS_OPTIONS_MILES = [10, 25, 50] as const;
 export const DEFAULT_RADIUS_MILES = 50;
@@ -141,53 +139,25 @@ export function reaches(ad: Advert, viewer: Viewer): boolean {
   return milesBetween(ad.lat!, ad.lng!, viewer.lat, viewer.lng) <= (ad.radiusMiles ?? DEFAULT_RADIUS_MILES);
 }
 
-/** Do two adverts' areas share any ground? Nationwide meets everything. */
-export function areasOverlap(a: Advert, b: Advert): boolean {
-  if (!isLocal(a) || !isLocal(b)) {
-    // A nationwide advert overlaps everything. A local one with no point overlaps nothing.
-    return a.scope !== "local" || b.scope !== "local";
-  }
-  const gap = milesBetween(a.lat!, a.lng!, b.lat!, b.lng!);
-  return gap < (a.radiusMiles ?? DEFAULT_RADIUS_MILES) + (b.radiusMiles ?? DEFAULT_RADIUS_MILES);
-}
+/* ------------------------------- sharing limits ----------------------------- */
+
+/** Placements where a limited number of advertisers share a place and take turns. */
+const LIMITED: { placement: Placement; env: string; fallback: number; label: string }[] = [
+  { placement: "feed", env: "MAX_FEED_ADVERTS_PER_AREA", fallback: 10, label: "The marketplace feed" },
+  { placement: "scan-full", env: "MAX_FULL_PAGE_PER_AREA", fallback: 3, label: "The scan full page" },
+];
 
 /**
- * The exclusive placement this booking would clash on, and the advert it
- * clashes with, or null when it is free. It only clashes when the dates AND the
- * areas both overlap. Dates that only touch (one ends the moment the next
- * starts) are fine.
+ * How many advertisers may share a placement in one place at one time. The feed
+ * shows roughly one advert per six listings and a full page appears on some
+ * scans, so too many sharing makes each too rare to be worth paying for. Change
+ * a limit with its setting (MAX_FEED_ADVERTS_PER_AREA, MAX_FULL_PAGE_PER_AREA).
  */
-export function findClash(
-  candidate: Advert,
-  all: Advert[]
-): { placement: Placement; with: Advert } | null {
-  for (const placement of EXCLUSIVE_PLACEMENTS) {
-    if (!candidate.placements.includes(placement)) continue;
-    for (const other of all) {
-      if (other.id === candidate.id || !other.placements.includes(placement)) continue;
-      if (
-        ms(candidate.startsAt) < ms(other.endsAt) &&
-        ms(other.startsAt) < ms(candidate.endsAt) &&
-        areasOverlap(candidate, other)
-      ) {
-        return { placement, with: other };
-      }
-    }
-  }
-  return null;
-}
-
-/* ------------------------------- feed capacity ------------------------------ */
-
-/**
- * How many advertisers may share the marketplace feed in any one place at any
- * one time. The feed shows roughly one advert per six listings, so the more
- * advertisers share it the less often each is seen; a limit keeps a booking
- * worth paying for. Change it with MAX_FEED_ADVERTS_PER_AREA (default 10).
- */
-export function maxFeedAdverts(): number {
-  const n = Number(process.env.MAX_FEED_ADVERTS_PER_AREA);
-  return Number.isInteger(n) && n > 0 ? n : 10;
+export function maxSharing(placement: Placement): number {
+  const rule = LIMITED.find((l) => l.placement === placement);
+  if (!rule) return Infinity;
+  const n = Number(process.env[rule.env]);
+  return Number.isInteger(n) && n > 0 ? n : rule.fallback;
 }
 
 /** Points to test around a booking: its own centre, a ring and the middle of every nearby booking. */
@@ -218,50 +188,65 @@ function samplePoints(candidate: Advert, others: Advert[]): { lat: number; lng: 
 }
 
 /**
- * Would booking this advert put more than the limit of feed advertisers in front
- * of the same people at the same time? Looks at the moments its booking starts
- * or another's does, and at points around the places involved, so two bookings
- * in different parts of the country never count against each other. Returns how
- * many would be sharing at the worst point, or null when there is room.
+ * Would booking this advert put more than the limit of advertisers in front of
+ * the same people, at the same time, in a limited placement? Looks at the
+ * moments its booking starts or another's does, and at points around the places
+ * involved, so two bookings in different parts of the country never count
+ * against each other and one-day bookings on different days don't add up.
+ * Returns the placement that is full, how many would be sharing at the worst
+ * point and the limit, or null when there is room.
  */
-export function feedFull(candidate: Advert, all: Advert[]): { count: number; limit: number } | null {
-  if (!candidate.placements.includes("feed")) return null;
-  const limit = maxFeedAdverts();
-  const others = all.filter(
-    (o) =>
-      o.id !== candidate.id &&
-      o.placements.includes("feed") &&
-      ms(o.startsAt) < ms(candidate.endsAt) &&
-      ms(o.endsAt) > ms(candidate.startsAt)
-  );
-  if (others.length < limit) return null;
+export function placementFull(
+  candidate: Advert,
+  all: Advert[]
+): { placement: Placement; label: string; count: number; limit: number } | null {
+  for (const rule of LIMITED) {
+    if (!candidate.placements.includes(rule.placement)) continue;
+    const limit = maxSharing(rule.placement);
+    const others = all.filter(
+      (o) =>
+        o.id !== candidate.id &&
+        o.placements.includes(rule.placement) &&
+        ms(o.startsAt) < ms(candidate.endsAt) &&
+        ms(o.endsAt) > ms(candidate.startsAt)
+    );
+    if (others.length < limit) continue;
 
-  const times = [ms(candidate.startsAt), ...others.map((o) => ms(o.startsAt)).filter((t) => t > ms(candidate.startsAt))];
-  let worst = 0;
-  for (const p of samplePoints(candidate, others)) {
-    if (!reaches(candidate, p)) continue;
-    for (const t of times) {
-      const here = others.filter((o) => ms(o.startsAt) <= t && t < ms(o.endsAt) && reaches(o, p)).length + 1;
-      if (here > worst) worst = here;
+    const times = [ms(candidate.startsAt), ...others.map((o) => ms(o.startsAt)).filter((t) => t > ms(candidate.startsAt))];
+    let worst = 0;
+    for (const p of samplePoints(candidate, others)) {
+      if (!reaches(candidate, p)) continue;
+      for (const t of times) {
+        const here = others.filter((o) => ms(o.startsAt) <= t && t < ms(o.endsAt) && reaches(o, p)).length + 1;
+        if (here > worst) worst = here;
+      }
     }
+    if (worst > limit) return { placement: rule.placement, label: rule.label, count: worst, limit };
   }
-  return worst > limit ? { count: worst, limit } : null;
+  return null;
 }
 
 /* ------------------------------- what to show ------------------------------ */
 
-export type ScanAdverts = { layout: "full" | "panels"; adverts: Advert[] };
+/** `adverts` is the full pages if any are booked near this phone (else the panels); `panels` are always the shared panels, for when a full page is being rested. */
+export type ScanAdverts = { layout: "full" | "panels"; adverts: Advert[]; panels: Advert[] };
 export type FeedAdverts = { adverts: Advert[] };
 
 const liveFor = (all: Advert[], now: Date, viewer: Viewer) =>
   all.filter((a) => isLive(a, now) && reaches(a, viewer));
 
-/** One advertiser owns the whole scan-wait screen while booked; otherwise the shared panels. */
+/**
+ * What the scan-wait screen may show near this phone: any full pages booked
+ * here (the app takes turns between them and rests one that has just been
+ * shown) and the shared panels.
+ */
 export function scanAdverts(now = new Date(), all = readAdverts(), viewer: Viewer = null): ScanAdverts {
   const live = liveFor(all, now, viewer);
-  const full = live.filter((a) => a.placements.includes("scan-full")).sort((a, b) => ms(a.startsAt) - ms(b.startsAt))[0];
-  if (full) return { layout: "full", adverts: [full] };
-  return { layout: "panels", adverts: live.filter((a) => a.placements.includes("scan-panel")) };
+  const full = live.filter((a) => a.placements.includes("scan-full")).sort((a, b) => ms(a.startsAt) - ms(b.startsAt));
+  const panels = live.filter((a) => a.placements.includes("scan-panel"));
+  return full.length > 0
+    ? { layout: "full", adverts: full, panels }
+    : { layout: "panels", adverts: panels, panels };
 }
 
 /** Everything booked for the feed right now that reaches this phone. They share it and take turns. */

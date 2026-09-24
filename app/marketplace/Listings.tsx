@@ -24,7 +24,8 @@ import StatusBadge from "@/components/marketplace/StatusBadge";
 import SponsoredCard from "@/components/marketplace/SponsoredCard";
 import { useAdverts, type FeedAdverts } from "@/lib/adverts";
 import { useRotated } from "@/lib/adRotation";
-import { withAdverts, type FeedRow } from "@/utils/feedAdverts";
+import { HOUSE_ADVERTS, fillWithHouse } from "@/lib/houseAdverts";
+import { LISTINGS_PER_ADVERT, withAdverts, type FeedRow } from "@/utils/feedAdverts";
 
 const NO_ADVERTS: FeedAdverts = { adverts: [] };
 
@@ -153,7 +154,14 @@ export default function Listings() {
   const feed = useAdverts<FeedAdverts>("feed", NO_ADVERTS);
   // The advert this phone saw longest ago goes first, so people meet different ones.
   const ordered = useRotated(feed.adverts);
-  const rows = useMemo(() => withAdverts(filtered, ordered), [filtered, ordered]);
+  const houseOrder = useRotated(HOUSE_ADVERTS);
+  // Places nobody has bought are filled with FlipPilot's own promos, after every paying advertiser.
+  // Only once the server has answered and both lists are sorted, so a paid advert never gets bumped by a late arrival.
+  const answered = feed !== NO_ADVERTS && (feed.adverts.length === 0 || ordered.length > 0) && houseOrder.length > 0;
+  const rows = useMemo(() => {
+    const slots = filtered.length >= LISTINGS_PER_ADVERT ? Math.floor(filtered.length / LISTINGS_PER_ADVERT) : filtered.length > 0 ? 1 : 0;
+    return withAdverts(filtered, answered ? fillWithHouse(ordered, houseOrder, slots) : ordered);
+  }, [filtered, ordered, houseOrder, answered]);
 
   const renderItem = useCallback(
     ({ item }: { item: FeedRow }) =>

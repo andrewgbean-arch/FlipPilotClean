@@ -39,6 +39,11 @@ export function loadRotation(): Promise<void> {
   return loading;
 }
 
+/** When this phone last showed the advert (milliseconds), or 0 if it never has. */
+export function lastShownAt(id: string): number {
+  return lastShown[id] ?? 0;
+}
+
 /** Note that this advert has just been shown on this phone. */
 export function markShown(id: string): void {
   lastShown[id] = Date.now();

@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { Image, Linking, Text, TouchableOpacity, View } from "react-native";
 
 import AdReportButton from "@/components/AdReportButton";
+import { HouseFeedCard } from "@/components/HousePromo";
 import { markShown } from "@/lib/adRotation";
 import { reportAdvertEvent } from "@/lib/adverts";
 import type { BusinessAdvert } from "@/lib/businessAdverts";
@@ -19,7 +20,7 @@ import { useTheme } from "@/styles/ThemeContext";
  * Kept plain on purpose (no looping animation): the feed is long and scrolling
  * it smoothly matters more than a glow.
  */
-const SponsoredCard = React.memo(function SponsoredCard({ advert }: { advert: BusinessAdvert }) {
+const PaidCard = React.memo(function PaidCard({ advert }: { advert: BusinessAdvert }) {
   const theme = useTheme();
 
   // Scrolling back past the same advert shouldn't count as a new view each time.
@@ -99,6 +100,11 @@ const SponsoredCard = React.memo(function SponsoredCard({ advert }: { advert: Bu
       </View>
     </View>
   );
+});
+
+/** A paying advertiser's card, or one of FlipPilot's own promos filling an unsold place. */
+const SponsoredCard = React.memo(function SponsoredCard({ advert }: { advert: BusinessAdvert }) {
+  return advert.house ? <HouseFeedCard advert={advert} /> : <PaidCard advert={advert} />;
 });
 
 export default SponsoredCard;

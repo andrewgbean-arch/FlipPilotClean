@@ -1,11 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { ArrowSquareOut } from "phosphor-react-native";
 
 import AdReportButton from "@/components/AdReportButton";
-import { markShown, useRotated } from "@/lib/adRotation";
+import { HousePanel } from "@/components/HousePromo";
+import { lastShownAt, markShown, useRotated } from "@/lib/adRotation";
 import { reportAdvertEvent, useAdverts, type ScanAdverts } from "@/lib/adverts";
 import type { BusinessAdvert } from "@/lib/businessAdverts";
+import { HOUSE_ADVERTS, fillWithHouse } from "@/lib/houseAdverts";
 import { useTheme } from "@/styles/ThemeContext";
 
 /**
@@ -14,11 +16,15 @@ import { useTheme } from "@/styles/ThemeContext";
  * Built to look like the paid slot it is: a real picture, a clear "Sponsored"
  * label and a way through to the advertiser, not a small aside.
  *
- * Two layouts, chosen by the server from what has been booked near this phone:
- *  - "full": one advertiser has booked the whole screen to themselves;
- *  - "panels": two smaller advertisers share it.
- * With nothing booked it shows nothing at all. It goes the moment the result is
- * ready, and never holds anything up.
+ * Two layouts:
+ *  - a full page: one advertiser has the whole screen for their turn. A few
+ *    advertisers near the phone share the full page and take turns, the one
+ *    this phone saw longest ago first;
+ *  - panels: two smaller advertisers share the screen, a fresh pair each scan.
+ * The same full page is never shown twice within FULL_PAGE_REST_MS: scanning
+ * again straight away brings the next advertiser's, or the panels. With nothing
+ * booked it shows nothing at all. It goes the moment the result is ready, and
+ * never holds anything up.
  *
  * Only the Visit button opens the advertiser's website. Touching the advert
  * anywhere else does nothing, so a stray tap during a scan can't throw someone
@@ -30,6 +36,10 @@ import { useTheme } from "@/styles/ThemeContext";
 export const AD_REVEAL_DELAY_MS = 700;
 
 const NONE: ScanAdverts = { layout: "panels", adverts: [] };
+const NO_ADVERTS: BusinessAdvert[] = [];
+
+/** A full page just shown on this phone is rested for this long, so scans never repeat it. */
+export const FULL_PAGE_REST_MS = 10 * 60_000;
 
 function open(advert: BusinessAdvert) {
   reportAdvertEvent(advert.id, "click");
@@ -54,6 +64,10 @@ function VisitButton({ advert, label = "Visit" }: { advert: BusinessAdvert; labe
 }
 
 function AdPanel({ advert }: { advert: BusinessAdvert }) {
+  return advert.house ? <HousePanel advert={advert} /> : <PaidPanel advert={advert} />;
+}
+
+function PaidPanel({ advert }: { advert: BusinessAdvert }) {
   const theme = useTheme();
   useEffect(() => {
     markShown(advert.id);
@@ -124,7 +138,10 @@ function Gallery({ pictures }: { pictures: string[] }) {
 /** One advertiser has the whole screen to themselves. */
 function FullAd({ advert }: { advert: BusinessAdvert }) {
   const theme = useTheme();
-  useEffect(() => reportAdvertEvent(advert.id, "view"), [advert.id]);
+  useEffect(() => {
+    markShown(advert.id);
+    reportAdvertEvent(advert.id, "view");
+  }, [advert.id]);
   const pictures = advert.images && advert.images.length > 0 ? advert.images : [advert.image];
 
   return (
@@ -158,21 +175,40 @@ function FullAd({ advert }: { advert: BusinessAdvert }) {
 }
 
 export default function ScanWaitingAd() {
-  const { layout, adverts } = useAdverts<ScanAdverts>("scan", NONE);
-  const ordered = useRotated(adverts);
-  if (adverts.length === 0) return null;
+  const data = useAdverts<ScanAdverts>("scan", NONE);
+  const fulls = useMemo(() => (data.layout === "full" ? data.adverts : NO_ADVERTS), [data]);
+  const shared = useMemo(() => (data.layout === "full" ? data.panels ?? NO_ADVERTS : data.adverts), [data]);
+  const fullOrder = useRotated(fulls);
+  const paidPanels = useRotated(shared);
+  const houseOrder = useRotated(HOUSE_ADVERTS);
 
-  if (layout === "full") {
+  // Chosen once for this scan, so the screen never swaps adverts halfway through a wait
+  // (showing a full page marks it as just shown, which would otherwise rest it at once).
+  const choice = useRef<{ fullId: string | null } | null>(null);
+
+  // Nothing has come back from the server yet, or what was read hasn't been sorted yet.
+  if (data === NONE) return null;
+  if ((fulls.length > 0 && fullOrder.length === 0) || (shared.length > 0 && paidPanels.length === 0) || houseOrder.length === 0) return null;
+
+  if (!choice.current) {
+    const next = fullOrder[0];
+    const resting = next ? Date.now() - lastShownAt(next.id) < FULL_PAGE_REST_MS : false;
+    choice.current = { fullId: next && !resting ? next.id : null };
+  }
+
+  const full = choice.current.fullId ? fullOrder.find((a) => a.id === choice.current!.fullId) : undefined;
+  if (full) {
     return (
       <View style={styles.stack}>
-        <FullAd advert={adverts[0]} />
+        <FullAd advert={full} />
       </View>
     );
   }
 
   // The two this phone saw longest ago, so every scan brings a fresh pair until
   // everyone booked has had a turn. The two panels are always different sponsors.
-  const [first, second] = ordered;
+  // Any place nobody has bought is filled with FlipPilot's own promos, after the paying advertisers.
+  const [first, second] = fillWithHouse(paidPanels, houseOrder, 2);
   if (!first) return null;
 
   return (

@@ -12,8 +12,7 @@ import {
   addAdvertReport,
   bootfairAdverts,
   feedAdverts,
-  feedFull,
-  findClash,
+  placementFull,
   imagesOf,
   loadAdverts,
   performanceReport,
@@ -203,20 +202,11 @@ function forAdmin(ad: Advert, req: Request) {
   };
 }
 
-function clashReply(res: Response, clash: NonNullable<ReturnType<typeof findClash>>) {
-  const where = clash.with.scope === "local" ? `${clash.with.radiusMiles ?? DEFAULT_RADIUS_MILES} miles around ${clash.with.postcode ?? "its postcode"}` : "nationwide";
+function fullReply(res: Response, full: NonNullable<ReturnType<typeof placementFull>>) {
   return res.status(409).json({
     ok: false,
-    error: "placement-taken",
-    message: `${clash.placement} is already booked by ${clash.with.advertiser} (${where}) from ${clash.with.startsAt} to ${clash.with.endsAt}, and that area overlaps.`,
-  });
-}
-
-function feedFullReply(res: Response, full: NonNullable<ReturnType<typeof feedFull>>) {
-  return res.status(409).json({
-    ok: false,
-    error: "feed-full",
-    message: `The marketplace feed already has ${full.limit} advertisers sharing that area over those dates, so it would be ${full.count}. Choose other dates or another placement.`,
+    error: "placement-full",
+    message: `${full.label} already has ${full.limit} advertisers sharing that area over those dates, so this would make ${full.count}. Choose other dates, another area or another placement.`,
   });
 }
 
@@ -243,7 +233,7 @@ export default function registerAdvertsRoute(app: Express) {
     res.setHeader("Cache-Control", "private, no-store");
     if (placement === "scan") {
       const s = scanAdverts(undefined, undefined, viewer);
-      return res.json({ ok: true, layout: s.layout, adverts: shape(s.adverts) });
+      return res.json({ ok: true, layout: s.layout, adverts: shape(s.adverts), panels: shape(s.panels) });
     }
     if (placement === "feed") {
       const f = feedAdverts(undefined, undefined, viewer);
@@ -353,10 +343,8 @@ export default function registerAdvertsRoute(app: Express) {
       pausedAt: null,
     };
 
-    const clash = findClash(advert, loadAdverts());
-    if (clash) return clashReply(res, clash);
-    const full = feedFull(advert, loadAdverts());
-    if (full) return feedFullReply(res, full);
+    const full = placementFull(advert, loadAdverts());
+    if (full) return fullReply(res, full);
 
     // Rude or scammy wording is stopped before anything is saved.
     const problems = blocking(checkAdvert(advert), b.reviewed === true);
@@ -439,10 +427,8 @@ export default function registerAdvertsRoute(app: Express) {
       Object.assign(next, where.area);
     }
 
-    const clash = findClash(next, all);
-    if (clash) return clashReply(res, clash);
-    const full = feedFull(next, all);
-    if (full) return feedFullReply(res, full);
+    const full = placementFull(next, all);
+    if (full) return fullReply(res, full);
 
     const wordingChanged = (["advertiser", "title", "tagline", "description", "website"] as const).some(
       (k) => next[k] !== ad[k]

@@ -15,7 +15,13 @@ import type { BusinessAdvert } from "@/lib/businessAdverts";
  * taking a second or two.
  */
 
-export type ScanAdverts = { layout: "full" | "panels"; adverts: BusinessAdvert[] };
+export type ScanAdverts = {
+  layout: "full" | "panels";
+  /** The full pages booked near this phone, or the shared panels when there are none. */
+  adverts: BusinessAdvert[];
+  /** The shared panels, to show while a full page is being rested. */
+  panels?: BusinessAdvert[];
+};
 export type FeedAdverts = { adverts: BusinessAdvert[] };
 export type BootfairAdverts = { adverts: BusinessAdvert[] };
 

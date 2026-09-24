@@ -18,4 +18,6 @@ export type BusinessAdvert = {
   website?: string;
   /** Boot Fairs only: the big banner rather than a small card. */
   featured?: boolean;
+  /** Set on FlipPilot's own promos (see houseAdverts): drawn in the app and opens our own link. */
+  house?: "dealers" | "advertise";
 };
