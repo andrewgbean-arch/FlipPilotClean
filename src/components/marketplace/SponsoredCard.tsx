@@ -1,231 +1,88 @@
-import { Ionicons } from "@expo/vector-icons";
-import * as Linking from "expo-linking";
-import { useEffect, useRef } from "react";
-import {
-  Animated,
-  Image,
-  StyleSheet,
-  TouchableOpacity,
-  View,
-  Text,
-} from "react-native";
+import React, { useEffect } from "react";
+import { Image, Linking, Pressable, Text, View } from "react-native";
 
-import { BusinessAdvert } from "../../lib/businessAdverts";
+import AdReportButton from "@/components/AdReportButton";
+import { reportAdvertEvent } from "@/lib/adverts";
+import type { BusinessAdvert } from "@/lib/businessAdverts";
 import { useTheme } from "@/styles/ThemeContext";
 
-import { layout } from "../../styles/layout";
-
-const { radius: Radius, spacing: Spacing } = layout;
-
-const textVariants = StyleSheet.create({
-  h3: { fontSize: 20, fontWeight: "900" },
-  body: { fontSize: 16 },
-  small: { fontSize: 13, opacity: 0.75 },
-});
-
-export default function SponsoredCard({ advert }: { advert: BusinessAdvert }) {
+/**
+ * A paid advert in the marketplace feed, made to sit between listings but never
+ * to pass for one: it always says "Sponsored", and it opens the advertiser's
+ * website, not a listing.
+ *
+ * Kept plain on purpose (no looping animation): the feed is long and scrolling
+ * it smoothly matters more than a glow.
+ */
+const SponsoredCard = React.memo(function SponsoredCard({ advert }: { advert: BusinessAdvert }) {
   const theme = useTheme();
-  const styles = getStyles(theme);
 
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(20)).current;
-  const glowAnim = useRef(new Animated.Value(0)).current;
+  // Scrolling back past the same advert shouldn't count as a new view each time.
+  useEffect(() => reportAdvertEvent(advert.id, "view", 30), [advert.id]);
 
-  const openWebsite = () => {
+  const open = () => {
+    reportAdvertEvent(advert.id, "click");
     if (advert.website) Linking.openURL(advert.website);
   };
 
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 350,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 350,
-        useNativeDriver: true,
-      }),
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(glowAnim, {
-            toValue: 1,
-            duration: 1800,
-            useNativeDriver: false,
-          }),
-          Animated.timing(glowAnim, {
-            toValue: 0,
-            duration: 1800,
-            useNativeDriver: false,
-          }),
-        ])
-      ),
-    ]).start();
-  }, []);
-
-  const onPressIn = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 0.97,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const onPressOut = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      friction: 5,
-      useNativeDriver: true,
-    }).start();
-  };
-
   return (
-    <Animated.View
+    <View
       style={{
-        opacity: fadeAnim,
-        transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
+        backgroundColor: theme.card,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: theme.goldDeep,
+        marginBottom: 20,
+        overflow: "hidden",
       }}
     >
-      <Animated.View
-        style={[
-          styles.glowWrapper,
-          {
-            shadowOpacity: glowAnim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0.15, 0.45],
-            }),
-          },
-        ]}
+      <Pressable
+        accessibilityRole={advert.website ? "button" : undefined}
+        accessibilityLabel={
+          advert.website ? `Sponsored: ${advert.title}. Visit website` : `Sponsored: ${advert.title}`
+        }
+        disabled={!advert.website}
+        onPress={open}
       >
-        <TouchableOpacity
-          style={styles.card}
-          onPress={openWebsite}
-          onPressIn={onPressIn}
-          onPressOut={onPressOut}
-          activeOpacity={0.9}
-        >
-          {/* Sponsored badge */}
-          <View style={styles.badge}>
-            <Text style={[textVariants.small, styles.badgeText]}>
-              Sponsored
+        <Image source={{ uri: advert.image }} style={{ width: "100%", height: 180 }} resizeMode="cover" />
+        <View style={{ padding: 14 }}>
+          <View
+            style={{
+              alignSelf: "flex-start",
+              paddingHorizontal: 8,
+              paddingVertical: 2,
+              borderRadius: 999,
+              backgroundColor: theme.goldDeep,
+              marginBottom: 8,
+            }}
+          >
+            <Text style={{ color: theme.black, fontSize: 10, fontWeight: "800", letterSpacing: 0.4 }}>
+              SPONSORED
             </Text>
           </View>
-
-          {/* Image */}
-          {advert.image && (
-            <Image source={{ uri: advert.image }} style={styles.image} />
-          )}
-
-          {/* Title */}
-          <Text style={[textVariants.h3, styles.title]}>
+          <Text style={{ color: theme.goldDeep, fontSize: 20, fontWeight: "800" }} numberOfLines={2}>
             {advert.title}
           </Text>
-
-          {/* Tagline */}
-          {advert.tagline && (
-            <Text style={[textVariants.small, styles.tagline]}>
+          {advert.tagline ? (
+            <Text style={{ color: theme.text, fontWeight: "700", marginTop: 4 }} numberOfLines={2}>
               {advert.tagline}
             </Text>
-          )}
-
-          {/* Description */}
-          <Text style={[textVariants.body, styles.subtitle]}>
-            {advert.description}
-          </Text>
-
-          {/* Rating */}
-          {advert.rating && (
-            <View style={styles.ratingRow}>
-              <Ionicons name="star" size={18} color={theme.accent} />
-              <Text style={[textVariants.body, styles.ratingText]}>
-                {advert.rating.toFixed(1)}
-              </Text>
-            </View>
-          )}
-
-          {/* CTA Button */}
-          <View style={styles.button}>
-            <Text style={[textVariants.h3, styles.buttonText]}>
-              Visit Website →
+          ) : null}
+          {advert.description ? (
+            <Text style={{ color: theme.muted, marginTop: 4 }} numberOfLines={3}>
+              {advert.description}
             </Text>
-          </View>
-        </TouchableOpacity>
-      </Animated.View>
-    </Animated.View>
+          ) : null}
+          {advert.website ? (
+            <Text style={{ color: theme.goldDeep, fontWeight: "800", marginTop: 10 }}>Visit website →</Text>
+          ) : null}
+        </View>
+      </Pressable>
+      <View style={{ paddingHorizontal: 14, paddingBottom: 10 }}>
+        <AdReportButton advertId={advert.id} />
+      </View>
+    </View>
   );
-}
+});
 
-const getStyles = (theme: any) =>
-  StyleSheet.create({
-    glowWrapper: {
-      shadowColor: theme.accent,
-      shadowRadius: 14,
-      shadowOffset: { width: 0, height: 0 },
-    },
-    card: {
-      backgroundColor: theme.card,
-      borderRadius: Radius.lg,
-      padding: Spacing.lg,
-      marginBottom: Spacing.lg,
-      borderWidth: 1,
-      borderColor: theme.accent,
-      shadowColor: "#000",
-      shadowOpacity: 0.25,
-      shadowRadius: 8,
-      shadowOffset: { width: 0, height: 4 },
-      elevation: 6,
-    },
-    badge: {
-      backgroundColor: theme.accent,
-      paddingHorizontal: Spacing.md,
-      paddingVertical: Spacing.xs,
-      borderRadius: Radius.md,
-      alignSelf: "flex-start",
-      marginBottom: Spacing.md,
-    },
-    badgeText: {
-      color: theme.black,
-      fontWeight: "900",
-    },
-    image: {
-      width: "100%",
-      height: 160,
-      borderRadius: Radius.md,
-      marginBottom: Spacing.md,
-    },
-    title: {
-      color: theme.text,
-      marginBottom: Spacing.xs,
-    },
-    tagline: {
-      color: theme.accent,
-      marginBottom: Spacing.sm,
-      fontWeight: "700",
-    },
-    subtitle: {
-      color: theme.text,
-      marginBottom: Spacing.md,
-    },
-    ratingRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      marginBottom: Spacing.md,
-      gap: Spacing.xs,
-    },
-    ratingText: {
-      color: theme.accent,
-      fontWeight: "700",
-    },
-    button: {
-      backgroundColor: theme.accent,
-      paddingVertical: Spacing.md,
-      borderRadius: Radius.md,
-      alignItems: "center",
-      marginTop: Spacing.xs,
-    },
-    buttonText: {
-      color: theme.black,
-      fontWeight: "800",
-    },
-  });
+export default SponsoredCard;

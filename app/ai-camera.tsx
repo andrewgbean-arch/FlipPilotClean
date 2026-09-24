@@ -20,6 +20,7 @@ import { putPending } from "@/utils/pendingScan";
 import { photoForUpload } from "@/utils/photo";
 import { normalizeConfidence, transformIdentity } from "@/utils/scanTransform";
 import ScanWaitingAd, { AD_REVEAL_DELAY_MS } from "@/components/ScanWaitingAd";
+import { refreshAdverts } from "@/lib/adverts";
 
 const NAVY = "#0A1128";
 const GOLD = "#FFD700";
@@ -106,6 +107,11 @@ export default function AiCameraScreen() {
       if (state === "active") getPermission();
     });
     return () => sub.remove();
+  }, []);
+
+  // Have today's adverts ready before a scan starts: the wait is too short to fetch them then.
+  useEffect(() => {
+    refreshAdverts("scan");
   }, []);
 
   useEffect(() => {

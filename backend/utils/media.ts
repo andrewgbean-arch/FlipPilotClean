@@ -28,6 +28,11 @@ export function mediaForListing<T extends Record<string, any>>(listing: T, req: 
   };
 }
 
+export function mediaForAdvert<T extends Record<string, any>>(ad: T, req: Request): T {
+  if (!ad || typeof ad !== "object") return ad;
+  return { ...ad, image: absolute(ad.image, baseUrl(req)) };
+}
+
 export function mediaForFair<T extends Record<string, any>>(fair: T, req: Request): T {
   if (!fair || typeof fair !== "object") return fair;
   const base = baseUrl(req);

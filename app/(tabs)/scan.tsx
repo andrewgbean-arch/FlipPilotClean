@@ -25,6 +25,7 @@ import { putPending } from "@/utils/pendingScan";
 import { photoForUpload } from "@/utils/photo";
 import { SCAN_AGAIN_EVENT, transformIdentity } from "@/utils/scanTransform";
 import ScanWaitingAd, { AD_REVEAL_DELAY_MS } from "@/components/ScanWaitingAd";
+import { refreshAdverts } from "@/lib/adverts";
 
 // Laser + AI Tips
 const LASER_COLOR = "#FF3B3B";
@@ -249,6 +250,11 @@ export default function ScanScreen() {
       if (toastTimer.current) clearTimeout(toastTimer.current);
       if (successTimer.current) clearTimeout(successTimer.current);
     };
+  }, []);
+
+  // Have today's adverts ready before a scan starts: the wait is too short to fetch them then.
+  useEffect(() => {
+    refreshAdverts("scan");
   }, []);
 
   useEffect(() => {

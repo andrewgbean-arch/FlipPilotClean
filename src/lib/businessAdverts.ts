@@ -1,24 +1,19 @@
+/**
+ * What an advert looks like to the app.
+ *
+ * Adverts are not kept in the app. They come from the server (src/lib/adverts.ts)
+ * and only when a business has really paid to advertise, and been approved and
+ * booked for today's date. Nothing is shown otherwise, and there are no made-up
+ * businesses or star ratings: a rating must never be typed in.
+ */
 export type BusinessAdvert = {
   id: string;
   title: string;
-  description: string;
+  description?: string;
   tagline?: string;
+  /** A full address for a picture the server holds. */
   image: string;
   website?: string;
-  phone?: string;
-  category?: string;
-  rating?: number; // 1–5 stars
-  isFeatured?: boolean;
-  clicks?: number;
+  /** Boot Fairs only: the big banner rather than a small card. */
+  featured?: boolean;
 };
-
-/**
- * Sponsor slots, on the Boot Fairs page and while a scan is loading.
- *
- * Empty on purpose: only add a business that has really agreed to advertise,
- * with its own name, image and link. This list used to hold three invented
- * businesses with made-up star ratings, which is misleading advertising, so
- * it was cleared. While it is empty every sponsor slot simply doesn't show.
- * A `rating` must come from a real source, never be typed in.
- */
-export const businessAdverts: BusinessAdvert[] = [];

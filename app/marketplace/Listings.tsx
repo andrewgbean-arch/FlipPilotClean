@@ -21,6 +21,11 @@ import {
 } from "@/constants/marketplaceCategories";
 import { matchesSearch } from "@/utils/listingSearch";
 import StatusBadge from "@/components/marketplace/StatusBadge";
+import SponsoredCard from "@/components/marketplace/SponsoredCard";
+import { useAdverts, type FeedAdverts } from "@/lib/adverts";
+import { withAdverts, type FeedRow } from "@/utils/feedAdverts";
+
+const NO_ADVERTS: FeedAdverts = { sole: false, adverts: [] };
 
 /**
  * One listing card. Memoised, so scrolling or typing in the search box redraws
@@ -147,11 +152,22 @@ export default function Listings() {
     []
   );
 
+  const feed = useAdverts<FeedAdverts>("feed", NO_ADVERTS);
+  const rows = useMemo(() => withAdverts(filtered, feed.adverts), [filtered, feed.adverts]);
+
   const renderItem = useCallback(
-    ({ item }: { item: any }) => <ListingCard item={item} theme={theme} />,
+    ({ item }: { item: FeedRow }) =>
+      item.kind === "ad" ? (
+        <SponsoredCard advert={item.advert} />
+      ) : (
+        <ListingCard item={item.item} theme={theme} />
+      ),
     [theme]
   );
-  const keyExtractor = useCallback((item: any) => String(item.id), []);
+  const keyExtractor = useCallback(
+    (row: FeedRow) => (row.kind === "ad" ? `ad-${row.advert.id}-${row.slot}` : String(row.item.id)),
+    []
+  );
 
   // Passed as an element, not a component, so typing in the search box does not
   // rebuild it and close the keyboard.
@@ -224,7 +240,7 @@ export default function Listings() {
     <FlatList
       style={{ flex: 1, backgroundColor: theme.black }}
       contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
-      data={loading ? [] : filtered}
+      data={loading ? [] : rows}
       renderItem={renderItem}
       keyExtractor={keyExtractor}
       ListHeaderComponent={header}

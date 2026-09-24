@@ -24,7 +24,9 @@ const REASONS: { key: string; label: string; hint: string }[] = [
 type Props = {
   visible: boolean;
   onClose: () => void;
-  listingId: string | number;
+  listingId?: string | number;
+  /** Set to report a sponsored advert instead of a listing. */
+  advertId?: string;
   /** Set when reporting a conversation rather than the listing itself. */
   thread?: string | null;
 };
@@ -33,7 +35,7 @@ type Props = {
  * Sends a private report to whoever runs the marketplace. The other person is
  * never told who reported them.
  */
-export default function ReportSheet({ visible, onClose, listingId, thread }: Props) {
+export default function ReportSheet({ visible, onClose, listingId, advertId, thread }: Props) {
   const theme = useTheme();
   const [sending, setSending] = useState(false);
 
@@ -41,11 +43,14 @@ export default function ReportSheet({ visible, onClose, listingId, thread }: Pro
     setSending(true);
     try {
       const deviceId = await getDeviceId();
-      const res = await fetch(`${BASE_URL}/safety/report`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-device-id": deviceId },
-        body: JSON.stringify({ listingId, reason, thread: thread ?? undefined }),
-      });
+      const res = await fetch(
+        advertId ? `${BASE_URL}/adverts/${encodeURIComponent(advertId)}/report` : `${BASE_URL}/safety/report`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-device-id": deviceId },
+          body: JSON.stringify(advertId ? { reason } : { listingId, reason, thread: thread ?? undefined }),
+        }
+      );
       const data = await res.json().catch(() => null);
 
       if (!data?.ok) {
@@ -80,7 +85,7 @@ export default function ReportSheet({ visible, onClose, listingId, thread }: Pro
           }}
         >
           <Text style={{ color: theme.goldDeep, fontSize: 20, fontWeight: "800", marginBottom: 4 }}>
-            {thread ? "Report this conversation" : "Report this listing"}
+            {advertId ? "Report this advert" : thread ? "Report this conversation" : "Report this listing"}
           </Text>
           <Text style={{ color: theme.muted, fontSize: 13, marginBottom: 14 }}>
             Pick what fits best. It goes to us privately.

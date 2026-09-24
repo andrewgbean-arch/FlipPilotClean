@@ -13,7 +13,7 @@ import {
   Users,
 } from "phosphor-react-native";
 import type { Icon as PhosphorIcon } from "phosphor-react-native";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -31,10 +31,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/styles/ThemeContext";
 
-import { BusinessAdvert, businessAdverts } from "../../src/lib/businessAdverts";
+import AdReportButton from "@/components/AdReportButton";
+import { reportAdvertEvent, useAdverts, type BootfairAdverts } from "@/lib/adverts";
+import type { BusinessAdvert } from "../../src/lib/businessAdverts";
 import { Fair, getAllFairs, isFeatured } from "../../src/lib/fairs";
 
 const RADIUS_OPTIONS = [5, 10, 20];
+
+const NO_BOOTFAIR_ADVERTS: BootfairAdverts = { adverts: [] };
 
 // A soft fill for a selected chip, and the scrim and pill that sit over a photo.
 // The theme has no translucent values of its own.
@@ -176,6 +180,7 @@ function AdCard({ advert, style }: { advert: BusinessAdvert; style?: StyleProp<V
   const website = advert.website;
   // A photo that won't load leaves a dead block, so drop it and show the text alone.
   const [imageFailed, setImageFailed] = useState(false);
+  useEffect(() => reportAdvertEvent(advert.id, "view", 30), [advert.id]);
 
   return (
     <Pressable
@@ -187,6 +192,7 @@ function AdCard({ advert, style }: { advert: BusinessAdvert; style?: StyleProp<V
           : `Sponsored: ${advert.title}`
       }
       onPress={() => {
+        reportAdvertEvent(advert.id, "click");
         if (website) Linking.openURL(website);
       }}
       style={({ pressed }) => [
@@ -220,17 +226,10 @@ function AdCard({ advert, style }: { advert: BusinessAdvert; style?: StyleProp<V
           </Text>
         ) : null}
 
-        <Text style={[styles.adDescription, { color: theme.muted }]} numberOfLines={3}>
-          {advert.description}
-        </Text>
-
-        {advert.rating ? (
-          <View style={styles.ratingRow}>
-            <Star size={16} color={theme.gold} weight="fill" />
-            <Text style={[styles.ratingText, { color: theme.text }]}>
-              {advert.rating.toFixed(1)}
-            </Text>
-          </View>
+        {advert.description ? (
+          <Text style={[styles.adDescription, { color: theme.muted }]} numberOfLines={3}>
+            {advert.description}
+          </Text>
         ) : null}
 
         {website ? (
@@ -239,8 +238,56 @@ function AdCard({ advert, style }: { advert: BusinessAdvert; style?: StyleProp<V
             <ArrowSquareOut size={18} color={theme.muted} />
           </View>
         ) : null}
+
+        <AdReportButton advertId={advert.id} />
       </View>
     </Pressable>
+  );
+}
+
+// The big banner at the top: same rules as the cards. It counts as seen when it
+// shows, opens the advertiser's site when tapped, and can be reported.
+function HeroAd({ advert }: { advert: BusinessAdvert }) {
+  const theme = useTheme();
+  useEffect(() => reportAdvertEvent(advert.id, "view", 30), [advert.id]);
+
+  return (
+    <View
+      style={[
+        styles.hero,
+        styles.block,
+        { backgroundColor: theme.card, borderColor: theme.hairline },
+      ]}
+    >
+      <Pressable
+        accessibilityRole={advert.website ? "button" : undefined}
+        accessibilityLabel={`Sponsored stall: ${advert.title}`}
+        disabled={!advert.website}
+        onPress={() => {
+          reportAdvertEvent(advert.id, "click");
+          if (advert.website) Linking.openURL(advert.website);
+        }}
+        style={StyleSheet.absoluteFill}
+      >
+        {advert.image ? (
+          <Image source={{ uri: advert.image }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        ) : null}
+
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: SCRIM }]} />
+
+        <View style={styles.heroContent}>
+          <View style={[styles.sponsoredPill, { backgroundColor: ON_PHOTO_PILL }]}>
+            <Text style={[styles.sponsoredPillText, { color: theme.white }]}>Sponsored stall</Text>
+          </View>
+          <Text numberOfLines={2} style={[styles.heroTitle, { color: theme.white }]}>
+            {advert.title}
+          </Text>
+        </View>
+      </Pressable>
+      <View style={{ position: "absolute", right: 12, top: 8 }}>
+        <AdReportButton advertId={advert.id} onPhoto />
+      </View>
+    </View>
   );
 }
 
@@ -263,8 +310,9 @@ export default function BootFairFinderScreen() {
     }, [])
   );
 
-  const featuredAd = businessAdverts.find((ad) => ad.isFeatured);
-  const otherAds = businessAdverts.filter((ad) => !ad.isFeatured);
+  const { adverts: businessAdverts } = useAdverts<BootfairAdverts>("bootfairs", NO_BOOTFAIR_ADVERTS);
+  const featuredAd = businessAdverts.find((ad) => ad.featured);
+  const otherAds = businessAdverts.filter((ad) => !ad.featured);
   // The closing banner shows an advert that isn't already on the page above it.
   const footerAd = businessAdverts.find((ad) => ad !== featuredAd && !otherAds.includes(ad));
 
@@ -420,38 +468,7 @@ export default function BootFairFinderScreen() {
       )}
 
       {/* HERO SPONSOR (LOCAL BUSINESS) */}
-      {featuredAd && (
-        <View
-          accessible
-          accessibilityLabel={`Sponsored stall: ${featuredAd.title}`}
-          style={[
-            styles.hero,
-            styles.block,
-            { backgroundColor: theme.card, borderColor: theme.hairline },
-          ]}
-        >
-          {featuredAd.image ? (
-            <Image
-              source={{ uri: featuredAd.image }}
-              style={StyleSheet.absoluteFill}
-              resizeMode="cover"
-            />
-          ) : null}
-
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: SCRIM }]} />
-
-          <View style={styles.heroContent}>
-            <View style={[styles.sponsoredPill, { backgroundColor: ON_PHOTO_PILL }]}>
-              <Text style={[styles.sponsoredPillText, { color: theme.white }]}>
-                Sponsored stall
-              </Text>
-            </View>
-            <Text numberOfLines={2} style={[styles.heroTitle, { color: theme.white }]}>
-              {featuredAd.title}
-            </Text>
-          </View>
-        </View>
-      )}
+      {featuredAd && <HeroAd advert={featuredAd} />}
 
       {/* SPONSOR CAROUSEL (LOCAL BUSINESSES) */}
       {otherAds.length > 0 && (

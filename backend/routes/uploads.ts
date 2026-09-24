@@ -1,4 +1,4 @@
-import express, { Express, Request, Response } from "express";
+import express, { Express, NextFunction, Request, Response } from "express";
 import { rateLimit } from "../middleware/rateLimit";
 import { callerDeviceId } from "./messages";
 import { UPLOADS_DIR, saveUpload, sniffImage, uploadsBy } from "../utils/uploadStore";
@@ -62,4 +62,11 @@ export default function registerUploadsRoute(app: Express) {
       },
     })
   );
+
+  // A picture that isn't there is a plain 404. Without this the default error
+  // reply is a 500 that spells out the file's path on this server.
+  app.use("/uploads", (err: any, _req: Request, res: Response, _next: NextFunction) => {
+    const missing = err?.status === 404 || err?.code === "ENOENT" || err?.code === "ENOTDIR";
+    res.status(missing ? 404 : 400).json({ ok: false, error: "Not found" });
+  });
 }
