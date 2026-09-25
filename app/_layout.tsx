@@ -3,6 +3,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import * as SystemUI from "expo-system-ui";
 import { useEffect, useRef } from "react";
+import { installFetchTimeout } from "@/utils/fetchTimeout";
 import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
@@ -31,6 +32,9 @@ import GoldConfetti from "@/components/ui/GoldConfetti";
 import GoldLightning from "@/components/ui/GoldLightning";
 
 import { installAuthFetch, loadAccount, onSignInNeeded } from "../src/lib/account";
+
+// Every request gets a time limit, so a stalled connection ends in an error message rather than a spinner for ever.
+installFetchTimeout();
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
