@@ -1,4 +1,5 @@
 import axios from "axios";
+import { openAiUsage, recordCost } from "./costLog";
 import fs from "fs";
 import path from "path";
 import { UPLOADS_DIR, UPLOAD_PATH_PATTERN } from "./uploadStore";
@@ -109,6 +110,7 @@ export async function reviewAdvert(advert: {
       { timeout: 20000, headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` } }
     );
 
+    recordCost("openai", "advert-review", openAiUsage(ai.data));
     const parsed = JSON.parse(ai.data?.choices?.[0]?.message?.content ?? "null");
     const verdict = parsed?.verdict;
     if (!VERDICTS.includes(verdict)) return unchecked("The AI's answer could not be read");

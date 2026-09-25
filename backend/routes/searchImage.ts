@@ -5,6 +5,7 @@ import { scanMeter } from "../middleware/scanMeter";
 import { rateLimit } from "../middleware/rateLimit";
 import fetchMarketData from "../market-backend/fetchMarketData";
 import { buildFlipMeta } from "../market-backend/buildFlipMeta";
+import { openAiUsage, recordCost } from "../utils/costLog";
 
 const router = Router();
 
@@ -44,7 +45,7 @@ function extractJSON(text: string) {
 export async function askVision(
   prompt: string,
   base64: string,
-  options: { maxTokens: number; timeoutMs: number }
+  options: { maxTokens: number; timeoutMs: number; purpose?: string }
 ) {
   const payload = {
     model: "gpt-4o-mini",
@@ -75,6 +76,8 @@ export async function askVision(
       }
     });
 
+    recordCost("openai", options.purpose ?? "vision", openAiUsage(res.data));
+
     const raw =
       res.data?.output?.[0]?.content?.[0]?.text?.trim() ||
       res.data?.output_text ||
@@ -82,6 +85,7 @@ export async function askVision(
 
     return extractJSON(raw);
   } catch (err: any) {
+    recordCost("openai", options.purpose ?? "vision", { failed: true });
     console.error("search-image error:", err?.response?.status ?? err?.code ?? err?.message);
     return null;
   }

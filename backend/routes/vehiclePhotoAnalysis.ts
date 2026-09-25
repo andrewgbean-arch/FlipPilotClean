@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { openAiUsage, recordCost } from "../utils/costLog";
 import axios from "axios";
 import { paidLookupBudget } from "../middleware/dailyBudget";
 import { rateLimit } from "../middleware/rateLimit";
@@ -77,6 +78,8 @@ Rules:
       "Content-Type": "application/json"
     }
   });
+
+  recordCost("openai", "vehicle-photo", openAiUsage(res.data));
 
   const raw =
     res.data?.output?.[0]?.content?.[0]?.text?.trim() ||

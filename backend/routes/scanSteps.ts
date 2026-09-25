@@ -11,6 +11,7 @@ import { scanMeter } from "../middleware/scanMeter";
 import { rateLimit } from "../middleware/rateLimit";
 import { askVision, DESCRIBE_PROMPT, IDENTIFY_PROMPT } from "./searchImage";
 import { buildAiBlock, fetchOpenFoodFacts } from "./search";
+import { recordCost, recordScan } from "../utils/costLog";
 
 /* --------------------------------------------------
    The scan in two steps, so the phone has something to show quickly.
@@ -44,6 +45,7 @@ const IDENTITY_CACHE_MAX = 500;
 async function ebayByBarcode(code: string): Promise<{ title: string; image: string | null } | null> {
   try {
     const token = await getEbayAccessToken();
+    recordCost("ebay", "barcode-lookup");
     const res = await axios.get("https://api.ebay.com/buy/browse/v1/item_summary/search", {
       timeout: 3000,
       params: { gtin: code, limit: 5 },
@@ -124,6 +126,7 @@ router.get("/identify-barcode", rateLimit(30), scanMeter, paidLookupBudget, asyn
       });
     }
 
+    recordScan("barcode");
     return res.json({
       ok: true,
       barcode: code,
@@ -148,12 +151,13 @@ router.post("/identify-image", rateLimit(6), scanMeter, paidLookupBudget, async 
     }
 
     const startedAt = Date.now();
-    const identified = await askVision(IDENTIFY_PROMPT, imageBase64, { maxTokens: 120, timeoutMs: 12000 });
+    const identified = await askVision(IDENTIFY_PROMPT, imageBase64, { maxTokens: 120, timeoutMs: 12000, purpose: "photo-identify" });
     if (!identified || !identified.title) {
       return res.json({ error: "AI failed to analyse image" });
     }
     console.log(`identify-image: photo ${Math.round(imageBase64.length / 1024)}KB, ${Date.now() - startedAt}ms`);
 
+    recordScan("photo");
     const packCount = Number(identified.packCount);
     return res.json({
       ok: true,
@@ -198,7 +202,7 @@ router.post("/price", rateLimit(30), paidLookupBudget, async (req, res) => {
     // The description is written while the prices are looked up.
     const identity = barcode ? identityCache.get(String(barcode)) ?? null : null;
     const describing: Promise<any> = imageBase64
-      ? askVision(DESCRIBE_PROMPT, imageBase64, { maxTokens: 260, timeoutMs: 15000 })
+      ? askVision(DESCRIBE_PROMPT, imageBase64, { maxTokens: 260, timeoutMs: 15000, purpose: "photo-describe" })
       : identity?.off
       ? buildAiBlock(identity.off, null)
       : Promise.resolve(null);

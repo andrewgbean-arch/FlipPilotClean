@@ -1,4 +1,5 @@
 import axios from "axios";
+import { openAiUsage, recordCost } from "../utils/costLog";
 import { getEbayAccessToken } from "../market-backend/ebayBrowseApi";
 import { matchesQuery } from "../market-backend/bulkListingFilter";
 
@@ -68,6 +69,7 @@ async function searchComparableCars(make: string, model: string, year: number) {
   const token = await getEbayAccessToken();
   const query = `${year} ${make} ${model}`;
 
+  recordCost("ebay", "browse-search");
   const res = await axios.get("https://api.ebay.com/buy/browse/v1/item_summary/search", {
     timeout: 7000,
     params: { q: query, category_ids: CARS_CATEGORY_ID, limit: 50 },
@@ -126,6 +128,7 @@ Return ONLY valid JSON: { "estimatedValue": typical UK private-sale price in pou
         },
       }
     );
+    recordCost("openai", "vehicle-estimate", openAiUsage(res.data));
     const raw = (res.data.choices?.[0]?.message?.content ?? "{}")
       .replace(/```json/gi, "")
       .replace(/```/g, "")
@@ -133,6 +136,7 @@ Return ONLY valid JSON: { "estimatedValue": typical UK private-sale price in pou
     const value = Number(JSON.parse(raw).estimatedValue);
     return Number.isFinite(value) && value > 0 ? value : null;
   } catch (err: any) {
+    recordCost("openai", "vehicle-estimate", { failed: true });
     console.log("AI vehicle estimate failed:", err?.response?.data ?? err?.message);
     return null;
   }

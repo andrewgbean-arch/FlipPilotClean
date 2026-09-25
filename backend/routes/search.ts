@@ -4,6 +4,7 @@ import fetchMarketData from "../market-backend/fetchMarketData";
 import { buildFlipMeta } from "../market-backend/buildFlipMeta";
 import { paidLookupBudget } from "../middleware/dailyBudget";
 import { scanMeter } from "../middleware/scanMeter";
+import { openAiUsage, recordCost } from "../utils/costLog";
 import { rateLimit } from "../middleware/rateLimit";
 import { extractPackCount } from "../market-backend/bulkListingFilter";
 
@@ -84,8 +85,10 @@ Return JSON with:
       }
     );
 
+    recordCost("openai", "listing-details", openAiUsage(res.data));
     return JSON.parse(res.data.choices?.[0]?.message?.content ?? "{}");
   } catch {
+    recordCost("openai", "listing-details", { failed: true });
     return {
       title,
       description: "",

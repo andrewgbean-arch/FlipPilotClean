@@ -1,4 +1,5 @@
 import axios from "axios";
+import { openAiUsage, recordCost } from "../utils/costLog";
 import { Express, Request, Response } from "express";
 
 import { rateLimit } from "../middleware/rateLimit";
@@ -62,6 +63,7 @@ async function readBrandAndModel(title: string): Promise<{ brand: string | null;
       { timeout: 8000, headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` } }
     );
 
+    recordCost("openai", "brand-model", openAiUsage(ai.data));
     const parsed = JSON.parse(String(ai.data?.choices?.[0]?.message?.content ?? "{}"));
     return {
       brand: appearsIn(parsed?.brand, title) ? parsed.brand.trim() : null,
@@ -70,6 +72,7 @@ async function readBrandAndModel(title: string): Promise<{ brand: string | null;
       model: appearsIn(parsed?.model, title) && /\d/.test(parsed.model) ? parsed.model.trim() : null,
     };
   } catch (err: any) {
+    recordCost("openai", "brand-model", { failed: true });
     console.log("LISTING DESCRIPTION brand/model skipped:", err?.message || err);
     return none;
   }

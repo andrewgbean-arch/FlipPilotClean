@@ -1,6 +1,7 @@
 import axios from "axios";
 import { EbayMarketResult } from "./ebayMarket";
 import { isNotTheItem, matchesQuery, priceForPack } from "./bulkListingFilter";
+import { recordCost } from "../utils/costLog";
 
 /* --------------------------------------------------
    ⭐ eBay Browse API (official, OAuth2 client-credentials)
@@ -106,8 +107,9 @@ export default async function fetchEbayBrowseMarket(
   try {
     const token = await getEbayAccessToken();
 
-    const search = (filter?: string) =>
-      axios.get("https://api.ebay.com/buy/browse/v1/item_summary/search", {
+    const search = (filter?: string) => {
+      recordCost("ebay", "browse-search");
+      return axios.get("https://api.ebay.com/buy/browse/v1/item_summary/search", {
         timeout: 6000,
         params: {
           q: query,
@@ -119,6 +121,7 @@ export default async function fetchEbayBrowseMarket(
           "X-EBAY-C-MARKETPLACE-ID": "EBAY_GB",
         },
       });
+    };
 
     const conditionFilter =
       condition === "used"

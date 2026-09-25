@@ -3,6 +3,8 @@ import type { EbayMarketResult } from "./ebayMarket";
 import fetchEbayBrowseMarket from "./ebayBrowseApi";
 import { extractPackCount, isNotTheItem, matchesQuery, priceForPack } from "./bulkListingFilter";
 import { decidePrices, type AgeBand, type Grade } from "./priceModel";
+import { SourceCache } from "../utils/sourceCache";
+import { openAiUsage, recordCost } from "../utils/costLog";
 
 // Read this at call time, not at module load — server.ts imports this
 // module (via search.ts/searchImage.ts) BEFORE it calls dotenv.config(),
@@ -90,7 +92,15 @@ async function fetchGoogleShopping(query: string, wantedCount?: number | null) {
       query
     )}&google_domain=google.co.uk&gl=gb&hl=en&api_key=${process.env.SERPAPI_KEY}`;
 
-    const res = await axios.get(url, { timeout: 7000 });
+    let res;
+    let answered = false;
+    try {
+      res = await axios.get(url, { timeout: 7000 });
+      answered = true;
+    } finally {
+      // A search that timed out may still be charged, so it is counted as a call either way.
+      recordCost("serpapi", "google-shopping", { failed: !answered });
+    }
     const items = res.data.shopping_results ?? [];
 
     const rawPrices: number[] = [];
@@ -181,6 +191,7 @@ Return ONLY valid JSON (prices in pounds sterling):
         },
       }
     );
+    recordCost("openai", "price-estimate", openAiUsage(res.data));
 
     // gpt-4o-mini often wraps its JSON in ```json fences despite being asked
     // for raw JSON — strip them before parsing.
@@ -197,6 +208,7 @@ Return ONLY valid JSON (prices in pounds sterling):
     };
   } catch (err: any) {
     console.log("AI PRICE ERROR:", err?.message || err);
+    recordCost("openai", "price-estimate", { failed: true });
     return null;
   }
 }
@@ -246,6 +258,53 @@ function cacheSet(key: string, value: UnifiedMarketResult) {
     if (oldest !== undefined) cache.delete(oldest);
   }
   cache.set(key, { at: Date.now(), value });
+}
+
+/* --------------------------------------------------
+   ⭐ Paying for each source once
+
+   Each paid source is remembered on its own, not just the finished answer, so the same question is not
+   bought twice: another person scanning the same thing, or the same person changing the Condition or
+   Age box on a result (which asks for the price again), reuses what was already paid for.
+
+   Google and the AI estimate are kept for a day (a shop price or an AI opinion of a price does not
+   change by the hour). eBay's answers are kept only 10 minutes: eBay's licence limits how long its
+   content may be stored.
+-------------------------------------------------- */
+const DAY_MS = 24 * 60 * 60 * 1000;
+const googleCache = new SourceCache<Awaited<ReturnType<typeof fetchGoogleShopping>>>(DAY_MS, 1000, (r) => !!r && r.avg != null);
+const aiEstimateCache = new SourceCache<Awaited<ReturnType<typeof fetchAiPriceEstimate>>>(DAY_MS, 1000, (r) => !!r && r.newPrice != null);
+const ebayCache = new SourceCache<EbayMarketResult>(10 * 60 * 1000, 300, (r) => (r?.items?.length ?? 0) > 0);
+
+const sourceKey = (query: string, count: number | null | undefined, extra = "") =>
+  `${query.trim().toLowerCase()}|${count ?? ""}|${extra}`;
+
+export function clearMarketCachesForTests() {
+  cache.clear();
+  googleCache.clear();
+  aiEstimateCache.clear();
+  ebayCache.clear();
+}
+export const marketCacheStats = () => ({
+  google: { hits: googleCache.hits, misses: googleCache.misses },
+  aiEstimate: { hits: aiEstimateCache.hits, misses: aiEstimateCache.misses },
+  ebay: { hits: ebayCache.hits, misses: ebayCache.misses },
+});
+
+/**
+ * Google Shopping is the dearest source (a paid search on every scan).
+ *   GOOGLE_SHOPPING=always       (default) search on every scan, as before
+ *   GOOGLE_SHOPPING=when-needed  search only when eBay did not give enough to price the item from
+ * Turn "when-needed" on once the cost log (GET /admin/costs) shows it is worth the small difference
+ * in some prices: Google is one of the sources the shelf price is worked out from.
+ */
+const googleWhenNeeded = () => (process.env.GOOGLE_SHOPPING ?? "").trim().toLowerCase() === "when-needed";
+
+/** eBay alone is enough when it found a good number of matching listings (and, for a used item, of new ones too). */
+const STRONG_LISTINGS = 5;
+function ebayIsStrong(ebay: EbayMarketResult | null, ebayNew: EbayMarketResult | null, usedMode: boolean) {
+  const enough = (r: EbayMarketResult | null, n: number) => !!r && r.average != null && (r.items?.length ?? 0) >= n;
+  return enough(ebay, STRONG_LISTINGS) && (!usedMode || enough(ebayNew, 3));
 }
 
 /* --------------------------------------------------
@@ -307,7 +366,7 @@ export default async function fetchMarketData(
     // eBay's API License Agreement does not allow.
     const ebayPromise = withDeadline(
       hasEbayBrowseCreds()
-        ? fetchEbayBrowseMarket(query, wantedCount, condition)
+        ? ebayCache.get(sourceKey(query, wantedCount, condition ?? ""), () => fetchEbayBrowseMarket(query, wantedCount, condition))
         : Promise.resolve(null),
       6500,
       null
@@ -316,23 +375,43 @@ export default async function fetchMarketData(
     // shelf price, that gives the new price a used price is worked out from.
     const ebayNewPromise =
       usedMode && hasEbayBrowseCreds()
-        ? withDeadline(fetchEbayBrowseMarket(query, wantedCount, "new"), 6500, null)
+        ? withDeadline(ebayCache.get(sourceKey(query, wantedCount, "new"), () => fetchEbayBrowseMarket(query, wantedCount, "new")), 6500, null)
         : Promise.resolve(null);
     // The AI's idea of the new price and the used range, asked alongside the
     // searches: the cross-check if what the searches found is far off.
-    const aiEstimatePromise = withDeadline(fetchAiPriceEstimate(query, wantedCount), 5000, null);
-    const googlePromise = fetchGoogleShopping(query, wantedCount);
+    const aiEstimatePromise = withDeadline(
+      aiEstimateCache.get(sourceKey(query, wantedCount), () => fetchAiPriceEstimate(query, wantedCount)),
+      5000,
+      null
+    );
+    const searchGoogle = () => googleCache.get(sourceKey(query, wantedCount), () => fetchGoogleShopping(query, wantedCount));
+
+    // Normally Google is asked at the same time as the others. In "when-needed" mode it waits to see
+    // whether eBay gives enough on its own, and is only paid for if not.
+    let googlePromise: ReturnType<typeof searchGoogle> | null = googleWhenNeeded() ? null : searchGoogle();
 
     const ebay = await ebayPromise;
+    let ebayNew: Awaited<typeof ebayNewPromise> = null;
+    let googleStartedLate = false;
+    if (!googlePromise) {
+      ebayNew = await ebayNewPromise;
+      if (ebayIsStrong(ebay, ebayNew, usedMode)) {
+        console.log(`market: Google skipped for "${query.slice(0, 40)}" (eBay had ${ebay?.items?.length} listings)`);
+      } else {
+        googlePromise = searchGoogle();
+        googleStartedLate = true;
+      }
+    }
 
     // Google Shopping is the slowest and least reliable source (anywhere
     // from a third of a second to twenty), so it does not hold the answer up:
     // once the others are in it gets a short grace period and is used only if
     // it made it. The AI's price estimate is the cross-check that doesn't wait.
-    const googleGraceMs = Math.max(300, Math.min(1000, 4000 - (Date.now() - startedAt)));
-    const google = await withDeadline(googlePromise, googleGraceMs, null);
+    const googleGraceMs = googleStartedLate ? 3000 : Math.max(300, Math.min(1000, 4000 - (Date.now() - startedAt)));
+    const google = googlePromise ? await withDeadline(googlePromise, googleGraceMs, null) : null;
+    const googleSkipped = googlePromise === null;
     const aiEstimate = await aiEstimatePromise;
-    const ebayNew = await ebayNewPromise;
+    ebayNew = await ebayNewPromise;
 
     // 4️⃣ AI estimate (new price + used range)
     const aiPriceMin = safeNumber(aiEstimate?.min);
@@ -346,7 +425,9 @@ export default async function fetchMarketData(
       used: usedMode,
       grade,
       age,
-      ebayNew: safeNumber(ebayNew?.average ?? null),
+      // With Google skipped, a sealed/new item's own eBay listings are the shelf-price evidence: they are
+      // new listings, and their average is 90% of the middle asking price, so it is put back to that.
+      ebayNew: safeNumber(ebayNew?.average ?? (googleSkipped && !usedMode && ebay?.average ? ebay.average / 0.9 : null)),
       ebay: usedPrice,
       googleNew: safeNumber(google?.avg),
       aiNew: safeNumber(aiEstimate?.newPrice),
