@@ -28,6 +28,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { fetchMOT } from "@/features/vehicles/api/mot";
+import { sameReg } from "@/utils/motSnapshot";
 import { formatDate } from "@/features/vehicles/utils/motDates";
 import { formatMoney } from "@/features/vehicles/utils/vehicleStats";
 import { FlipScoreInput, calculateFlipScore } from "@/utils/flipScoreEngine";
@@ -78,7 +79,9 @@ export default function CreateNewFlip() {
   const [images, setImages] = useState<string[]>([]);
   const [registration, setRegistration] = useState("");
 
-  const [motInfo, setMotInfo] = useState<any>(null);
+  const [motInfoRaw, setMotInfo] = useState<any>(null);
+  // The lookup's details only count while the registration is still the one they were looked up for.
+  const motInfo = motInfoRaw && sameReg(motInfoRaw.reg, registration) ? motInfoRaw : null;
   const [motLoading, setMotLoading] = useState(false);
   const [motError, setMotError] = useState<string | null>(null);
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -255,6 +258,7 @@ export default function CreateNewFlip() {
 
     // The lookup does not return previous keepers, so whatever was typed is kept.
     setMotInfo({
+      reg: lookupReg,
       motExpiry: data.motExpiry ?? "",
       advisories: data.advisories ?? [],
       failures: data.failures ?? [],

@@ -28,6 +28,7 @@ import { useTheme } from "@/styles/ThemeContext";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { autoFormatReg, getMotStatusColor } from "@/features/vehicles/ui/SupernovaUI";
 import { fetchMOT } from "@/features/vehicles/api/mot";
+import { sameReg } from "@/utils/motSnapshot";
 import { formatDate } from "@/features/vehicles/utils/motDates";
 import { formatMiles, formatMoney } from "@/features/vehicles/utils/vehicleStats";
 
@@ -253,7 +254,10 @@ export default function NewVehicleScreen() {
   const [notes, setNotes] = useState("");
   const [images, setImages] = useState<string[]>([]);
 
-  const [motData, setMotData] = useState<any>(null);
+  const [motDataRaw, setMotDataRaw] = useState<any>(null);
+  // The plate the lookup was for. Its details only count while the registration is still that plate.
+  const [motReg, setMotReg] = useState("");
+  const motData = motDataRaw && sameReg(motReg, reg) ? motDataRaw : null;
   const [motLoading, setMotLoading] = useState(false);
   const [motError, setMotError] = useState<string | null>(null);
 
@@ -381,7 +385,8 @@ export default function NewVehicleScreen() {
       return;
     }
 
-    setMotData(data);
+    setMotDataRaw(data);
+    setMotReg(lookupReg);
 
     // Smart defaults
     setMake(data.make ?? "");

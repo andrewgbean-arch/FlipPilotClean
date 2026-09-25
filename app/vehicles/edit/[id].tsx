@@ -33,6 +33,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
 import { fetchMOT } from "@/features/vehicles/api/mot";
+import { sameReg } from "@/utils/motSnapshot";
 import { calculateFlipScore, FlipScoreInput } from "@/utils/flipScoreEngine";
 
 import { useTheme } from "@/styles/useTheme";
@@ -193,7 +194,9 @@ function EditFlipForm({
   );
 
   const [registration, setRegistration] = useState(flip.mot?.reg ?? "");
-  const [motInfo, setMotInfo] = useState(flip.mot ?? null);
+  const [motInfoRaw, setMotInfo] = useState(flip.mot ?? null);
+  // The MOT details belong to one plate: once the registration is changed they no longer describe this car.
+  const motInfo = motInfoRaw && sameReg(motInfoRaw.reg, registration) ? motInfoRaw : null;
 
   const [make, setMake] = useState(flip.mot?.make ?? "");
   const [model, setModel] = useState(flip.mot?.model ?? "");
@@ -394,7 +397,8 @@ function EditFlipForm({
     // Built from the form, so every field the user can edit is what gets saved.
     // motInfo only supplies what the form has no field for (expiry, tax, advisories).
     const motPayload = {
-      ...flip.mot,
+      // Anything else saved from the old plate's lookup is dropped if the plate was changed.
+      ...(sameReg(flip.mot?.reg, registration) ? flip.mot : {}),
       reg: normaliseReg(registration) || null,
       make: make.trim() || null,
       model: model.trim() || null,
@@ -409,7 +413,7 @@ function EditFlipForm({
       advisories: motInfo?.advisories ?? [],
       failures: motInfo?.failures ?? [],
       mileageHistory:
-        flip.mot?.mileageHistory ??
+        (sameReg(flip.mot?.reg, registration) ? flip.mot?.mileageHistory : null) ??
         (mileageInt != null
           ? [{ date: new Date().toISOString(), mileage: mileageInt }]
           : []),
