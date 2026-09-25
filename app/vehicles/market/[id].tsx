@@ -17,37 +17,24 @@ import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryCon
 import { formatMoney } from "@/features/vehicles/utils/vehicleStats";
 import { useTheme } from "@/styles/ThemeContext";
 import type { Theme } from "@/styles/theme";
-import { BASE_URL } from "@/utils/api";
-import { getDeviceId } from "@/utils/deviceId";
+import { estimateVehiclePrice } from "@/utils/vehiclePrice";
 
 type MarketResult = {
   priceRange: { low: number; mid: number; high: number };
-  demandScore: number;
   competition: number;
-  recommendedPrice: number;
-  insights: string[];
+  estimatedValue: number;
+  confidence: "low" | "medium" | "high";
+  notes: string[];
   similarListings: { title: string; price: number | null; image: string | null }[];
 };
+
+// Kept for the session, so reopening the screen doesn't ask eBay and the AI the same question again.
+const answered = new Map<string, MarketResult>();
 
 function labelFor(vehicle: any) {
   return vehicle.mot?.make && vehicle.mot?.model
     ? `${vehicle.mot.make} ${vehicle.mot.model}`
     : vehicle.title ?? "This vehicle";
-}
-
-function mapItem(item: any, fallbackTitle: string) {
-  const price =
-    typeof item?.extracted_price === "number"
-      ? item.extracted_price
-      : item?.price
-      ? parseFloat(String(item.price).replace(/[^0-9.]/g, ""))
-      : null;
-
-  return {
-    title: item?.title ?? fallbackTitle,
-    price: Number.isFinite(price) ? price : null,
-    image: item?.thumbnail ?? null,
-  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -278,60 +265,53 @@ function MarketScanContent({
     let cancelled = false;
 
     (async () => {
+      const kept = answered.get(vehicle.id);
+      if (kept) {
+        setMarket(kept);
+        setError(null);
+        setLoading(false);
+        return;
+      }
+
+      const mot = vehicle.mot;
+      if (!mot?.make || !mot?.model || !mot?.year) {
+        setError("This vehicle needs a make, model and year saved (from an MOT lookup) before it can be priced.");
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setError(null);
 
-      try {
-        // The free-scan cap needs to know which phone is asking.
-        const deviceId = await getDeviceId();
-        const res = await fetch(
-          `${BASE_URL}/search?q=${encodeURIComponent(label)}&deviceId=${encodeURIComponent(deviceId)}`
-        );
-        const data = await res.json();
+      // The same real comparison as the price estimate on the vehicle's details: comparable cars listed on eBay.
+      const result = await estimateVehiclePrice({
+        make: mot.make,
+        model: mot.model,
+        year: mot.year,
+        mileage: mot.mileage ?? null,
+        condition: "good",
+        motAdvisoryCount: mot.advisories?.length ?? 0,
+        motFailureCount: mot.failures?.length ?? 0,
+      });
+      if (cancelled) return;
 
-        if (cancelled) return;
-
-        if (data.error) {
-          setError(
-            typeof data.error === "string"
-              ? data.error
-              : "Couldn't get market data for this vehicle."
-          );
-          return;
-        }
-
-        const m = data.market ?? {};
-        const base = m.average ?? vehicle.valuation ?? m.smartPrice ?? 0;
-
-        const items = [...(data.ebayItems ?? []), ...(data.googleItems ?? [])].slice(0, 2);
-
-        // With no price to work from, every figure below would read as a real £0.
-        if (!(base > 0)) {
-          setError("No market prices found for this vehicle yet.");
-          return;
-        }
-
-        setMarket({
-          priceRange: {
-            low: Math.round(m.lowest ?? m.googlePriceMin ?? base * 0.85),
-            mid: Math.round(base),
-            high: Math.round(m.highest ?? m.googlePriceMax ?? base * 1.15),
-          },
-          demandScore: Math.round(m.demandScore ?? 0),
-          competition: m.soldCount ?? items.length,
-          recommendedPrice: Math.round(data.pricing?.recommendedSellPrice ?? base),
-          insights: [
-            data.insights,
-            `Based on ${m.soldCount ?? 0} real sold/listed matches found just now.`,
-            `Demand score: ${Math.round(m.demandScore ?? 0)}/100.`,
-          ].filter(Boolean),
-          similarListings: items.map((item) => mapItem(item, label)),
-        });
-      } catch (err) {
-        if (!cancelled) setError("Couldn't reach the market lookup service.");
-      } finally {
-        if (!cancelled) setLoading(false);
+      if (!result.ok) {
+        setError(result.message || "Couldn't get market data for this vehicle.");
+        setLoading(false);
+        return;
       }
+
+      const found: MarketResult = {
+        priceRange: { low: Math.round(result.range.min), mid: Math.round(result.estimatedValue), high: Math.round(result.range.max) },
+        competition: result.comparableCount,
+        estimatedValue: Math.round(result.estimatedValue),
+        confidence: result.confidence,
+        notes: result.notes,
+        similarListings: result.comparables.slice(0, 5).map((c) => ({ title: c.title, price: c.price, image: null })),
+      };
+      answered.set(vehicle.id, found);
+      setMarket(found);
+      setLoading(false);
     })();
 
     return () => {
@@ -339,18 +319,13 @@ function MarketScanContent({
     };
   }, [vehicle.id]);
 
-  const card = { backgroundColor: theme.card, borderColor: theme.hairline };
+    const card = { backgroundColor: theme.card, borderColor: theme.hairline };
 
   // Where the mid price sits between the low and the high.
   const range = market?.priceRange ?? null;
   const span = range ? range.high - range.low : 0;
   const midPosition =
     range && span > 0 ? Math.min(1, Math.max(0, (range.mid - range.low) / span)) : null;
-
-  // The same bands as the scan result screen.
-  const demand = market ? Math.min(100, Math.max(0, market.demandScore)) : 0;
-  const demandColor =
-    demand >= 70 ? theme.success : demand >= 40 ? theme.warning : theme.danger;
 
   const showingState = loading || !!error || !market;
 
@@ -366,11 +341,11 @@ function MarketScanContent({
           Market scan
         </Text>
         <Text style={[styles.subtitle, { color: theme.muted }]} numberOfLines={2}>
-          Live prices for {label}
+          Comparable cars on eBay for {label}
         </Text>
 
         {loading ? (
-          <StateBlock loading title="Checking eBay and Google for real prices" />
+          <StateBlock loading title="Checking eBay for comparable cars" />
         ) : null}
 
         {!loading && error ? (
@@ -387,21 +362,21 @@ function MarketScanContent({
             {/* RECOMMENDED PRICE */}
             <View
               accessible
-              accessibilityLabel={`Recommended listing price ${formatMoney(market.recommendedPrice)}`}
+              accessibilityLabel={`Estimated value ${formatMoney(market.estimatedValue)}`}
               style={[styles.hero, card]}
             >
-              <Text style={[styles.heroLabel, { color: theme.muted }]}>Recommended listing price</Text>
+              <Text style={[styles.heroLabel, { color: theme.muted }]}>Estimated value</Text>
               <Text
                 style={[styles.heroValue, { color: theme.text }]}
                 numberOfLines={1}
                 adjustsFontSizeToFit
               >
-                {formatMoney(market.recommendedPrice)}
+                {formatMoney(market.estimatedValue)}
               </Text>
             </View>
 
             {/* PRICE RANGE */}
-            <SectionTitle>Price range</SectionTitle>
+            <SectionTitle>Price range (asking prices)</SectionTitle>
             <Group>
               <View
                 accessible
@@ -419,27 +394,19 @@ function MarketScanContent({
               </View>
             </Group>
 
-            {/* DEMAND + COMPETITION */}
-            <SectionTitle>Market conditions</SectionTitle>
+            {/* CONFIDENCE + COMPETITION */}
+            <SectionTitle>How sure we are</SectionTitle>
             <View style={styles.tilesRow}>
               <View
                 accessible
-                accessibilityLabel={`Demand score ${market.demandScore} out of 100`}
+                accessibilityLabel={`Confidence ${market.confidence}`}
                 style={[styles.tile, card]}
               >
-                <Text style={[styles.tileLabel, { color: theme.muted }]}>Demand score</Text>
-                <View style={styles.tileValueRow}>
-                  <Text style={[styles.tileValue, { color: theme.text }]}>{market.demandScore}</Text>
-                  <Text style={[styles.tileMax, { color: theme.muted }]}>/ 100</Text>
-                </View>
-                <View style={[styles.meterTrack, { backgroundColor: theme.background }]}>
-                  <View
-                    style={[
-                      styles.meterFill,
-                      { width: `${demand}%`, backgroundColor: demandColor },
-                    ]}
-                  />
-                </View>
+                <Text style={[styles.tileLabel, { color: theme.muted }]}>Confidence</Text>
+                <Text style={[styles.tileValue, { color: theme.text }]} numberOfLines={1} adjustsFontSizeToFit>
+                  {market.confidence.charAt(0).toUpperCase() + market.confidence.slice(1)}
+                </Text>
+                <Text style={[styles.tileHint, { color: theme.muted }]}>in this estimate</Text>
               </View>
 
               <View
@@ -456,9 +423,9 @@ function MarketScanContent({
             </View>
 
             {/* AI INSIGHTS */}
-            <SectionTitle>AI insights</SectionTitle>
+            <SectionTitle>Notes</SectionTitle>
             <Group>
-              {market.insights.map((tip, i) => (
+              {market.notes.map((tip, i) => (
                 <TextBlock key={i} text={tip} divider={i > 0} />
               ))}
             </Group>
@@ -466,7 +433,7 @@ function MarketScanContent({
             {/* SIMILAR LISTINGS */}
             {market.similarListings.length > 0 ? (
               <>
-                <SectionTitle>Similar listings</SectionTitle>
+                <SectionTitle>Comparable listings</SectionTitle>
                 <Group>
                   {market.similarListings.map((item, i) => (
                     <ListingRow key={i} item={item} divider={i > 0} />
