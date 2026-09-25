@@ -2,7 +2,7 @@ import { Express, Request, Response } from "express";
 import { rateLimit } from "../middleware/rateLimit";
 import { adminOk } from "../utils/adminAuth";
 import { accountByEmail } from "../utils/accountStore";
-import { creditsFor, grant, MAX_GRANT } from "../utils/creditStore";
+import { creditsFor, getBalance, grant, isRefunded, MAX_GRANT } from "../utils/creditStore";
 import { freeScanCapEnabled, freeScanStatus } from "../middleware/freeScanLimit";
 import { CREDIT_PACKS, creditPackList } from "../utils/creditPacks";
 import { fetchOneTimePurchases, revenueCatConfigured } from "../subscriptions/revenueCat";
@@ -35,7 +35,7 @@ export default function registerCreditsRoutes(app: Express) {
       // When this is false the limits are not being applied (development), so the app shouldn't nag.
       metering: freeScanCapEnabled(),
       signedIn: !!req.account,
-      credits: req.account ? creditsFor(req.account.id)?.balance ?? 0 : 0,
+      credits: req.account ? getBalance(req.account.id) : 0,
       free: free ? { limit: free.limit, left: free.left, resetsOn: free.resetsOn } : null,
       packs: creditPackList(),
     });
@@ -63,10 +63,11 @@ export default function registerCreditsRoutes(app: Express) {
     for (const purchase of purchases) {
       const credits = CREDIT_PACKS[purchase.productId];
       if (!credits) continue; // not a credit pack (for example a boot fair feature)
-      const result = grant(account.id, credits, "purchase", `rc:${purchase.id}`);
+      if (isRefunded(purchase.storeTxn)) continue; // the store refunded it: no credits for it, ever
+      const result = grant(account.id, credits, "purchase", `rc:${purchase.id}`, purchase.storeTxn);
       if (result.ok && !result.duplicate) granted += credits;
     }
-    res.json({ ok: true, granted, credits: creditsFor(account.id)?.balance ?? 0 });
+    res.json({ ok: true, granted, credits: getBalance(account.id) });
   });
 
   app.get("/admin/credits", rateLimit(30), (req: Request, res: Response) => {

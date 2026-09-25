@@ -62,6 +62,9 @@ export function launchIssues(env: Env = process.env): LaunchIssue[] {
   if (!has(env, "RESEND_API_KEY") || !has(env, "EMAIL_FROM")) {
     add("must", "RESEND_API_KEY and EMAIL_FROM", "Sign-in codes are sent by email through Resend. Without both, nobody can sign in, so nobody can sell or message.");
   }
+  if (!has(env, "REVENUECAT_WEBHOOK_SECRET")) {
+    add("should", "REVENUECAT_WEBHOOK_SECRET", "RevenueCat tells the server when a store refunds a credit pack. Without this the server can't listen, and a refunded pack keeps its credits.");
+  }
   if (!accountRequired()) {
     add("must", "REQUIRE_ACCOUNT", "Selling and messaging are open to anyone without signing in. It is on by default in production; remove REQUIRE_ACCOUNT=off.");
   }

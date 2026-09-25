@@ -16,7 +16,7 @@ import path from "path";
 
 const FILE = path.join(__dirname, "../data/credits.json");
 
-export type CreditEntry = { at: string; delta: number; reason: string; ref?: string };
+export type CreditEntry = { at: string; delta: number; reason: string; ref?: string; /** The app store's own id for the purchase, so a refund can be matched to it. */ txn?: string };
 type Row = { balance: number; granted: number; spent: number; updatedAt: string; ledger: CreditEntry[] };
 type Store = Record<string, Row>;
 
@@ -60,8 +60,9 @@ function record(row: Row, entry: CreditEntry) {
 
 const whole = (n: unknown): number | null => (typeof n === "number" && Number.isInteger(n) && n >= 1 ? n : null);
 
+/** What the person can spend. Never below zero: a refund after credits were used leaves a debt that the next purchase pays off first. */
 export function getBalance(accountId: string): number {
-  return load()[accountId]?.balance ?? 0;
+  return Math.max(0, load()[accountId]?.balance ?? 0);
 }
 
 /** Takes credits if there are enough. Never lets the balance go below zero. */
@@ -69,7 +70,7 @@ export function spend(accountId: string, amount: number, reason: string): { ok: 
   const n = whole(amount);
   const store = load();
   const row = store[accountId];
-  if (!n || !row || row.balance < n) return { ok: false, balance: row?.balance ?? 0 };
+  if (!n || !row || row.balance < n) return { ok: false, balance: Math.max(0, row?.balance ?? 0) };
   row.balance -= n;
   row.spent += n;
   record(row, { at: new Date().toISOString(), delta: -n, reason });
@@ -98,7 +99,8 @@ export function grant(
   accountId: string,
   amount: number,
   reason: "purchase" | "gift",
-  ref?: string
+  ref?: string,
+  txn?: string
 ): { ok: boolean; balance: number; duplicate?: boolean } {
   const n = whole(amount);
   if (!n || n > MAX_GRANT) return { ok: false, balance: getBalance(accountId) };
@@ -107,9 +109,77 @@ export function grant(
   if (ref && row.ledger.some((e) => isGrant(e) && e.ref === ref)) return { ok: true, balance: row.balance, duplicate: true };
   row.balance += n;
   row.granted += n;
-  record(row, { at: new Date().toISOString(), delta: n, reason, ...(ref ? { ref } : {}) });
+  record(row, { at: new Date().toISOString(), delta: n, reason, ...(ref ? { ref } : {}), ...(txn ? { txn } : {}) });
   save(store);
-  return { ok: true, balance: row.balance };
+  return { ok: true, balance: Math.max(0, row.balance) };
+}
+
+/* ------------------------------------------------------------------
+   Refunds. When an app store refunds a credit pack, RevenueCat tells us (routes/webhooks.ts) and the
+   credits it paid for are taken back. The store's transaction id of every refunded purchase is kept, so
+   a purchase that was refunded BEFORE its credits were claimed can never be claimed afterwards.
+------------------------------------------------------------------ */
+
+const REFUNDS_FILE = path.join(__dirname, "../data/creditRefunds.json");
+type Refunds = Record<string, { at: string; accountId: string | null; credits: number }>;
+const MAX_REFUNDS_KEPT = 5000;
+
+function loadRefunds(): Refunds {
+  if (!fs.existsSync(REFUNDS_FILE)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(REFUNDS_FILE, "utf8"));
+  } catch {
+    throw new Error("creditRefunds.json could not be read");
+  }
+}
+
+function saveRefunds(refunds: Refunds) {
+  // The newest are kept: a refund notice only ever arrives within days of the purchase.
+  const keys = Object.keys(refunds);
+  if (keys.length > MAX_REFUNDS_KEPT) {
+    keys.sort((a, b) => Date.parse(refunds[a].at) - Date.parse(refunds[b].at));
+    for (const k of keys.slice(0, keys.length - MAX_REFUNDS_KEPT)) delete refunds[k];
+  }
+  fs.mkdirSync(path.dirname(REFUNDS_FILE), { recursive: true });
+  const tmp = `${REFUNDS_FILE}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(refunds, null, 2));
+  fs.renameSync(tmp, REFUNDS_FILE);
+}
+
+export function isRefunded(txn: string | undefined): boolean {
+  return !!txn && txn in loadRefunds();
+}
+
+/**
+ * Takes back the credits a refunded purchase paid for. `credits` is what a pack of that product gives, used
+ * when the purchase was never claimed (so there is no ledger entry to read the amount from). Safe to call
+ * twice: the second time changes nothing. The balance may go below zero if the credits were already spent;
+ * it is never shown below zero, and the next purchase pays that off first.
+ */
+export function reverseRefundedPurchase(
+  txn: string,
+  accountId: string | null,
+  credits: number
+): { status: "reversed" | "duplicate" | "unclaimed"; taken: number } {
+  const refunds = loadRefunds();
+  if (txn in refunds) return { status: "duplicate", taken: 0 };
+
+  let taken = 0;
+  if (accountId) {
+    const store = load();
+    const row = store[accountId];
+    const granted = row?.ledger.find((e) => isGrant(e) && e.txn === txn);
+    if (row && granted) {
+      taken = granted.delta;
+      row.balance -= taken;
+      row.granted = Math.max(0, row.granted - taken);
+      record(row, { at: new Date().toISOString(), delta: -taken, reason: "purchase-refunded", ref: `refund:${txn}` });
+      save(store);
+    }
+  }
+  refunds[txn] = { at: new Date().toISOString(), accountId, credits: taken || credits };
+  saveRefunds(refunds);
+  return { status: taken > 0 ? "reversed" : "unclaimed", taken };
 }
 
 /** What we hold for this account, for the person's own data export and for support. */

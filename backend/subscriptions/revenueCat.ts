@@ -60,7 +60,7 @@ export async function isProSubscriber(deviceId: string): Promise<boolean> {
 
 const API_BASE = (process.env.REVENUECAT_API_BASE || "https://api.revenuecat.com").replace(/\/+$/, "");
 
-export type OneTimePurchase = { id: string; productId: string };
+export type OneTimePurchase = { id: string; productId: string; storeTxn?: string };
 
 /** Every one-time purchase RevenueCat has for this app user, or null if it can't be asked. */
 export async function fetchOneTimePurchases(appUserId: string): Promise<OneTimePurchase[] | null> {
@@ -75,7 +75,9 @@ export async function fetchOneTimePurchases(appUserId: string): Promise<OneTimeP
     if (groups && typeof groups === "object") {
       for (const [productId, list] of Object.entries(groups)) {
         if (!Array.isArray(list)) continue;
-        for (const p of list as any[]) if (p && typeof p.id === "string" && p.id) out.push({ id: p.id, productId });
+        for (const p of list as any[]) if (p && typeof p.id === "string" && p.id) {
+          out.push({ id: p.id, productId, ...(typeof p.store_transaction_id === "string" && p.store_transaction_id ? { storeTxn: p.store_transaction_id } : {}) });
+        }
       }
     }
     return out;
