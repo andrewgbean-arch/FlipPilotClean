@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import GoldFoil from "@/components/ui/GoldFoil";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import type { StyleProp, ViewStyle } from "react-native";
 import * as Location from "expo-location";
@@ -191,11 +192,12 @@ export default function WeatherCard({ theme, style }: WeatherCardProps) {
           accessibilityLabel="Enable location for weather"
           style={({ pressed }) => [
             styles.button,
-            { backgroundColor: theme.gold },
+            { backgroundColor: theme.gold, overflow: "hidden" },
             pressed && styles.pressed,
           ]}
           onPress={enableLocation}
         >
+          <GoldFoil />
           <Text style={[styles.buttonText, { color: theme.black }]}>Enable location</Text>
         </Pressable>
       </View>

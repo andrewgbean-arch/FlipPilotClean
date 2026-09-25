@@ -1,4 +1,5 @@
 import { useState } from "react";
+import GoldFoil from "@/components/ui/GoldFoil";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -233,11 +234,12 @@ export default function MotLookupScreen() {
           disabled={unavailable}
           style={({ pressed }) => [
             styles.primaryButton,
-            { backgroundColor: theme.gold, opacity: unavailable && !loading ? 0.4 : 1 },
+            { backgroundColor: theme.gold, overflow: "hidden", opacity: unavailable && !loading ? 0.4 : 1 },
             loading && styles.loadingButton,
             pressed && styles.pressed,
           ]}
         >
+          <GoldFoil />
           {loading ? (
             <ActivityIndicator color={theme.black} />
           ) : (

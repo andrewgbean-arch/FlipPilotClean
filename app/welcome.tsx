@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import GoldFoil from "@/components/ui/GoldFoil";
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -90,9 +91,10 @@ export default function WelcomeScreen() {
           disabled={saving || underAge}
           style={({ pressed }) => [
             styles.primary,
-            { backgroundColor: theme.gold, opacity: saving || underAge ? 0.5 : pressed ? 0.85 : 1 },
+            { backgroundColor: theme.gold, overflow: "hidden", opacity: saving || underAge ? 0.5 : pressed ? 0.85 : 1 },
           ]}
         >
+          <GoldFoil />
           <Text style={{ color: theme.black, fontWeight: "800", fontSize: 16 }}>
             I'm {MINIMUM_AGE} or over, and I agree
           </Text>

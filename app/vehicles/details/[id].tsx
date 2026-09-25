@@ -1,4 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
+import GoldFoil from "@/components/ui/GoldFoil";
 import {
   Calculator,
   Car,
@@ -902,11 +903,12 @@ export default function VehicleDetails() {
             accessibilityLabel="Edit flip"
             style={({ pressed }) => [
               styles.primaryButton,
-              { backgroundColor: theme.gold },
+              { backgroundColor: theme.gold, overflow: "hidden" },
               pressed && styles.pressed,
             ]}
             onPress={() => router.push(`/vehicles/edit/${vehicle.id}`)}
           >
+            <GoldFoil />
             <PencilSimple size={18} color={theme.black} weight="bold" />
             <Text style={[styles.primaryLabel, { color: theme.black }]} numberOfLines={1}>
               Edit flip
@@ -1037,11 +1039,12 @@ export default function VehicleDetails() {
                 onPress={runPriceEstimate}
                 style={({ pressed }) => [
                   styles.priceEstimateButton,
-                  { backgroundColor: theme.gold },
+                  { backgroundColor: theme.gold, overflow: "hidden" },
                   priceLoading && styles.disabled,
                   pressed && styles.pressed,
                 ]}
               >
+                <GoldFoil />
                 {priceLoading ? (
                   <ActivityIndicator size="small" color={theme.black} />
                 ) : (

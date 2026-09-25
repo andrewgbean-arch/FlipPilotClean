@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
+import GoldFoil from "@/components/ui/GoldFoil";
 import {
   CalendarBlank,
   CaretRight,
@@ -233,11 +234,12 @@ export default function BootfairSearchResults() {
           accessibilityLabel="Go back"
           style={({ pressed }) => [
             styles.primaryButton,
-            { backgroundColor: theme.gold },
+            { backgroundColor: theme.gold, overflow: "hidden" },
             pressed && styles.pressed,
           ]}
           onPress={() => router.back()}
         >
+          <GoldFoil />
           <Text style={[styles.primaryLabel, { color: theme.black }]}>Go back</Text>
         </Pressable>
       </View>

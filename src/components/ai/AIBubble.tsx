@@ -1,4 +1,5 @@
 import React from "react";
+import GoldFoil from "@/components/ui/GoldFoil";
 import { View, Pressable, StyleSheet } from "react-native";
 import type { Theme } from "../../styles/theme";
 
@@ -14,8 +15,9 @@ export default function AIBubble({ onPress, theme }: Props) {
     <View style={styles.container}>
       <Pressable
         onPress={onPress}
-        style={[styles.bubble, { backgroundColor: theme.gold }]}
+        style={[styles.bubble, { backgroundColor: theme.gold, overflow: "hidden" }]}
       >
+        <GoldFoil />
         <View style={styles.innerDot} />
       </Pressable>
     </View>

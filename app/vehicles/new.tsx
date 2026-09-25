@@ -1,4 +1,5 @@
 import React, { useRef, useState } from "react";
+import GoldFoil from "@/components/ui/GoldFoil";
 import {
   ActivityIndicator,
   Image,
@@ -812,11 +813,12 @@ export default function NewVehicleScreen() {
           accessibilityLabel="Save vehicle"
           style={({ pressed }) => [
             styles.primaryButton,
-            { backgroundColor: theme.gold },
+            { backgroundColor: theme.gold, overflow: "hidden" },
             pressed && styles.pressed,
           ]}
           onPress={saveVehicle}
         >
+          <GoldFoil />
           <Text style={[styles.primaryLabel, { color: theme.black }]}>Save vehicle</Text>
         </Pressable>
       </View>

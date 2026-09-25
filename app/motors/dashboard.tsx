@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import GoldFoil from "@/components/ui/GoldFoil";
 import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
 import { router } from "expo-router";
 import {
@@ -197,11 +198,12 @@ export default function MotorsDashboard() {
             accessibilityLabel="Add vehicle"
             style={({ pressed }) => [
               styles.primaryButton,
-              { backgroundColor: theme.gold },
+              { backgroundColor: theme.gold, overflow: "hidden" },
               pressed && styles.pressed,
             ]}
             onPress={() => router.push("/vehicles/new")}
           >
+            <GoldFoil />
             <Plus size={20} color={theme.black} weight="bold" />
             <Text style={[styles.primaryLabel, { color: theme.black }]}>Add vehicle</Text>
           </Pressable>

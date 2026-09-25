@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import GoldFoil from "@/components/ui/GoldFoil";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -240,11 +241,12 @@ function EditVehicleForm({
           accessibilityLabel="Save changes"
           style={({ pressed }) => [
             styles.primaryButton,
-            { backgroundColor: theme.gold },
+            { backgroundColor: theme.gold, overflow: "hidden" },
             pressed && styles.pressed,
           ]}
           onPress={handleSave}
         >
+          <GoldFoil />
           <Text style={[styles.primaryLabel, { color: theme.black }]}>Save changes</Text>
         </Pressable>
       </ScrollView>

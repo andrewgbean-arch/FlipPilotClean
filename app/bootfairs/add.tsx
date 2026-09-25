@@ -1,4 +1,5 @@
 import { router } from "expo-router";
+import GoldFoil from "@/components/ui/GoldFoil";
 import { Check, Plus, WarningCircle, X } from "phosphor-react-native";
 import { useState } from "react";
 import type { ReactNode } from "react";
@@ -817,11 +818,12 @@ export default function AddFairScreen() {
             disabled={submitting}
             style={({ pressed }) => [
               styles.submitButton,
-              { backgroundColor: theme.gold },
+              { backgroundColor: theme.gold, overflow: "hidden" },
               submitting && styles.submitButtonBusy,
               pressed && styles.pressed,
             ]}
           >
+            <GoldFoil />
             {submitting ? <ActivityIndicator size="small" color={theme.black} /> : null}
             <Text style={[styles.submitText, { color: theme.black }]}>
               {submitting ? "Checking postcode..." : "Submit fair"}

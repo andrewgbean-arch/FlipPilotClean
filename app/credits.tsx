@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import GoldFoil from "@/components/ui/GoldFoil";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -160,8 +161,9 @@ export default function CreditsScreen() {
             disabled={!pack.pkg || busy || claiming}
             accessibilityRole="button"
             accessibilityLabel={`Buy ${pack.credits} scans${pack.pkg ? ` for ${pack.pkg.product.priceString}` : ""}`}
-            style={[styles.buy, { backgroundColor: theme.gold, opacity: !pack.pkg || busy || claiming ? 0.45 : 1 }]}
+            style={[styles.buy, { backgroundColor: theme.gold, overflow: "hidden", opacity: !pack.pkg || busy || claiming ? 0.45 : 1 }]}
           >
+            <GoldFoil />
             {busy || claiming ? (
               <ActivityIndicator color="#111" />
             ) : (

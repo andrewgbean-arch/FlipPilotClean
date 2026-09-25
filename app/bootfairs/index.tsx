@@ -1,4 +1,5 @@
 import { router, useFocusEffect } from "expo-router";
+import GoldFoil from "@/components/ui/GoldFoil";
 import {
   ArrowSquareOut,
   CalendarBlank,
@@ -415,10 +416,11 @@ export default function BootFairFinderScreen() {
           style={({ pressed }) => [
             styles.primaryButton,
             styles.searchButton,
-            { backgroundColor: theme.gold },
+            { backgroundColor: theme.gold, overflow: "hidden" },
             pressed && styles.pressed,
           ]}
         >
+          <GoldFoil />
           <MagnifyingGlass size={20} color={theme.black} weight="bold" />
           <Text style={[styles.primaryLabel, { color: theme.black }]}>Search boot fairs</Text>
         </Pressable>

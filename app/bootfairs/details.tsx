@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
+import GoldFoil from "@/components/ui/GoldFoil";
 import {
   ArrowLeft,
   CaretRight,
@@ -315,11 +316,12 @@ export default function BootfairDetails() {
           style={({ pressed }) => [
             styles.primaryButton,
             styles.stateButton,
-            { backgroundColor: theme.gold },
+            { backgroundColor: theme.gold, overflow: "hidden" },
             pressed && styles.pressed,
           ]}
           onPress={() => router.back()}
         >
+          <GoldFoil />
           <Text style={[styles.primaryLabel, { color: theme.black }]}>Go back</Text>
         </Pressable>
       </View>
@@ -753,11 +755,12 @@ export default function BootfairDetails() {
             style={({ pressed }) => [
               styles.primaryButton,
               styles.mapsButton,
-              { backgroundColor: theme.gold },
+              { backgroundColor: theme.gold, overflow: "hidden" },
               pressed && styles.pressed,
             ]}
             onPress={openMaps}
           >
+            <GoldFoil />
             <NavigationArrow size={18} color={theme.black} weight="fill" />
             <Text style={[styles.primaryLabel, { color: theme.black }]} numberOfLines={1}>
               Open in Google Maps

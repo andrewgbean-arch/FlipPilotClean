@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import GoldFoil from "@/components/ui/GoldFoil";
 import {
   View,
   Pressable,
@@ -210,11 +211,12 @@ export default function RateScreen() {
           accessibilityState={{ disabled: rating === 0 }}
           style={({ pressed }) => [
             styles.submit,
-            { backgroundColor: theme.gold },
+            { backgroundColor: theme.gold, overflow: "hidden" },
             rating === 0 && styles.submitIdle,
             pressed && styles.pressed,
           ]}
         >
+          <GoldFoil />
           <Text style={[styles.submitText, { color: theme.black }]}>Submit rating</Text>
         </Pressable>
       </KeyboardAwareScrollView>

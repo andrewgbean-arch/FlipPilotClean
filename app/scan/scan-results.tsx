@@ -1,4 +1,5 @@
 import * as FileSystem from "expo-file-system/legacy";
+import GoldFoil from "@/components/ui/GoldFoil";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import {
@@ -496,13 +497,14 @@ export default function ScanResultsScreen() {
           accessibilityLabel="Go back"
           style={({ pressed }) => [
             styles.stateButton,
-            { backgroundColor: theme.gold },
+            { backgroundColor: theme.gold, overflow: "hidden" },
             pressed && styles.pressed,
           ]}
           onPress={() =>
             router.canGoBack() ? router.back() : router.replace("/(tabs)/scan")
           }
         >
+          <GoldFoil />
           <Text style={[styles.primaryLabel, { color: theme.black }]}>Go back</Text>
         </Pressable>
       </View>
@@ -985,12 +987,13 @@ export default function ScanResultsScreen() {
               styles.primaryButton,
               saved
                 ? { backgroundColor: theme.card, borderWidth: 1, borderColor: theme.hairline }
-                : { backgroundColor: theme.gold },
+                : { backgroundColor: theme.gold, overflow: "hidden" },
               pressed && styles.pressed,
             ]}
             onPress={() => saveToHistory()}
             disabled={saved || priceState === "loading"}
           >
+            {!saved ? <GoldFoil /> : null}
             {saved ? (
               <CheckCircle size={20} weight="fill" color={theme.success} />
             ) : (
@@ -1104,11 +1107,12 @@ export default function ScanResultsScreen() {
                 accessibilityLabel="Confirm price"
                 style={({ pressed }) => [
                   styles.calcConfirm,
-                  { backgroundColor: theme.gold },
+                  { backgroundColor: theme.gold, overflow: "hidden" },
                   pressed && styles.pressed,
                 ]}
                 onPress={confirmCalc}
               >
+                <GoldFoil />
                 <Check size={20} weight="bold" color={theme.black} />
                 <Text style={[styles.primaryLabel, { color: theme.black }]}>Confirm</Text>
               </Pressable>

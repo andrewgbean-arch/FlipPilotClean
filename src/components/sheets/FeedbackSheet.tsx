@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import GoldFoil from "@/components/ui/GoldFoil";
 import {
   Animated,
   Pressable,
@@ -127,11 +128,12 @@ const FeedbackSheet: React.FC<FeedbackSheetProps> = ({
           accessibilityLabel="Send feedback"
           style={({ pressed }) => [
             styles.primaryButton,
-            { backgroundColor: theme.gold },
+            { backgroundColor: theme.gold, overflow: "hidden" },
             pressed && styles.pressed,
           ]}
           onPress={sendFeedback}
         >
+          <GoldFoil />
           <Text style={[styles.buttonText, { color: theme.black }]}>Send</Text>
         </Pressable>
 

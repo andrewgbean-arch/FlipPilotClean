@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import GoldFoil from "@/components/ui/GoldFoil";
 import Purchases from "react-native-purchases";
 import { CreditCard } from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -46,11 +47,12 @@ export default function ManageSubscription() {
           accessibilityLabel="Open subscription portal"
           style={({ pressed }) => [
             styles.button,
-            { backgroundColor: theme.gold },
+            { backgroundColor: theme.gold, overflow: "hidden" },
             pressed && styles.pressed,
           ]}
           onPress={openPortal}
         >
+          <GoldFoil />
           <Text style={[styles.buttonText, { color: theme.black }]}>Open subscription portal</Text>
         </Pressable>
 

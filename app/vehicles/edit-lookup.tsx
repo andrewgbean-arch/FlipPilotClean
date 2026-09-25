@@ -1,4 +1,5 @@
 import { useState } from "react";
+import GoldFoil from "@/components/ui/GoldFoil";
 import {
   ActivityIndicator,
   FlatList,
@@ -247,10 +248,11 @@ export default function EditLookupScreen() {
           onPress={lookup}
           style={({ pressed }) => [
             styles.primaryButton,
-            { backgroundColor: theme.gold, opacity: canFind ? 1 : 0.4 },
+            { backgroundColor: theme.gold, overflow: "hidden", opacity: canFind ? 1 : 0.4 },
             pressed && styles.pressed,
           ]}
         >
+          <GoldFoil />
           <Text style={[styles.primaryLabel, { color: theme.black }]}>Find flip</Text>
         </Pressable>
       </View>

@@ -1,4 +1,5 @@
 import React from "react";
+import GoldFoil from "@/components/ui/GoldFoil";
 import {
   ActivityIndicator,
   Pressable,
@@ -144,11 +145,12 @@ export default function MotorsHub() {
           accessibilityLabel="New flip"
           style={({ pressed }) => [
             styles.primaryButton,
-            { backgroundColor: theme.gold },
+            { backgroundColor: theme.gold, overflow: "hidden" },
             pressed && styles.pressed,
           ]}
           onPress={() => router.push("/vehicles/new")}
         >
+          <GoldFoil />
           <Plus size={20} color={theme.black} weight="bold" />
           <Text style={[styles.primaryLabel, { color: theme.black }]}>New flip</Text>
         </Pressable>

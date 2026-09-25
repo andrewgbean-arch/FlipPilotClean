@@ -1,5 +1,6 @@
 import type { PurchasesOfferings } from "react-native-purchases";
 
+import GoldFoil from "@/components/ui/GoldFoil";
 import { useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Check, Info, Minus } from "phosphor-react-native";
@@ -307,11 +308,12 @@ export default function UpgradeScreen() {
           accessibilityLabel={`${ctaLabel}, ${ctaSub}`}
           style={({ pressed }) => [
             styles.cta,
-            { backgroundColor: theme.gold },
+            { backgroundColor: theme.gold, overflow: "hidden" },
             pressed && styles.pressed,
           ]}
           onPress={handleCta}
         >
+          <GoldFoil />
           <Text style={[styles.ctaLabel, { color: theme.black }]}>{ctaLabel}</Text>
           <Text style={[styles.ctaSub, { color: theme.black }]}>{ctaSub}</Text>
         </Pressable>

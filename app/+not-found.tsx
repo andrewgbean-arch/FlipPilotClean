@@ -1,4 +1,5 @@
 import { Stack, router } from "expo-router";
+import GoldFoil from "@/components/ui/GoldFoil";
 import { Compass } from "phosphor-react-native";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -23,9 +24,10 @@ export default function NotFoundScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Back to home"
-          style={({ pressed }) => [styles.button, { backgroundColor: theme.gold }, pressed && styles.pressed]}
+          style={({ pressed }) => [styles.button, { backgroundColor: theme.gold, overflow: "hidden" }, pressed && styles.pressed]}
           onPress={() => router.replace("/home")}
         >
+          <GoldFoil />
           <Text style={[styles.buttonText, { color: theme.black }]}>Back to home</Text>
         </Pressable>
       </View>

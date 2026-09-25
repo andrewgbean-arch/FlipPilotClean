@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import GoldFoil from "@/components/ui/GoldFoil";
 import {
   ActivityIndicator,
   Image,
@@ -461,11 +462,12 @@ function MarketScanContent({
           accessibilityLabel="Back to overview"
           style={({ pressed }) => [
             styles.primaryButton,
-            { backgroundColor: theme.gold },
+            { backgroundColor: theme.gold, overflow: "hidden" },
             pressed && styles.pressed,
           ]}
           onPress={() => router.push(`/vehicles/overview/${vehicle.id}`)}
         >
+          <GoldFoil />
           <ArrowLeft size={20} weight="bold" color={theme.black} />
           <Text style={[styles.primaryLabel, { color: theme.black }]}>Back to overview</Text>
         </Pressable>

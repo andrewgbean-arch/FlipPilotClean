@@ -1,4 +1,5 @@
 import * as Haptics from "expo-haptics";
+import GoldFoil from "@/components/ui/GoldFoil";
 import { router, useLocalSearchParams } from "expo-router";
 import {
   ArrowLeft,
@@ -254,11 +255,12 @@ export default function FlipDetails() {
           style={({ pressed }) => [
             styles.primaryButton,
             styles.stateButton,
-            { backgroundColor: theme.gold },
+            { backgroundColor: theme.gold, overflow: "hidden" },
             pressed && styles.pressed,
           ]}
           onPress={() => router.replace("/history")}
         >
+          <GoldFoil />
           <Text style={[styles.primaryLabel, { color: theme.black }]}>Back to History</Text>
         </Pressable>
       </View>
@@ -764,11 +766,12 @@ export default function FlipDetails() {
             style={({ pressed }) => [
               styles.primaryButton,
               styles.shareButton,
-              { backgroundColor: theme.gold },
+              { backgroundColor: theme.gold, overflow: "hidden" },
               pressed && styles.pressed,
             ]}
             onPress={shareSummary}
           >
+            <GoldFoil />
             <ShareNetwork size={18} color={theme.black} weight="bold" />
             <Text style={[styles.primaryLabel, { color: theme.black }]} numberOfLines={1}>
               Share

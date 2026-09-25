@@ -1,4 +1,5 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import GoldFoil from "@/components/ui/GoldFoil";
 import { router } from "expo-router";
 import {
   Barcode,
@@ -147,11 +148,12 @@ export default function HelpScreen() {
           accessibilityRole="button"
           style={({ pressed }) => [
             styles.cta,
-            { backgroundColor: theme.gold },
+            { backgroundColor: theme.gold, overflow: "hidden" },
             pressed && styles.pressed,
           ]}
           onPress={() => router.push("/scan")}
         >
+          <GoldFoil />
           <Text style={[styles.ctaLabel, { color: theme.black }]}>Start scanning</Text>
         </Pressable>
 

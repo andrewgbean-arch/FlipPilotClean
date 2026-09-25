@@ -1,4 +1,5 @@
 import React, { useRef, useState } from "react";
+import GoldFoil from "@/components/ui/GoldFoil";
 import {
   ActivityIndicator,
   Image,
@@ -774,11 +775,12 @@ export default function CreateNewFlip() {
           accessibilityLabel="Save flip"
           style={({ pressed }) => [
             styles.primaryButton,
-            { backgroundColor: theme.gold },
+            { backgroundColor: theme.gold, overflow: "hidden" },
             pressed && styles.pressed,
           ]}
           onPress={handleSave}
         >
+          <GoldFoil />
           <Text style={[styles.primaryLabel, { color: theme.black }]}>Save flip</Text>
         </Pressable>
       </View>

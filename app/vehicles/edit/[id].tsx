@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 
+import GoldFoil from "@/components/ui/GoldFoil";
 import {
   ActivityIndicator,
   Image,
@@ -139,10 +140,11 @@ export default function EditFlipRoute() {
           onPress={() => router.replace("/vehicles/list")}
           style={({ pressed }) => [
             styles.stateButton,
-            { backgroundColor: theme.gold },
+            { backgroundColor: theme.gold, overflow: "hidden" },
             pressed && styles.pressed,
           ]}
         >
+          <GoldFoil />
           <Text style={[styles.primaryLabel, { color: theme.black }]}>Back to your flips</Text>
         </Pressable>
       </View>
@@ -819,10 +821,11 @@ function EditFlipForm({
           onPress={handleSave}
           style={({ pressed }) => [
             styles.primaryButton,
-            { backgroundColor: theme.gold, opacity: isValid ? 1 : 0.4 },
+            { backgroundColor: theme.gold, overflow: "hidden", opacity: isValid ? 1 : 0.4 },
             pressed && styles.pressed,
           ]}
         >
+          <GoldFoil />
           <Text style={[styles.primaryLabel, { color: theme.black }]}>Save changes</Text>
         </Pressable>
       </View>

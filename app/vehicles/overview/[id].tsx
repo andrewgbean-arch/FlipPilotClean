@@ -1,4 +1,5 @@
 import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
+import GoldFoil from "@/components/ui/GoldFoil";
 import {
   ArrowsClockwise,
   Car,
@@ -597,11 +598,12 @@ export default function VehicleOverviewScreen() {
             disabled={refreshing}
             style={({ pressed }) => [
               styles.primaryButton,
-              { backgroundColor: theme.gold },
+              { backgroundColor: theme.gold, overflow: "hidden" },
               pressed && styles.pressed,
             ]}
             onPress={onRefresh}
           >
+            <GoldFoil />
             {refreshing ? (
               <ActivityIndicator size="small" color={theme.black} />
             ) : (

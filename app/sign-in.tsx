@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import GoldFoil from "@/components/ui/GoldFoil";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { useRouter } from "expo-router";
@@ -165,8 +166,9 @@ function Button({ label, onPress, disabled, busy }: { label: string; onPress: ()
       disabled={disabled}
       accessibilityRole="button"
       accessibilityState={{ disabled, busy }}
-      style={[styles.button, { backgroundColor: theme.gold, opacity: disabled ? 0.5 : 1 }]}
+      style={[styles.button, { backgroundColor: theme.gold, overflow: "hidden", opacity: disabled ? 0.5 : 1 }]}
     >
+      <GoldFoil />
       {busy ? <ActivityIndicator color="#111" /> : <Text style={styles.buttonText}>{label}</Text>}
     </Pressable>
   );

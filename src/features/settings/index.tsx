@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import GoldFoil from "@/components/ui/GoldFoil";
 import {
   Alert,
   Linking,
@@ -629,10 +630,11 @@ export default function SettingsScreen() {
                 onPress={saveName}
                 style={({ pressed }) => [
                   styles.modalButton,
-                  { backgroundColor: theme.gold },
+                  { backgroundColor: theme.gold, overflow: "hidden" },
                   pressed && styles.pressed,
                 ]}
               >
+                <GoldFoil />
                 <Text style={{ color: theme.black, fontWeight: "800" }}>Save</Text>
               </Pressable>
             </View>

@@ -1,4 +1,5 @@
 import React from "react";
+import GoldFoil from "@/components/ui/GoldFoil";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import {
@@ -97,11 +98,12 @@ export default function VehiclesHome() {
           accessibilityLabel="Add new vehicle"
           style={({ pressed }) => [
             styles.primaryButton,
-            { backgroundColor: theme.gold },
+            { backgroundColor: theme.gold, overflow: "hidden" },
             pressed && styles.pressed,
           ]}
           onPress={() => router.push("/vehicles/new")}
         >
+          <GoldFoil />
           <Plus size={20} color={theme.black} weight="bold" />
           <Text style={[styles.primaryLabel, { color: theme.black }]}>Add new vehicle</Text>
         </Pressable>

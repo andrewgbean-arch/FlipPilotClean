@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import GoldFoil from "@/components/ui/GoldFoil";
 import {
   ActivityIndicator,
   Alert,
@@ -463,9 +464,10 @@ export default function ScanScreen() {
 
         <Pressable
           accessibilityRole="button"
-          style={[styles.permissionButton, { backgroundColor: theme.gold }]}
+          style={[styles.permissionButton, { backgroundColor: theme.gold, overflow: "hidden" }]}
           onPress={canAskAgain ? requestPermission : openSettings}
         >
+          <GoldFoil />
           <Text style={{ color: theme.black, fontWeight: "700", fontSize: 17 }}>
             {canAskAgain ? "Enable camera" : "Open Settings"}
           </Text>
@@ -597,9 +599,10 @@ export default function ScanScreen() {
             </Text>
             <Pressable
               accessibilityRole="button"
-              style={[styles.permissionButton, { backgroundColor: theme.gold }]}
+              style={[styles.permissionButton, { backgroundColor: theme.gold, overflow: "hidden" }]}
               onPress={retryCamera}
             >
+              <GoldFoil />
               <Text style={{ color: theme.black, fontWeight: "700", fontSize: 16 }}>
                 Try again
               </Text>
@@ -614,12 +617,13 @@ export default function ScanScreen() {
             accessibilityState={{ disabled: barcodeArmed }}
             style={[
               styles.scanButton,
-              { backgroundColor: theme.gold },
+              { backgroundColor: theme.gold, overflow: "hidden" },
               barcodeArmed && styles.scanButtonActive,
             ]}
             onPress={() => setBarcodeArmed(true)}
             disabled={barcodeArmed}
           >
+            <GoldFoil />
             <Barcode size={22} color={theme.black} />
             <Text style={[styles.scanButtonLabel, { color: theme.black }]}>
               {barcodeArmed ? "Scanning for barcode…" : "Scan barcode"}
