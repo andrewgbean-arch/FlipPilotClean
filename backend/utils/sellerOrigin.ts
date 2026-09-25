@@ -117,8 +117,9 @@ export function toPublicListing(listing: any): any {
   // soldToDeviceId is who the seller said bought it: what lets that one person
   // review, so like deviceId it never goes out.
   // dvlaCheck holds the car's registration, which is private: buyers only see that it was checked, and
-  // what the DVLA itself says about the car. creditsPaid is between the seller and us.
-  const { sellerOrigin, deviceId, messages, soldToDeviceId, soldToThreadId, dvlaCheck, creditsPaid, ...rest } = listing;
+  // what the DVLA itself says about the car. creditsPaid is between the seller and us. dealershipId and
+  // sourceId say which Dealer OS dealership and record a trade listing came from: private too.
+  const { sellerOrigin, deviceId, messages, soldToDeviceId, soldToThreadId, dvlaCheck, creditsPaid, dealershipId, sourceId, ...rest } = listing;
   return {
     ...rest,
     ...(dvlaCheck?.dvla ? { vehicleCheck: { verified: true, checkedAt: dvlaCheck.checkedAt, ...dvlaCheck.dvla } } : {}),

@@ -17,6 +17,8 @@ type Review = {
 type SellerProfile = {
   id: string;
   displayName: string | null;
+  /** A dealership listing through FlipPilot Dealer OS, which approves each dealership before it can list. */
+  trade?: boolean;
   joinedAt: string;
   itemsSold: number;
   itemsForSale: number;
@@ -113,11 +115,17 @@ export default function SellerPanel({
       <Text style={{ color: theme.goldDeep, fontWeight: "800", fontSize: 16 }}>
         {profile.displayName ?? "Seller"}
       </Text>
-      {profile.displayName != null && (
-        // Said plainly, because a name is only a name — nothing checks it.
-        <Text style={{ color: theme.muted, fontSize: 12, marginTop: 2 }}>
-          Name chosen by the seller
+      {profile.trade ? (
+        <Text style={{ color: theme.goldDeep, fontSize: 12, fontWeight: "700", marginTop: 2 }}>
+          Trade seller · lists through FlipPilot Dealer OS
         </Text>
+      ) : (
+        profile.displayName != null && (
+          // Said plainly, because a name is only a name — nothing checks it.
+          <Text style={{ color: theme.muted, fontSize: 12, marginTop: 2 }}>
+            Name chosen by the seller
+          </Text>
+        )
       )}
 
       <View style={{ height: 10 }} />
