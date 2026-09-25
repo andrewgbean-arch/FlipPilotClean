@@ -49,3 +49,42 @@ export async function isProSubscriber(deviceId: string): Promise<boolean> {
   cache.set(deviceId, { isPro, checkedAt: Date.now() });
   return isPro;
 }
+
+/* --------------------------------------------------
+   One-time purchases (scan credit packs).
+
+   RevenueCat lists everything a user has bought outside subscriptions under
+   `non_subscriptions`, each purchase with its own unique id. Credits are granted
+   from THAT list only (never from anything the phone says), once per purchase id.
+-------------------------------------------------- */
+
+const API_BASE = (process.env.REVENUECAT_API_BASE || "https://api.revenuecat.com").replace(/\/+$/, "");
+
+export type OneTimePurchase = { id: string; productId: string };
+
+/** Every one-time purchase RevenueCat has for this app user, or null if it can't be asked. */
+export async function fetchOneTimePurchases(appUserId: string): Promise<OneTimePurchase[] | null> {
+  if (!REVENUECAT_SECRET_KEY) return null;
+  try {
+    const res = await axios.get(`${API_BASE}/v1/subscribers/${encodeURIComponent(appUserId)}`, {
+      headers: { Authorization: `Bearer ${REVENUECAT_SECRET_KEY}` },
+      timeout: 8000,
+    });
+    const groups = res.data?.subscriber?.non_subscriptions;
+    const out: OneTimePurchase[] = [];
+    if (groups && typeof groups === "object") {
+      for (const [productId, list] of Object.entries(groups)) {
+        if (!Array.isArray(list)) continue;
+        for (const p of list as any[]) if (p && typeof p.id === "string" && p.id) out.push({ id: p.id, productId });
+      }
+    }
+    return out;
+  } catch (err: any) {
+    // A 404 means RevenueCat has never seen this user: they have bought nothing.
+    if (err?.response?.status === 404) return [];
+    console.log("RevenueCat purchases check failed:", err?.response?.status ?? err?.message);
+    return null;
+  }
+}
+
+export const revenueCatConfigured = () => !!REVENUECAT_SECRET_KEY;

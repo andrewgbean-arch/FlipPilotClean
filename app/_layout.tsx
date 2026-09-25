@@ -113,6 +113,7 @@ function GoldFlashOverlayWrapper() {
 const SCREEN_TITLES: Record<string, string> = {
   rate: "Rate FlipPilot",
   "sign-in": "Sign in",
+  credits: "Scan credits",
   "weather/index": "Weather",
   "settings/index": "Settings",
   "feature/[slug]": "Feature",

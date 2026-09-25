@@ -78,7 +78,7 @@ export async function scanMeter(req: Request, res: Response, next: NextFunction)
     }
     res.json({
       error: "out-of-credits",
-      message: `You've used your ${free.limit} free scans this week and have no scan credits left. Your free scans come back on ${free.resetsOn}.`,
+      message: `You've used your ${free.limit} free scans this week and have no scan credits left. Get more credits, or your free scans come back on ${free.resetsOn}.`,
       resetsOn: free.resetsOn,
       signedIn: true,
       credits: getBalance(account.id),
@@ -88,7 +88,7 @@ export async function scanMeter(req: Request, res: Response, next: NextFunction)
 
   res.json({
     error: "free-scan-limit",
-    message: `You've used your ${free.limit} free scans this week. They come back on ${free.resetsOn}. If you have scan credits, sign in to use them.`,
+    message: `You've used your ${free.limit} free scans this week. Sign in to use scan credits, or your free scans come back on ${free.resetsOn}.`,
     resetsOn: free.resetsOn,
     signedIn: false,
     credits: 0,

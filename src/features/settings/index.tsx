@@ -498,9 +498,10 @@ export default function SettingsScreen() {
         <SectionTitle>Account</SectionTitle>
         <View style={[styles.group, card]}>
           {allowance?.metering ? (
-            <InfoRow
+            <MenuRow
               Icon={Coins}
               title="Scans"
+              onPress={() => router.push("/credits")}
               subtitle={
                 `${allowance.freeLeft} of ${allowance.freeLimit} free scans left this week` +
                 (allowance.signedIn ? `, and ${allowance.credits} scan credit${allowance.credits === 1 ? "" : "s"}` : "")

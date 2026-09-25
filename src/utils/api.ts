@@ -44,11 +44,13 @@ export class ApiError extends Error {
   readonly retryAfter?: number;
   /** For a scan allowance that has run out: signing in could let them use credits they already hold. */
   readonly needsSignIn?: boolean;
+  /** ...or, if they are signed in, that buying more credits is what would help. */
+  readonly needsCredits?: boolean;
 
   constructor(
     kind: ApiErrorKind,
     message: string,
-    extra: { status?: number; retryAfter?: number; needsSignIn?: boolean } = {}
+    extra: { status?: number; retryAfter?: number; needsSignIn?: boolean; needsCredits?: boolean } = {}
   ) {
     super(message);
     this.name = "ApiError";
@@ -56,6 +58,7 @@ export class ApiError extends Error {
     this.status = extra.status;
     this.retryAfter = extra.retryAfter;
     this.needsSignIn = extra.needsSignIn;
+    this.needsCredits = extra.needsCredits;
   }
 }
 
@@ -144,7 +147,7 @@ async function request(path: string, options: RequestOptions = {}): Promise<any>
         typeof payload.message === "string" && payload.message
           ? payload.message
           : "You've used your free scans this week.",
-        { status: res.status, needsSignIn: payload.signedIn === false }
+        { status: res.status, needsSignIn: payload.signedIn === false, needsCredits: payload.error === "out-of-credits" }
       );
     }
 

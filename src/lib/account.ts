@@ -3,6 +3,7 @@ import { useEffect, useSyncExternalStore } from "react";
 
 import { BASE_URL } from "@/utils/api";
 import { adoptDeviceId, getDeviceId, resetDeviceId } from "@/utils/deviceId";
+import { syncPurchasesIdentity } from "./purchasesIdentity";
 
 /**
  * The person's account: an email address confirmed with a one-time code, no password.
@@ -136,6 +137,7 @@ export async function verifyCode(
     await writeStored(session);
     // From now on this phone acts as the account's own id.
     await adoptDeviceId(json.deviceId);
+    await syncPurchasesIdentity(json.deviceId);
     changed();
     return { ok: true, isNew: !!json.isNew };
   } catch {
@@ -146,7 +148,7 @@ export async function verifyCode(
 async function forgetSession() {
   session = null;
   await writeStored(null);
-  await resetDeviceId();
+  await syncPurchasesIdentity(await resetDeviceId());
   changed();
 }
 
