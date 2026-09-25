@@ -34,6 +34,7 @@ import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryCon
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
 import { fetchMOT } from "@/features/vehicles/api/mot";
 import { sameReg } from "@/utils/motSnapshot";
+import { keepPhoto } from "@/utils/keptPhotos";
 import { calculateFlipScore, FlipScoreInput } from "@/utils/flipScoreEngine";
 
 import { useTheme } from "@/styles/useTheme";
@@ -308,7 +309,8 @@ function EditFlipForm({
       });
       if (!result.canceled) {
         setDirty(true);
-        setImages((prev) => [...prev, result.assets[0].uri]);
+        const kept = await keepPhoto(result.assets[0].uri, "vehicle-photo");
+        setImages((prev) => [...prev, kept]);
       }
     } catch {
       setPhotoError("Couldn't open your photos. Check the app has access and try again.");
@@ -321,7 +323,8 @@ function EditFlipForm({
       const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
       if (!result.canceled) {
         setDirty(true);
-        setImages((prev) => [...prev, result.assets[0].uri]);
+        const kept = await keepPhoto(result.assets[0].uri, "vehicle-photo");
+        setImages((prev) => [...prev, kept]);
       }
     } catch {
       setPhotoError("Couldn't open the camera. Check the app has camera access and try again.");

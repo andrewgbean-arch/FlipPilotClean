@@ -36,22 +36,7 @@ import { fetchPrices, type ItemAge, type ItemGrade } from "@/utils/api";
 import SellerDescriptionCard from "@/components/scan/SellerDescriptionCard";
 import { dropPending, getPending } from "@/utils/pendingScan";
 import { applyPrices, SCAN_AGAIN_EVENT } from "@/utils/scanTransform";
-
-// A photo scan's picture sits in the cache folder, which the OS can clear at any time.
-// Keep a copy in the documents folder so a saved flip doesn't lose its photo.
-const keepPhoto = async (uri: string): Promise<string> => {
-  const dir = FileSystem.documentDirectory;
-  if (!dir || !uri.startsWith("file://") || uri.startsWith(dir)) return uri;
-
-  try {
-    const dest = `${dir}flip-photo-${Date.now()}.jpg`;
-    await FileSystem.copyAsync({ from: uri, to: dest });
-    return dest;
-  } catch (err) {
-    console.log("Couldn't keep a copy of the scan photo:", err);
-    return uri;
-  }
-};
+import { keepPhoto } from "@/utils/keptPhotos";
 
 // Keys of the price keypad, in reading order (three to a row).
 const CALC_KEYS = ["7", "8", "9", "4", "5", "6", "1", "2", "3", "0", ".", "DEL"];

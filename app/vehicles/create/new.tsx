@@ -29,6 +29,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { fetchMOT } from "@/features/vehicles/api/mot";
 import { sameReg } from "@/utils/motSnapshot";
+import { keepPhoto } from "@/utils/keptPhotos";
 import { formatDate } from "@/features/vehicles/utils/motDates";
 import { formatMoney } from "@/features/vehicles/utils/vehicleStats";
 import { FlipScoreInput, calculateFlipScore } from "@/utils/flipScoreEngine";
@@ -207,7 +208,8 @@ export default function CreateNewFlip() {
         quality: 0.8,
       });
       if (!result.canceled) {
-        setImages((prev) => [...prev, result.assets[0].uri]);
+        const kept = await keepPhoto(result.assets[0].uri, "vehicle-photo");
+        setImages((prev) => [...prev, kept]);
       }
     } catch {
       setPhotoError("Couldn't open your photos. Check the app has access and try again.");
@@ -219,7 +221,8 @@ export default function CreateNewFlip() {
     try {
       const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
       if (!result.canceled) {
-        setImages((prev) => [...prev, result.assets[0].uri]);
+        const kept = await keepPhoto(result.assets[0].uri, "vehicle-photo");
+        setImages((prev) => [...prev, kept]);
       }
     } catch {
       setPhotoError("Couldn't open the camera. Check the app has camera access and try again.");

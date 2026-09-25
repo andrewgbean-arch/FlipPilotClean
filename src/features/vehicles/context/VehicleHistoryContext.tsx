@@ -18,6 +18,7 @@ import { useUserSettings } from "@/features/settings/UserSettingsContext";
 
 // ⭐ Correct haptic helper
 import { triggerHaptic } from "@/components/ui/haptics";
+import { deleteKeptPhotos } from "@/utils/keptPhotos";
 
 const STORAGE_KEY = "@flippilot_vehicle_history_v1";
 
@@ -328,6 +329,9 @@ export const VehicleHistoryProvider = ({ children }: { children: ReactNode }) =>
      ⭐ DELETE VEHICLE
   ------------------------------------------------------- */
   const deleteVehicle = (id: string) => {
+    // The photos kept in the app's own folder go with it (others, such as a listing's, are untouched).
+    const gone = vehicles.find((v) => v.id === id);
+    if (gone) void deleteKeptPhotos([(gone as any).image, ...(Array.isArray((gone as any).images) ? (gone as any).images : [])]);
     setVehicles((prev) => prev.filter((v) => v.id !== id));
   };
 

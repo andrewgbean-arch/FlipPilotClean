@@ -29,6 +29,7 @@ import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryCon
 import { autoFormatReg, getMotStatusColor } from "@/features/vehicles/ui/SupernovaUI";
 import { fetchMOT } from "@/features/vehicles/api/mot";
 import { sameReg } from "@/utils/motSnapshot";
+import { keepPhoto } from "@/utils/keptPhotos";
 import { formatDate } from "@/features/vehicles/utils/motDates";
 import { formatMiles, formatMoney } from "@/features/vehicles/utils/vehicleStats";
 
@@ -349,7 +350,8 @@ export default function NewVehicleScreen() {
     });
 
     if (!result.canceled && result.assets.length > 0) {
-      setImages((prev) => [...prev, result.assets[0].uri]);
+      const kept = await keepPhoto(result.assets[0].uri, "vehicle-photo");
+      setImages((prev) => [...prev, kept]);
     }
   };
 
