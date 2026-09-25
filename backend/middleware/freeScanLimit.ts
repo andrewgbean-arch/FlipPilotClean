@@ -1,7 +1,5 @@
 import fs from "fs";
 import path from "path";
-import type { NextFunction, Request, Response } from "express";
-import { isProSubscriber } from "../subscriptions/revenueCat";
 
 /* --------------------------------------------------
    Free tier: 5 AI lookups (barcode + photo combined) per calendar week, per
@@ -14,13 +12,11 @@ import { isProSubscriber } from "../subscriptions/revenueCat";
    it and get a fresh 5 — the same way any free tier without accounts works.
    It's a soft cap, not a security boundary.
 
-   A device that has used its 5 gets one extra check before being blocked:
-   is it actually a real, paying Pro subscriber? (see subscriptions/revenueCat.ts —
-   a genuine server-to-server check, not a client-reported flag.) Bolt-on has
-   no real product to check yet, so it isn't exempted here.
+   What happens once a device has used its 5 (Pro check, scan credits, or a block) is decided in
+   middleware/scanMeter.ts, which uses the helpers below.
 -------------------------------------------------- */
 
-const WEEKLY_FREE_LIMIT = 5;
+export const WEEKLY_FREE_LIMIT = 5;
 
 const FILE = path.join(__dirname, "../data/freeScans.json");
 
@@ -79,48 +75,36 @@ function nextWeekStart(weekStart: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-export async function freeScanLimit(req: Request, res: Response, next: NextFunction) {
-  const deviceId =
-    typeof req.query.deviceId === "string"
-      ? req.query.deviceId
-      : typeof req.body?.deviceId === "string"
-      ? req.body.deviceId
-      : null;
+export type FreeScanStatus = { limit: number; used: number; left: number; resetsOn: string };
 
-  // No device id means we can't tell whose count to add to, so it can't be let through:
-  // leaving the field out would otherwise skip the cap. The app always sends it.
-  if (!deviceId) {
-    res.status(400).json({
-      error: "missing-device",
-      message: "Something went wrong identifying your phone. Please update the app and try again.",
-    });
-    return;
-  }
+/** How many of this device's free scans are used this week. Changes nothing. */
+export function freeScanStatus(deviceId: string): FreeScanStatus {
+  const weekStart = currentWeekStart();
+  const existing = load()[deviceId];
+  const used = existing?.weekStart === weekStart ? existing.count : 0;
+  return { limit: WEEKLY_FREE_LIMIT, used, left: Math.max(0, WEEKLY_FREE_LIMIT - used), resetsOn: nextWeekStart(weekStart) };
+}
 
+/** Uses one free scan if any are left this week. Returns whether one was used. */
+export function takeFreeScan(deviceId: string): boolean {
   const weekStart = currentWeekStart();
   const store = load();
   const existing = store[deviceId];
-  const record: DeviceRecord =
-    existing?.weekStart === weekStart ? existing : { weekStart, count: 0 };
-
-  if (record.count >= WEEKLY_FREE_LIMIT) {
-    // Worth the extra round trip only once a device is actually about to be
-    // blocked — a genuine Pro subscriber gets waved through with no cap.
-    if (await isProSubscriber(deviceId)) return next();
-
-    res.json({
-      error: "free-scan-limit",
-      message: "You've used your 5 free scans this week. Upgrade to Bolt-on or Pro for more.",
-      resetsOn: nextWeekStart(weekStart),
-    });
-    return;
-  }
-
+  const record: DeviceRecord = existing?.weekStart === weekStart ? existing : { weekStart, count: 0 };
+  if (record.count >= WEEKLY_FREE_LIMIT) return false;
   record.count += 1;
   store[deviceId] = record;
   save(store);
+  return true;
+}
 
-  next();
+/** Gives a free scan back when the scan it was used for failed. */
+export function returnFreeScan(deviceId: string): void {
+  const store = load();
+  const record = store[deviceId];
+  if (!record || record.weekStart !== currentWeekStart() || record.count < 1) return;
+  record.count -= 1;
+  save(store);
 }
 
 /**
@@ -133,10 +117,4 @@ export function freeScanCapEnabled(): boolean {
   if (setting === "on") return true;
   if (setting === "off") return false;
   return process.env.NODE_ENV === "production";
-}
-
-/** The cap as a route step: applies freeScanLimit when the cap is on, and does nothing when it is off. */
-export function freeScanCap(req: Request, res: Response, next: NextFunction) {
-  if (!freeScanCapEnabled()) return next();
-  return freeScanLimit(req, res, next);
 }

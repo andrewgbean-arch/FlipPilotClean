@@ -6,8 +6,8 @@ import { extractPackCount } from "../market-backend/bulkListingFilter";
 import { getEbayAccessToken } from "../market-backend/ebayBrowseApi";
 import type { AgeBand, Grade } from "../market-backend/priceModel";
 import { paidLookupBudget } from "../middleware/dailyBudget";
-// The 5-scans-a-week Free cap: on in production, off in development (see freeScanCapEnabled).
-import { freeScanCap } from "../middleware/freeScanLimit";
+// What a lookup costs (5 free a week, then scan credits): on in production, off in development (see scanMeter).
+import { scanMeter } from "../middleware/scanMeter";
 import { rateLimit } from "../middleware/rateLimit";
 import { askVision, DESCRIBE_PROMPT, IDENTIFY_PROMPT } from "./searchImage";
 import { buildAiBlock, fetchOpenFoodFacts } from "./search";
@@ -111,7 +111,7 @@ export async function identifyBarcode(code: string): Promise<BarcodeIdentity | n
   return identity;
 }
 
-router.get("/identify-barcode", rateLimit(30), freeScanCap, paidLookupBudget, async (req, res) => {
+router.get("/identify-barcode", rateLimit(30), scanMeter, paidLookupBudget, async (req, res) => {
   try {
     const code = String(req.query.q ?? "").replace(/\D/g, "");
     if (code.length < 6) return res.json({ error: "bad-barcode", message: "That doesn't look like a barcode. Try scanning it again." });
@@ -140,7 +140,7 @@ router.get("/identify-barcode", rateLimit(30), freeScanCap, paidLookupBudget, as
 
 /* ---------------- photo -> product ---------------- */
 
-router.post("/identify-image", rateLimit(6), freeScanCap, paidLookupBudget, async (req, res) => {
+router.post("/identify-image", rateLimit(6), scanMeter, paidLookupBudget, async (req, res) => {
   try {
     const { imageBase64 } = req.body ?? {};
     if (!imageBase64 || typeof imageBase64 !== "string" || imageBase64.length < 50) {

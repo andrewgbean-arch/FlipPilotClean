@@ -14,6 +14,7 @@ import registerUploadsRoute from "./routes/uploads";
 import registerMeRoute from "./routes/me";
 import registerAdvertsRoute from "./routes/adverts";
 import registerAuthRoutes from "./routes/auth";
+import registerCreditsRoutes from "./routes/credits";
 import { accountGuard } from "./middleware/accountGuard";
 import { runRetention } from "./utils/retentionJob";
 import { logLaunchChecks } from "./utils/launchCheck";
@@ -74,6 +75,7 @@ app.use((req, res, next) => {
 // Who is asking, and whether they may act as the id they name (see middleware/accountGuard.ts).
 app.use(accountGuard);
 registerAuthRoutes(app);
+registerCreditsRoutes(app);
 
 // The Marketplace has no sign-in yet (anyone can post a listing or a message,
 // under whatever name they type in), so the write routes below carry their own

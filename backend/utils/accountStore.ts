@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
+import { deleteAccountCredits } from "./creditStore";
 
 /**
  * Accounts: an email address proved by a one-time code, and a durable identity
@@ -163,6 +164,12 @@ export function accountOwningDevice(deviceId: string): Account | null {
   return loadAccounts().byDevice.get(deviceId) ?? null;
 }
 
+/** The account for an email address, if there is one. */
+export function accountByEmail(email: string): Account | null {
+  const wanted = normaliseEmail(email);
+  return wanted ? loadAccounts().accounts.find((a) => a.email === wanted) ?? null : null;
+}
+
 export function accountById(id: string): Account | null {
   return loadAccounts().accounts.find((a) => a.id === id) ?? null;
 }
@@ -250,6 +257,7 @@ export function deleteAccount(id: string): boolean {
   const account = accounts.find((a) => a.id === id);
   if (!account) return false;
   saveAccounts(accounts.filter((a) => a.id !== id));
+  deleteAccountCredits(id);
   saveSessions(loadSessions().filter((s) => s.accountId !== id));
   saveCodes(loadCodes().filter((c) => c.email !== account.email));
   return true;
@@ -271,7 +279,12 @@ export function purgeAuth(inactiveMonths: number, now = new Date()): { codes: nu
   const { accounts } = loadAccounts();
   const activeIds = new Set(keptSessions.map((s) => s.accountId));
   const keptAccounts = accounts.filter((a) => activeIds.has(a.id) || Date.parse(a.lastLoginAt) >= cutoff.getTime());
-  if (keptAccounts.length !== accounts.length) saveAccounts(keptAccounts);
+  if (keptAccounts.length !== accounts.length) {
+    saveAccounts(keptAccounts);
+    // Credits held by an account that is deleted for being unused are forfeited with it.
+    const kept = new Set(keptAccounts.map((a) => a.id));
+    for (const a of accounts) if (!kept.has(a.id)) deleteAccountCredits(a.id);
+  }
 
   return {
     codes: codes.length - keptCodes.length,

@@ -9,6 +9,7 @@ import { deleteUploads } from "../utils/uploadStore";
 import { deleteUserData, exportUserData } from "../utils/userData";
 import { adminOk } from "../utils/adminAuth";
 import { runRetention } from "../utils/retentionJob";
+import { creditsFor } from "../utils/creditStore";
 
 /**
  * "My data": export it, delete it, and delete one listing or fair of your own.
@@ -58,7 +59,10 @@ export default function registerMeRoute(app: Express) {
   app.get("/me/export", rateLimit(10), (req: Request, res: Response) => {
     const deviceId = callerDeviceId(req);
     if (!deviceId) return res.status(401).json({ ok: false, error: "Missing device id" });
-    res.json({ ok: true, data: exportUserData(deviceId) });
+    res.json({
+      ok: true,
+      data: { ...exportUserData(deviceId), ...(req.account ? { scanCredits: creditsFor(req.account.id) } : {}) },
+    });
   });
 
   // Needs an explicit confirm so a stray request cannot wipe someone.
