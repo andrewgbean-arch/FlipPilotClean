@@ -1,3 +1,4 @@
+import { formatMoney } from "@/features/vehicles/utils/vehicleStats";
 import { useLocalSearchParams, router } from "expo-router";
 import { useEffect, useState, useRef } from "react";
 import {
@@ -130,7 +131,7 @@ export default function ListingDetails() {
           {/* ⭐ Title */}
           <Text style={styles.title}>{listingName}</Text>
 
-          <Text style={styles.price}>£{listing.price}</Text>
+          <Text style={styles.price}>{formatMoney(Number(listing.price))}</Text>
 
           <Text style={styles.subMeta}>
             {categoryLabel(listing.category)}

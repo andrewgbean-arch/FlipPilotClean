@@ -1,3 +1,4 @@
+import { formatMoney } from "@/features/vehicles/utils/vehicleStats";
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -229,7 +230,7 @@ export default function MarketplaceHub() {
               </Text>
 
               <Text style={{ color: theme.text, marginTop: 4 }}>
-                £{listing.price}
+                {formatMoney(Number(listing.price))}
                 {listing.mileage != null ? ` • ${listing.mileage} miles` : ""}
                 {listing.vehicle?.mileage != null ? ` • ${listing.vehicle.mileage} miles` : ""}
               </Text>

@@ -1,3 +1,4 @@
+import { formatMoney } from "@/features/vehicles/utils/vehicleStats";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -286,7 +287,7 @@ export default function MyListings() {
                 {item.title ?? (`${item.vehicle?.make ?? ""} ${item.vehicle?.model ?? ""}`.trim() || "Untitled listing")}
               </Text>
               <Text style={{ color: theme.text, marginTop: 4 }}>
-                £{item.price}
+                {formatMoney(Number(item.price))}
               </Text>
 
               <View style={{ marginTop: 8 }}>

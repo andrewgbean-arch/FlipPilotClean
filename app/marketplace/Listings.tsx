@@ -1,3 +1,4 @@
+import { formatMoney } from "@/features/vehicles/utils/vehicleStats";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
@@ -70,7 +71,7 @@ const ListingCard = React.memo(function ListingCard({ item, theme }: { item: any
           <Text numberOfLines={2} style={titleStyle(theme)}>
             {title}
           </Text>
-          <Text style={priceStyle(theme)}>£{item.price}</Text>
+          <Text style={priceStyle(theme)}>{formatMoney(Number(item.price))}</Text>
           <Text numberOfLines={1} style={metaStyle(theme)}>
             {categoryLabel(item.category)}
             {item.condition ? ` • ${item.condition}` : ""}
@@ -97,7 +98,7 @@ const ListingCard = React.memo(function ListingCard({ item, theme }: { item: any
           <TouchableOpacity
             onPress={() => router.push(`/marketplace/${item.id}`)}
             accessibilityRole="button"
-            accessibilityLabel={`Look at ${title}, £${item.price}`}
+            accessibilityLabel={`Look at ${title}, ${formatMoney(Number(item.price))}`}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             style={lookStyle(theme)}
           >

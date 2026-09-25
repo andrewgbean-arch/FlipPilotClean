@@ -1,3 +1,4 @@
+import { formatMoney } from "@/features/vehicles/utils/vehicleStats";
 import { useLocalSearchParams, router } from "expo-router";
 import { useEffect, useState, useRef } from "react";
 import {
@@ -131,7 +132,7 @@ export default function PublicListing() {
         <GlowPulseCard style={{ marginTop: 10 }}>
           <Text style={styles.title}>{listingName}</Text>
 
-          <Text style={styles.price}>£{listing.price}</Text>
+          <Text style={styles.price}>{formatMoney(Number(listing.price))}</Text>
         </GlowPulseCard>
 
         {/* GALLERY */}
