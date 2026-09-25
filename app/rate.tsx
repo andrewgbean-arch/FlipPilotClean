@@ -7,16 +7,16 @@ import {
   StyleSheet,
   TextInput,
   Text,
+  Alert,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CheckCircle, Star } from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/styles/useTheme";
+import { describeApiError, sendFeedback } from "@/utils/api";
 import * as Haptics from "expo-haptics";
 
-const REVIEWS_KEY = "@flippilot_reviews";
 
 // A word for each rating, shown under the stars once one is chosen.
 const RATING_WORDS = ["Poor", "Fair", "Good", "Very good", "Excellent"];
@@ -98,16 +98,10 @@ export default function RateScreen() {
     if (rating === 0) return;
 
     try {
-      const existing = await AsyncStorage.getItem(REVIEWS_KEY);
-      const reviews = existing ? JSON.parse(existing) : [];
-      reviews.push({
-        rating,
-        reviewText,
-        date: new Date().toISOString(),
-      });
-      await AsyncStorage.setItem(REVIEWS_KEY, JSON.stringify(reviews));
+      await sendFeedback({ kind: "rating", rating, text: reviewText });
     } catch (e) {
-      console.log("Failed to save review", e);
+      Alert.alert("Couldn't send your rating", `${describeApiError(e)} Please try again.`);
+      return;
     }
 
     setThankYouOpen(true);

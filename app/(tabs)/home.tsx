@@ -8,10 +8,11 @@ import {
   Animated,
   Image,
   useWindowDimensions,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { describeApiError, sendFeedback as postFeedback } from "@/utils/api";
 import {
   Barcode,
   Camera,
@@ -135,15 +136,15 @@ export default function HomeScreen() {
     }
 
     try {
-      const existing = await AsyncStorage.getItem("@flippilot_feedback");
-      const items = existing ? JSON.parse(existing) : [];
-      items.push({ text: feedbackText, date: new Date().toISOString() });
-      await AsyncStorage.setItem("@flippilot_feedback", JSON.stringify(items));
+      await postFeedback({ kind: "feedback", text: feedbackText });
     } catch (e) {
-      console.log("Failed to save feedback", e);
+      // Keep what they wrote so they can try again.
+      Alert.alert("Couldn't send that", `${describeApiError(e)} What you wrote is still here.`);
+      return;
     }
 
     closeSheet();
+    Alert.alert("Thank you", "Your feedback has been sent.");
   };
 
   // ⭐ Stats. Profit comes from the same helper as History, so the two screens

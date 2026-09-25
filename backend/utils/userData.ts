@@ -13,6 +13,7 @@ import { deleteUploads, uploadsBy } from "./uploadStore";
 import { removeReadsFor } from "./readState";
 import { freeScanRecordFor } from "../middleware/freeScanLimit";
 import { advertReportsBy, anonymiseAdvertReportsBy } from "./advertStore";
+import { deleteFeedbackBy, feedbackBy } from "./feedbackStore";
 import { disconnect as disconnectEbay, isConnected as ebayConnected } from "../ebay/ebaySellAuth";
 
 /**
@@ -113,6 +114,7 @@ export function exportUserData(deviceId: string) {
     peopleYouHaveBlocked: blockCountFor(deviceId),
     freeScanCounter: freeScanRecordFor(deviceId),
     advertReports: advertReportsBy(deviceId),
+    feedbackYouSent: feedbackBy(deviceId),
     ebayAccountConnected: ebayConnected(deviceId),
     uploadedPhotos: uploadsBy(deviceId),
   };
@@ -170,6 +172,8 @@ export function deleteUserData(deviceId: string) {
   removeReadsFor(deviceId);
   const blocksRemoved = removeAllBlocksFor(deviceId);
   const reportsAnonymised = anonymiseReportsBy(deviceId) + anonymiseAdvertReportsBy(deviceId);
+  // What they typed into the Feedback box can hold anything, so it is removed, not just anonymised.
+  const feedbackRemoved = deleteFeedbackBy(deviceId);
 
   let ebayDisconnected = false;
   if (ebayConnected(deviceId)) {
@@ -187,6 +191,7 @@ export function deleteUserData(deviceId: string) {
     reviewsRemoved: reviewsBefore - store.reviews.length,
     blocksRemoved,
     reportsAnonymised,
+    feedbackRemoved,
     ebayDisconnected,
     photosRemoved,
   };

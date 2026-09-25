@@ -246,6 +246,12 @@ export async function identifyBarcode(barcode: string, signal?: AbortSignal) {
   );
 }
 
+// What someone tells us in the Feedback box or the star rating. Throws (with words to show) if it can't be sent.
+export async function sendFeedback(input: { kind: "feedback" | "rating"; rating?: number; text?: string }) {
+  const deviceId = await getDeviceId();
+  return request("/feedback", { method: "POST", body: { ...input, deviceId }, timeoutMs: 15_000 });
+}
+
 export async function identifyPhoto(imageBase64: string, signal?: AbortSignal) {
   assertImageFits(imageBase64);
   const deviceId = await getDeviceId();
