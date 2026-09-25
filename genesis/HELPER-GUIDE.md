@@ -15,8 +15,9 @@ Open **PowerShell** (no admin needed) and paste:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 cd "C:\Genesis\FlipPilotClean-claude-sweet-tesla-2k8hsa\genesis"
-Invoke-WebRequest "https://raw.githubusercontent.com/andrewgbean-arch/FlipPilotClean/claude/sweet-tesla-2k8hsa/genesis/fix-ollama.ps1" -OutFile fix-ollama.ps1
+Invoke-WebRequest "https://raw.githubusercontent.com/andrewgbean-arch/FlipPilotClean/claude/sweet-tesla-2k8hsa/genesis/fix-ollama.ps1" -OutFile fix-ollama.ps1 -UseBasicParsing
 .\fix-ollama.ps1
 ```
 

@@ -67,9 +67,11 @@ if ($detections.Count -gt 0) {
   Say "`n[2/5] Antivirus removed Ollama's engine before, so reinstalling alone may not stick." Cyan
   $answer = Read-Host "Add an exclusion for the Ollama folder to Windows Defender? This asks for admin permission. (y/n)"
   if ($answer -match "^[yY]") {
+    $escaped = $ollamaDir -replace "'", "''"   # a name like O'Brien would otherwise break the quoting
     try {
-      Start-Process powershell -Verb RunAs -Wait -ArgumentList "-NoProfile", "-Command", "Add-MpPreference -ExclusionPath '$ollamaDir'"
-      Say "Exclusion added for $ollamaDir" Green
+      $p = Start-Process powershell -Verb RunAs -Wait -PassThru -ArgumentList "-NoProfile", "-Command", "try { Add-MpPreference -ExclusionPath '$escaped' -ErrorAction Stop; exit 0 } catch { exit 1 }"
+      if ($p.ExitCode -eq 0) { Say "Exclusion added for $ollamaDir" Green }
+      else { Say "Windows Defender refused the exclusion (Tamper Protection or another antivirus may be in charge). Add it by hand; see the helper guide." Yellow }
     } catch { Say "Could not add the exclusion: $($_.Exception.Message)" Yellow }
   } else { Say "Skipped the exclusion." }
 } else {
@@ -97,7 +99,10 @@ if (-not $downloaded) {
   $log | Set-Content $report; Say "Report saved to $report"; exit 1
 }
 Say "Downloaded $([math]::Round((Get-Item $setup).Length / 1MB)) MB. Installing (a window may flash up)..."
-Start-Process $setup -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait
+# Not -Wait: in Windows PowerShell that also waits for every child process, and the installer
+# launches Ollama when it finishes, so the script would hang here for as long as Ollama runs.
+$installer = Start-Process $setup -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -PassThru
+if (-not $installer.WaitForExit(15 * 60 * 1000)) { Say "The installer is still running after 15 minutes; carrying on anyway." Yellow }
 Start-Sleep -Seconds 3
 Stop-Ollama   # the installer auto-starts it; restart cleanly below
 
@@ -116,8 +121,10 @@ Say "Ollama $version is running." Green
 $installed = @((Invoke-RestMethod "http://127.0.0.1:11434/api/tags").models | ForEach-Object { $_.name })
 Say "Installed models: $($installed -join ', ')"
 foreach ($m in @($model, "nomic-embed-text")) {
-  $base = $m.Split(":")[0]
-  if (-not ($installed | Where-Object { $_ -eq $m -or $_.Split(":")[0] -eq $base })) {
+  # Ollama lists names with their tag, and a name without one means ":latest".
+  # Compare whole names: having llama3.1:70b does not mean llama3.1:8b is there.
+  $full = if ($m -match ":") { $m } else { "${m}:latest" }
+  if ($installed -notcontains $full) {
     Say "Model $m is missing; downloading..." Yellow
     & (Join-Path $ollamaDir "ollama.exe") pull $m
   }
