@@ -20,6 +20,10 @@ export type CategoryField = {
   placeholder?: string;
   required?: boolean;
   multiline?: boolean;
+  /** A line under the box explaining why it is asked, or what happens to the answer. */
+  help?: string;
+  /** Capital letters, for things like a registration number. */
+  uppercase?: boolean;
 };
 
 export type MarketplaceCategory = {
@@ -336,10 +340,26 @@ export const MARKETPLACE_CATEGORIES: MarketplaceCategory[] = [
     legacy: ["Motors"],
     keywords: ["car", "van", "motorbike", "motorcycle", "motor", "vehicle", "caravan", "trailer", "scooter"],
     fields: [
+      {
+        key: "registration",
+        label: "Registration",
+        type: "text",
+        required: true,
+        placeholder: "e.g. AB12 CDE",
+        uppercase: true,
+        help: "We check it with the DVLA so buyers know it's a real car. Buyers never see your number plate.",
+      },
       { key: "make", label: "Make", type: "text", required: true, placeholder: "e.g. Ford" },
       { key: "model", label: "Model", type: "text", required: true, placeholder: "e.g. Fiesta" },
       { key: "year", label: "Year", type: "number", placeholder: "e.g. 2015" },
-      { key: "mileage", label: "Mileage", type: "number", placeholder: "e.g. 72000" },
+      {
+        key: "mileage",
+        label: "Mileage",
+        type: "number",
+        required: true,
+        placeholder: "e.g. 72000",
+        help: "Buyers can compare it with the car's MOT record.",
+      },
       { key: "fuel", label: "Fuel", type: "choice", options: ["Petrol", "Diesel", "Hybrid", "Electric", "Other"] },
       { key: "motExpiry", label: "MOT until", type: "text", placeholder: "e.g. March 2027" },
       { key: "serviceHistory", label: "Service history", type: "choice", options: ["Full", "Partial", "None"] },

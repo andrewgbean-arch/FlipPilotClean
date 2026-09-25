@@ -1,5 +1,6 @@
 import { freeScanCapEnabled } from "../middleware/freeScanLimit";
 import { accountRequired } from "../middleware/accountGuard";
+import { carCheckRequired } from "./carListing";
 
 /**
  * A list of what is still not set up for real customers, worked out from the
@@ -64,7 +65,9 @@ export function launchIssues(env: Env = process.env): LaunchIssue[] {
   if (!accountRequired()) {
     add("must", "REQUIRE_ACCOUNT", "Selling and messaging are open to anyone without signing in. It is on by default in production; remove REQUIRE_ACCOUNT=off.");
   }
-  if (!has(env, "DVLA_API_KEY")) {
+  if (!has(env, "DVLA_API_KEY") && carCheckRequired()) {
+    add("must", "DVLA_API_KEY", "Every car listing is checked against the DVLA. Without the key nobody can list a car (the check can't be made, so listings are refused).");
+  } else if (!has(env, "DVLA_API_KEY")) {
     add("should", "DVLA_API_KEY", "Vehicle number-plate lookups need it.");
   }
   if (has(env, "ADVERT_AI_REVIEW")) {

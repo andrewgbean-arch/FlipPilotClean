@@ -116,6 +116,14 @@ export function toPublicListing(listing: any): any {
   if (!listing || typeof listing !== "object") return listing;
   // soldToDeviceId is who the seller said bought it: what lets that one person
   // review, so like deviceId it never goes out.
-  const { sellerOrigin, deviceId, messages, soldToDeviceId, soldToThreadId, ...rest } = listing;
-  return { ...rest, status: listingStatus(listing) };
+  // dvlaCheck holds the car's registration, which is private: buyers only see that it was checked, and
+  // what the DVLA itself says about the car. creditsPaid is between the seller and us.
+  const { sellerOrigin, deviceId, messages, soldToDeviceId, soldToThreadId, dvlaCheck, creditsPaid, ...rest } = listing;
+  return {
+    ...rest,
+    ...(dvlaCheck?.dvla ? { vehicleCheck: { verified: true, checkedAt: dvlaCheck.checkedAt, ...dvlaCheck.dvla } } : {}),
+    // The car's MOT record (test dates, mileage at each, latest result): the government's own public data.
+    ...(dvlaCheck?.mot ? { motHistory: dvlaCheck.mot } : {}),
+    status: listingStatus(listing),
+  };
 }

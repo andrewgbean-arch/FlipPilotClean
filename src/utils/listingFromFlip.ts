@@ -42,6 +42,8 @@ export function listingFromFlip(flip: FlipRecord): ListingDraft {
   if (condition) details.condition = condition;
 
   if (category === "motors" && flip.mot) {
+    // The saved lookup already has the registration: no retyping it (it is checked, and never shown to buyers).
+    if (flip.mot.reg) details.registration = String(flip.mot.reg);
     if (flip.mot.make) details.make = String(flip.mot.make);
     if (flip.mot.model) details.model = String(flip.mot.model);
     if (flip.mot.year) details.year = String(flip.mot.year);

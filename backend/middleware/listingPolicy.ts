@@ -4,6 +4,7 @@ import { POLICY, promoActive } from "../config/marketplacePolicy";
 import { loadListings } from "../routes/publishedListings";
 import { listingStatus } from "../utils/listingStatus";
 import { allowedDeviceIds } from "./sellingGate";
+import { getBalance } from "../utils/creditStore";
 
 /**
  * Decides whether a device may post (or relist) another listing. Replaces the
@@ -20,16 +21,24 @@ import { allowedDeviceIds } from "./sellingGate";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export type PolicyRefusal = { status: number; body: { ok: false; error: string; message: string } };
+export type PolicyRefusal = {
+  status: number;
+  body: { ok: false; error: string; message: string; credits?: number; needed?: number };
+};
 
 /**
  * `excludeId` is the listing being relisted, so it does not count against
- * itself. Returns null when the listing is allowed.
+ * itself. `accountId` is who is signed in, whose credits pay for a car once the
+ * launch offer is over. Returns null when the listing is allowed.
+ *
+ * This only DECIDES: the credits themselves are taken when the listing is saved
+ * (see utils/carListing.ts), so a refused or failed listing never costs anything.
  */
 export function evaluatePolicy(
   deviceId: string,
   isCar: boolean,
-  excludeId?: string | number
+  excludeId?: string | number,
+  accountId?: string | null
 ): PolicyRefusal | null {
   // The phones the app is built and demonstrated on skip the limits, one by one.
   if (allowedDeviceIds().includes(deviceId)) {
@@ -72,15 +81,27 @@ export function evaluatePolicy(
 
   if (!promoActive()) {
     if (isCar) {
-      return {
-        status: 402,
-        body: {
-          ok: false,
-          error: "credits-required",
-          message: `Listing a car costs ${POLICY.carCreditCost} credits. Credits are coming soon.`,
-        },
-      };
+      if (!accountId) {
+        return {
+          status: 401,
+          body: { ok: false, error: "sign-in-required", message: "Please sign in with your email to list a car." },
+        };
+      }
+      const credits = getBalance(accountId);
+      if (credits < POLICY.carCreditCost) {
+        return {
+          status: 402,
+          body: {
+            ok: false,
+            error: "credits-required",
+            message: `Listing a car costs ${POLICY.carCreditCost} credits and you have ${credits}.`,
+            credits,
+            needed: POLICY.carCreditCost,
+          },
+        };
+      }
     }
+    if (isCar) return null;
     const liveItems = live.length - liveCars.length;
     if (liveItems >= POLICY.freeActiveItemsAfterPromo) {
       return {
@@ -116,7 +137,7 @@ export function listingPolicy(req: Request, res: Response, next: NextFunction) {
   // "abc " and "abc" can't be two sellers with two sets of limits.
   req.body.deviceId = deviceId;
 
-  const refusal = evaluatePolicy(deviceId, isCar);
+  const refusal = evaluatePolicy(deviceId, isCar, undefined, req.account?.id);
   if (refusal) return res.status(refusal.status).json(refusal.body);
 
   next();

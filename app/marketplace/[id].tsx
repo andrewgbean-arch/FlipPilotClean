@@ -20,6 +20,7 @@ import { BASE_URL } from "@/utils/api";
 import { categoryLabel, fieldsFor } from "@/constants/marketplaceCategories";
 import { BUYER_SAFETY_TIPS } from "@/utils/scamSafety";
 import SafetyCard from "@/components/marketplace/SafetyCard";
+import CarCheckCard from "@/components/marketplace/CarCheckCard";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -152,6 +153,9 @@ export default function ListingDetails() {
               ))}
             </GlowPulseCard>
           )}
+
+          {/* ⭐ What the DVLA and the MOT records say about a car */}
+          <CarCheckCard vehicleCheck={listing.vehicleCheck} motHistory={listing.motHistory} />
 
           {/* ⭐ Description */}
           {typeof listing.description === "string" && listing.description.trim() !== "" && (

@@ -9,6 +9,7 @@ import { requireAccount } from "../middleware/accountGuard";
 import { callerDeviceId } from "./messages";
 import { listingStatus } from "../utils/listingStatus";
 import { evaluatePolicy } from "../middleware/listingPolicy";
+import { payForCar } from "../utils/carListing";
 import { POLICY } from "../config/marketplacePolicy";
 
 /**
@@ -323,8 +324,15 @@ export default function registerSellersRoute(app: Express) {
         message: "This listing is still live. You can relist it once it has run out.",
       });
     }
-    const refusal = evaluatePolicy(caller, isCar, listing.id);
+    const refusal = evaluatePolicy(caller, isCar, listing.id, req.account?.id);
     if (refusal) return res.status(refusal.status).json(refusal.body);
+
+    // Another run of a car is another 30 days, so it costs the credits again (nothing during the launch offer).
+    if (isCar) {
+      const paid = payForCar(req.account, caller);
+      if (!paid.ok) return res.status(paid.status).json(paid.body);
+      listing.creditsPaid = (Number(listing.creditsPaid) || 0) + paid.charged;
+    }
 
     listing.listedAt = new Date().toISOString();
     listing.reservedAt = null;

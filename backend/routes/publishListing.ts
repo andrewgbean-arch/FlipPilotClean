@@ -3,8 +3,9 @@ import { loadListings, saveListings } from "./publishedListings";
 import { rateLimit } from "../middleware/rateLimit";
 import { requireAccount } from "../middleware/accountGuard";
 import { adminOk } from "../utils/adminAuth";
-import { listingPolicy } from "../middleware/listingPolicy";
+import { evaluatePolicy, listingPolicy } from "../middleware/listingPolicy";
 import { POLICY, promoActive, promoEndsAt } from "../config/marketplacePolicy";
+import { payForCar, refundCar, verifyCar, type StoredVehicle } from "../utils/carListing";
 import { RETENTION } from "../config/retention";
 import { readSellerOrigin, toPublicListing } from "../utils/sellerOrigin";
 import { ensureSeller } from "./sellers";
@@ -23,6 +24,8 @@ function cleanDetails(raw: unknown): Record<string, string> {
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     if (Object.keys(out).length >= 24) break;
     if (!/^[a-zA-Z][a-zA-Z0-9_]{0,31}$/.test(key)) continue;
+    // A car's registration is private (see utils/carListing.ts): it is checked and kept apart, never shown.
+    if (key.toLowerCase() === "registration") continue;
     if (typeof value !== "string" && typeof value !== "number") continue;
 
     const text = String(value).trim();
@@ -37,6 +40,31 @@ function nextListingId(): number {
   let id = Date.now();
   while (used.has(id)) id += 1;
   return id;
+}
+
+/**
+ * Everything a car has to pass before it is saved: the DVLA check, then (with nothing awaited between
+ * here and the save, so two requests can't both get through) the rules again and the credits.
+ * Returns what to answer with if it fails, or the checked vehicle and what was paid.
+ */
+async function passCar(
+  req: Request,
+  input: { registration: unknown; make: unknown; mileage?: unknown }
+): Promise<
+  | { ok: false; status: number; body: Record<string, unknown> }
+  | { ok: true; vehicle: StoredVehicle | null; paid: { charged: number; accountId: string | null } }
+> {
+  const deviceId = String(req.body.deviceId);
+  const checked = await verifyCar(input);
+  if (!checked.ok) return checked;
+
+  // The check took a moment: another request may have listed a car, or spent the credits, meanwhile.
+  const again = evaluatePolicy(deviceId, true, undefined, req.account?.id);
+  if (again) return { ok: false, status: again.status, body: again.body };
+
+  const paid = payForCar(req.account, deviceId);
+  if (!paid.ok) return paid;
+  return { ok: true, vehicle: checked.vehicle, paid };
 }
 
 export default function registerPublishListingRoute(app: Express) {
@@ -59,13 +87,24 @@ export default function registerPublishListingRoute(app: Express) {
   /* -------------------------------------------------------
      PUBLISH A FLIP (from marketplace/PublishFlip.tsx)
   ------------------------------------------------------- */
-  app.post("/publish-flip", rateLimit(10), requireAccount, listingPolicy, (req: Request, res: Response) => {
+  app.post("/publish-flip", rateLimit(10), requireAccount, listingPolicy, async (req: Request, res: Response) => {
     const { title, price, mileage, description, location, deviceId } = req.body;
 
     if (!title || !price || !description || !location) {
       return res.status(400).json({ ok: false, error: "Missing required fields" });
     }
 
+    // Every listing here is a car, so it is checked and paid for like one.
+    let car: Awaited<ReturnType<typeof passCar>>;
+    try {
+      car = await passCar(req, { registration: req.body.registration, make: req.body.make, mileage: req.body.mileage });
+    } catch (err: any) {
+      console.error("publish-flip car check failed:", err?.message);
+      return res.status(500).json({ ok: false, error: "server", message: "Something went wrong. You haven't been charged. Please try again." });
+    }
+    if (!car.ok) return res.status(car.status).json(car.body);
+
+    try {
     const listings = loadListings();
 
     const listing = {
@@ -81,19 +120,27 @@ export default function registerPublishListingRoute(app: Express) {
       soldAt: null,
       sellerOrigin: readSellerOrigin(req),
       createdAt: new Date().toISOString(),
-      messages: []
+      messages: [],
+      // Private: the checked registration, and what was paid.
+      dvlaCheck: car.vehicle ?? undefined,
+      creditsPaid: car.paid.charged,
     };
 
     listings.push(listing);
     saveListings(listings);
 
     res.json({ ok: true, listing: toPublicListing(listing) });
+    } catch (err: any) {
+      refundCar(car.paid);
+      console.error("publish-flip could not be saved:", err?.message);
+      res.status(500).json({ ok: false, error: "server", message: "Something went wrong. You haven't been charged. Please try again." });
+    }
   });
 
   /* -------------------------------------------------------
      CREATE A GENERAL LISTING (from marketplace/create/new.tsx)
   ------------------------------------------------------- */
-  app.post("/create-listing", rateLimit(10), requireAccount, listingPolicy, (req: Request, res: Response) => {
+  app.post("/create-listing", rateLimit(10), requireAccount, listingPolicy, async (req: Request, res: Response) => {
     const {
       title,
       price,
@@ -121,6 +168,19 @@ export default function registerPublishListingRoute(app: Express) {
     // else, such as a file path on the seller's phone, is dropped.
     const ownPhotos = ownedUploads(typeof deviceId === "string" ? deviceId : null, photos);
 
+    // A car (the Motors category) must be a real, registered car, and costs credits once the launch offer is over.
+    let car: Awaited<ReturnType<typeof passCar>> | null = null;
+    if (category.trim().toLowerCase() === POLICY.carCategory) {
+      try {
+        car = await passCar(req, { registration: details?.registration ?? req.body.registration, make: details?.make, mileage: details?.mileage });
+      } catch (err: any) {
+        console.error("create-listing car check failed:", err?.message);
+        return res.status(500).json({ ok: false, error: "server", message: "Something went wrong. You haven't been charged. Please try again." });
+      }
+      if (!car.ok) return res.status(car.status).json(car.body);
+    }
+
+    try {
     const listings = loadListings();
 
     const listing = {
@@ -146,13 +206,20 @@ export default function registerPublishListingRoute(app: Express) {
       // A private review flag. Stripped from everything the public can read.
       sellerOrigin: readSellerOrigin(req),
       createdAt: new Date().toISOString(),
-      messages: []
+      messages: [],
+      // Private: the checked registration, and what was paid (cars only).
+      ...(car && car.ok ? { dvlaCheck: car.vehicle ?? undefined, creditsPaid: car.paid.charged } : {}),
     };
 
     listings.push(listing);
     saveListings(listings);
 
     res.json({ ok: true, listing: mediaForListing(toPublicListing(listing), req) });
+    } catch (err: any) {
+      if (car && car.ok) refundCar(car.paid);
+      console.error("create-listing could not be saved:", err?.message);
+      res.status(500).json({ ok: false, error: "server", message: "Something went wrong. You haven't been charged. Please try again." });
+    }
   });
 
   /* -------------------------------------------------------

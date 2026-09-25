@@ -14,6 +14,7 @@ import registerUploadsRoute from "./routes/uploads";
 import registerMeRoute from "./routes/me";
 import registerAdvertsRoute from "./routes/adverts";
 import registerAuthRoutes from "./routes/auth";
+import { fetchMotHistory } from "./utils/dvsaMot";
 import registerCreditsRoutes from "./routes/credits";
 import registerCostsRoute from "./routes/costs";
 import { accountGuard } from "./middleware/accountGuard";
@@ -134,15 +135,10 @@ if (missingEbayBrowseEnv.length > 0) {
    the current API requires a bearer token from TOKEN_URL plus
    the x-api-key header. Token is cached until near expiry.
 ------------------------------------------------------- */
-let motTokenCache: { token: string; expiresAt: number } | null = null;
-
 // The base URLs can be overridden so the lookup can be tested against a local stand-in.
 const DVLA_URL =
   process.env.DVLA_API_URL ||
   "https://driver-vehicle-licensing.api.gov.uk/vehicle-enquiry/v1/vehicles";
-const MOT_URL =
-  process.env.MOT_API_URL ||
-  "https://history.mot.api.gov.uk/v1/trade/vehicles/registration";
 
 // A government service that hangs must not hang the app with it.
 const UPSTREAM_TIMEOUT_MS = 10_000;
@@ -153,49 +149,6 @@ function normaliseReg(input: unknown): string | null {
   if (typeof input !== "string" || !/^[A-Za-z0-9 -]{1,12}$/.test(input)) return null;
   const reg = input.toUpperCase().replace(/[^A-Z0-9]/g, "");
   return reg.length >= 1 && reg.length <= 8 ? reg : null;
-}
-
-async function getMotAccessToken(): Promise<string> {
-  if (motTokenCache && motTokenCache.expiresAt > Date.now() + 30_000) {
-    return motTokenCache.token;
-  }
-
-  const body = new URLSearchParams({
-    grant_type: "client_credentials",
-    client_id: process.env.CLIENT_ID!,
-    client_secret: process.env.CLIENT_SECRET!,
-    scope: process.env.SCOPE_URL!
-  });
-
-  const tokenRes = await axios.post(process.env.TOKEN_URL!, body.toString(), {
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    timeout: UPSTREAM_TIMEOUT_MS
-  });
-
-  const { access_token, expires_in } = tokenRes.data;
-  motTokenCache = {
-    token: access_token,
-    expiresAt: Date.now() + Number(expires_in ?? 3600) * 1000
-  };
-
-  return access_token;
-}
-
-async function fetchMotHistory(reg: string) {
-  const token = await getMotAccessToken();
-
-  const res = await axios.get(`${MOT_URL}/${encodeURIComponent(reg)}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "x-api-key": process.env.API_KEY!
-    },
-    timeout: UPSTREAM_TIMEOUT_MS,
-    // 400 = not a valid registration, 404 = no such vehicle: both mean "nothing to show", not "broken".
-    validateStatus: (status) => status === 200 || status === 400 || status === 404
-  });
-
-  if (res.status !== 200) return null;
-  return res.data;
 }
 
 type Lookup = { data: any; failed: boolean };

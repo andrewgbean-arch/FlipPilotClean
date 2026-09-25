@@ -239,6 +239,12 @@ export default function CreateNewListing() {
             { text: "Not now", style: "cancel" },
             { text: "Upgrade", onPress: () => router.push("/upgrade") },
           ]);
+        } else if (data?.error === "credits-required") {
+          // A car costs credits once the launch offer is over.
+          Alert.alert("You need more credits", data.message ?? "Listing a car needs credits.", [
+            { text: "Not now", style: "cancel" },
+            { text: "Get credits", onPress: () => router.push("/credits") },
+          ]);
         } else {
           Alert.alert("Couldn't publish", data?.message ?? "Please try again.");
         }
@@ -319,12 +325,15 @@ export default function CreateNewListing() {
           placeholder={f.placeholder ?? ""}
           placeholderTextColor={theme.muted}
           keyboardType={f.type === "number" ? "numeric" : "default"}
+          autoCapitalize={f.uppercase ? "characters" : undefined}
+          autoCorrect={f.uppercase ? false : undefined}
           multiline={f.multiline}
           style={[
             inputStyle,
             f.multiline ? { minHeight: 80, textAlignVertical: "top" as const } : null,
           ]}
         />
+        {f.help ? <Text style={{ color: theme.muted, fontSize: 12, lineHeight: 17, marginTop: 4 }}>{f.help}</Text> : null}
       </View>
     );
   };
