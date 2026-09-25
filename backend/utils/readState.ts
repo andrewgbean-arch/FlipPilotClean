@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { dataPath } from "../config/dataDir";
+import { dataPath, writeJsonAtomic } from "../config/dataDir";
 
 /**
  * What each device has looked at, so the app can tell a conversation with
@@ -29,7 +29,7 @@ function load(): Store {
 
 function save(store: Store) {
   fs.mkdirSync(path.dirname(FILE), { recursive: true });
-  fs.writeFileSync(FILE, JSON.stringify(store, null, 2));
+  writeJsonAtomic(FILE, store);
 }
 
 export const chatKey = (listingId: string | number, threadId: string) => `${listingId}:${threadId}`;

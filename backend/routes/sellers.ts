@@ -11,7 +11,7 @@ import { listingStatus } from "../utils/listingStatus";
 import { evaluatePolicy } from "../middleware/listingPolicy";
 import { payForCar } from "../utils/carListing";
 import { POLICY } from "../config/marketplacePolicy";
-import { dataPath } from "../config/dataDir";
+import { dataPath, writeJsonAtomic } from "../config/dataDir";
 
 /**
  * Seller reputation: when they joined, what they have sold, and what buyers
@@ -73,7 +73,7 @@ export function loadSellerStore(): SellerStore {
 }
 
 export function saveSellerStore(store: SellerStore) {
-  fs.writeFileSync(SELLERS_PATH, JSON.stringify(store, null, 2));
+  writeJsonAtomic(SELLERS_PATH, store);
 }
 
 /** A display name worth storing, or nothing. */
@@ -316,7 +316,8 @@ export default function registerSellersRoute(app: Express) {
       return res.status(409).json({ ok: false, error: "already-sold", message: "This one is already sold." });
     }
 
-    const isCar = listing.category === POLICY.carCategory || listing.type === "flip";
+    // Compared in lower case, as when it was listed: a listing stored as "Motors" is still a car.
+    const isCar = String(listing.category ?? "").toLowerCase() === POLICY.carCategory || listing.type === "flip";
     // Only counts as a new run if it has actually run out; relisting a live one would just waste credits.
     if (listingStatus(listing) !== "expired") {
       return res.status(409).json({

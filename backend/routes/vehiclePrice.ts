@@ -23,7 +23,8 @@ router.post("/vehicle-price", rateLimit(20), paidLookupBudget, async (req, res) 
       make: make.trim(),
       model: model.trim(),
       year: yearN,
-      mileage: Number.isFinite(Number(mileage)) ? Number(mileage) : null,
+      // Unknown mileage stays unknown: Number(null) is 0, which would price the car as brand new (+20%).
+      mileage: mileage === null || mileage === undefined || mileage === "" ? null : Number.isFinite(Number(mileage)) ? Number(mileage) : null,
       condition: (typeof condition === "string" && CONDITIONS.has(condition) ? condition : "good") as VehicleCondition,
       motAdvisoryCount: Number.isFinite(Number(motAdvisoryCount)) ? Number(motAdvisoryCount) : 0,
       motFailureCount: Number.isFinite(Number(motFailureCount)) ? Number(motFailureCount) : 0,

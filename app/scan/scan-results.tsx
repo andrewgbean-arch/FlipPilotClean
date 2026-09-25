@@ -181,6 +181,9 @@ export default function ScanResultsScreen() {
   const [savedId, setSavedId] = useState<string | null>(null);
   // A scan opens this screen after step 1 (what is it?); step 2 (what is it worth?) runs here.
   const [priceState, setPriceState] = useState<"ready" | "loading" | "failed">("ready");
+  // The first, automatic price lookup runs from a saved request that is deleted once it has finished. Anything after
+  // that (changing Condition or Age, correcting the name, "Try again") is a hand-made re-check that runs by itself.
+  const firstLookupDone = useRef(false);
   // The AI's identification can be too vague to price well ("White Bluetooth Speaker"
   // covers everything from a £10 mini speaker to a £150 one) — this lets the name be
   // corrected and the price looked up again against the better name.
@@ -225,8 +228,12 @@ export default function ScanResultsScreen() {
     const pendingId: string | undefined = data?.pendingId ?? undefined;
     if (!pendingId || priceState !== "loading") return;
 
+    // After the first lookup there is no saved request. A re-check in progress manages its own state, so it must not be marked failed here.
+    if (firstLookupDone.current) return;
+
     const request = getPending(pendingId);
     if (!request) {
+      firstLookupDone.current = true;
       setPriceState("failed");
       return;
     }
@@ -241,11 +248,13 @@ export default function ScanResultsScreen() {
         setBuyPrice((current) => current ?? next.ai.suggested_buy ?? null);
         setSellPrice((current) => current ?? next.ai.suggested_sell ?? null);
         setPriceState("ready");
+        firstLookupDone.current = true;
         dropPending(pendingId);
       })
       .catch((err) => {
         if (controller.signal.aborted) return;
         console.log("Price lookup failed:", err);
+        firstLookupDone.current = true;
         setPriceState("failed");
       });
 
@@ -691,7 +700,7 @@ export default function ScanResultsScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Try the price check again"
                 style={({ pressed }) => [styles.retryButton, { borderColor: theme.hairline }, pressed && styles.pressed]}
-                onPress={() => setPriceState("loading")}
+                onPress={() => recheckPrice({})}
               >
                 <Text style={[styles.secondaryLabel, { color: theme.text }]}>Try again</Text>
               </Pressable>

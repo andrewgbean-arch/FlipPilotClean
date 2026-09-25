@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
-import { dataPath } from "../config/dataDir";
+import { dataPath, writeJsonAtomic } from "../config/dataDir";
 
 /**
  * Photos people attach to listings and boot fairs.
@@ -41,7 +41,7 @@ function loadRegistry(): Registry {
 
 function saveRegistry(registry: Registry) {
   fs.mkdirSync(path.dirname(REGISTRY_PATH), { recursive: true });
-  fs.writeFileSync(REGISTRY_PATH, JSON.stringify(registry, null, 2));
+  writeJsonAtomic(REGISTRY_PATH, registry);
 }
 
 /** The real file type from the first bytes, not from anything the client said. */

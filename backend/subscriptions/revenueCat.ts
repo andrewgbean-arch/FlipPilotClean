@@ -23,15 +23,18 @@ const REVENUECAT_SECRET_KEY = process.env.REVENUECAT_SECRET_KEY;
 // so this cache just stops a device hammering the endpoint while capped from
 // causing a RevenueCat call on every single retry.
 const CACHE_TTL_MS = 5 * 60 * 1000;
+// A "not Pro" answer is only remembered briefly, so someone who has just bought Pro isn't kept out for minutes.
+const NOT_PRO_TTL_MS = 60 * 1000;
 const cache = new Map<string, { isPro: boolean; checkedAt: number }>();
 
 export async function isProSubscriber(deviceId: string): Promise<boolean> {
   if (!REVENUECAT_SECRET_KEY) return false;
 
   const cached = cache.get(deviceId);
-  if (cached && Date.now() - cached.checkedAt < CACHE_TTL_MS) return cached.isPro;
+  if (cached && Date.now() - cached.checkedAt < (cached.isPro ? CACHE_TTL_MS : NOT_PRO_TTL_MS)) return cached.isPro;
 
   let isPro = false;
+  let answered = true;
   try {
     const res = await axios.get(
       `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(deviceId)}`,
@@ -44,9 +47,11 @@ export async function isProSubscriber(deviceId: string): Promise<boolean> {
     // or never opened the app with purchases available) - not Pro either way.
     console.log("RevenueCat subscriber check failed:", err?.response?.status ?? err?.message);
     isPro = false;
+    // Only a definite "RevenueCat has never seen this person" (404) is remembered. A timeout or a 5xx says nothing.
+    answered = err?.response?.status === 404;
   }
 
-  cache.set(deviceId, { isPro, checkedAt: Date.now() });
+  if (answered) cache.set(deviceId, { isPro, checkedAt: Date.now() });
   return isPro;
 }
 

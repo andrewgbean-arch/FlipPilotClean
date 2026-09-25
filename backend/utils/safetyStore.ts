@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { dataPath } from "../config/dataDir";
+import { dataPath, writeJsonAtomic } from "../config/dataDir";
 
 /**
  * Blocks and reports for the marketplace.
@@ -58,13 +58,13 @@ export function addBlock(blocker: string, target: string) {
   const list = blocks[blocker] ?? [];
   if (!list.includes(target)) list.push(target);
   blocks[blocker] = list;
-  fs.writeFileSync(BLOCKS_PATH, JSON.stringify(blocks, null, 2));
+  writeJsonAtomic(BLOCKS_PATH, blocks);
 }
 
 export function removeBlock(blocker: string, target: string) {
   const blocks = loadBlocks();
   blocks[blocker] = (blocks[blocker] ?? []).filter((t) => t !== target);
-  fs.writeFileSync(BLOCKS_PATH, JSON.stringify(blocks, null, 2));
+  writeJsonAtomic(BLOCKS_PATH, blocks);
 }
 
 /** Everything block-related that names this device: their own list, and their id on anyone else's. */
@@ -81,7 +81,7 @@ export function removeAllBlocksFor(deviceId: string): number {
       touched++;
     }
   }
-  fs.writeFileSync(BLOCKS_PATH, JSON.stringify(blocks, null, 2));
+  writeJsonAtomic(BLOCKS_PATH, blocks);
   return touched;
 }
 
@@ -107,7 +107,7 @@ export function anonymiseReportsBy(deviceId: string): number {
       changed++;
     }
   }
-  if (changed > 0) fs.writeFileSync(REPORTS_PATH, JSON.stringify(reports, null, 2));
+  if (changed > 0) writeJsonAtomic(REPORTS_PATH, reports);
   return changed;
 }
 
@@ -115,7 +115,7 @@ export function purgeReportsBefore(cutoff: Date): number {
   const reports = loadReports();
   const kept = reports.filter((r) => Date.parse(r.createdAt) >= cutoff.getTime());
   if (kept.length !== reports.length) {
-    fs.writeFileSync(REPORTS_PATH, JSON.stringify(kept, null, 2));
+    writeJsonAtomic(REPORTS_PATH, kept);
   }
   return reports.length - kept.length;
 }
@@ -128,5 +128,5 @@ export function loadReports(): Report[] {
 export function addReport(report: Report) {
   const reports = loadReports();
   reports.push(report);
-  fs.writeFileSync(REPORTS_PATH, JSON.stringify(reports, null, 2));
+  writeJsonAtomic(REPORTS_PATH, reports);
 }

@@ -11,7 +11,7 @@ export async function setReserved(id: string | number, reserved: boolean): Promi
     { method: "POST", headers: { "Content-Type": "application/json", "x-device-id": deviceId }, body: "{}" }
   );
   const data = await res.json().catch(() => null);
-  if (!data?.ok) throw new Error(data?.error ?? "Couldn't update the listing.");
+  if (!data?.ok) throw new Error(data?.message ?? data?.error ?? "Couldn't update the listing.");
   return data.status as ListingStatus;
 }
 
@@ -81,5 +81,5 @@ export async function askToReserve(id: string | number): Promise<void> {
     }),
   });
   const data = await res.json().catch(() => null);
-  if (!data?.ok) throw new Error(data?.error ?? "Couldn't send your request.");
+  if (!data?.ok) throw new Error(data?.message ?? data?.error ?? "Couldn't send your request.");
 }

@@ -6,7 +6,7 @@ import { requireAccount } from "../middleware/accountGuard";
 import { callerDeviceId } from "./messages";
 import { mediaForFair } from "../utils/media";
 import { ownedUploads } from "../utils/uploadStore";
-import { dataPath } from "../config/dataDir";
+import { dataPath, writeJsonAtomic } from "../config/dataDir";
 
 const FAIRS_PATH = dataPath("fairs.json");
 
@@ -16,12 +16,13 @@ export function loadFairs(): any[] {
     const parsed = JSON.parse(fs.readFileSync(FAIRS_PATH, "utf8"));
     return Array.isArray(parsed) ? parsed : [];
   } catch {
-    return [];
+    // A file that can't be read is left alone for someone to repair: treating it as empty would let the next save wipe every fair.
+    throw new Error("fairs.json could not be read");
   }
 }
 
 export function saveFairs(fairs: any[]) {
-  fs.writeFileSync(FAIRS_PATH, JSON.stringify(fairs, null, 2));
+  writeJsonAtomic(FAIRS_PATH, fairs);
 }
 
 // Required to create a fair. Anything else the client sends is either

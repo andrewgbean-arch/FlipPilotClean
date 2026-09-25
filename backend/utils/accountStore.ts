@@ -42,7 +42,16 @@ export type Account = {
   createdAt: string;
   lastLoginAt: string;
 };
-type LoginCode = { email: string; codeHash: string; salt: string; expiresAt: number; attempts: number; sends: number[] };
+type LoginCode = {
+  email: string;
+  codeHash: string;
+  salt: string;
+  expiresAt: number;
+  attempts: number;
+  sends: number[];
+  /** Locked (too many wrong tries) or used. It can't be checked any more, but its send history is kept so the hourly cap holds. */
+  spent?: boolean;
+};
 type Session = { tokenHash: string; accountId: string; createdAt: string; lastUsedAt: string; expiresAt: number };
 
 /* ------------------------------ storage ------------------------------ */
@@ -133,12 +142,23 @@ export function issueCode(email: string, now = Date.now()): { code: string } | {
 export type CodeResult = { ok: true } | { ok: false; reason: "wrong" | "expired" | "locked"; attemptsLeft?: number };
 
 /** Checks a code. Right: it is used up. Wrong five times: it is burned and a new one is needed. */
+/** The email for a code could not be sent: take the code back so it doesn't use up the person's wait or hourly allowance. */
+export function cancelIssuedCode(email: string): void {
+  const codes = loadCodes();
+  const record = codes.find((c) => c.email === email && !c.spent);
+  if (!record) return;
+  record.sends = record.sends.slice(0, -1);
+  saveCodes(record.sends.length > 0 ? codes.map((c) => (c === record ? { ...record, spent: true } : c)) : codes.filter((c) => c !== record));
+}
+
 export function checkCode(email: string, code: unknown, now = Date.now()): CodeResult {
   const codes = loadCodes();
   const record = codes.find((c) => c.email === email);
-  if (!record) return { ok: false, reason: "expired" };
+  if (!record || record.spent) return { ok: false, reason: "expired" };
   if (record.expiresAt <= now) {
-    saveCodes(codes.filter((c) => c !== record));
+    // Kept (as spent), not deleted: its send history is what enforces the hourly cap on new codes.
+    record.spent = true;
+    saveCodes(codes);
     return { ok: false, reason: "expired" };
   }
   const given = typeof code === "string" ? code.trim() : "";
@@ -147,12 +167,14 @@ export function checkCode(email: string, code: unknown, now = Date.now()): CodeR
     crypto.timingSafeEqual(Buffer.from(hashCode(given, record.salt)), Buffer.from(record.codeHash));
 
   if (right) {
-    saveCodes(codes.filter((c) => c !== record));
+    record.spent = true;
+    saveCodes(codes);
     return { ok: true };
   }
   record.attempts += 1;
   if (record.attempts >= MAX_WRONG_TRIES) {
-    saveCodes(codes.filter((c) => c !== record));
+    record.spent = true;
+    saveCodes(codes);
     return { ok: false, reason: "locked" };
   }
   saveCodes(codes);

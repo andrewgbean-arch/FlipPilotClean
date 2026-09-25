@@ -6,7 +6,7 @@ import { blockedBy } from "../utils/safetyStore";
 import { mediaForListing } from "../utils/media";
 import { listingStatus } from "../utils/listingStatus";
 import { boostedAtMs, isBoosted } from "../utils/boost";
-import { dataPath } from "../config/dataDir";
+import { dataPath, writeJsonAtomic } from "../config/dataDir";
 
 const LISTINGS_PATH = dataPath("published-listings.json");
 
@@ -16,7 +16,7 @@ export function loadListings(): any[] {
 }
 
 export function saveListings(listings: any[]) {
-  fs.writeFileSync(LISTINGS_PATH, JSON.stringify(listings, null, 2));
+  writeJsonAtomic(LISTINGS_PATH, listings);
 }
 
 export default function registerPublishedListingsRoute(app: Express) {

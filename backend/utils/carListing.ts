@@ -56,13 +56,25 @@ const dateUK = (iso: string) => new Date(iso).toLocaleDateString("en-GB", { day:
 
 const letters = (s: string) => s.toUpperCase().replace(/[^A-Z]/g, "");
 
-/** The seller says "Toyota" and the DVLA says the plate is on a Ford. "VW" for "VOLKSWAGEN" is fine. */
-function makesConflict(seller: unknown, dvlaMake: string | null): boolean {
+/** What people write for a make the DVLA spells differently (letters only, upper case). Keyed by the DVLA's make. */
+const MAKE_ALIASES: Record<string, string[]> = {
+  LANDROVER: ["RANGEROVER", "DISCOVERY", "DEFENDER", "FREELANDER", "EVOQUE", "VELAR"],
+  MERCEDESBENZ: ["MERCEDES", "MERC", "AMG"],
+  VOLKSWAGEN: ["VW"],
+  ROLLSROYCE: ["ROLLS"],
+  ALFAROMEO: ["ALFA"],
+  ASTONMARTIN: ["ASTON"],
+  VAUXHALL: ["OPEL"],
+};
+
+/** The seller says "Toyota" and the DVLA says the plate is on a Ford. "VW" for "VOLKSWAGEN" and "Range Rover" for "LAND ROVER" are fine. */
+export function makesConflict(seller: unknown, dvlaMake: string | null): boolean {
   if (typeof seller !== "string" || !dvlaMake) return false;
   const a = letters(seller);
   const b = letters(dvlaMake);
   if (a.length < 4 || !b) return false;
-  return !a.includes(b) && !b.includes(a);
+  if (a.includes(b) || b.includes(a)) return false;
+  return !(MAKE_ALIASES[b] ?? []).some((alias) => a.includes(alias));
 }
 
 /**

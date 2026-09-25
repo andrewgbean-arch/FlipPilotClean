@@ -2,7 +2,7 @@ import axios from "axios";
 import fs from "fs";
 import path from "path";
 import { decryptJson, encryptJson, encryptionConfigured } from "../utils/secretBox";
-import { dataPath } from "../config/dataDir";
+import { dataPath, writeJsonAtomic } from "../config/dataDir";
 
 /* --------------------------------------------------
    ⭐ eBay Seller OAuth (authorization-code grant)
@@ -93,7 +93,7 @@ function saveStore(store: Record<string, StoredTokens>) {
     encrypted[deviceId] = encryptJson(tokens);
   }
   fs.mkdirSync(path.dirname(STORE_FILE), { recursive: true });
-  fs.writeFileSync(STORE_FILE, JSON.stringify(encrypted, null, 2));
+  writeJsonAtomic(STORE_FILE, encrypted);
 }
 
 function basicAuthHeader() {

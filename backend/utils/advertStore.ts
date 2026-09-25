@@ -2,7 +2,7 @@ import { randomBytes } from "crypto";
 import fs from "fs";
 import path from "path";
 import type { AiReview } from "./advertReview";
-import { dataPath } from "../config/dataDir";
+import { dataPath, writeJsonAtomic } from "../config/dataDir";
 
 /**
  * Paid adverts, booked by hand by whoever runs FlipPilot.
@@ -112,7 +112,7 @@ export function loadAdverts(): Advert[] {
 
 export function saveAdverts(adverts: Advert[]) {
   fs.mkdirSync(path.dirname(ADVERTS_PATH), { recursive: true });
-  fs.writeFileSync(ADVERTS_PATH, JSON.stringify(adverts, null, 2));
+  writeJsonAtomic(ADVERTS_PATH, adverts);
 }
 
 const ms = (iso: string) => new Date(iso).getTime();

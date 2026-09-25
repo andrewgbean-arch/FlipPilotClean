@@ -31,5 +31,16 @@ export const DATA_DIR_IS_CONFIGURED = Boolean(configured);
 // Several stores write without making the folder first, so a brand-new disk must not be missing it.
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
+/**
+ * Saves JSON so a crash or a full disk can never leave a half-written file: it is written to a temporary file
+ * first and then renamed over the real one (a rename is all-or-nothing).
+ */
+export function writeJsonAtomic(file: string, data: unknown): void {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
+  fs.renameSync(tmp, file);
+}
+
 /** A file inside the data folder. */
 export const dataPath = (...parts: string[]): string => path.join(DATA_DIR, ...parts);

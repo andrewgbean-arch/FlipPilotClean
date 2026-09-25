@@ -170,7 +170,7 @@ export async function deleteAccount(): Promise<{ ok: true } | { ok: false; messa
   if (!token) return { ok: false, message: "You're not signed in." };
   try {
     const { json } = await post("/auth/delete-account", { confirm: "DELETE" }, token);
-    if (!json?.ok) return { ok: false, message: json?.error ?? "Couldn't delete your account. Please try again." };
+    if (!json?.ok) return { ok: false, message: json?.message ?? json?.error ?? "Couldn't delete your account. Please try again." };
     await forgetSession();
     return { ok: true };
   } catch {

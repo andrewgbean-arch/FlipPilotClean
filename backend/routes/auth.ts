@@ -1,6 +1,7 @@
 import { Express, Request, Response } from "express";
 import { rateLimit } from "../middleware/rateLimit";
 import {
+  cancelIssuedCode,
   checkCode,
   createSession,
   deleteAccount,
@@ -57,6 +58,7 @@ export default function registerAuthRoutes(app: Express) {
       await sendLoginCode(email, issued.code);
     } catch (err: any) {
       console.error("sending a sign-in code failed:", err?.message ?? err);
+      cancelIssuedCode(email);
       return res.status(503).json({ ok: false, error: "email-unavailable", message: "We couldn't send the code just now. Please try again in a few minutes." });
     }
     res.json({ ok: true, ...(devEcho() ? { devCode: issued.code } : {}) });

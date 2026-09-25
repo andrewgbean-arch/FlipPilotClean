@@ -1,3 +1,4 @@
+import "./utils/asyncErrors";
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -305,10 +306,21 @@ app.get("/vehicle", rateLimit(30), async (req, res) => {
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   const error = err instanceof Error ? err : new Error("Unknown error");
 
-  console.error("Unhandled error:", error.message);
-  res.status(500).json({
+  // A request the server could not even read (bad JSON, a body over the limit) is the caller's mistake: 4xx, not 500.
+  const given = Number((err as any)?.status ?? (err as any)?.statusCode);
+  const status = Number.isInteger(given) && given >= 400 && given < 500 ? given : 500;
+
+  if (status === 500) console.error("Unhandled error:", error.message);
+  res.status(status).json({
     ok: false,
-    error: process.env.NODE_ENV === "production" ? "Something went wrong." : error.message
+    error:
+      status === 413
+        ? "That request is too large."
+        : status < 500
+        ? "That request couldn't be read."
+        : process.env.NODE_ENV === "production"
+        ? "Something went wrong."
+        : error.message
   });
 });
 

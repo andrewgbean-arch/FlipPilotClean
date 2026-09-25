@@ -73,7 +73,7 @@ export async function uploadPhotos(uris: string[]): Promise<string[]> {
       });
       const data = await res.json().catch(() => null);
       if (!data?.ok || typeof data.path !== "string") {
-        throw new Error(data?.error ?? "A photo couldn't be uploaded.");
+        throw new Error(data?.message ?? data?.error ?? "A photo couldn't be uploaded.");
       }
       out.push(data.path);
     } catch (err: any) {

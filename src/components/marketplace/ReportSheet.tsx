@@ -69,7 +69,7 @@ export default function ReportSheet({ visible, onClose, listingId, advertId, thr
       const data = await res.json().catch(() => null);
 
       if (!data?.ok) {
-        Alert.alert("Couldn't send the report", data?.error ?? "Please try again.");
+        Alert.alert("Couldn't send the report", data?.message ?? data?.error ?? "Please try again.");
         return;
       }
       setPicked(null);

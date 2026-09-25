@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { dataPath } from "../config/dataDir";
+import { dataPath, writeJsonAtomic } from "../config/dataDir";
 
 /* --------------------------------------------------
    Free tier: 5 AI lookups (barcode + photo combined) per calendar week, per
@@ -33,7 +33,7 @@ function load(): Store {
 }
 
 function save(store: Store) {
-  fs.writeFileSync(FILE, JSON.stringify(store, null, 2));
+  writeJsonAtomic(FILE, store);
 }
 
 /** This device's counter, for a data export. */

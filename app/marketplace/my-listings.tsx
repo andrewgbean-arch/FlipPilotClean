@@ -86,7 +86,7 @@ export default function MyListings() {
       const data = await res.json().catch(() => null);
 
       if (!data?.ok) {
-        Alert.alert("Couldn't mark it sold", data?.error ?? "Please try again.");
+        Alert.alert("Couldn't mark it sold", data?.message ?? data?.error ?? "Please try again.");
         return;
       }
 

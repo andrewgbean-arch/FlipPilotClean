@@ -192,7 +192,7 @@ export default function MessagesScreen() {
         setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
       } else {
         setDraft(text);
-        Alert.alert("Couldn't send", data?.error ?? "Please try again.");
+        Alert.alert("Couldn't send", data?.message ?? data?.error ?? "Please try again.");
       }
     } catch (err) {
       setDraft(text);
@@ -212,7 +212,7 @@ export default function MessagesScreen() {
       });
       const data = await res.json().catch(() => null);
       if (!data?.ok) {
-        Alert.alert("Couldn't do that", data?.error ?? "Please try again.");
+        Alert.alert("Couldn't do that", data?.message ?? data?.error ?? "Please try again.");
         return;
       }
       setBlocked(block);
