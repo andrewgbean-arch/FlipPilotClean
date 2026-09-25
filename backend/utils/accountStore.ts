@@ -184,6 +184,27 @@ const usableDeviceId = (id: unknown): id is string =>
  * account already owns it; otherwise it is given a fresh secret one. An EXISTING account keeps
  * the id it already has: that is what a phone adopts when signing in again.
  */
+/* ------------------------------------------------------------------
+   Retired ids. When an account is deleted (by the person, or because nobody used it for two years) its device
+   id is retired for good: nobody can adopt it again. Otherwise a new account could take the same id and be
+   handed the purchases, listings and history that were tied to it. Only a one-way fingerprint of each id is
+   kept, so this holds no usable id.
+------------------------------------------------------------------ */
+const RETIRED_PATH = path.join(DIR, "retiredDeviceIds.json");
+const fingerprint = (id: string) => crypto.createHash("sha256").update(id).digest("hex");
+
+function loadRetired(): Set<string> {
+  return new Set(readJson<{ retired: string[] }>(RETIRED_PATH, { retired: [] }).retired ?? []);
+}
+
+function retireDeviceId(id: string) {
+  const retired = loadRetired();
+  retired.add(fingerprint(id));
+  writeJsonAtomic(RETIRED_PATH, { retired: [...retired] });
+}
+
+export const isRetiredDeviceId = (id: string): boolean => loadRetired().has(fingerprint(id));
+
 export function findOrCreateAccount(email: string, currentDeviceId: unknown, now = new Date()): { account: Account; isNew: boolean } {
   const { accounts, byDevice } = loadAccounts();
   const found = accounts.find((a) => a.email === email);
@@ -193,7 +214,7 @@ export function findOrCreateAccount(email: string, currentDeviceId: unknown, now
     return { account: found, isNew: false };
   }
   const canonical =
-    usableDeviceId(currentDeviceId) && !byDevice.has(currentDeviceId)
+    usableDeviceId(currentDeviceId) && !byDevice.has(currentDeviceId) && !isRetiredDeviceId(currentDeviceId)
       ? currentDeviceId
       : crypto.randomBytes(24).toString("hex");
   const account: Account = {
@@ -257,6 +278,7 @@ export function deleteAccount(id: string): boolean {
   const { accounts } = loadAccounts();
   const account = accounts.find((a) => a.id === id);
   if (!account) return false;
+  retireDeviceId(account.canonicalDeviceId);
   saveAccounts(accounts.filter((a) => a.id !== id));
   deleteAccountCredits(id);
   saveSessions(loadSessions().filter((s) => s.accountId !== id));
@@ -284,7 +306,11 @@ export function purgeAuth(inactiveMonths: number, now = new Date()): { codes: nu
     saveAccounts(keptAccounts);
     // Credits held by an account that is deleted for being unused are forfeited with it.
     const kept = new Set(keptAccounts.map((a) => a.id));
-    for (const a of accounts) if (!kept.has(a.id)) deleteAccountCredits(a.id);
+    for (const a of accounts) {
+      if (kept.has(a.id)) continue;
+      retireDeviceId(a.canonicalDeviceId);
+      deleteAccountCredits(a.id);
+    }
   }
 
   return {

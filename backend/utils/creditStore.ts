@@ -62,6 +62,29 @@ function record(row: Row, entry: CreditEntry) {
 const whole = (n: unknown): number | null => (typeof n === "number" && Number.isInteger(n) && n >= 1 ? n : null);
 
 /** What the person can spend. Never below zero: a refund after credits were used leaves a debt that the next purchase pays off first. */
+/* ------------------------------------------------------------------
+   Purchases already paid out. The record of what an account was paid lives in the account's own row, which is
+   deleted with the account, so on its own it can't stop a purchase being paid out twice. This list is kept
+   apart and never deleted with an account: only RevenueCat's opaque purchase ids, nothing about who.
+------------------------------------------------------------------ */
+const CLAIMS_FILE = dataPath("creditClaims.json");
+
+function loadClaims(): Set<string> {
+  if (!fs.existsSync(CLAIMS_FILE)) return new Set();
+  try {
+    return new Set(JSON.parse(fs.readFileSync(CLAIMS_FILE, "utf8")).paid ?? []);
+  } catch {
+    throw new Error("creditClaims.json could not be read");
+  }
+}
+
+function saveClaims(claims: Set<string>) {
+  fs.mkdirSync(path.dirname(CLAIMS_FILE), { recursive: true });
+  const tmp = `${CLAIMS_FILE}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify({ paid: [...claims] }));
+  fs.renameSync(tmp, CLAIMS_FILE);
+}
+
 export function getBalance(accountId: string): number {
   return Math.max(0, load()[accountId]?.balance ?? 0);
 }
@@ -108,9 +131,17 @@ export function grant(
   const store = load();
   const row = rowOf(store, accountId);
   if (ref && row.ledger.some((e) => isGrant(e) && e.ref === ref)) return { ok: true, balance: row.balance, duplicate: true };
+  // A purchase (never a gift) that has been paid out to ANY account, even one since deleted, is never paid out again.
+  const claims = reason === "purchase" && ref ? loadClaims() : null;
+  if (claims && ref && claims.has(ref)) return { ok: true, balance: Math.max(0, row.balance), duplicate: true };
   row.balance += n;
   row.granted += n;
   record(row, { at: new Date().toISOString(), delta: n, reason, ...(ref ? { ref } : {}), ...(txn ? { txn } : {}) });
+  // Written before the balance, so a crash between the two can only ever lose a grant, never repeat one.
+  if (claims && ref) {
+    claims.add(ref);
+    saveClaims(claims);
+  }
   save(store);
   return { ok: true, balance: Math.max(0, row.balance) };
 }
