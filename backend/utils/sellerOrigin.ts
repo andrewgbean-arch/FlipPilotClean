@@ -1,5 +1,6 @@
 import type { Request } from "express";
 import { listingStatus } from "./listingStatus";
+import { isBoosted } from "./boost";
 
 /**
  * Where a listing looks like it was posted from — as a private review flag,
@@ -125,5 +126,7 @@ export function toPublicListing(listing: any): any {
     // The car's MOT record (test dates, mileage at each, latest result): the government's own public data.
     ...(dvlaCheck?.mot ? { motHistory: dvlaCheck.mot } : {}),
     status: listingStatus(listing),
+    // True only while the paid week is running on a live listing. Shown to buyers as "Promoted".
+    ...(isBoosted(listing) ? { promoted: true } : {}),
   };
 }

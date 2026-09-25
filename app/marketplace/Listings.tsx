@@ -82,6 +82,11 @@ const ListingCard = React.memo(function ListingCard({ item, theme }: { item: any
 
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
           <View style={{ flexDirection: "row", gap: 6, flexShrink: 1 }}>
+            {item.promoted === true && (
+              <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, backgroundColor: theme.goldDeep }}>
+                <Text style={{ color: theme.black, fontSize: 10, fontWeight: "700" }}>Promoted</Text>
+              </View>
+            )}
             {isSponsored && (
               <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, backgroundColor: theme.goldDeep }}>
                 <Text style={{ color: theme.black, fontSize: 10, fontWeight: "700" }}>Sponsored</Text>

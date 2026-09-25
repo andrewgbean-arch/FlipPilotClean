@@ -80,6 +80,8 @@ export default function registerPublishListingRoute(app: Express) {
       maxActiveCars: POLICY.maxActiveCarsPerSeller,
       freeActiveItemsAfterPromo: POLICY.freeActiveItemsAfterPromo,
       carCreditCost: POLICY.carCreditCost,
+      boostCreditCost: POLICY.boostCreditCost,
+      boostDays: POLICY.boostDays,
       listingDays: RETENTION.listingDays,
     });
   });

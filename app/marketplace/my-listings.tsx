@@ -20,7 +20,8 @@ import { getDeviceId } from "@/utils/deviceId";
 import { shareListing } from "@/utils/shareListing";
 import { exportListingToEbay } from "@/utils/ebayExport";
 import { deleteMyListing } from "@/utils/myData";
-import { relistListing, setReserved } from "@/utils/listingActions";
+import { BoostError, boostListing, fetchBoostTerms, relistListing, setReserved } from "@/utils/listingActions";
+import { fetchScanAllowance } from "@/lib/credits";
 import StatusBadge from "@/components/marketplace/StatusBadge";
 
 type SoldThread = { threadId: string; lastMessage: string };
@@ -131,6 +132,53 @@ export default function MyListings() {
     } finally {
       setMarkingId(null);
     }
+  };
+
+  // A boost puts the listing at the top of the feed, labelled Promoted, for a week. It costs credits, so the
+  // price and the balance are shown first and nothing is taken until it is confirmed.
+  const boost = async (item: any) => {
+    const terms = await fetchBoostTerms();
+    if (!terms) {
+      Alert.alert("Couldn't check the price", "Please check your connection and try again.");
+      return;
+    }
+    const credits = (await fetchScanAllowance())?.credits ?? 0;
+    if (credits < terms.cost) {
+      Alert.alert("You need more credits", `A boost costs ${terms.cost} credits and you have ${credits}.`, [
+        { text: "Not now", style: "cancel" },
+        { text: "Get credits", onPress: () => router.push("/credits") },
+      ]);
+      return;
+    }
+    Alert.alert(
+      "Boost this listing?",
+      `It goes to the top of the feed for ${terms.days} days, labelled "Promoted". It costs ${terms.cost} credits and you have ${credits}. It can't be undone, so if it sells sooner the rest of the boost is not refunded.`,
+      [
+        { text: "Not now", style: "cancel" },
+        {
+          text: `Boost (${terms.cost} credits)`,
+          onPress: async () => {
+            setMarkingId(item.id);
+            try {
+              const result = await boostListing(item.id);
+              setListings((prev) => prev.map((l) => (l.id === item.id ? { ...l, promoted: true, boostedUntil: result.boostedUntil } : l)));
+              Alert.alert("Boosted", `It's at the top of the feed until ${new Date(result.boostedUntil).toLocaleDateString("en-GB", { day: "numeric", month: "long" })}.`);
+            } catch (err: any) {
+              if (err instanceof BoostError && err.code === "credits-required") {
+                Alert.alert("You need more credits", err.message, [
+                  { text: "Not now", style: "cancel" },
+                  { text: "Get credits", onPress: () => router.push("/credits") },
+                ]);
+              } else {
+                Alert.alert("Couldn't boost it", err?.message ?? "Please check your connection and try again.");
+              }
+            } finally {
+              setMarkingId(null);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const confirmDelete = (item: any) =>
@@ -244,6 +292,11 @@ export default function MyListings() {
               <View style={{ marginTop: 8 }}>
                 <StatusBadge status={item.status ?? (item.soldAt ? "sold" : null)} long />
               </View>
+              {item.promoted && item.boostedUntil ? (
+                <Text style={{ color: theme.goldDeep, fontSize: 12, fontWeight: "700", marginTop: 6 }}>
+                  Promoted until {new Date(item.boostedUntil).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                </Text>
+              ) : null}
 
               {/* Expired: just Relist. Sold is final, so none. */}
               {item.status === "expired" && !item.soldAt ? (
@@ -272,6 +325,26 @@ export default function MyListings() {
                 </View>
               ) : item.soldAt || item.status === "sold" ? null : (
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+                  {!item.promoted ? (
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityLabel="Boost this listing to the top of the feed"
+                      disabled={markingId === item.id}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        boost(item);
+                      }}
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 999,
+                        backgroundColor: theme.goldDeep,
+                        opacity: markingId === item.id ? 0.6 : 1,
+                      }}
+                    >
+                      <Text style={{ color: theme.black, fontWeight: "800", fontSize: 13 }}>Boost</Text>
+                    </TouchableOpacity>
+                  ) : null}
                   <TouchableOpacity
                     accessibilityRole="button"
                     accessibilityLabel={

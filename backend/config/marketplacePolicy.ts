@@ -21,6 +21,10 @@ export const POLICY = {
   maxNewListingsPerDay: Number(process.env.MAX_NEW_LISTINGS_PER_DAY) || 30,
   /** What a car listing will cost in credits once the offer is over. */
   carCreditCost: 25,
+  /** A boost puts one of your listings at the top of the feed, labelled Promoted, for this many days... */
+  boostDays: 7,
+  /** ...for this many credits. */
+  boostCreditCost: 10,
   /** Category id used for cars (see src/constants/marketplaceCategories.ts). */
   carCategory: "motors",
 } as const;

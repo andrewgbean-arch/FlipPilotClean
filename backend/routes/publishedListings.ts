@@ -5,6 +5,7 @@ import { toPublicListing } from "../utils/sellerOrigin";
 import { blockedBy } from "../utils/safetyStore";
 import { mediaForListing } from "../utils/media";
 import { listingStatus } from "../utils/listingStatus";
+import { boostedAtMs, isBoosted } from "../utils/boost";
 
 const LISTINGS_PATH = path.join(__dirname, "../data/published-listings.json");
 
@@ -30,6 +31,15 @@ export default function registerPublishedListingsRoute(app: Express) {
         // A listing that has run its 30 days is no longer for sale. Its owner still
         // sees it in "my listings" and can relist it.
         .filter((l: any) => listingStatus(l) !== "expired")
+        // Newest first, except that a boosted listing (see routes/boost.ts) goes to the top for the week it paid
+        // for, the most recent boost first. Nothing else is ever moved.
+        .sort((a: any, b: any) => {
+          const boostA = isBoosted(a);
+          const boostB = isBoosted(b);
+          if (boostA !== boostB) return boostA ? -1 : 1;
+          if (boostA && boostB) return boostedAtMs(b) - boostedAtMs(a);
+          return (Date.parse(b.listedAt ?? b.createdAt) || 0) - (Date.parse(a.listedAt ?? a.createdAt) || 0);
+        })
         .map((l: any) => mediaForListing(toPublicListing(l), req))
     );
   });
