@@ -42,17 +42,20 @@ export class ApiError extends Error {
   readonly kind: ApiErrorKind;
   readonly status?: number;
   readonly retryAfter?: number;
+  /** For a scan allowance that has run out: signing in could let them use credits they already hold. */
+  readonly needsSignIn?: boolean;
 
   constructor(
     kind: ApiErrorKind,
     message: string,
-    extra: { status?: number; retryAfter?: number } = {}
+    extra: { status?: number; retryAfter?: number; needsSignIn?: boolean } = {}
   ) {
     super(message);
     this.name = "ApiError";
     this.kind = kind;
     this.status = extra.status;
     this.retryAfter = extra.retryAfter;
+    this.needsSignIn = extra.needsSignIn;
   }
 }
 
@@ -135,13 +138,13 @@ async function request(path: string, options: RequestOptions = {}): Promise<any>
     // The free-scan weekly cap answers with 200 and this specific error too, but
     // gets its own kind so the screen can offer an Upgrade button instead of a
     // plain toast (see freeScanLimit in the backend).
-    if (payload.error === "free-scan-limit") {
+    if (payload.error === "free-scan-limit" || payload.error === "out-of-credits") {
       throw new ApiError(
         "quota",
         typeof payload.message === "string" && payload.message
           ? payload.message
           : "You've used your free scans this week.",
-        { status: res.status }
+        { status: res.status, needsSignIn: payload.signedIn === false }
       );
     }
 

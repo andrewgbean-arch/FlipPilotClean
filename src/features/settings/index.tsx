@@ -11,11 +11,12 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import Constants from "expo-constants";
 import {
   BookOpen,
   CaretRight,
+  Coins,
   CreditCard,
   Crown,
   DownloadSimple,
@@ -42,6 +43,7 @@ import { getSellerName, setSellerName, SELLER_NAME_MAX } from "@/utils/sellerNam
 import { LEGAL } from "@/constants/legal";
 import { deleteMyData, exportMyData } from "@/utils/myData";
 import { deleteAccount, signOut, useAccount } from "@/lib/account";
+import { fetchScanAllowance, type ScanAllowance } from "@/lib/credits";
 import { openPartnerLink } from "@/utils/partnerLinks";
 
 /* SMALL LOCAL COMPONENTS */
@@ -198,6 +200,18 @@ export default function SettingsScreen() {
   };
 
   const account = useAccount();
+
+  // Free scans left and credit balance, refreshed each time this screen is shown or the account changes.
+  const [allowance, setAllowance] = useState<ScanAllowance | null>(null);
+  useFocusEffect(
+    React.useCallback(() => {
+      let live = true;
+      fetchScanAllowance().then((a) => live && setAllowance(a));
+      return () => {
+        live = false;
+      };
+    }, [account.email])
+  );
 
   const confirmSignOut = () => {
     Alert.alert("Sign out?", "Your listings and messages stay safe on your account. Sign back in any time with your email.", [
@@ -483,9 +497,19 @@ export default function SettingsScreen() {
         {/* ACCOUNT */}
         <SectionTitle>Account</SectionTitle>
         <View style={[styles.group, card]}>
+          {allowance?.metering ? (
+            <InfoRow
+              Icon={Coins}
+              title="Scans"
+              subtitle={
+                `${allowance.freeLeft} of ${allowance.freeLimit} free scans left this week` +
+                (allowance.signedIn ? `, and ${allowance.credits} scan credit${allowance.credits === 1 ? "" : "s"}` : "")
+              }
+            />
+          ) : null}
           {account.email ? (
             <>
-              <InfoRow Icon={UserCircle} title="Signed in" subtitle={account.email} />
+              <InfoRow Icon={UserCircle} title="Signed in" subtitle={account.email} divider={!!allowance?.metering} />
               <MenuRow
                 Icon={SignOut}
                 title="Sign out"
@@ -507,6 +531,7 @@ export default function SettingsScreen() {
               title="Sign in or create an account"
               subtitle="Needed to sell, message and report. Just your email, no password"
               onPress={() => router.push("/sign-in")}
+              divider={!!allowance?.metering}
             />
           )}
         </View>

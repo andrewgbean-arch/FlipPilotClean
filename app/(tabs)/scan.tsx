@@ -21,6 +21,7 @@ import { Barcode, Camera, CameraRotate, Check, Flashlight } from "phosphor-react
 
 import { useTheme } from "@/styles/ThemeContext";
 import { ApiError, describeApiError, identifyBarcode, identifyPhoto } from "@/utils/api";
+import { showQuotaAlert } from "@/utils/quotaAlert";
 import { putPending } from "@/utils/pendingScan";
 import { photoForUpload } from "@/utils/photo";
 import { SCAN_AGAIN_EVENT, transformIdentity } from "@/utils/scanTransform";
@@ -294,13 +295,9 @@ export default function ScanScreen() {
 
     console.log(label, err);
 
-    // The weekly free-scan cap is a sales moment, not just an error: offer the
-    // upgrade screen directly instead of a toast the user can miss.
+    // Running out of scans is a moment to help, not just an error (see showQuotaAlert).
     if (err instanceof ApiError && err.kind === "quota") {
-      Alert.alert("You're out of free scans", err.message, [
-        { text: "Not now", style: "cancel" },
-        { text: "Upgrade", onPress: () => router.push("/upgrade") },
-      ]);
+      showQuotaAlert(err, router);
       return;
     }
 

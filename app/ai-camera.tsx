@@ -16,6 +16,7 @@ import {
 } from "react-native";
 
 import { ApiError, describeApiError, identifyPhoto } from "@/utils/api";
+import { showQuotaAlert } from "@/utils/quotaAlert";
 import { putPending } from "@/utils/pendingScan";
 import { photoForUpload } from "@/utils/photo";
 import { normalizeConfidence, transformIdentity } from "@/utils/scanTransform";
@@ -236,13 +237,9 @@ export default function AiCameraScreen() {
       if (!controller.signal.aborted) {
         console.log("AI camera error:", err);
 
-        // The weekly free-scan cap is a sales moment, not just an error: offer
-        // the upgrade screen directly instead of a plain failure alert.
+        // Running out of scans is a moment to help, not just an error (see showQuotaAlert).
         if (err instanceof ApiError && err.kind === "quota") {
-          Alert.alert("You're out of free scans", err.message, [
-            { text: "Not now", style: "cancel" },
-            { text: "Upgrade", onPress: () => router.push("/upgrade") },
-          ]);
+          showQuotaAlert(err, router);
         } else {
           Alert.alert("Scan failed", describeApiError(err));
         }
