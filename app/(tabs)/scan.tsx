@@ -17,6 +17,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import type { BarcodeSettings } from "expo-camera";
 import * as Haptics from "expo-haptics";
 import { router, useFocusEffect, useIsFocused } from "expo-router";
+import ScanAllowancePill from "@/components/ScanAllowancePill";
 import { Barcode, Camera, CameraRotate, Check, Flashlight } from "phosphor-react-native";
 
 import { useTheme } from "@/styles/ThemeContext";
@@ -494,6 +495,9 @@ export default function ScanScreen() {
           />
         )}
 
+        {/* SCANS LEFT */}
+        <ScanAllowancePill style={styles.allowance} />
+
         {/* TOP RIGHT BUTTONS */}
         <View style={styles.topRight}>
           <Pressable
@@ -703,6 +707,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1,
     marginBottom: 20,
+  },
+
+  allowance: {
+    position: "absolute",
+    top: 48,
+    left: 20,
+    zIndex: 20,
   },
 
   topRight: {

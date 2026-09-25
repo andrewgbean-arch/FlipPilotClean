@@ -947,6 +947,16 @@ export default function ScanResultsScreen() {
             <Text style={[styles.savedText, { color: theme.muted }]}>
               This flip is now in your History and Home dashboard
             </Text>
+            {savedId ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Sell this on the marketplace"
+                hitSlop={8}
+                onPress={() => router.push(`/marketplace/create/new?fromFlip=${encodeURIComponent(savedId)}`)}
+              >
+                <Text style={[styles.savedText, { color: theme.goldDeep, fontWeight: "700" }]}>Sell it</Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
 
