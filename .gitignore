@@ -48,3 +48,6 @@ backend/.env
 backend/data/*.json
 
 backend/data/uploads/
+
+# Compiled backend (npm run build): built on the host, never committed.
+backend/dist/
