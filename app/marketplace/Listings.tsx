@@ -115,6 +115,9 @@ export default function Listings() {
 
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  // A failed load must not look like "nothing is for sale".
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [search, setSearch] = useState("");
   // Arriving from a category tile opens that category, instead of ignoring it.
   const [category, setCategory] = useState<string>(
@@ -122,18 +125,32 @@ export default function Listings() {
   );
 
   useEffect(() => {
+    let live = true;
+    setLoading(true);
+    setLoadError(false);
     // Sending who you are lets the server leave out sellers you've blocked.
     getDeviceId()
       .then((deviceId) =>
         fetch(`${BASE_URL}/published-listings`, { headers: { "x-device-id": deviceId } })
       )
-      .then((res) => (res.ok ? res.json() : []))
+      .then((res) => {
+        if (!res.ok) throw new Error("bad-status");
+        return res.json();
+      })
       .then((data) => {
+        if (!live) return;
         setListings(Array.isArray(data) ? data : []);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
-  }, []);
+      .catch(() => {
+        if (!live) return;
+        setLoadError(true);
+        setLoading(false);
+      });
+    return () => {
+      live = false;
+    };
+  }, [reloadKey]);
 
   const filtered = useMemo(() => {
     return (listings || [])
@@ -270,7 +287,18 @@ export default function Listings() {
       keyExtractor={keyExtractor}
       ListHeaderComponent={header}
       ListEmptyComponent={
-        !loading ? (
+        loadError ? (
+          <View style={{ marginTop: 20, gap: 10 }}>
+            <Text style={{ color: theme.text }}>Couldn't load the listings. Check your connection and try again.</Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              onPress={() => setReloadKey((k) => k + 1)}
+              style={{ alignSelf: "flex-start", borderWidth: 1, borderColor: theme.goldDeep, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 16 }}
+            >
+              <Text style={{ color: theme.goldDeep, fontWeight: "700" }}>Try again</Text>
+            </TouchableOpacity>
+          </View>
+        ) : !loading ? (
           <Text style={{ color: theme.text, marginTop: 20 }}>No listings match your filters.</Text>
         ) : null
       }
