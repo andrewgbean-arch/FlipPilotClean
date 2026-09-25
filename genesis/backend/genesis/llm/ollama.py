@@ -20,7 +20,8 @@ class OllamaClient:
         self.base_url = base_url.rstrip("/")
         self._model = model
         self.fallback_models = fallback_models or []
-        self._http = httpx.Client(base_url=self.base_url, timeout=httpx.Timeout(timeout, connect=5.0))
+        # trust_env=False: Ollama is local, so a system proxy (common on Windows) must never intercept it.
+        self._http = httpx.Client(base_url=self.base_url, timeout=httpx.Timeout(timeout, connect=5.0), trust_env=False)
         self._models_cache: tuple[float, list[str]] | None = None
 
     # ------------------------------------------------------------------ models
@@ -153,7 +154,7 @@ class OllamaClient:
 class OllamaEmbedder:
     def __init__(self, base_url: str, model: str, timeout: float = 60.0):
         self.model_name = model
-        self._http = httpx.Client(base_url=base_url.rstrip("/"), timeout=httpx.Timeout(timeout, connect=5.0))
+        self._http = httpx.Client(base_url=base_url.rstrip("/"), timeout=httpx.Timeout(timeout, connect=5.0), trust_env=False)
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         if not texts:

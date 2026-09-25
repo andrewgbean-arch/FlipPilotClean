@@ -156,13 +156,15 @@ OFFLINE_REPLY = (
 
 
 def offline_reply(error: str, model: str) -> str:
-    if "not found" in error:
+    detail = f" (Technical detail: {error.strip()[:240]})"
+    low = error.lower()
+    if "model" in low and "not found" in low:
         return (
             f"I'm here, but my language model ({model}) isn't installed yet, so I can't think properly. "
             f"Run `ollama pull {model}` (and `ollama pull nomic-embed-text` for memory search), then say hello again. "
-            "I've still saved what you said, and I'll remember it."
+            "I've still saved what you said, and I'll remember it." + detail
         )
-    return OFFLINE_REPLY
+    return OFFLINE_REPLY + detail
 
 
 class ConversationEngine:
