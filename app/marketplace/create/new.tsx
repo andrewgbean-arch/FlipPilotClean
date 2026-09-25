@@ -21,6 +21,7 @@ import AnimatedHeroHeader from "../../../src/components/ui/AnimatedHeroHeader";
 import SparklesOverlay from "../../../src/components/ui/SparklesOverlay";
 
 import { identifyPhoto, BASE_URL } from "../../../src/utils/api";
+import { showQuotaAlert } from "../../../src/utils/quotaAlert";
 import { uploadPhotos } from "../../../src/utils/uploadPhotos";
 import { getDeviceId } from "../../../src/utils/deviceId";
 import { deviceRegionHints } from "../../../src/utils/deviceRegion";
@@ -67,6 +68,7 @@ export default function CreateNewListing() {
 
   const [photos, setPhotos] = useState<string[]>(draft?.photos ?? []);
   const [analyzing, setAnalyzing] = useState(false);
+  const [filledFromPhoto, setFilledFromPhoto] = useState(false);
   const [suggested, setSuggested] = useState<MarketplaceCategory | null>(null);
   const [publishing, setPublishing] = useState(false);
   // photo address on this phone -> where the server saved it
@@ -117,12 +119,13 @@ export default function CreateNewListing() {
 
     if (result.canceled) return;
 
-    const uri = result.assets[0].uri;
-    const isFirst = photos.length === 0;
-    setPhotos((prev) => [...prev, uri]);
+    setPhotos((prev) => [...prev, result.assets[0].uri]);
+  };
 
-    // The first photo is the one we read, to fill in what we can.
-    if (!isFirst) return;
+  // Reading the photo costs a scan (a free one, or a credit), so it only happens when asked for.
+  const fillFromPhoto = async () => {
+    const uri = photos[0];
+    if (!uri || analyzing) return;
 
     setAnalyzing(true);
     try {
@@ -131,7 +134,11 @@ export default function CreateNewListing() {
       // Marketplace screens must not touch eBay-derived prices.
       const identified = await identifyPhoto(base64);
       const analysis = identified?.ok ? identified : null;
-      if (!analysis) return;
+      if (!analysis) {
+        Alert.alert("Couldn't read the photo", identified?.message ?? "Nothing was used. You can fill the form in yourself.");
+        return;
+      }
+      setFilledFromPhoto(true);
 
       if (!title.trim() && analysis.title) setTitle(String(analysis.title));
 
@@ -149,8 +156,10 @@ export default function CreateNewListing() {
           ?.options?.find((o) => o.toLowerCase() === named);
         if (match) setDetail("condition", match);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.log("Photo analysis error:", err);
+      if (err?.needsSignIn || err?.needsCredits) showQuotaAlert(err, router);
+      else Alert.alert("Couldn't read the photo", err?.message ?? "Nothing was used. You can fill the form in yourself.");
     } finally {
       setAnalyzing(false);
     }
@@ -435,11 +444,32 @@ export default function CreateNewListing() {
             <Text style={{ color: theme.goldDeep, fontSize: 28 }}>+</Text>
           </TouchableOpacity>
         </ScrollView>
-        <Text style={{ color: theme.muted, fontSize: 12, marginBottom: 18 }}>
+        <Text style={{ color: theme.muted, fontSize: 12, marginBottom: photos.length > 0 && !filledFromPhoto ? 10 : 18 }}>
           {photos.length > 0
             ? "Press and hold a photo to remove it."
             : "The first one is what buyers see in the list."}
         </Text>
+
+        {photos.length > 0 && !filledFromPhoto && !analyzing && (
+          <TouchableOpacity
+            onPress={fillFromPhoto}
+            accessibilityRole="button"
+            accessibilityLabel="Fill in the category, title and condition from the first photo. Uses one scan."
+            style={{
+              alignSelf: "flex-start",
+              borderWidth: 1,
+              borderColor: theme.goldDeep,
+              borderRadius: 999,
+              paddingVertical: 8,
+              paddingHorizontal: 14,
+              marginBottom: 18,
+            }}
+          >
+            <Text style={{ color: theme.goldDeep, fontWeight: "700", fontSize: 13 }}>
+              Fill in from my photo · uses 1 scan
+            </Text>
+          </TouchableOpacity>
+        )}
 
         {analyzing && (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16 }}>

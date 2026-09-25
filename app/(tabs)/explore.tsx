@@ -52,15 +52,15 @@ const FEATURES: Feature[] = [
     Icon: CurrencyGbp,
     emoji: "💰",
     title: "Market Check",
-    desc: "See real resale value.",
+    desc: "See what similar items are listed for.",
     category: "Market Tools",
     premium: true,
     content: `
-Shows real eBay sold prices, trends, and demand.
+Shows live eBay asking prices for similar items, and how many were found. These are asking prices, not confirmed sales, so real sale prices are usually a little lower.
 
 Pro Tips:
-• Look for consistent sales  
-• Avoid low sell‑through items  
+• Look for lots of similar listings at similar prices  
+• Be wary when only one or two listings turn up  
 • Compare condition carefully  
 `,
   },
@@ -127,15 +127,16 @@ Pro Tips:
     Icon: Lightning,
     emoji: "⚡",
     title: "Supernova AI Pricing",
-    desc: "True market value.",
+    desc: "Your scan's price estimate.",
     category: "AI Tools",
     premium: true,
     content: `
-Predicts true market value using AI.
+Your scan works out what an item is worth from live listings, with an AI cross-check when there are few of them.
 
 Pro Tips:
 • Use after scanning  
-• Compare predicted vs real sold prices  
+• Treat it as a guide, not a promise  
+• Check eBay's sold filter yourself before a big buy  
 `,
   },
   {

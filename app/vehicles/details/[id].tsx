@@ -460,7 +460,7 @@ export default function VehicleDetails() {
       value: `${formatMoney(market?.googlePriceMin)} – ${formatMoney(market?.googlePriceMax)}`,
     });
   }
-  if (market?.soldCount != null) marketRows.push({ label: "Sold count", value: String(market.soldCount) });
+  if (market?.soldCount != null) marketRows.push({ label: "Live listings found", value: String(market.soldCount) });
   const showMarketConfidence = aiConfidence != null;
   const hasMarket = demandScore != null || marketRows.length > 0 || showMarketConfidence;
 

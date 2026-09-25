@@ -385,10 +385,10 @@ export default function FlipDetails() {
     });
   }
   if (soldCount != null) {
-    marketRows.push({ label: "Sold count", value: String(soldCount) });
+    marketRows.push({ label: "Live listings found", value: String(soldCount) });
   }
   if (demandScore != null) {
-    marketRows.push({ label: "Demand score", value: `${demandScore}%` });
+    marketRows.push({ label: "Listing activity", value: `${demandScore}%` });
   }
   if (aiPriceMin != null && aiPriceMax != null) {
     marketRows.push({
