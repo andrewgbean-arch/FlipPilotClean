@@ -282,9 +282,6 @@ export default function MessagesInbox() {
       renderItem={({ item }) => <Row item={item} theme={theme} />}
       ListHeaderComponent={
         <View>
-          <Text style={{ color: theme.goldDeep, fontSize: 28, fontWeight: "900", marginBottom: 14 }}>
-            Messages
-          </Text>
           <MessagesBanner />
           <SavedSponsors theme={theme} />
         </View>

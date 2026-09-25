@@ -53,10 +53,7 @@ export default function MarketplaceHub() {
       >
       {/* HERO */}
       <View style={{ padding: 20, alignItems: "center" }}>
-        <Text style={{ color: theme.goldDeep, fontSize: 28, fontWeight: "900" }}>
-          Marketplace
-        </Text>
-        <Text style={{ color: theme.text, fontSize: 14, marginTop: 4 }}>
+        <Text style={{ color: theme.text, fontSize: 14 }}>
           Buy and sell with people nearby
         </Text>
       </View>

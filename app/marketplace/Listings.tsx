@@ -215,9 +215,6 @@ export default function Listings() {
   // rebuild it and close the keyboard.
   const header = (
     <View>
-      <Text style={{ color: theme.goldDeep, fontSize: 30, fontWeight: "900", marginBottom: 6 }}>
-        Listings
-      </Text>
       <Text style={{ color: theme.text, marginBottom: 16 }}>
         Browse all public marketplace listings
       </Text>
