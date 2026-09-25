@@ -11,6 +11,8 @@ export type PriceRequest = {
   packCount?: number | null;
   condition?: string | null;
   imageBase64?: string | null;
+  /** Proof from the identify step that this scan happened; the server refuses a price lookup without it. */
+  scanToken?: string | null;
 };
 
 const pending = new Map<string, PriceRequest>();

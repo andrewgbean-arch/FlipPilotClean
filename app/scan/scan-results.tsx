@@ -300,6 +300,7 @@ export default function ScanResultsScreen() {
           condition: nextConditionLabel ?? null,
           grade: nextGrade,
           age: nextAge,
+          scanToken: data?.scanToken ?? null,
         },
         controller.signal
       );

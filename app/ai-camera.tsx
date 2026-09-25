@@ -225,6 +225,7 @@ export default function AiCameraScreen() {
         packCount: id.packCount ?? null,
         condition: id.condition ?? null,
         imageBase64: upload,
+        scanToken: id.scanToken ?? null,
       });
       const payload = transformIdentity(id, { imageUri: photo.uri, pendingId });
 

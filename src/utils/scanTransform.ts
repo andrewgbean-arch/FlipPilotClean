@@ -83,6 +83,8 @@ export const transformIdentity = (
   aiPriceConfidence: null,
   image: options.imageUri ?? input?.image ?? null,
   pendingId: options.pendingId ?? null,
+  // Sent back with every price lookup for this scan.
+  scanToken: input?.scanToken ?? null,
 });
 
 // Step 2 ("what is it worth?"): fold the price lookup into the result already on screen.

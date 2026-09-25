@@ -7,7 +7,9 @@ import { getEbayAccessToken } from "../market-backend/ebayBrowseApi";
 import type { AgeBand, Grade } from "../market-backend/priceModel";
 import { paidLookupBudget } from "../middleware/dailyBudget";
 // What a lookup costs (5 free a week, then scan credits): on in production, off in development (see scanMeter).
-import { scanMeter } from "../middleware/scanMeter";
+import { callerDevice, scanMeter } from "../middleware/scanMeter";
+import { requireScanToken } from "../middleware/requireScanToken";
+import { issueScanToken } from "../utils/scanToken";
 import { rateLimit } from "../middleware/rateLimit";
 import { askVision, DESCRIBE_PROMPT, IDENTIFY_PROMPT } from "./searchImage";
 import { buildAiBlock, fetchOpenFoodFacts } from "./search";
@@ -129,6 +131,8 @@ router.get("/identify-barcode", rateLimit(30), scanMeter, paidLookupBudget, asyn
     recordScan("barcode");
     return res.json({
       ok: true,
+      // Proof for the price step that this scan happened (see utils/scanToken.ts).
+      scanToken: issueScanToken(callerDevice(req) ?? ""),
       barcode: code,
       title: identity.title,
       image: identity.image,
@@ -161,6 +165,7 @@ router.post("/identify-image", rateLimit(6), scanMeter, paidLookupBudget, async 
     const packCount = Number(identified.packCount);
     return res.json({
       ok: true,
+      scanToken: issueScanToken(callerDevice(req) ?? ""),
       title: String(identified.title),
       packCount: Number.isFinite(packCount) && packCount >= 1 ? Math.round(packCount) : null,
       condition: identified.condition ?? null,
@@ -186,7 +191,8 @@ const gradeOf = (condition: unknown) => {
   return /like new/i.test(c) ? "perfect" : /poor/i.test(c) ? "poor" : /fair/i.test(c) ? "poor" : "good";
 };
 
-router.post("/price", rateLimit(30), paidLookupBudget, async (req, res) => {
+// The price step needs the token the identify step handed out, so it can't be used on its own as a free price service.
+router.post("/price", rateLimit(30), requireScanToken, paidLookupBudget, async (req, res) => {
   try {
     const { title, packCount, condition, barcode, imageBase64, grade, age } = req.body ?? {};
     if (!title || typeof title !== "string") return res.json({ error: "Missing title" });

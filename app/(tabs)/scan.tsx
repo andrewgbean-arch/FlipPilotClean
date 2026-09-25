@@ -355,6 +355,7 @@ export default function ScanScreen() {
         title: id.title,
         barcode: id.barcode ?? data,
         packCount: id.packCount ?? null,
+        scanToken: id.scanToken ?? null,
       });
       openResults(transformIdentity({ ...id, barcode: id.barcode ?? data }, { pendingId }));
     } catch (err) {
@@ -417,6 +418,7 @@ export default function ScanScreen() {
         packCount: id.packCount ?? null,
         condition: id.condition ?? null,
         imageBase64: upload,
+        scanToken: id.scanToken ?? null,
       });
       openResults(transformIdentity(id, { imageUri: photo.uri, pendingId }));
     } catch (err) {

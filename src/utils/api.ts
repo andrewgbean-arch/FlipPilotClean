@@ -272,6 +272,7 @@ export async function fetchPrices(
     imageBase64?: string | null;
     grade?: ItemGrade | null;
     age?: ItemAge | null;
+    scanToken?: string | null;
   },
   signal?: AbortSignal
 ) {

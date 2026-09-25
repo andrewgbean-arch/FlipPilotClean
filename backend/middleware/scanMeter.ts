@@ -18,7 +18,7 @@ import { getBalance, refund, spend } from "../utils/creditStore";
  * Off in development (see freeScanCapEnabled) so testing on your own machine never runs out.
  */
 
-const callerDevice = (req: Request): string | null => {
+export const callerDevice = (req: Request): string | null => {
   const header = req.headers["x-device-id"];
   const fromHeader = Array.isArray(header) ? header[0] : header;
   const raw =
