@@ -19,6 +19,7 @@ import registerCreditsRoutes from "./routes/credits";
 import registerCostsRoute from "./routes/costs";
 import registerBoostRoute from "./routes/boost";
 import registerWebhookRoutes from "./routes/webhooks";
+import { DATA_DIR } from "./config/dataDir";
 import { accountGuard } from "./middleware/accountGuard";
 import { runRetention } from "./utils/retentionJob";
 import { logLaunchChecks } from "./utils/launchCheck";
@@ -316,6 +317,7 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 ------------------------------------------------------- */
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`🔥 FlipPilot backend listening on http://0.0.0.0:${PORT}`);
+  console.log(`Data folder: ${DATA_DIR}`);
 });
 
 logLaunchChecks();

@@ -6,8 +6,9 @@ import { requireAccount } from "../middleware/accountGuard";
 import { callerDeviceId } from "./messages";
 import { mediaForFair } from "../utils/media";
 import { ownedUploads } from "../utils/uploadStore";
+import { dataPath } from "../config/dataDir";
 
-const FAIRS_PATH = path.join(__dirname, "../data/fairs.json");
+const FAIRS_PATH = dataPath("fairs.json");
 
 export function loadFairs(): any[] {
   if (!fs.existsSync(FAIRS_PATH)) return [];

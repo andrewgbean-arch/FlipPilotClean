@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { dataPath } from "../config/dataDir";
 
 /**
  * Scan credits. One balance per ACCOUNT (not per phone), so credits follow a person to a new phone
@@ -14,7 +15,7 @@ import path from "path";
  * latest ones. Nothing about WHAT was scanned is stored, only that a scan happened.
  */
 
-const FILE = path.join(__dirname, "../data/credits.json");
+const FILE = dataPath("credits.json");
 
 export type CreditEntry = { at: string; delta: number; reason: string; ref?: string; /** The app store's own id for the purchase, so a refund can be matched to it. */ txn?: string };
 type Row = { balance: number; granted: number; spent: number; updatedAt: string; ledger: CreditEntry[] };
@@ -120,7 +121,7 @@ export function grant(
    a purchase that was refunded BEFORE its credits were claimed can never be claimed afterwards.
 ------------------------------------------------------------------ */
 
-const REFUNDS_FILE = path.join(__dirname, "../data/creditRefunds.json");
+const REFUNDS_FILE = dataPath("creditRefunds.json");
 type Refunds = Record<string, { at: string; accountId: string | null; credits: number }>;
 const MAX_REFUNDS_KEPT = 5000;
 

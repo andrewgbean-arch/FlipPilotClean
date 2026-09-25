@@ -2,6 +2,7 @@ import axios from "axios";
 import fs from "fs";
 import path from "path";
 import { decryptJson, encryptJson, encryptionConfigured } from "../utils/secretBox";
+import { dataPath } from "../config/dataDir";
 
 /* --------------------------------------------------
    ⭐ eBay Seller OAuth (authorization-code grant)
@@ -64,7 +65,7 @@ type StoredTokens = {
   accessExpiresAt: number; // epoch ms
 };
 
-const STORE_FILE = path.join(__dirname, "../data/ebaySellTokens.json");
+const STORE_FILE = dataPath("ebaySellTokens.json");
 
 // On disk each device's tokens are one encrypted string (see utils/secretBox.ts).
 // An entry that will not decrypt (wrong key, or altered) counts as not

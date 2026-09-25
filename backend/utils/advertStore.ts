@@ -2,6 +2,7 @@ import { randomBytes } from "crypto";
 import fs from "fs";
 import path from "path";
 import type { AiReview } from "./advertReview";
+import { dataPath } from "../config/dataDir";
 
 /**
  * Paid adverts, booked by hand by whoever runs FlipPilot.
@@ -27,7 +28,7 @@ import type { AiReview } from "./advertReview";
  * Nothing about who saw it: no device id, no address, no position.
  */
 
-const ADVERTS_PATH = path.join(__dirname, "../data/adverts.json");
+const ADVERTS_PATH = dataPath("adverts.json");
 
 export const PLACEMENTS = ["scan-full", "scan-panel", "feed", "messages", "bootfairs"] as const;
 export type Placement = (typeof PLACEMENTS)[number];

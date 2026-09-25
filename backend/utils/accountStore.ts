@@ -2,6 +2,7 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { deleteAccountCredits } from "./creditStore";
+import { DATA_DIR } from "../config/dataDir";
 
 /**
  * Accounts: an email address proved by a one-time code, and a durable identity
@@ -21,7 +22,7 @@ import { deleteAccountCredits } from "./creditStore";
  * session tokens are stored only as hashes.
  */
 
-const DIR = path.join(__dirname, "../data");
+const DIR = DATA_DIR;
 const ACCOUNTS_PATH = path.join(DIR, "accounts.json");
 const CODES_PATH = path.join(DIR, "authCodes.json");
 const SESSIONS_PATH = path.join(DIR, "sessions.json");

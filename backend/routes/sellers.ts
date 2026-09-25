@@ -11,6 +11,7 @@ import { listingStatus } from "../utils/listingStatus";
 import { evaluatePolicy } from "../middleware/listingPolicy";
 import { payForCar } from "../utils/carListing";
 import { POLICY } from "../config/marketplacePolicy";
+import { dataPath } from "../config/dataDir";
 
 /**
  * Seller reputation: when they joined, what they have sold, and what buyers
@@ -26,7 +27,7 @@ import { POLICY } from "../config/marketplacePolicy";
  * impersonate anyone.
  */
 
-const SELLERS_PATH = path.join(__dirname, "../data/sellers.json");
+const SELLERS_PATH = dataPath("sellers.json");
 
 export type Seller = {
   id: string;        // public

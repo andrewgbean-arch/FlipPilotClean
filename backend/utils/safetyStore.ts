@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { dataPath } from "../config/dataDir";
 
 /**
  * Blocks and reports for the marketplace.
@@ -9,8 +10,8 @@ import path from "path";
  * note for whoever runs the marketplace.
  */
 
-const BLOCKS_PATH = path.join(__dirname, "../data/blocks.json");
-const REPORTS_PATH = path.join(__dirname, "../data/reports.json");
+const BLOCKS_PATH = dataPath("blocks.json");
+const REPORTS_PATH = dataPath("reports.json");
 
 type BlockMap = Record<string, string[]>;
 

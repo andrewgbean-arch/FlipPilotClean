@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { dataPath } from "../config/dataDir";
 
 /* --------------------------------------------------
    Free tier: 5 AI lookups (barcode + photo combined) per calendar week, per
@@ -18,7 +19,7 @@ import path from "path";
 
 export const WEEKLY_FREE_LIMIT = 5;
 
-const FILE = path.join(__dirname, "../data/freeScans.json");
+const FILE = dataPath("freeScans.json");
 
 type DeviceRecord = { weekStart: string; count: number };
 type Store = Record<string, DeviceRecord>;

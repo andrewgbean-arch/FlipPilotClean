@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { dataPath } from "../config/dataDir";
 
 /**
  * What the paid services cost us, worked out from what we really call.
@@ -17,7 +18,7 @@ import path from "path";
  * eBay's Browse API is free (within its daily limit), so it is counted but costs nothing here.
  */
 
-const FILE = path.join(__dirname, "../data/costs.json");
+const FILE = dataPath("costs.json");
 const KEEP_DAYS = 90;
 const FLUSH_MS = 5000;
 

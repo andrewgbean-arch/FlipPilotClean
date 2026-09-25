@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { dataPath } from "../config/dataDir";
 
 /**
  * What each device has looked at, so the app can tell a conversation with
@@ -10,7 +11,7 @@ import path from "path";
  * (see routes/messages.ts), so nothing extra has to be sent from the phone.
  */
 
-const FILE = path.join(__dirname, "../data/reads.json");
+const FILE = dataPath("reads.json");
 
 type Entry = { inboxSeenAt?: string; chats: Record<string, string> };
 type Store = Record<string, Entry>;

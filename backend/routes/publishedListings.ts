@@ -6,8 +6,9 @@ import { blockedBy } from "../utils/safetyStore";
 import { mediaForListing } from "../utils/media";
 import { listingStatus } from "../utils/listingStatus";
 import { boostedAtMs, isBoosted } from "../utils/boost";
+import { dataPath } from "../config/dataDir";
 
-const LISTINGS_PATH = path.join(__dirname, "../data/published-listings.json");
+const LISTINGS_PATH = dataPath("published-listings.json");
 
 export function loadListings(): any[] {
   if (!fs.existsSync(LISTINGS_PATH)) return [];

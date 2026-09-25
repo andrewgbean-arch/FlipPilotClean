@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
+import { dataPath } from "../config/dataDir";
 
 /**
  * Photos people attach to listings and boot fairs.
@@ -11,8 +12,8 @@ import path from "path";
  * A photo is public to anyone with its address once it is on a listing.
  */
 
-export const UPLOADS_DIR = path.join(__dirname, "../data/uploads");
-const REGISTRY_PATH = path.join(__dirname, "../data/uploads.json");
+export const UPLOADS_DIR = dataPath("uploads");
+const REGISTRY_PATH = dataPath("uploads.json");
 
 /** What an app-supplied photo reference must look like to be trusted. */
 export const UPLOAD_PATH_PATTERN = /^\/uploads\/[a-f0-9]{32}\.(jpg|png|webp)$/;
