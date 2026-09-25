@@ -25,6 +25,8 @@ export default function PublicListing() {
   const { id } = useLocalSearchParams();
   const [listing, setListing] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -40,15 +42,31 @@ export default function PublicListing() {
 
   /** Fetch listing */
   useEffect(() => {
+    let live = true;
+    setLoading(true);
+    setLoadFailed(false);
     fetch(`${BASE_URL}/published-listings/${id}`)
-      // An unknown id comes back as a 404 with an error object, which is not a listing.
-      .then((res) => (res.ok ? res.json() : null))
+      // An unknown id is a 404 ("no longer there"); anything else that goes wrong is a failed load, which must
+      // not be reported as the listing not existing.
+      .then(async (res) => {
+        if (res.status === 404) return null;
+        if (!res.ok) throw new Error("bad-status");
+        return res.json();
+      })
       .then((data) => {
-        setListing(data && typeof data === "object" && !Array.isArray(data) ? data : null);
+        if (!live) return;
+        setListing(data && typeof data === "object" && !Array.isArray(data) && !data.error ? data : null);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
-  }, [id]);
+      .catch(() => {
+        if (!live) return;
+        setLoadFailed(true);
+        setLoading(false);
+      });
+    return () => {
+      live = false;
+    };
+  }, [id, reloadKey]);
 
   if (loading)
     return (
@@ -58,10 +76,20 @@ export default function PublicListing() {
       </View>
     );
 
+  if (loadFailed)
+    return (
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loading}>Couldn't load this listing. Check your connection and try again.</Text>
+        <Text style={[styles.loading, { textDecorationLine: "underline" }]} accessibilityRole="button" onPress={() => setReloadKey((k) => k + 1)}>
+          Try again
+        </Text>
+      </View>
+    );
+
   if (!listing || listing.error)
     return (
       <View style={styles.loadingContainer}>
-        <Text style={styles.loading}>Listing not found</Text>
+        <Text style={styles.loading}>This listing is no longer available. It may have been sold or removed.</Text>
       </View>
     );
 
