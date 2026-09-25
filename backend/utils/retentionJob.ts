@@ -7,7 +7,7 @@ import { purgeReportsBefore } from "./safetyStore";
 import { pruneReads } from "./readState";
 import { deleteUploads, purgeOrphanUploads } from "./uploadStore";
 import { purgeFreeScanRecords } from "../middleware/freeScanLimit";
-import { allPictures, loadAdverts } from "./advertStore";
+import { allPictures, loadAdverts, purgeAdvertReportsBefore } from "./advertStore";
 import { purgeAuth } from "./accountStore";
 
 /**
@@ -126,7 +126,7 @@ export function runRetention(now = new Date()) {
   summary.accounts = purgeAuth(RETENTION.inactiveAccountMonths, now).accounts;
 
   /* ---- reports and counters ---- */
-  summary.reports = purgeReportsBefore(monthsAgo(RETENTION.reportMonths, now));
+  summary.reports = purgeReportsBefore(monthsAgo(RETENTION.reportMonths, now)) + purgeAdvertReportsBefore(monthsAgo(RETENTION.reportMonths, now));
   summary.freeScanCounters = purgeFreeScanRecords(RETENTION.freeScanDaysAfterWeek, now);
 
   /* ---- photos: those of everything deleted above, then any nothing uses ---- */

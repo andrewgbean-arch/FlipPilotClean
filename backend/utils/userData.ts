@@ -12,6 +12,7 @@ import {
 import { deleteUploads, uploadsBy } from "./uploadStore";
 import { removeReadsFor } from "./readState";
 import { freeScanRecordFor } from "../middleware/freeScanLimit";
+import { advertReportsBy, anonymiseAdvertReportsBy } from "./advertStore";
 import { disconnect as disconnectEbay, isConnected as ebayConnected } from "../ebay/ebaySellAuth";
 
 /**
@@ -35,6 +36,9 @@ export function exportUserData(deviceId: string) {
   // Threads on their own listings, from the seller's side.
   const ownListings = mine.map((l: any) => ({
     ...toPublicListing(l),
+    // Held privately with the listing and never shown to buyers, but it is theirs, so it is in their copy.
+    ...(l.dvlaCheck?.registration ? { registration: l.dvlaCheck.registration } : {}),
+    ...(l.creditsPaid ? { creditsPaid: l.creditsPaid } : {}),
     conversations: Object.values(
       (Array.isArray(l.messages) ? l.messages : [])
         .filter((m: any) => m?.threadId)
@@ -108,6 +112,7 @@ export function exportUserData(deviceId: string) {
     })),
     peopleYouHaveBlocked: blockCountFor(deviceId),
     freeScanCounter: freeScanRecordFor(deviceId),
+    advertReports: advertReportsBy(deviceId),
     ebayAccountConnected: ebayConnected(deviceId),
     uploadedPhotos: uploadsBy(deviceId),
   };
@@ -164,7 +169,7 @@ export function deleteUserData(deviceId: string) {
 
   removeReadsFor(deviceId);
   const blocksRemoved = removeAllBlocksFor(deviceId);
-  const reportsAnonymised = anonymiseReportsBy(deviceId);
+  const reportsAnonymised = anonymiseReportsBy(deviceId) + anonymiseAdvertReportsBy(deviceId);
 
   let ebayDisconnected = false;
   if (ebayConnected(deviceId)) {

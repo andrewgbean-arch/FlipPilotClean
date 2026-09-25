@@ -105,7 +105,7 @@ export default function SignInScreen() {
           />
           <Button label="Email me a code" onPress={sendCode} disabled={!emailOk || busy} busy={busy} />
           <Text style={[styles.small, { color: theme.muted }]}>
-            We use your email only to sign you in and to let you know about your listings and messages.
+            We use your email only to sign you in. We don't send marketing emails.
           </Text>
         </>
       ) : (

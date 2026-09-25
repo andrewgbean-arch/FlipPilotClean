@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import fs from "fs";
 import path from "path";
 import type { AiReview } from "./advertReview";
@@ -328,6 +329,51 @@ export function addAdvertReport(
   }
   saveAdverts(all);
   return { paused };
+}
+
+/** What this phone has reported about adverts, for its owner's own data export. */
+export function advertReportsBy(deviceId: string): { advert: string; reason: string; details: string; at: string }[] {
+  const out: { advert: string; reason: string; details: string; at: string }[] = [];
+  for (const ad of readAdverts()) {
+    for (const r of ad.reports ?? []) {
+      if (r.deviceId === deviceId) out.push({ advert: ad.title, reason: r.reason, details: r.details, at: r.at });
+    }
+  }
+  return out;
+}
+
+/**
+ * Deleting someone's data takes their identity off the reports they made about adverts. The report itself
+ * stays (it may matter to a safety decision). Each one gets its own throwaway id, so the count of DIFFERENT
+ * phones that reported an advert, which is what takes it off, stays right.
+ */
+export function anonymiseAdvertReportsBy(deviceId: string): number {
+  const all = readAdverts();
+  let changed = 0;
+  for (const ad of all) {
+    for (const r of ad.reports ?? []) {
+      if (r.deviceId === deviceId) {
+        r.deviceId = `deleted:${randomBytes(8).toString("hex")}`;
+        changed++;
+      }
+    }
+  }
+  if (changed > 0) saveAdverts(all);
+  return changed;
+}
+
+/** Reports older than the cutoff are deleted (the same period as other reports, see config/retention.ts). */
+export function purgeAdvertReportsBefore(cutoff: Date): number {
+  const all = readAdverts();
+  let removed = 0;
+  for (const ad of all) {
+    const before = ad.reports?.length ?? 0;
+    if (!before) continue;
+    ad.reports = ad.reports!.filter((r) => !(Date.parse(r.at) < cutoff.getTime()));
+    removed += before - ad.reports.length;
+  }
+  if (removed > 0) saveAdverts(all);
+  return removed;
 }
 
 export function totals(ad: Advert): { views: number; clicks: number; saves: number } {
