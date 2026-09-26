@@ -86,13 +86,43 @@ export function payout(value: number, combo: number, golden: boolean): number {
   return Math.round(base * Math.max(1, combo));
 }
 
-/** The magnet: every fifth in a row, and every golden find. */
-export const MAGNET_EVERY = 5;
-export const MAGNET_MS = 4000;
-export const GOLDEN_MAGNET_MS = 5000;
+/**
+ * The magnet.
+ *
+ * It was every fifth catch for four seconds, which was far too generous: once
+ * you got going it never switched off, everything drifted towards you and the
+ * game played itself. It has to be a rare few seconds that feel like a reward,
+ * not the normal state of play — so it is a golden find, or a properly long
+ * streak, and it is over quickly.
+ */
+export const MAGNET_EVERY = 12;
+export const MAGNET_MS = 2500;
+export const GOLDEN_MAGNET_MS = 3000;
+
+/** How far across the screen it reaches, as a fraction of the width. */
+export const MAGNET_RANGE = 0.35;
+/** How hard it pulls. Gentle enough to look like attraction, not teleporting. */
+export const MAGNET_PULL = 2;
 
 export function earnsMagnet(combo: number): boolean {
   return combo > 0 && combo % MAGNET_EVERY === 0;
+}
+
+/**
+ * How far an item slides towards him this frame. Only things already near him
+ * move at all — a magnet that reaches the far edge of the screen means never
+ * having to move, which is the whole game gone.
+ */
+export function magnetPull(
+  itemCx: number,
+  lampyCx: number,
+  screenWidth: number,
+  dt: number
+): number {
+  "worklet";
+  const gap = lampyCx - itemCx;
+  if (Math.abs(gap) > screenWidth * MAGNET_RANGE) return 0;
+  return gap * Math.min(1, dt * MAGNET_PULL);
 }
 
 export const STARTING_BAGS = 3;

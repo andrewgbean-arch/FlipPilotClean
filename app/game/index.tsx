@@ -40,6 +40,7 @@ import {
   verdict,
   MAGNET_MS,
   GOLDEN_MAGNET_MS,
+  magnetPull,
 } from "@/game/dashLogic";
 
 const BEST_KEY = "flippilot.dash.best";
@@ -292,9 +293,10 @@ export default function BootFairDash() {
       ys[i].value += speed * dt;
       rots[i].value += 26 * dt;
 
-      // The magnet only pulls what is worth having.
+      // The magnet only pulls what is worth having, and only what is already
+      // near him.
       if (magnet && isTat[i].value === 0) {
-        xs[i].value += (lx - (xs[i].value + ITEM / 2)) * Math.min(1, dt * 3.2);
+        xs[i].value += magnetPull(xs[i].value + ITEM / 2, lx, W, dt);
       }
 
       const cx = xs[i].value + ITEM / 2;
