@@ -12,6 +12,8 @@ export type MotTestEntry = {
   failures: string[];
   advisories: string[];
   minor: string[];
+  /** Faults found and fixed during the test itself. */
+  repaired: string[];
 };
 
 const texts = (v: unknown): string[] =>
@@ -32,6 +34,7 @@ export function parseMotTests(raw: unknown): MotTestEntry[] {
         failures: texts(t.failures),
         advisories: texts(t.advisories),
         minor: texts(t.minor),
+        repaired: texts(t.repaired),
       };
     })
     .filter((t): t is MotTestEntry => t !== null)

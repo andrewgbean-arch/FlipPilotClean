@@ -117,11 +117,12 @@ export function odometerMiles(test: any): number | null {
  */
 const FAIL_TYPES = new Set(["FAIL", "MAJOR", "DANGEROUS"]);
 
-export function defectsOfKind(test: any, kind: "failure" | "advisory" | "minor"): any[] {
+export function defectsOfKind(test: any, kind: "failure" | "advisory" | "minor" | "repaired"): any[] {
   const notes: any[] = Array.isArray(test?.defects) ? test.defects : Array.isArray(test?.rfrAndComments) ? test.rfrAndComments : [];
   return notes.filter((n) => {
     const type = String(n?.type ?? "").toUpperCase();
-    return kind === "failure" ? FAIL_TYPES.has(type) : kind === "advisory" ? type === "ADVISORY" : type === "MINOR";
+    // "PRS" = passed after rectification at the station: the fault was fixed during the test itself.
+    return kind === "failure" ? FAIL_TYPES.has(type) : kind === "advisory" ? type === "ADVISORY" : kind === "repaired" ? type === "PRS" : type === "MINOR";
   });
 }
 
@@ -136,6 +137,8 @@ export type MotTestEntry = {
   failures: string[];
   advisories: string[];
   minor: string[];
+  /** Faults found and fixed during the test itself (the DVSA's "PRS"). */
+  repaired: string[];
 };
 
 /**
@@ -149,7 +152,7 @@ export function motTestList(mot: any): MotTestEntry[] {
     .map((t) => {
       const date = day(t?.completedDate);
       if (!date) return null;
-      const pick = (kind: "failure" | "advisory" | "minor") =>
+      const pick = (kind: "failure" | "advisory" | "minor" | "repaired") =>
         defectsOfKind(t, kind).map((n) => words(n?.text, 200)).filter(Boolean).slice(0, 30);
       const entry: MotTestEntry = {
         date,
@@ -159,6 +162,7 @@ export function motTestList(mot: any): MotTestEntry[] {
         failures: pick("failure"),
         advisories: pick("advisory"),
         minor: pick("minor"),
+        repaired: pick("repaired"),
       };
       return entry;
     })

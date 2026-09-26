@@ -457,11 +457,12 @@ function TestCard({ test }: { test: MotTestEntry }) {
   const theme = useTheme();
   const passed = test.result === "PASSED";
   const resultColor = passed ? theme.success : theme.danger;
-  const clean = test.failures.length + test.advisories.length + test.minor.length === 0;
+  const clean = test.failures.length + test.advisories.length + test.minor.length + test.repaired.length === 0;
   const summary = [
     test.failures.length > 0 ? `${test.failures.length} failure${test.failures.length === 1 ? "" : "s"}` : null,
     test.advisories.length > 0 ? `${test.advisories.length} advisor${test.advisories.length === 1 ? "y" : "ies"}` : null,
     test.minor.length > 0 ? `${test.minor.length} minor` : null,
+    test.repaired.length > 0 ? `${test.repaired.length} fixed during the test` : null,
   ]
     .filter(Boolean)
     .join(", ");
@@ -503,6 +504,12 @@ function TestCard({ test }: { test: MotTestEntry }) {
             <View key={`a${i}`} style={[styles.noteRow, { borderTopWidth: 1, borderTopColor: theme.hairline }]}>
               <WarningCircle size={20} color={theme.warning} />
               <Text style={[styles.noteText, { color: theme.text }]}>{n}</Text>
+            </View>
+          ))}
+          {test.repaired.map((n, i) => (
+            <View key={`r${i}`} style={[styles.noteRow, { borderTopWidth: 1, borderTopColor: theme.hairline }]}>
+              <CheckCircle size={20} color={theme.success} />
+              <Text style={[styles.noteText, { color: theme.text }]}>Fixed during the test: {n}</Text>
             </View>
           ))}
           {test.minor.map((n, i) => (
