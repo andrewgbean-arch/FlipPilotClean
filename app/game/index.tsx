@@ -87,6 +87,8 @@ export default function BootFairDash() {
   const [bags, setBags] = useState(STARTING_BAGS);
   const [combo, setCombo] = useState(0);
   const [bestCombo, setBestCombo] = useState(1);
+  const [lasted, setLasted] = useState(0);
+  const [caught, setCaught] = useState(0);
   const [best, setBest] = useState(0);
   const [phase, setPhase] = useState<"ready" | "playing" | "over">("ready");
   const [mood, setMood] = useState<Mood>("idle");
@@ -102,6 +104,7 @@ export default function BootFairDash() {
   const spawnTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const popId = useRef(0);
   const startedAt = useRef(0);
+  const caughtRef = useRef(0);
 
   useEffect(() => {
     AsyncStorage.getItem(BEST_KEY)
@@ -168,6 +171,9 @@ export default function BootFairDash() {
       const s = slotsRef.current[slot];
       if (!s) return;
 
+      caughtRef.current += 1;
+      setCaught(caughtRef.current);
+
       const nextCombo = comboRef.current + 1;
       comboRef.current = nextCombo;
       setCombo(nextCombo);
@@ -192,6 +198,7 @@ export default function BootFairDash() {
 
   const endRun = useCallback(() => {
     running.value = 0;
+    setLasted(Math.round((Date.now() - startedAt.current) / 1000));
     if (spawnTimer.current) clearTimeout(spawnTimer.current);
     play("over");
     setPhase("over");
@@ -339,6 +346,9 @@ export default function BootFairDash() {
     setBags(STARTING_BAGS);
     setTakings(0);
     setBestCombo(1);
+    setLasted(0);
+    setCaught(0);
+    caughtRef.current = 0;
     setMood("idle");
     setPops([]);
     setPhase("playing");
@@ -479,6 +489,9 @@ export default function BootFairDash() {
                   <Text style={styles.totalValue}>×{bestCombo}</Text>
                 </View>
               </View>
+              <Text style={styles.runLine}>
+                Lasted {lasted}s · {caught} {caught === 1 ? "bargain" : "bargains"} caught
+              </Text>
             </>
           )}
 
@@ -592,6 +605,7 @@ const styles = StyleSheet.create({
   total: { alignItems: "center", gap: 2 },
   totalKey: { color: "rgba(255,243,214,0.5)", fontSize: 10, letterSpacing: 1.4, fontWeight: "700" },
   totalValue: { color: CREAM, fontSize: 24, fontWeight: "900" },
+  runLine: { color: "rgba(255,243,214,0.45)", fontSize: 12, fontWeight: "600", marginTop: 8 },
 
   btn: {
     marginTop: 16,
