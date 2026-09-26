@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { freeScanCapEnabled } from "./freeScanLimit";
 import { callerDevice } from "./scanMeter";
-import { useScanToken } from "../utils/scanToken";
+import { deviceOfScanToken, useScanToken } from "../utils/scanToken";
 
 /**
  * The price step of a scan needs proof that a real scan came first (see utils/scanToken.ts). Off in development
@@ -21,7 +21,11 @@ const MESSAGES: Record<string, string> = {
 export function requireScanToken(req: Request, res: Response, next: NextFunction) {
   if (!freeScanCapEnabled()) return next();
 
-  const deviceId = callerDevice(req);
+  const header = req.headers["x-scan-token"];
+  const token = req.body?.scanToken ?? (Array.isArray(header) ? header[0] : header);
+
+  // Older app builds send no phone id with the price request; the signed token says which phone it was made for.
+  const deviceId = callerDevice(req) ?? deviceOfScanToken(token);
   if (!deviceId) {
     res.status(400).json({
       error: "missing-device",
@@ -30,8 +34,6 @@ export function requireScanToken(req: Request, res: Response, next: NextFunction
     return;
   }
 
-  const header = req.headers["x-scan-token"];
-  const token = req.body?.scanToken ?? (Array.isArray(header) ? header[0] : header);
   const result = useScanToken(token, deviceId);
   if (result.ok) return next();
 

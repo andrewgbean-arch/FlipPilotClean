@@ -282,7 +282,9 @@ export async function fetchPrices(
   },
   signal?: AbortSignal
 ) {
-  return request("/price", { method: "POST", body, signal, timeoutMs: 20_000 });
+  // The server counts a scan's price lookups per phone, so it needs to be told which phone this is.
+  const deviceId = await getDeviceId();
+  return request("/price", { method: "POST", body: { ...body, deviceId }, signal, timeoutMs: 20_000 });
 }
 
 // -----------------------------

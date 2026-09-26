@@ -40,6 +40,28 @@ export function issueScanToken(deviceId: string, now = Date.now()): string {
   return `${payload}.${sign(payload)}`;
 }
 
+/**
+ * Which phone a genuine, unexpired token was made for, or null. A price request that doesn't say which phone
+ * it is from (an older app build, which never sent it) is taken to be from the phone the token was made for:
+ * the token is signed, so it can't be made up, and it is still limited to 30 minutes and 8 lookups.
+ */
+export function deviceOfScanToken(token: unknown, now = Date.now()): string | null {
+  if (typeof token !== "string" || !token) return null;
+  const dot = token.indexOf(".");
+  if (dot < 1 || token.length > 600) return null;
+  const payload = token.slice(0, dot);
+  const given = Buffer.from(token.slice(dot + 1));
+  const wanted = Buffer.from(sign(payload));
+  if (given.length !== wanted.length || !crypto.timingSafeEqual(given, wanted)) return null;
+  try {
+    const claims = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    if (typeof claims.d !== "string" || !claims.d || typeof claims.exp !== "number" || claims.exp <= now) return null;
+    return claims.d;
+  } catch {
+    return null;
+  }
+}
+
 export type ScanTokenResult =
   | { ok: true; usesLeft: number }
   | { ok: false; reason: "missing" | "invalid" | "expired" | "wrong-phone" | "used-up" };
