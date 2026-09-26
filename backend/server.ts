@@ -15,7 +15,7 @@ import registerUploadsRoute from "./routes/uploads";
 import registerMeRoute from "./routes/me";
 import registerAdvertsRoute from "./routes/adverts";
 import registerAuthRoutes from "./routes/auth";
-import { fetchMotHistory } from "./utils/dvsaMot";
+import { fetchMotHistory, odometerMiles } from "./utils/dvsaMot";
 import registerCreditsRoutes from "./routes/credits";
 import registerCostsRoute from "./routes/costs";
 import registerFeedbackRoutes from "./routes/feedback";
@@ -281,8 +281,9 @@ app.get("/vehicle", rateLimit(30), async (req, res) => {
         taxStatus: dvla?.taxStatus ?? null,
         motExpiry: dvla?.motExpiryDate ?? latestMot?.expiryDate ?? null,
 
-        mileage: latestMot?.odometerValue ?? null,
-        mileageUnit: latestMot?.odometerUnit ?? null,
+        // A number of miles (the DVSA sends text, and kilometres for some cars), so the app can show and chart it.
+        mileage: odometerMiles(latestMot),
+        mileageUnit: "MI",
         lastMotDate: latestMot?.completedDate ?? null,
 
         advisories: latestMot?.rfrAndComments?.filter((x: any) => x.type === "ADVISORY") ?? [],

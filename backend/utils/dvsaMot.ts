@@ -99,6 +99,16 @@ const day = (v: unknown): string | null => {
 };
 const words = (v: unknown, max = 120): string => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, max);
 
+/**
+ * The odometer reading of one MOT test as a NUMBER of miles, or null when the test has none. The DVSA sends
+ * the reading as text ("45210", sometimes with commas), and in kilometres for some cars.
+ */
+export function odometerMiles(test: any): number | null {
+  const raw = Number(String(test?.odometerValue ?? "").replace(/,/g, ""));
+  const unit = String(test?.odometerUnit ?? "MI").toUpperCase();
+  return Number.isFinite(raw) && raw > 0 ? Math.round(unit.startsWith("K") ? raw * KM_TO_MILES : raw) : null;
+}
+
 /** Turns the DVSA's answer into the summary we keep, or null when there is no usable test history. */
 export function summariseMot(mot: any, now = new Date()): MotSummary | null {
   const tests: any[] = Array.isArray(mot?.motTests) ? mot.motTests : [];
@@ -106,9 +116,7 @@ export function summariseMot(mot: any, now = new Date()): MotSummary | null {
   const parsed = tests
     .map((t) => {
       const date = day(t?.completedDate);
-      const raw = Number(String(t?.odometerValue ?? "").replace(/,/g, ""));
-      const unit = String(t?.odometerUnit ?? "MI").toUpperCase();
-      const miles = Number.isFinite(raw) && raw > 0 ? Math.round(unit.startsWith("K") ? raw * KM_TO_MILES : raw) : null;
+      const miles = odometerMiles(t);
       const result = String(t?.testResult ?? "").toUpperCase().startsWith("F") ? ("FAILED" as const) : ("PASSED" as const);
       return { t, date, miles, result };
     })

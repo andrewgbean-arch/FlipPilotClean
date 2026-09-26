@@ -96,12 +96,11 @@ function motSummary(v: FlipRecord) {
 
   const issues =
     (v.mot?.advisories?.length ?? 0) + (v.mot?.failures?.length ?? 0);
-  const motHealth = Math.max(0, 100 - issues * 10);
 
-  // No MOT data means no MOT health to report (not a perfect score).
+  // No MOT data means nothing to report about its issues.
   const hasMotData = !!motExpiry || issues > 0;
 
-  return { motExpiry, expiryDays, isExpired, isExpiringSoon, motHealth, hasMotData };
+  return { motExpiry, expiryDays, isExpired, isExpiringSoon, issues, hasMotData };
 }
 
 /* ------------------------------------------------------------------ */
@@ -290,14 +289,14 @@ function FlipRow({
       ? v.images[0]
       : null;
 
-  const { motExpiry, expiryDays, isExpired, isExpiringSoon, motHealth, hasMotData } =
+  const { motExpiry, expiryDays, isExpired, isExpiringSoon, issues: motIssues, hasMotData } =
     motSummary(v);
 
   const score = v.flipScore ?? 0;
   const scoreColor = score > 75 ? theme.success : score > 50 ? theme.warning : theme.danger;
   const motColor = isExpired ? theme.danger : isExpiringSoon ? theme.warning : undefined;
-  const healthColor =
-    motHealth > 80 ? theme.success : motHealth > 60 ? theme.warning : theme.danger;
+  const failureCount = v.mot?.failures?.length ?? 0;
+  const healthColor = failureCount > 0 ? theme.danger : motIssues > 0 ? theme.warning : theme.success;
 
   const profitColor = profit == null ? theme.muted : toneColor(theme, profit);
   const reg = v.mot?.reg ?? null;
@@ -379,8 +378,8 @@ function FlipRow({
 
           {hasMotData ? (
             <MetaChip
-              Icon={motHealth > 60 ? ShieldCheck : ShieldWarning}
-              label={`MOT health ${motHealth}`}
+              Icon={motIssues === 0 ? ShieldCheck : ShieldWarning}
+              label={motIssues === 0 ? "No MOT issues recorded" : `${motIssues} MOT issue${motIssues === 1 ? "" : "s"} recorded`}
               iconColor={healthColor}
             />
           ) : null}

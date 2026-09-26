@@ -58,9 +58,13 @@ export default function MotTimelineScreen() {
   const mot = vehicle.mot;
 
   // Use mileageHistory from FlipRecord.mot (an entry needs a date to sit on the timeline)
-  const history = (mot.mileageHistory ?? []).filter(
-    (entry: any) => typeof entry?.date === "string" && /^\d{4}/.test(entry.date)
-  );
+  // Vehicles saved earlier may hold the mileage as text ("45210"); it has to be a number to be shown.
+  const history = (mot.mileageHistory ?? [])
+    .map((entry: any) => {
+      const n = typeof entry?.mileage === "string" ? Number(entry.mileage.replace(/,/g, "")) : entry?.mileage;
+      return { ...entry, mileage: Number.isFinite(n) ? n : null };
+    })
+    .filter((entry: any) => typeof entry?.date === "string" && /^\d{4}/.test(entry.date));
 
   // Group tests by year
   const grouped = history.reduce((acc: any, entry: any) => {
@@ -75,32 +79,18 @@ export default function MotTimelineScreen() {
 
   const expiryDays = daysUntilDate(expiry);
 
-  // MOT health score: simple heuristic from advisories/failures
-  const totalIssues =
-    (mot.advisories?.length ?? 0) + (mot.failures?.length ?? 0);
-
-  const healthScore =
-    history.length === 0
-      ? null
-      : Math.max(0, 100 - totalIssues * 10);
-
-  const healthLabel =
-    healthScore === null
-      ? "Unknown"
-      : healthScore > 80
-      ? "Strong"
-      : healthScore > 60
-      ? "Moderate"
-      : "Risky";
-
-  const healthColor =
-    healthScore === null
-      ? theme.muted
-      : healthScore > 80
-      ? theme.success
-      : healthScore > 60
-      ? theme.warning
-      : theme.danger;
+  // What the record says, in words. It used to be turned into a made-up "health" score (100 minus 10 per
+  // issue) labelled Strong/Risky, which said "Strong" for a car whose MOT had expired.
+  const advisoryCount = mot.advisories?.length ?? 0;
+  const failureCount = mot.failures?.length ?? 0;
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  const issuesText =
+    advisoryCount + failureCount === 0
+      ? "None recorded"
+      : [failureCount > 0 ? plural(failureCount, "failure") : null, advisoryCount > 0 ? plural(advisoryCount, "advisory").replace("advisorys", "advisories") : null]
+          .filter(Boolean)
+          .join(", ");
+  const issuesColor = failureCount > 0 ? theme.danger : advisoryCount > 0 ? theme.warning : theme.success;
 
   // Red once expired, amber when it runs out within 30 days, green otherwise.
   const expiryColor =
@@ -181,14 +171,9 @@ export default function MotTimelineScreen() {
           )}
         </View>
 
-        {/* HEALTH + PASS CHANCE + MILEAGE */}
-        {healthScore !== null && (
-          <DataRow
-            label="MOT health"
-            value={`${healthLabel} (${healthScore})`}
-            valueColor={healthColor}
-            divider
-          />
+        {/* TEST RECORD + MILEAGE */}
+        {history.length > 0 && (
+          <DataRow label="Test record" value={issuesText} valueColor={issuesColor} divider />
         )}
         {typeof currentMileage === "number" && Number.isFinite(currentMileage) ? (
           <DataRow label="Mileage" value={formatMiles(currentMileage)} divider />

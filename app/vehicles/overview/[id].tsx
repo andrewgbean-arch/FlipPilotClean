@@ -297,19 +297,20 @@ export default function VehicleOverviewScreen() {
     expiryDays == null ? Info : isExpired ? XCircle : isExpiringSoon ? WarningCircle : CheckCircle;
   const motHeadline = capitalise(motExpiryPhrase(expiryDays));
 
-  /* MOT HEALTH */
+  /* RECORDED MOT ISSUES: what the record says, not a score (a score said "100" for an expired MOT) */
   const advisories = mot.advisories ?? [];
   const failures = mot.failures ?? [];
   const issues = advisories.length + failures.length;
-  const motHealth = Math.max(0, 100 - issues * 10);
-  const healthNote =
+  const issuesText =
     issues === 0
-      ? "No advisories or failures on record."
-      : `${plural(failures.length, "failure", "failures")} and ${plural(
-          advisories.length,
-          "advisory",
-          "advisories"
-        )} on record.`;
+      ? "None recorded"
+      : [
+          failures.length > 0 ? plural(failures.length, "failure", "failures") : null,
+          advisories.length > 0 ? plural(advisories.length, "advisory", "advisories") : null,
+        ]
+          .filter(Boolean)
+          .join(", ");
+  const issuesColor = failures.length > 0 ? theme.danger : advisories.length > 0 ? theme.warning : theme.success;
 
   /* PROFIT: only once both prices are known */
   const profit = realisedProfit(vehicle);
@@ -428,13 +429,7 @@ export default function VehicleOverviewScreen() {
           <DataRow label="MOT status" value={mot.motStatus ?? "Unknown"} divider />
           <DataRow label="Tax status" value={mot.taxStatus ?? "Unknown"} divider />
           <DataRow label="Mileage" value={formatMiles(latestMileage)} divider />
-          <MeterBlock
-            label="MOT health"
-            value={`${motHealth}/100`}
-            percent={motHealth}
-            note={healthNote}
-            divider
-          />
+          <DataRow label="Recorded issues" value={issuesText} valueColor={issuesColor} divider />
         </Group>
 
         {/* PROFIT SUMMARY */}
