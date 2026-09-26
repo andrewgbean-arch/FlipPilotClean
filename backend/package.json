@@ -11,6 +11,13 @@
     "health": "curl http://localhost:3001/health"
   },
   "dependencies": {
+    "@types/cheerio": "^0.22.35",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/helmet": "^0.0.48",
+    "@types/morgan": "^1.9.10",
+    "@types/node": "^25.9.1",
+    "@types/node-fetch": "^2.6.13",
     "axios": "^1.15.2",
     "cheerio": "^1.2.0",
     "cors": "^2.8.6",
@@ -19,17 +26,10 @@
     "helmet": "^8.2.0",
     "morgan": "^1.11.0",
     "node-fetch": "^3.3.2",
-    "openai": "^6.45.0"
+    "openai": "^6.45.0",
+    "typescript": "^5.3.3"
   },
   "devDependencies": {
-    "@types/cheerio": "^0.22.35",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.6",
-    "@types/helmet": "^0.0.48",
-    "@types/morgan": "^1.9.10",
-    "@types/node": "^25.9.1",
-    "@types/node-fetch": "^2.6.13",
-    "tsx": "^4.22.3",
-    "typescript": "^5.3.3"
+    "tsx": "^4.22.3"
   }
 }
