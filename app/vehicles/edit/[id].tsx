@@ -35,6 +35,7 @@ import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryCon
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
 import { fetchMOT } from "@/features/vehicles/api/mot";
 import { sameReg } from "@/utils/motSnapshot";
+import { mileageHistoryFromTests } from "@/features/vehicles/utils/motTests";
 import { keepPhoto } from "@/utils/keptPhotos";
 import { calculateFlipScore, FlipScoreInput } from "@/utils/flipScoreEngine";
 
@@ -375,7 +376,8 @@ function EditFlipForm({
       year: data.year ?? null,
       colour: data.colour ?? null,
       mileage: data.mileage ?? null,
-      motStatus: motStatusFor(data.motExpiry),
+      motStatus: data.motStatus ?? motStatusFor(data.motExpiry),
+      tests: data.tests ?? [],
       motExpiry: data.motExpiry ?? null,
       expiryDate: data.motExpiry ?? null,
       taxStatus: data.taxStatus ?? null,
@@ -412,12 +414,14 @@ function EditFlipForm({
       year: Number(year) || null,
       mileage: mileageInt,
       motStatus: motInfo?.motStatus ?? null,
+      tests: motInfo?.tests ?? null,
       taxStatus: motInfo?.taxStatus ?? null,
       motExpiry: motInfo?.motExpiry ?? null,
       expiryDate: motInfo?.expiryDate ?? motInfo?.motExpiry ?? null,
       advisories: motInfo?.advisories ?? [],
       failures: motInfo?.failures ?? [],
       mileageHistory:
+        (motInfo?.tests?.length ? mileageHistoryFromTests(motInfo.tests) : null) ??
         (sameReg(flip.mot?.reg, registration) ? flip.mot?.mileageHistory : null) ??
         (mileageInt != null
           ? [{ date: new Date().toISOString(), mileage: mileageInt }]

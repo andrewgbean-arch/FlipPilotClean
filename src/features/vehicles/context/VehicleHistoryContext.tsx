@@ -19,6 +19,7 @@ import { useUserSettings } from "@/features/settings/UserSettingsContext";
 // ⭐ Correct haptic helper
 import { triggerHaptic } from "@/components/ui/haptics";
 import { deleteKeptPhotos } from "@/utils/keptPhotos";
+import { mileageHistoryFromTests, motStatusFromExpiry, parseMotTests } from "../utils/motTests";
 
 const STORAGE_KEY = "@flippilot_vehicle_history_v1";
 
@@ -442,6 +443,7 @@ export const VehicleHistoryProvider = ({ children }: { children: ReactNode }) =>
       // because they were not looked up, not because there is nothing to show.
       const motAvailable = data.motAvailable !== false;
 
+      const tests = parseMotTests(api.motTests);
       const mappedMot = {
         reg,
         make: api.make ?? null,
@@ -469,14 +471,19 @@ export const VehicleHistoryProvider = ({ children }: { children: ReactNode }) =>
           const existingHistory = old.mileageHistory ?? [];
           const testDate: string | null = api.lastMotDate ?? null;
           const latestPoint = existingHistory[existingHistory.length - 1];
+          // With the full test list, the history is simply one point per test that has a reading.
           const addPoint =
+            tests.length === 0 &&
             newMileage != null &&
             testDate != null &&
             latestPoint?.mileage !== newMileage &&
             !existingHistory.some((p) => p.date === testDate);
-          const mileageHistory = addPoint
-            ? [...existingHistory, { date: testDate, mileage: newMileage }]
-            : existingHistory;
+          const mileageHistory =
+            tests.length > 0
+              ? mileageHistoryFromTests(tests)
+              : addPoint
+              ? [...existingHistory, { date: testDate as string, mileage: newMileage as number }]
+              : existingHistory;
 
           return {
             ...v,
@@ -491,6 +498,8 @@ export const VehicleHistoryProvider = ({ children }: { children: ReactNode }) =>
               motExpiry: mappedMot.motExpiry ?? old.motExpiry ?? null,
               expiryDate: mappedMot.expiryDate ?? old.expiryDate ?? null,
               taxStatus: mappedMot.taxStatus ?? old.taxStatus ?? null,
+              motStatus: (typeof api.motStatus === "string" && api.motStatus) || motStatusFromExpiry(mappedMot.motExpiry ?? old.motExpiry),
+              tests: tests.length > 0 ? tests : old.tests ?? null,
               advisories: motAvailable ? mappedMot.advisories : old.advisories ?? [],
               failures: motAvailable ? mappedMot.failures : old.failures ?? [],
               mileageHistory,

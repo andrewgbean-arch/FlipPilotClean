@@ -30,6 +30,7 @@ import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryCon
 import { autoFormatReg, getMotStatusColor } from "@/features/vehicles/ui/SupernovaUI";
 import { fetchMOT } from "@/features/vehicles/api/mot";
 import { sameReg } from "@/utils/motSnapshot";
+import { mileageHistoryFromTests } from "@/features/vehicles/utils/motTests";
 import { keepPhoto } from "@/utils/keptPhotos";
 import { formatDate } from "@/features/vehicles/utils/motDates";
 import { formatMiles, formatMoney } from "@/features/vehicles/utils/vehicleStats";
@@ -443,6 +444,8 @@ export default function NewVehicleScreen() {
         year: yearN != null ? Math.round(yearN) : null,
         colour: colour.trim() || null,
         mileage: mileageInt,
+        // The lookup's whole MOT history (tests, and the timeline built from them), when there was one.
+        ...(motData?.tests?.length ? { mileageHistory: mileageHistoryFromTests(motData.tests) } : {}),
       },
     });
 

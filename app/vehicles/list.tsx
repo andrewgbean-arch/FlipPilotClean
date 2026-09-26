@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   Pressable,
@@ -25,6 +26,7 @@ import {
   ShieldWarning,
   Stack as StackIcon,
   Tag,
+  Trash,
   TrendUp,
   Trophy,
   WarningCircle,
@@ -267,11 +269,13 @@ function FlipRow({
   isBest,
   onOpen,
   onToggleFavourite,
+  onDelete,
 }: {
   v: FlipRecord;
   isBest: boolean;
   onOpen: () => void;
   onToggleFavourite: () => void;
+  onDelete: () => void;
 }) {
   const theme = useTheme();
 
@@ -420,6 +424,16 @@ function FlipRow({
           color={v.favourite ? theme.gold : theme.muted}
         />
       </Pressable>
+
+      {/* Delete sits beside the favourite button, and asks first. */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Delete ${v.title}`}
+        style={({ pressed }) => [styles.deleteBtn, pressed && styles.pressed]}
+        onPress={onDelete}
+      >
+        <Trash size={22} color={theme.muted} />
+      </Pressable>
     </View>
   );
 }
@@ -434,7 +448,17 @@ export default function VehiclesScreen() {
   const theme = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { vehicles, toggleFavourite, loaded, loadError } = useVehicleHistory();
+  const { vehicles, toggleFavourite, deleteVehicle, loaded, loadError } = useVehicleHistory();
+
+  const confirmDelete = (v: FlipRecord) =>
+    Alert.alert(
+      "Delete this vehicle?",
+      `${v.title}${v.mot?.reg ? ` (${v.mot.reg})` : ""} will be removed from your list, along with its saved photos. This can't be undone.`,
+      [
+        { text: "Keep it", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => deleteVehicle(v.id) },
+      ]
+    );
 
   const [search, setSearch] = useState("");
   const [showFavouritesOnly, setShowFavouritesOnly] = useState(false);
@@ -634,6 +658,7 @@ export default function VehiclesScreen() {
             isBest={bestFlipIds.has(item.id)}
             onOpen={() => router.push(`/vehicles/overview/${item.id}`)}
             onToggleFavourite={() => toggleFavourite(item.id)}
+            onDelete={() => confirmDelete(item)}
           />
         )}
         ItemSeparatorComponent={Separator}
@@ -704,8 +729,8 @@ const styles = StyleSheet.create({
   thumb: { width: 72, height: 72, borderRadius: 12 },
   thumbEmpty: { alignItems: "center", justifyContent: "center" },
   main: { flex: 1, gap: 2 },
-  // Leaves room for the favourite button in the card's corner.
-  title: { fontSize: 16, fontWeight: "600", lineHeight: 21, paddingRight: 34 },
+  // Leaves room for the favourite and delete buttons in the card's corner.
+  title: { fontSize: 16, fontWeight: "600", lineHeight: 21, paddingRight: 78 },
   regRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   reg: { flexShrink: 1, fontSize: 13, fontVariant: ["tabular-nums"] },
   profitRow: { flexDirection: "row", alignItems: "center", gap: 8 },
@@ -759,6 +784,15 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 4,
     right: 4,
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  deleteBtn: {
+    position: "absolute",
+    top: 4,
+    right: 48,
     width: 44,
     height: 44,
     alignItems: "center",

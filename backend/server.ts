@@ -15,7 +15,7 @@ import registerUploadsRoute from "./routes/uploads";
 import registerMeRoute from "./routes/me";
 import registerAdvertsRoute from "./routes/adverts";
 import registerAuthRoutes from "./routes/auth";
-import { fetchMotHistory, odometerMiles } from "./utils/dvsaMot";
+import { defectsOfKind, fetchMotHistory, motTestList, odometerMiles } from "./utils/dvsaMot";
 import registerCreditsRoutes from "./routes/credits";
 import registerCostsRoute from "./routes/costs";
 import registerFeedbackRoutes from "./routes/feedback";
@@ -280,14 +280,18 @@ app.get("/vehicle", rateLimit(30), async (req, res) => {
         year: dvla?.yearOfManufacture ?? null,
         taxStatus: dvla?.taxStatus ?? null,
         motExpiry: dvla?.motExpiryDate ?? latestMot?.expiryDate ?? null,
+        // The DVLA's own word for it ("Valid", "Not valid", "No details held by DVLA"), so the app needn't guess.
+        motStatus: dvla?.motStatus ?? null,
+        // Every test with its result, miles and the tester's notes (see utils/dvsaMot.ts).
+        motTests: motTestList(mot),
 
         // A number of miles (the DVSA sends text, and kilometres for some cars), so the app can show and chart it.
         mileage: odometerMiles(latestMot),
         mileageUnit: "MI",
         lastMotDate: latestMot?.completedDate ?? null,
 
-        advisories: latestMot?.rfrAndComments?.filter((x: any) => x.type === "ADVISORY") ?? [],
-        failures: latestMot?.rfrAndComments?.filter((x: any) => x.type === "FAIL") ?? []
+        advisories: defectsOfKind(latestMot, "advisory"),
+        failures: defectsOfKind(latestMot, "failure"),
       }
     };
 

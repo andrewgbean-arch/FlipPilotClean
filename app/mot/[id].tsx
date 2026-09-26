@@ -1,7 +1,7 @@
 import React from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useLocalSearchParams } from "expo-router";
-import { ClockCounterClockwise, Warning, WarningCircle, XCircle } from "phosphor-react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { CheckCircle, ClockCounterClockwise, Info, Trash, Warning, WarningCircle, XCircle } from "phosphor-react-native";
 import type { Icon as PhosphorIcon } from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -13,14 +13,36 @@ import {
   motExpiryPhrase,
 } from "@/features/vehicles/utils/motDates";
 import { formatMiles } from "@/features/vehicles/utils/vehicleStats";
+import { parseMotTests, type MotTestEntry } from "@/features/vehicles/utils/motTests";
 
 export default function MotTimelineScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { vehicles, loaded, loadError } = useVehicleHistory();
+  const router = useRouter();
+  const { vehicles, deleteVehicle, loaded, loadError } = useVehicleHistory();
 
   const vehicle = vehicles.find((v) => v.id === id);
+
+  // A lookup saves the car to your vehicles, so it can be removed from here too.
+  const confirmDelete = () => {
+    if (!vehicle) return;
+    Alert.alert(
+      "Delete this vehicle?",
+      `${vehicle.title}${vehicle.mot?.reg ? ` (${vehicle.mot.reg})` : ""} will be removed from your list. This can't be undone.`,
+      [
+        { text: "Keep it", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            deleteVehicle(vehicle.id);
+            router.replace("/vehicles/list");
+          },
+        },
+      ]
+    );
+  };
 
   if (!vehicle || !vehicle.mot) {
     // Saved vehicles are read from storage after launch; do not call one
@@ -106,6 +128,10 @@ export default function MotTimelineScreen() {
 
   // Advisories and failures held on the record (the health figure above is
   // worked out from how many there are).
+  // Every test the DVSA holds, newest first (vehicles saved before this was kept have none, and fall back to the
+  // latest test's notes below).
+  const tests = parseMotTests(mot.tests);
+
   const failureNotes = (mot.failures ?? []).filter(
     (note): note is string => typeof note === "string" && note.trim() !== ""
   );
@@ -180,16 +206,26 @@ export default function MotTimelineScreen() {
         ) : null}
       </View>
 
-      {/* FAILURES */}
-      {failureNotes.length > 0 ? (
+      {/* EVERY MOT TEST: result, miles and what the tester wrote */}
+      {tests.length > 0 ? (
+        <>
+          <SectionTitle>MOT tests</SectionTitle>
+          {tests.map((test, i) => (
+            <TestCard key={`${test.date}-${i}`} test={test} />
+          ))}
+        </>
+      ) : null}
+
+      {/* FAILURES (latest test only: the fallback when no full history was kept) */}
+      {tests.length === 0 && failureNotes.length > 0 ? (
         <>
           <SectionTitle>Failures</SectionTitle>
           <NoteList notes={failureNotes} Icon={XCircle} color={theme.danger} />
         </>
       ) : null}
 
-      {/* ADVISORIES */}
-      {advisoryNotes.length > 0 ? (
+      {/* ADVISORIES (latest test only: the fallback when no full history was kept) */}
+      {tests.length === 0 && advisoryNotes.length > 0 ? (
         <>
           <SectionTitle>Advisories</SectionTitle>
           <NoteList notes={advisoryNotes} Icon={WarningCircle} color={theme.warning} />
@@ -310,6 +346,21 @@ export default function MotTimelineScreen() {
             </View>
           );
         })}
+
+      {/* DELETE */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Delete this vehicle"
+        onPress={confirmDelete}
+        style={({ pressed }) => [
+          styles.deleteButton,
+          { borderColor: theme.danger },
+          pressed && { opacity: 0.7 },
+        ]}
+      >
+        <Trash size={20} color={theme.danger} />
+        <Text style={[styles.deleteLabel, { color: theme.danger }]}>Delete this vehicle</Text>
+      </Pressable>
     </ScrollView>
   );
 }
@@ -401,6 +452,71 @@ function NoteList({
   );
 }
 
+// One MOT test: the date, PASS or FAIL, the miles, then the tester's notes.
+function TestCard({ test }: { test: MotTestEntry }) {
+  const theme = useTheme();
+  const passed = test.result === "PASSED";
+  const resultColor = passed ? theme.success : theme.danger;
+  const clean = test.failures.length + test.advisories.length + test.minor.length === 0;
+  const summary = [
+    test.failures.length > 0 ? `${test.failures.length} failure${test.failures.length === 1 ? "" : "s"}` : null,
+    test.advisories.length > 0 ? `${test.advisories.length} advisor${test.advisories.length === 1 ? "y" : "ies"}` : null,
+    test.minor.length > 0 ? `${test.minor.length} minor` : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${formatDate(test.date)}, ${passed ? "passed" : "failed"}${
+        test.miles != null ? `, ${test.miles.toLocaleString()} miles` : ""
+      }. ${summary || "No notes"}`}
+      style={[styles.testCard, { backgroundColor: theme.card, borderColor: theme.hairline }]}
+    >
+      <View style={styles.testHead}>
+        <View style={{ flexShrink: 1 }}>
+          <Text style={[styles.testDate, { color: theme.text }]}>{formatDate(test.date)}</Text>
+          <Text style={[styles.testMeta, { color: theme.muted }]}>
+            {test.miles != null ? formatMiles(test.miles) : "No mileage recorded"}
+          </Text>
+        </View>
+        <View style={[styles.testChip, { borderColor: resultColor }]}>
+          <Text style={[styles.testChipText, { color: resultColor }]}>{passed ? "PASS" : "FAIL"}</Text>
+        </View>
+      </View>
+
+      {clean ? (
+        <View style={[styles.noteRow, { borderTopWidth: 1, borderTopColor: theme.hairline }]}>
+          <CheckCircle size={20} color={theme.success} />
+          <Text style={[styles.noteText, { color: theme.muted }]}>No advisories or failures recorded</Text>
+        </View>
+      ) : (
+        <>
+          {test.failures.map((n, i) => (
+            <View key={`f${i}`} style={[styles.noteRow, { borderTopWidth: 1, borderTopColor: theme.hairline }]}>
+              <XCircle size={20} color={theme.danger} />
+              <Text style={[styles.noteText, { color: theme.text }]}>{n}</Text>
+            </View>
+          ))}
+          {test.advisories.map((n, i) => (
+            <View key={`a${i}`} style={[styles.noteRow, { borderTopWidth: 1, borderTopColor: theme.hairline }]}>
+              <WarningCircle size={20} color={theme.warning} />
+              <Text style={[styles.noteText, { color: theme.text }]}>{n}</Text>
+            </View>
+          ))}
+          {test.minor.map((n, i) => (
+            <View key={`m${i}`} style={[styles.noteRow, { borderTopWidth: 1, borderTopColor: theme.hairline }]}>
+              <Info size={20} color={theme.muted} />
+              <Text style={[styles.noteText, { color: theme.text }]}>{n}</Text>
+            </View>
+          ))}
+        </>
+      )}
+    </View>
+  );
+}
+
 // Vertical position of a timeline dot's centre, so the rail can start and stop there.
 const DOT_SIZE = 10;
 const DOT_TOP = 19;
@@ -487,11 +603,28 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 16,
   },
-  dataLabel: { fontSize: 15 },
+  dataLabel: { fontSize: 15, flexShrink: 0, marginRight: 12 },
+  deleteButton: {
+    marginTop: 28,
+    minHeight: 52,
+    borderWidth: 1.5,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  deleteLabel: { fontSize: 16, fontWeight: "700" },
+  testCard: { borderWidth: 1, borderRadius: 14, marginBottom: 12, overflow: "hidden" },
+  testHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 16, gap: 12 },
+  testDate: { fontSize: 17, fontWeight: "700" },
+  testMeta: { fontSize: 14, marginTop: 2 },
+  testChip: { borderWidth: 1.5, borderRadius: 999, paddingVertical: 4, paddingHorizontal: 12 },
+  testChipText: { fontSize: 13, fontWeight: "800", letterSpacing: 0.5 },
   dataValue: {
     fontSize: 16,
     fontWeight: "600",
-    flexShrink: 1,
+    flex: 1,
     textAlign: "right",
     fontVariant: ["tabular-nums"],
   },

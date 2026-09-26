@@ -25,6 +25,7 @@ import { useTheme } from "@/styles/ThemeContext";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { tidyName } from "@/features/vehicles/api/mot";
 import { BASE_URL } from "@/utils/api";
+import { mileageHistoryFromTests, motStatusFromExpiry, parseMotTests } from "@/features/vehicles/utils/motTests";
 
 // One line of the "what you will see" list: an icon, a name and a short explanation.
 function InfoRow({
@@ -96,6 +97,7 @@ export default function MotLookupScreen() {
       }
 
       const v = data.vehicle ?? {};
+      const tests = parseMotTests(v.motTests);
       const make = tidyName(v.make, true);
       const model = tidyName(v.model, true);
 
@@ -110,14 +112,20 @@ export default function MotLookupScreen() {
           year: v.year ?? null,
           colour: tidyName(v.colour),
           taxStatus: v.taxStatus ?? null,
+          motStatus: v.motStatus ?? motStatusFromExpiry(v.motExpiry),
+          tests,
           motExpiry: v.motExpiry ?? null,
           expiryDate: v.motExpiry ?? null,
           mileage: v.mileage ?? null,
           advisories: v.advisories?.map((a: any) => a.text ?? String(a)) ?? [],
           failures: v.failures?.map((f: any) => f.text ?? String(f)) ?? [],
-          mileageHistory: v.mileage != null && v.lastMotDate
-            ? [{ date: v.lastMotDate, mileage: v.mileage }]
-            : [],
+          // One point per MOT test that has a reading (the whole history), or just the latest if the list is missing.
+          mileageHistory:
+            tests.length > 0
+              ? mileageHistoryFromTests(tests)
+              : v.mileage != null && v.lastMotDate
+              ? [{ date: v.lastMotDate, mileage: v.mileage }]
+              : [],
         },
       });
 

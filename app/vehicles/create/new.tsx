@@ -30,6 +30,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { fetchMOT } from "@/features/vehicles/api/mot";
 import { sameReg } from "@/utils/motSnapshot";
+import { mileageHistoryFromTests, motStatusFromExpiry } from "@/features/vehicles/utils/motTests";
 import { keepPhoto } from "@/utils/keptPhotos";
 import { formatDate } from "@/features/vehicles/utils/motDates";
 import { formatMoney } from "@/features/vehicles/utils/vehicleStats";
@@ -263,6 +264,8 @@ export default function CreateNewFlip() {
     // The lookup does not return previous keepers, so whatever was typed is kept.
     setMotInfo({
       reg: lookupReg,
+      tests: data.tests ?? [],
+      motStatus: data.motStatus ?? motStatusFromExpiry(data.motExpiry),
       motExpiry: data.motExpiry ?? "",
       advisories: data.advisories ?? [],
       failures: data.failures ?? [],
@@ -299,12 +302,17 @@ export default function CreateNewFlip() {
       colour: colour.trim() || null,
       keepers: keepersN != null ? Math.round(keepersN) : null,
       mileage: mileageInt,
+      motStatus: motInfo?.motStatus ?? null,
+      tests: motInfo?.tests ?? null,
       motExpiry: motInfo?.motExpiry || null,
       expiryDate: motInfo?.motExpiry || null,
       advisories: motInfo?.advisories ?? [],
       failures: motInfo?.failures ?? [],
+      // The whole MOT history when the lookup gave one, otherwise just today's reading.
       mileageHistory:
-        mileageInt != null
+        motInfo?.tests?.length > 0
+          ? mileageHistoryFromTests(motInfo.tests)
+          : mileageInt != null
           ? [{ date: new Date().toISOString(), mileage: mileageInt }]
           : [],
     };

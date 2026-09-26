@@ -36,6 +36,7 @@ import {
 } from "@/features/vehicles/utils/vehicleStats";
 import { useTheme } from "@/styles/ThemeContext";
 import type { Theme } from "@/styles/theme";
+import { motStatusFromExpiry } from "@/features/vehicles/utils/motTests";
 
 /* HELPERS */
 
@@ -426,7 +427,7 @@ export default function VehicleOverviewScreen() {
           </View>
 
           <DataRow label="Expiry date" value={motExpiry ? formatDate(motExpiry) : "-"} divider />
-          <DataRow label="MOT status" value={mot.motStatus ?? "Unknown"} divider />
+          <DataRow label="MOT status" value={mot.motStatus ?? motStatusFromExpiry(motExpiry)} divider />
           <DataRow label="Tax status" value={mot.taxStatus ?? "Unknown"} divider />
           <DataRow label="Mileage" value={formatMiles(latestMileage)} divider />
           <DataRow label="Recorded issues" value={issuesText} valueColor={issuesColor} divider />
@@ -727,11 +728,13 @@ const styles = StyleSheet.create({
   },
   dataLabel: {
     fontSize: 15,
+    flexShrink: 0,
+    marginRight: 12,
   },
   dataValue: {
     fontSize: 16,
     fontWeight: "600",
-    flexShrink: 1,
+    flex: 1,
     textAlign: "right",
     fontVariant: ["tabular-nums"],
   },

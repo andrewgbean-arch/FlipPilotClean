@@ -1,3 +1,4 @@
+import type { MotTestEntry } from "../utils/motTests";
 /* -------------------------------------------------------
    FLIP RECORD MODEL
 ------------------------------------------------------- */
@@ -107,6 +108,9 @@ export interface FlipRecord {
       date: string;
       mileage: number;
     }[] | null;
+
+    /** Every MOT test the DVSA holds: date, pass/fail, miles and what the tester wrote (newest first). */
+    tests?: MotTestEntry[] | null;
 
     colour?: string | null;
     keepers?: number | null;

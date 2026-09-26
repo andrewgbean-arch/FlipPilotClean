@@ -1,5 +1,6 @@
 // src/features/vehicles/api/mot.ts
 import { BASE_URL } from "@/utils/api";
+import { parseMotTests, type MotTestEntry } from "../utils/motTests";
 
 export interface MOTData {
   reg: string;
@@ -11,8 +12,12 @@ export interface MOTData {
   expiry?: string | null;
   motExpiry?: string | null;
   taxStatus?: string | null;
+  /** The DVLA's own word ("Valid", "Not valid"...), when it sent one. */
+  motStatus?: string | null;
   advisories?: string[];
   failures?: string[];
+  /** Every MOT test with its result, miles and notes, newest first. */
+  tests?: MotTestEntry[];
 }
 
 // Either the vehicle, or a message that is safe to show the user.
@@ -82,6 +87,8 @@ export async function fetchMOT(reg: string): Promise<MotLookup> {
         expiry: v.motExpiry ?? null,
         motExpiry: v.motExpiry ?? null,
         taxStatus: v.taxStatus ?? null,
+        motStatus: typeof v.motStatus === "string" && v.motStatus ? v.motStatus : null,
+        tests: parseMotTests(v.motTests),
         advisories: v.advisories?.map((a: any) => a.text ?? String(a)) ?? [],
         failures: v.failures?.map((f: any) => f.text ?? String(f)) ?? [],
       },

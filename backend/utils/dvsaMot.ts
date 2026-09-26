@@ -109,6 +109,64 @@ export function odometerMiles(test: any): number | null {
   return Number.isFinite(raw) && raw > 0 ? Math.round(unit.startsWith("K") ? raw * KM_TO_MILES : raw) : null;
 }
 
+/**
+ * The tester's notes on one MOT test. The DVSA's current field is `defects` (the older name, `rfrAndComments`,
+ * is accepted too). Reading only the old name returned nothing at all for real cars: no advisories, no failures.
+ * A failure is typed "FAIL" before the May 2018 reform and "MAJOR" or "DANGEROUS" since; "MINOR" and
+ * "ADVISORY" are notes that do not fail the test.
+ */
+const FAIL_TYPES = new Set(["FAIL", "MAJOR", "DANGEROUS"]);
+
+export function defectsOfKind(test: any, kind: "failure" | "advisory" | "minor"): any[] {
+  const notes: any[] = Array.isArray(test?.defects) ? test.defects : Array.isArray(test?.rfrAndComments) ? test.rfrAndComments : [];
+  return notes.filter((n) => {
+    const type = String(n?.type ?? "").toUpperCase();
+    return kind === "failure" ? FAIL_TYPES.has(type) : kind === "advisory" ? type === "ADVISORY" : type === "MINOR";
+  });
+}
+
+export type MotTestEntry = {
+  /** The day the test was done, YYYY-MM-DD. */
+  date: string;
+  result: "PASSED" | "FAILED";
+  /** The odometer reading in miles, or null when the test has none. */
+  miles: number | null;
+  /** When the MOT this test gave runs out, if it passed. */
+  expiryDate: string | null;
+  failures: string[];
+  advisories: string[];
+  minor: string[];
+};
+
+/**
+ * Every MOT test in the DVSA's answer, newest first, cleaned up for the app: the day, pass or fail, the miles,
+ * and what the tester wrote down (failures, advisories, minor defects). At most 20 tests, and each note is
+ * trimmed, so the reply stays small.
+ */
+export function motTestList(mot: any): MotTestEntry[] {
+  const tests: any[] = Array.isArray(mot?.motTests) ? mot.motTests : [];
+  return tests
+    .map((t) => {
+      const date = day(t?.completedDate);
+      if (!date) return null;
+      const pick = (kind: "failure" | "advisory" | "minor") =>
+        defectsOfKind(t, kind).map((n) => words(n?.text, 200)).filter(Boolean).slice(0, 30);
+      const entry: MotTestEntry = {
+        date,
+        result: String(t?.testResult ?? "").toUpperCase().startsWith("F") ? "FAILED" : "PASSED",
+        miles: odometerMiles(t),
+        expiryDate: day(t?.expiryDate),
+        failures: pick("failure"),
+        advisories: pick("advisory"),
+        minor: pick("minor"),
+      };
+      return entry;
+    })
+    .filter((e): e is MotTestEntry => e !== null)
+    .sort((a, b) => Date.parse(b.date) - Date.parse(a.date))
+    .slice(0, 20);
+}
+
 /** Turns the DVSA's answer into the summary we keep, or null when there is no usable test history. */
 export function summariseMot(mot: any, now = new Date()): MotSummary | null {
   const tests: any[] = Array.isArray(mot?.motTests) ? mot.motTests : [];
@@ -138,9 +196,8 @@ export function summariseMot(mot: any, now = new Date()): MotSummary | null {
   }
 
   const last = parsed[parsed.length - 1];
-  const lines = (type: string) =>
-    (Array.isArray(last.t?.rfrAndComments) ? last.t.rfrAndComments : [])
-      .filter((x: any) => String(x?.type ?? "").toUpperCase() === type)
+  const lines = (kind: "failure" | "advisory") =>
+    defectsOfKind(last.t, kind)
       .map((x: any) => words(x?.text))
       .filter(Boolean)
       .slice(0, 6);
@@ -156,8 +213,8 @@ export function summariseMot(mot: any, now = new Date()): MotSummary | null {
       result: last.result,
       expiryDate: day(last.t?.expiryDate),
       miles: last.miles,
-      advisories: lines("ADVISORY"),
-      failures: lines("FAIL"),
+      advisories: lines("advisory"),
+      failures: lines("failure"),
     },
   };
 }
