@@ -16,7 +16,8 @@ services:
     # A persistent disk needs a paid instance; a free one sleeps and has no disk.
     plan: starter
     rootDir: backend
-    buildCommand: npm install && npm run build
+    # NODE_ENV=production is also set while building, which would skip the compiler (a devDependency), so ask for it.
+    buildCommand: npm install --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /
     autoDeploy: true
