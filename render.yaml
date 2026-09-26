@@ -1,0 +1,60 @@
+# Render Blueprint for the FlipPilot backend.
+#
+# New > Blueprint on Render, pick this repo, and Render builds the service, the persistent disk and the
+# secrets below. Secrets marked `generateValue` are made by Render (read them later on the service's
+# Environment page). Ones marked `sync: false` are asked for when you create it: type the values into
+# Render yourself; they never go in this file or the repo.
+#
+# Not asked for here, because the app works without them and they can be added later on the service's
+# Environment page: REVENUECAT_SECRET_KEY, DVLA_API_KEY, the DVSA MOT credentials (API_KEY, TOKEN_URL,
+# CLIENT_ID, CLIENT_SECRET, SCOPE_URL), MARKETPLACE_PROMO_ENDS_AT. See the go-live runbook.
+services:
+  - type: web
+    name: flippilot-backend
+    runtime: node
+    region: frankfurt
+    # A persistent disk needs a paid instance; a free one sleeps and has no disk.
+    plan: starter
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    autoDeploy: true
+    disk:
+      name: flippilot-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /var/data
+      # Cloudflare and Render's router are both in front of the app, so two hops. Confirm with the runbook's check.
+      - key: TRUST_PROXY_HOPS
+        value: "2"
+      - key: ADMIN_TOKEN
+        generateValue: true
+      - key: TOKEN_ENCRYPTION_KEY
+        generateValue: true
+      - key: SCAN_TOKEN_SECRET
+        generateValue: true
+      - key: REVENUECAT_WEBHOOK_SECRET
+        generateValue: true
+      # Your web address for this service, like https://flippilot-backend.onrender.com (no slash at the end).
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: SERPAPI_KEY
+        sync: false
+      - key: EBAY_CLIENT_ID
+        sync: false
+      - key: EBAY_CLIENT_SECRET
+        sync: false
+      # From Resend. EMAIL_FROM like: FlipPilot <sign-in@your-domain.com>
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
