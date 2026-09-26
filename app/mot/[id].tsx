@@ -610,7 +610,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 16,
   },
-  dataLabel: { fontSize: 15, flexShrink: 0, marginRight: 12 },
+  // A minimum share of the row, wider than the short labels, so the text box always has slack (Android was clipping the last letter, e.g. "Mileag").
+  dataLabel: { fontSize: 15, minWidth: "40%", flexShrink: 0, marginRight: 8 },
   deleteButton: {
     marginTop: 28,
     minHeight: 52,
