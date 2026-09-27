@@ -9,14 +9,12 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { router } from "expo-router";
-import { Feather } from "@expo/vector-icons";
 import { useTheme } from "@/styles/ThemeContext";
 
 import { BASE_URL } from "@/utils/api";
 import { getDeviceId } from "@/utils/deviceId";
 import PartnerLinks from "@/components/marketplace/PartnerLinks";
 import GoldParticles from "@/components/ui/GoldParticles";
-import { MARKETPLACE_CATEGORIES } from "@/constants/marketplaceCategories";
 
 export default function MarketplaceHub() {
   const theme = useTheme();
@@ -112,7 +110,8 @@ export default function MarketplaceHub() {
           </Text>
         </Pressable>
 
-        {/* Public: Browse Listings */}
+        {/* Public: Browse Listings — its own search box and category chips already cover
+            what a separate category grid on this page would only duplicate. */}
         <Pressable
           style={{
             backgroundColor: theme.card,
@@ -120,7 +119,7 @@ export default function MarketplaceHub() {
             borderRadius: 14,
             borderWidth: 1,
             borderColor: theme.goldDeep,
-            marginBottom: 20,
+            marginBottom: 8,
           }}
           onPress={() => router.push("/marketplace/Listings")}
         >
@@ -128,59 +127,16 @@ export default function MarketplaceHub() {
             📄 Browse Listings
           </Text>
         </Pressable>
-      </View>
-
-      {/* CATEGORIES */}
-      <View style={{ paddingHorizontal: 20 }}>
-        <Text
-          style={{
-            color: theme.goldDeep,
-            fontSize: 20,
-            fontWeight: "700",
-            marginBottom: 12,
-          }}
+        <Pressable
+          accessibilityRole="button"
+          hitSlop={8}
+          onPress={() => router.push("/marketplace/Listings")}
+          style={{ alignSelf: "flex-start", marginBottom: 20, paddingHorizontal: 4, paddingVertical: 4 }}
         >
-          Categories
-        </Text>
-
-        <View
-          style={{
-            flexDirection: "row",
-            flexWrap: "wrap",
-            justifyContent: "space-between",
-          }}
-        >
-          {MARKETPLACE_CATEGORIES.map((cat) => (
-            <Pressable
-              key={cat.id}
-              style={{
-                width: "48%",
-                backgroundColor: theme.card,
-                borderRadius: 14,
-                padding: 14,
-                borderWidth: 1,
-                borderColor: theme.goldDeep,
-                marginBottom: 14,
-                alignItems: "center",
-              }}
-              onPress={() =>
-                router.push(`/marketplace/Listings?category=${cat.id}`)
-              }
-            >
-              <Feather name={cat.icon as any} size={26} color={theme.text} />
-              <Text
-                style={{
-                  color: theme.text,
-                  marginTop: 6,
-                  fontWeight: "700",
-                  textAlign: "center",
-                }}
-              >
-                {cat.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+          <Text style={{ color: theme.muted, fontSize: 13 }}>
+            Search, or filter by category, once you're browsing
+          </Text>
+        </Pressable>
       </View>
 
       {/* TRENDING */}

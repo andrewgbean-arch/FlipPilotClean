@@ -1,2 +1,7 @@
 const { getDefaultConfig } = require("expo/metro-config");
-module.exports = getDefaultConfig(__dirname);
+
+const config = getDefaultConfig(__dirname);
+// Operation Nightglass ships inside the app as a single HTML page (assets/games).
+config.resolver.assetExts.push("html");
+
+module.exports = config;

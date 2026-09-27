@@ -29,6 +29,7 @@ import {
   Storefront,
   Tent,
   GameController,
+  Detective,
 } from "phosphor-react-native";
 import type { Icon as PhosphorIcon } from "phosphor-react-native";
 import { useTheme } from "@/styles/useTheme";
@@ -49,6 +50,7 @@ const TOOLS: { key: string; label: string; Icon: PhosphorIcon; route: string; ti
   { key: "vehicles", label: "Vehicles Hub", Icon: Car, route: "/vehicles", tint: "#B78CFF" },
   { key: "advertise", label: "Advertise Your Event", Icon: Tent, route: "/bootfairs/add", tint: "#2ED9B8" },
   { key: "game", label: "Boot Fair Dash", Icon: GameController, route: "/game", tint: "#FF6BD6" },
+  { key: "nightglass", label: "Operation Nightglass", Icon: Detective, route: "/nightglass", tint: "#F0B35B" },
 ];
 
 const INSIGHTS: { key: string; title: string; meta: string; Icon: PhosphorIcon; route: string }[] = [
