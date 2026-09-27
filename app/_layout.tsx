@@ -200,6 +200,8 @@ function ThemedStack() {
         <Stack.Screen name="upgrade" options={{ title: "Upgrade" }} />
         <Stack.Screen name="manage-subscription" options={{ title: "Manage Subscription" }} />
         <Stack.Screen name="pro-success" options={{ headerShown: false }} />
+        {/* Operation Nightglass plays full screen; leaving is through the game's own menu or Back */}
+        <Stack.Screen name="nightglass-play" options={{ headerShown: false, gestureEnabled: false, animation: "fade" }} />
       </Stack>
     </NavigationThemeProvider>
   );

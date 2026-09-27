@@ -1,14 +1,10 @@
 /**
  * Operation Nightglass: a point-and-click spy adventure released one chapter a
- * month. The game itself is a single web page hosted on the FlipPilot site;
- * this file is the only thing to edit when a new chapter goes live.
- *
- *   EXPO_PUBLIC_NIGHTGLASS_URL   where the game is hosted (defaults to the live site)
+ * month. The game is a single web page bundled with the app in
+ * assets/games/nightglass/index.html and played in a WebView, so it works
+ * offline. To release a chapter: replace that file with the new build from the
+ * operation-nightglass repo (dist/index.html) and update the list below.
  */
-export const NIGHTGLASS_URL =
-  process.env.EXPO_PUBLIC_NIGHTGLASS_URL?.trim() ||
-  "https://flippilot-office-live-frontend.onrender.com/games/nightglass/index.html";
-
 export type Chapter = {
   number: string;
   place: string;

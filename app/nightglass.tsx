@@ -1,11 +1,11 @@
 import React from "react";
-import { Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import * as WebBrowser from "expo-web-browser";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DeviceRotate, HandTap, Headphones, Lock, Play } from "phosphor-react-native";
 import type { Icon as PhosphorIcon } from "phosphor-react-native";
 
-import { CHAPTERS, NIGHTGLASS_URL } from "@/game/nightglass";
+import { CHAPTERS } from "@/game/nightglass";
 
 // A fixed noir palette, like the game's own title screen: it is the same in
 // light and dark mode on purpose.
@@ -15,22 +15,6 @@ const BONE = "#efe4cc";
 const AMBER = "#f0b35b";
 const MUTED = "rgba(239,228,204,0.62)";
 const SERIF = Platform.select({ ios: "Georgia", android: "serif", default: "Georgia" });
-
-async function playGame() {
-  try {
-    // The game is a web page. It lays itself sideways on an upright phone, so
-    // it plays in landscape even though the app is portrait-only.
-    await WebBrowser.openBrowserAsync(NIGHTGLASS_URL, {
-      presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-      toolbarColor: INK,
-      controlsColor: AMBER,
-      enableBarCollapsing: true,
-      showTitle: false,
-    });
-  } catch {
-    Linking.openURL(NIGHTGLASS_URL).catch(() => Alert.alert("Couldn't open the game", "Check your connection and try again."));
-  }
-}
 
 export default function NightglassScreen() {
   const insets = useSafeAreaInsets();
@@ -66,7 +50,7 @@ export default function NightglassScreen() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Play chapter ${ch.number}, ${ch.place}`}
-                onPress={playGame}
+                onPress={() => router.push("/nightglass-play")}
                 style={({ pressed }) => [styles.playBtn, pressed && styles.pressed]}
               >
                 <Play size={20} color={INK} weight="fill" />
@@ -82,7 +66,7 @@ export default function NightglassScreen() {
         <Tip Icon={HandTap} text="Tap to act, hold to examine" />
         <Tip Icon={Headphones} text="Best with headphones" />
       </View>
-      <Text style={styles.footnote}>Your progress is saved on this phone, so you can stop and carry on later.</Text>
+      <Text style={styles.footnote}>Plays offline. Your progress is saved on this phone, so you can stop and carry on later.</Text>
     </ScrollView>
   );
 }
