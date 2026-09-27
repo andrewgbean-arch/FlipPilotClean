@@ -1306,6 +1306,28 @@ const LOOKS = {
     skin: '#d8ac8c', hair: '#1a1612', hairStyle: 'cap', cap: '#2a2f38', capBand: '#9e1f28', top: 'greatcoat', build: 0.98, brass: true, belt: '#111',
     coat: '#3a3e36', coatDark: '#1e211c', pants: '#2a2d26', shoes: '#050505', shirt: '#2a2d26', trim: '#c9a13b', eye: '#6a7a8a',
   },
+  // --- Chapter Three: the Iron Arrow ---------------------------------------------
+  jackWaiter: {
+    skin: '#d9a883', hair: '#2a1d16', hairStyle: 'slick', top: 'waiter', stubble: true, eye: '#4a6a7a',
+    coat: '#ece6da', coatDark: '#b9b1a1', pants: '#15161a', shoes: '#0a0a0a', shirt: '#f4f0e8', tie: '#0a0a0a',
+    face: { outfit: 'waiter', hairStyle: 'slick', coat: '#ece6da', collar: '#f4f0e8', tie: '#0a0a0a' },
+  },
+  franzChef: {
+    skin: '#d4a07e', hair: '#5a5550', hairStyle: 'chef', top: 'waiter', build: 1.12, belly: 0.5, mustache: true,
+    coat: '#f2eee6', coatDark: '#c8c0b0', pants: '#2a2a2e', shoes: '#101010', shirt: '#f2eee6', tie: '#9e1f28', apron: '#f8f6f0',
+  },
+  bogdan: {
+    skin: '#d8a482', hair: '#6a6258', hairStyle: 'cap', cap: '#23304a', capBand: '#9e1f28', badge: '#c9a13b', top: 'greatcoat', brass: true, build: 1.15, belly: 0.7, mustache: true, flushed: true,
+    coat: '#2e3b56', coatDark: '#1a2234', pants: '#1f2638', shoes: '#101010', shirt: '#e8e2d6', belt: '#1a1a1a',
+  },
+  olga: {
+    skin: '#e4bca0', hair: '#7a7470', hairStyle: 'bun', top: 'longcoat', female: true, build: 1.28, belly: 1, glasses: true,
+    coat: '#1e3a2a', coatDark: '#0e2016', pants: '#1a1612', shoes: '#120a08', shirt: '#1a1a1a', lips: '#8a3a3a', eye: '#3a4a3a', earrings: true,
+  },
+  anicka: {
+    skin: '#f0cbb0', hair: '#6a3a1a', hairStyle: 'braids', top: 'longcoat', female: true, build: 0.92,
+    coat: '#2a5aa8', coatDark: '#16326a', pants: '#e8e0d0', shoes: '#6a1a1a', shirt: '#e8e0d0', lips: '#c8606a', eye: '#5b7f6a',
+  },
   pavel: {
     skin: '#d49c7a', hair: '#9a948c', hairStyle: 'cap', cap: '#232a38', capBand: '#232a38', badge: '#c9a13b', top: 'jacket', build: 1.1, belly: 0.6, mustache: true, flushed: true,
     coat: '#39414f', coatDark: '#1f242d', pants: '#23252b', shoes: '#141414', shirt: '#8a8478',
@@ -1365,6 +1387,11 @@ function resolvePose(f, t) {
   if (arm === 'behind') { p.arms[0] = { upper: -0.2, fore: -0.5 }; p.arms[1] = { upper: -0.18, fore: -0.55 }; }
   if (arm === 'toast') p.arms[1] = { upper: 2.5 + wob * 3, fore: 0.35 };
   if (arm === 'hold') p.arms[1] = { upper: 0.4, fore: 1.3 };
+  if (arm === 'cuffed') { p.arms[1] = { upper: 2.7, fore: 0.25 }; p.headTilt = -0.05; }
+  if (arm === 'knit') { p.arms[1] = { upper: 0.6, fore: 1.5 + Math.sin(t * 7) * 0.12 }; p.arms[0] = { upper: 0.55, fore: 1.45 + Math.sin(t * 7 + 1) * 0.12 }; }
+  if (arm === 'panic') { p.arms[1] = { upper: 2.9 + Math.sin(t * 14) * 0.2, fore: 0.3 }; p.arms[0] = { upper: 2.6 + Math.sin(t * 13) * 0.2, fore: 0.4 }; }
+  if (arm === 'hug') { p.arms[1] = { upper: 1.2, fore: 1.2 }; p.arms[0] = { upper: 1.1, fore: 1.3 }; }
+  if (arm === 'wheel') { p.arms[1] = { upper: 1.3 + Math.sin(t * 6) * 0.35, fore: 0.6 }; p.arms[0] = { upper: 1.2 - Math.sin(t * 6) * 0.35, fore: 0.7 }; }
   if (arm === 'push') { p.arms[1] = { upper: 0.85, fore: 0.35 }; p.arms[0] = { upper: 0.8, fore: 0.4 }; }
   if (arm === 'wrist') { p.arms[1] = { upper: 0.3, fore: 1.7 }; p.arms[0] = { upper: 0.25, fore: 1.5 }; p.headTilt = 0.12; }
   if (arm === 'sign') p.arms[1] = { upper: 0.55, fore: 1.45 + Math.sin(t * 9) * 0.08 };
@@ -1750,6 +1777,21 @@ function drawHead(ctx, f, L, t) {
     for (let k = 0; k < 30; k++) ellipse(ctx, -14 + r() * 26, -19 + r() * 32, 0.9, 0.9, k % 3 ? 'rgba(255,240,200,0.55)' : 'rgba(220,60,60,0.6)');
     ctx.restore();
     poly(ctx, [-4, 12, 4, 15, -1, 21, -8, 18], L.kerchief); // knot
+  } else if (L.hairStyle === 'chef') {
+    ctx.fillStyle = h; ctx.fillRect(-10, -6, 6, 10);
+    ctx.fillStyle = '#f8f6f0'; ctx.fillRect(-11, -16, 22, 8);
+    ctx.beginPath(); ctx.moveTo(-12, -15); ctx.bezierCurveTo(-18, -36, 0, -44, 2, -34); ctx.bezierCurveTo(6, -46, 22, -36, 12, -15); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.12)'; ctx.lineWidth = 0.8; for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.moveTo(-6 + k * 5, -16); ctx.lineTo(-7 + k * 5, -32); ctx.stroke(); }
+  } else if (L.hairStyle === 'bun') {
+    ctx.fillStyle = h;
+    ctx.beginPath(); ctx.moveTo(-11, 6); ctx.quadraticCurveTo(-15, -16, 2, -17.5); ctx.quadraticCurveTo(12, -17, 12.4, -8); ctx.quadraticCurveTo(4, -12, -4, -8); ctx.quadraticCurveTo(-6, -2, -6, 6); ctx.closePath(); ctx.fill();
+    ellipse(ctx, -9, -12, 7, 7, shadeColor(h, -0.1));
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 0.6; for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.moveTo(-8 + k * 3, -15); ctx.quadraticCurveTo(0, -17, 8, -12 + k); ctx.stroke(); }
+  } else if (L.hairStyle === 'braids') {
+    ctx.fillStyle = h;
+    ctx.beginPath(); ctx.moveTo(-11, 6); ctx.quadraticCurveTo(-15, -16, 2, -17.5); ctx.quadraticCurveTo(12, -17, 12.4, -6); ctx.quadraticCurveTo(6, -12, 3, -8); ctx.quadraticCurveTo(-2, -2, -5, 6); ctx.closePath(); ctx.fill();
+    for (let k = 0; k < 4; k++) ellipse(ctx, -8 + Math.sin(t * 2) * 0.5, 8 + k * 5, 3.2, 3, shadeColor(h, k % 2 ? -0.1 : 0.05));
+    ellipse(ctx, -8, 28, 3, 2, '#c8303a'); // ribbon
   } else if (L.hairStyle === 'flatcap') {
     ctx.fillStyle = h; ctx.fillRect(-11, -6, 7, 10);
     poly(ctx, [-13, -9, 10, -14, 20, -8, 12, -6, -12, -3], L.cap);
@@ -1908,10 +1950,28 @@ Object.assign(FACES, {
     outfit: 'railcoat', coat: '#39414f', trim: '#c9a13b',
   },
 });
+Object.assign(FACES, {
+  bogdan: {
+    skin: '#dcaa88', skinDark: '#a8765a', hair: '#6a6258', hairHi: '#9a9288', hairStyle: 'cap', cap: '#23304a', capBand: '#9e1f28', eye: '#4a5a6a',
+    brow: 13, jaw: 1.2, cheek: 1.35, nose: 'bulb', lip: '#a0604e', mustache: '#5a524a', mustacheStyle: 'walrus', age: 0.7, flushed: 0.45,
+    outfit: 'railcoat', coat: '#2e3b56', trim: '#c9a13b',
+  },
+  olga: {
+    skin: '#e8c2a6', skinDark: '#b88a6e', hair: '#8a847e', hairHi: '#c8c2bc', hairStyle: 'bun', eye: '#3a4a3a',
+    brow: 11, jaw: 1.15, cheek: 1.2, nose: 'long', lip: '#8a3a3a', female: true, age: 0.75, glasses: true,
+    outfit: 'redcoat', coat: '#1e3a2a', fur: '#3a2a1e', earrings: true,
+  },
+  anicka: {
+    skin: '#f2cdb4', skinDark: '#c89a80', hair: '#6a3a1a', hairHi: '#9a6a3a', hairStyle: 'braids', eye: '#5b7f6a',
+    brow: 5, jaw: 0.82, cheek: 1.25, nose: 'small', lip: '#c8606a', female: true, blush: 0.55, age: 0,
+    outfit: 'redcoat', coat: '#2a5aa8', fur: '#f0ece4',
+  },
+});
 FACES.soldier1 = FACES.soldier;
 FACES.soldier2 = { ...FACES.soldier, skin: '#d0a07a', nose: 'broad', jaw: 1.15, stubble: 0.4, eye: '#3a2a1a', blush: 0 };
 const NAMES = {
   jack: 'JACK HARROW', ilse: 'ILSE', franz: 'FRANZ', vendor: 'NEWSPAPER VENDOR', gateGuard: 'GATE GUARD', stairGuard: 'GUARD', officeGuard: 'GUARD', waiter: 'WAITER', baron: 'BARON VON KATZ',
+  bogdan: 'CONDUCTOR BOGDAN', olga: 'AUNT OLGA', anicka: 'ANIČKA',
   vasko: 'COLONEL VASKO', novak: 'ZDENKA NOVAK', zora: 'AUNTIE ZORA', borderGuard: 'BORDER GUARD', militia: 'MILITIAMAN', soldier1: 'SOLDIER', soldier2: 'SOLDIER', kolar: 'CAPTAIN KOLAR', pavel: 'OLD PAVEL',
 };
 FACES.officeGuard = { ...FACES.guard, jaw: 1.15, nose: 'straight', stubble: 0.2, eye: '#5a4a3a' };
@@ -2079,6 +2139,11 @@ function drawCollar(ctx, F) {
 }
 
 function drawHairBack(ctx, F) {
+  if (F.hairStyle === 'braids') {
+    ctx.fillStyle = shadeColor(F.hair, -0.1);
+    for (const d of [-1, 1]) for (let k = 0; k < 6; k++) ellipse(ctx, 200 + d * 104, 230 + k * 30, 20 - k, 18, k % 2 ? shadeColor(F.hair, -0.2) : F.hair);
+    for (const d of [-1, 1]) { ctx.fillStyle = '#c8303a'; ctx.beginPath(); ctx.ellipse(200 + d * 104, 410, 22, 10, d * 0.4, 0, 7); ctx.fill(); }
+  }
   if (F.hairStyle === 'furhat') {
     ctx.fillStyle = shadeColor(F.hair, -0.15);
     ctx.beginPath(); ctx.moveTo(100, 260); ctx.bezierCurveTo(80, 170, 110, 110, 200, 104); ctx.bezierCurveTo(290, 110, 320, 170, 300, 260); ctx.quadraticCurveTo(200, 270, 100, 260); ctx.fill();
@@ -2254,6 +2319,20 @@ function drawHairFront(ctx, F, t) {
     ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.fillRect(140, 146, 120, 3);
     ctx.save(); ctx.translate(200, 88); ctx.fillStyle = '#d9b35c';
     ctx.beginPath(); for (let k = 0; k < 10; k++) { const r = k % 2 ? 7 : 16, a = -Math.PI / 2 + k / 10 * Math.PI * 2; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); } ctx.fill(); ctx.restore();
+  } else if (F.hairStyle === 'chef') {
+    for (const d of [-1, 1]) { ctx.fillStyle = h; ctx.beginPath(); ctx.moveTo(200 + d * 90, 214); ctx.bezierCurveTo(200 + d * 100, 170, 200 + d * 94, 136, 200 + d * 78, 116); ctx.lineTo(200 + d * 70, 170); ctx.lineTo(200 + d * 80, 214); ctx.fill(); }
+    ctx.fillStyle = '#f8f6f0'; ctx.fillRect(104, 92, 192, 44);
+    ctx.beginPath(); ctx.moveTo(100, 100); ctx.bezierCurveTo(60, -10, 170, -30, 200, 20); ctx.bezierCurveTo(230, -30, 340, -10, 300, 100); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.1)'; ctx.lineWidth = 3; for (let i = 0; i < 6; i++) { ctx.beginPath(); ctx.moveTo(130 + i * 28, 96); ctx.lineTo(126 + i * 30, 20); ctx.stroke(); }
+  } else if (F.hairStyle === 'bun') {
+    ctx.fillStyle = linGrad(ctx, 100, 0, 300, 0, [[0, shadeColor(h, -0.2)], [0.5, h], [1, shadeColor(h, -0.15)]]);
+    ctx.beginPath(); ctx.moveTo(104, 210); ctx.bezierCurveTo(90, 90, 150, 56, 204, 58); ctx.bezierCurveTo(262, 58, 312, 96, 296, 210); ctx.bezierCurveTo(290, 150, 270, 118, 204, 110); ctx.bezierCurveTo(140, 118, 112, 150, 104, 210); ctx.fill();
+    ellipse(ctx, 200, 44, 52, 34, shadeColor(h, -0.05));
+    ctx.strokeStyle = hi; ctx.globalAlpha = 0.5; ctx.lineWidth = 2; for (let i = 0; i < 7; i++) { ctx.beginPath(); ctx.moveTo(130 + i * 20, 80); ctx.quadraticCurveTo(200, 60, 270 - i * 4, 90); ctx.stroke(); } ctx.globalAlpha = 1;
+  } else if (F.hairStyle === 'braids') {
+    ctx.fillStyle = linGrad(ctx, 100, 0, 300, 0, [[0, shadeColor(h, -0.15)], [0.5, h], [1, shadeColor(h, -0.1)]]);
+    ctx.beginPath(); ctx.moveTo(100, 230); ctx.bezierCurveTo(86, 110, 130, 56, 204, 56); ctx.bezierCurveTo(280, 56, 318, 110, 302, 230); ctx.bezierCurveTo(296, 160, 280, 120, 240, 112); ctx.bezierCurveTo(210, 130, 160, 100, 150, 112); ctx.bezierCurveTo(120, 140, 110, 180, 100, 230); ctx.fill();
+    ctx.strokeStyle = shadeColor(h, -0.35); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(200, 58); ctx.lineTo(196, 110); ctx.stroke(); // parting
   } else if (F.hairStyle === 'fedora') {
     ctx.fillStyle = h; for (const d of [-1, 1]) ctx.fillRect(200 + d * 86 - 8, 126, 16, 70);
     ctx.fillStyle = linGrad(ctx, 100, 0, 300, 0, [[0, shadeColor(F.hat, -0.3)], [0.55, F.hat], [1, shadeColor(F.hat, -0.2)]]);
@@ -2468,7 +2547,7 @@ window.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     if (G.mode === 'play' || G.mode === 'action') G.paused = !G.paused;
   }
-  if ((e.key === ' ' || e.key === 'Enter' || e.key === '.') && G.speech.length) skipSpeech();
+  if ((e.key === ' ' || e.key === 'Enter' || e.key === '.') && G.speech.length && G.mode !== 'action') skipSpeech();
   if (G.mode === 'text' && (e.key === ' ' || e.key === 'Enter')) TextScreen.skip();
 });
 window.addEventListener('keyup', e => { KEYS[e.key] = false; });
@@ -3248,7 +3327,7 @@ function frame(now) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   if (G.mode === 'title') Title.draw(ctx, dt);
   else if (G.mode === 'text') TextScreen.draw(ctx, dt);
-  else if (G.mode === 'action') { if (!G.paused) G.action.update(dt); G.action.draw(ctx, dt); drawSpeech(ctx); drawHud(ctx, dt); }
+  else if (G.mode === 'action') { if (!G.paused) { G.action.update(dt); tickSpeech(dt); } G.action.draw(ctx, dt); drawSpeech(ctx); drawHud(ctx, dt); }
   else if (G.mode === 'play') { if (!G.paused) update(dt); draw(ctx, dt); }
   if (G.fade > 0.001) { ctx.fillStyle = `rgba(0,0,0,${G.fade})`; ctx.fillRect(0, 0, W, H); }
   if (G.paused) Pause.draw(ctx);
@@ -3256,6 +3335,14 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
+function tickSpeech(dt) {
+  for (const s of G.speech) {
+    s.t += dt;
+    // Voiced lines end shortly after the voice does; silent ones on a reading timer.
+    const done = s.voiced ? (s.voiceDone && s.t > s.doneAt + 0.35) : s.t > s.dur;
+    if (done || s.t > s.dur * 2.5 + 3) endSpeech(s);
+  }
+}
 function update(dt) {
   const sc = G.scene;
   const idle = G.busy && !G.speech.length && !G.choices && !G.overlay && G.fade < 0.02 && !G.actors.some(a => a.walking);
@@ -3265,14 +3352,10 @@ function update(dt) {
   if (G.idleT > 30 && typeof hintThought === 'function') { G.idleT = -30; run(() => hintThought()); }
   if (G.stuckT > 8) { G.busy = false; G.stuckT = 0; runToken++; }
   for (const a of G.actors) updateWalker(a, dt);
-  for (const s of G.speech) {
-    s.t += dt;
-    // Voiced lines end shortly after the voice does; silent ones on a reading timer.
-    const done = s.voiced ? (s.voiceDone && s.t > s.doneAt + 0.35) : s.t > s.dur;
-    if (done || s.t > s.dur * 2.5 + 3) endSpeech(s);
-  }
+  tickSpeech(dt);
   if (sc._rain) sc._rain.update(dt, (sc.rain || sc.snow).ground);
   if (sc.update) sc.update(dt, G.t);
+  if (CHAPTER.update) CHAPTER.update(dt, G.t);
 }
 function draw(ctx, dt) {
   const sc = G.scene, t = G.t;
@@ -3287,6 +3370,7 @@ function draw(ctx, dt) {
     if (it.a) drawFigure(ctx, it.a, t, it.a.light || sc.light);
     else it.p.draw(ctx, t);
   }
+  if (CHAPTER.drawOver) CHAPTER.drawOver(ctx, t);
   if (sc.front) sc.front(ctx, t);
   if (sc._rain) sc._rain.draw(ctx);
   drawVignette(ctx, sc.vignette ?? 0.7);
@@ -3342,6 +3426,17 @@ function paintSky(ctx, y0, y1, top = '#07101c', mid = '#10223a', glowCol = 'rgba
     ctx.globalAlpha = 0.05 + r() * 0.06;
     ellipse(ctx, r() * W, y0 + r() * (y1 - y0) * 0.6, 200 + r() * 300, 30 + r() * 50, '#5a6f86');
   }
+  ctx.restore();
+}
+
+// F-117-style faceted flying wing.
+function drawStealth(ctx, x, y, s) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+  poly(ctx, [-110, 0, 60, -18, 80, 0, 60, 18], '#05080c');
+  poly(ctx, [-30, 0, 40, -70, 60, -62, 30, 0], '#070a0f');
+  poly(ctx, [-30, 0, 40, 70, 60, 62, 30, 0], '#070a0f');
+  poly(ctx, [50, -8, 80, -28, 86, -24, 64, -4], '#05080c');
+  glow(ctx, 40, -66, 10, 'rgba(255,60,60,0.9)', Math.sin(G.t * 6) > 0 ? 1 : 0.1);
   ctx.restore();
 }
 
@@ -5168,6 +5263,67 @@ function paintPortraitCrate(ctx, open) {
   });
 }
 
+// ---------- the train window: a moving landscape -----------------------------------
+function drawTrainWindow(ctx, t, x, y, w, h, speed) {
+  ctx.save();
+  rrect(ctx, x + 9, y + 9, w - 18, h - 18, 28); ctx.clip();
+  ctx.fillStyle = linGrad(ctx, 0, y, 0, y + h, [[0, '#050a18'], [0.6, '#15233c'], [1, '#2a3650']]); ctx.fillRect(x, y, w, h);
+  ellipse(ctx, x + w * 0.7, y + 120, 26, 26, '#eef2f6'); glow(ctx, x + w * 0.7, y + 120, 140, 'rgba(190,210,255,0.3)');
+  const layer = (canvasKey, painter, rate, yy) => {
+    if (!drawTrainWindow[canvasKey]) { const c = makeCanvas(1200, 400), cx = c.getContext('2d'); painter(cx); drawTrainWindow[canvasKey] = c; }
+    const img = drawTrainWindow[canvasKey], off = (t * rate * speed) % 1200;
+    for (let k = -1; k < 2; k++) ctx.drawImage(img, x - off + k * 1200, y + yy);
+  };
+  layer('_far', c => paintMountains(c, 3, 300, 220, '#1c2a44', 'rgba(210,225,245,0.55)', 0, 1200), 20, 20);
+  layer('_mid', c => { paintMountains(c, 9, 330, 120, '#141e30', 'rgba(200,215,240,0.4)', 0, 1200); paintPines(c, 4, 360, 120, '#0a1220', 0, 1200, 0.8); }, 80, 40);
+  layer('_near', c => { c.fillStyle = '#dfe6ee'; c.fillRect(0, 330, 1200, 70); paintPines(c, 8, 340, 190, '#060a12', 0, 1200, 0.5); }, 420, 80);
+  // telegraph poles flicking past
+  const pp = (t * 900 * speed) % 700;
+  ctx.fillStyle = '#05070c'; ctx.fillRect(x + w - pp, y, 10, h);
+  ctx.strokeStyle = 'rgba(10,14,20,0.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, y + 60 + Math.sin(t * 3) * 6); ctx.lineTo(x + w, y + 60 + Math.sin(t * 3 + 1) * 6); ctx.stroke();
+  // snow streaking past the glass
+  ctx.fillStyle = 'rgba(240,244,250,0.8)';
+  for (let k = 0; k < 40; k++) { const sx = x + w - ((t * 700 * speed + k * 131) % (w + 60)), sy = y + ((k * 97 + t * 60) % h); ctx.fillRect(sx, sy, 8, 2); }
+  // reflection of the lamp in the glass
+  ctx.globalAlpha = 0.1; ctx.fillStyle = linGrad(ctx, x, y, x + w, y + h, [[0, 'rgba(255,232,192,0)'], [0.45, 'rgba(255,232,192,1)'], [0.55, 'rgba(255,232,192,0)']]); ctx.fillRect(x, y, w, h);
+  ctx.restore();
+}
+
+// Snow falling beyond a window (the station hall and the buffet).
+function drawSnowInWindow(ctx, t, x, y, w, h, arch) {
+  ctx.save();
+  ctx.beginPath();
+  if (arch) { ctx.moveTo(x, y + h); ctx.lineTo(x, y + w / 2); ctx.arc(x + w / 2, y + w / 2, w / 2, Math.PI, 0); ctx.lineTo(x + w, y + h); }
+  else ctx.rect(x, y, w, h);
+  ctx.clip();
+  ctx.fillStyle = 'rgba(235,240,248,0.75)';
+  for (let k = 0; k < 90; k++) {
+    const sx = x + ((k * 53 + Math.sin(t * 0.7 + k) * 30 + t * 20) % w), sy = y + ((k * 71 + t * (40 + (k % 5) * 12)) % h);
+    ctx.beginPath(); ctx.arc(sx, sy, 1.2 + (k % 3), 0, 7); ctx.fill();
+  }
+  ctx.restore();
+}
+
+
+// Three geese in a slatted crate, bobbing and peering out.
+function drawGeese(ctx, t) {
+  const x = 120, y = 640;
+  ctx.fillStyle = '#6a4a22'; ctx.fillRect(x, y, 160, 160);
+  for (let k = 0; k < 3; k++) {
+    const hx = x + 30 + k * 50, bob = Math.sin(t * (2 + k * 0.7) + k) * 6, up = Math.sin(t * 0.7 + k * 2) > 0.7 ? -30 : 0;
+    ellipse(ctx, hx, y + 70, 24, 16, '#f0ece4');
+    ctx.strokeStyle = '#f0ece4'; ctx.lineWidth = 9; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(hx, y + 64); ctx.quadraticCurveTo(hx + 6, y + 30 + up / 2, hx + 2 + bob, y + 10 + up); ctx.stroke();
+    ellipse(ctx, hx + 2 + bob, y + 6 + up, 9, 8, '#f0ece4');
+    poly(ctx, [hx + 9 + bob, y + 4 + up, hx + 22 + bob, y + 8 + up, hx + 9 + bob, y + 11 + up], '#e8902a');
+    ellipse(ctx, hx + 5 + bob, y + 3 + up, 1.6, 1.6, '#111');
+  }
+  ctx.fillStyle = '#8a6a3a';
+  for (let k = 0; k < 6; k++) ctx.fillRect(x + k * 30, y, 12, 160);
+  ctx.fillRect(x, y + 60, 160, 12); ctx.fillRect(x, y + 148, 160, 12);
+}
+
+
 // ---- ch2/story.js
 // ---------------------------------------------------------------------------
 // Chapter Two: Karvograd — items, scenes, hotspots, dialogue and puzzles.
@@ -6343,23 +6499,6 @@ SCENES.van = {
   ],
 };
 
-function drawGeese(ctx, t) {
-  const x = 120, y = 640;
-  ctx.fillStyle = '#6a4a22'; ctx.fillRect(x, y, 160, 160);
-  for (let k = 0; k < 3; k++) {
-    const hx = x + 30 + k * 50, bob = Math.sin(t * (2 + k * 0.7) + k) * 6, up = Math.sin(t * 0.7 + k * 2) > 0.7 ? -30 : 0;
-    ellipse(ctx, hx, y + 70, 24, 16, '#f0ece4');
-    ctx.strokeStyle = '#f0ece4'; ctx.lineWidth = 9; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(hx, y + 64); ctx.quadraticCurveTo(hx + 6, y + 30 + up / 2, hx + 2 + bob, y + 10 + up); ctx.stroke();
-    ellipse(ctx, hx + 2 + bob, y + 6 + up, 9, 8, '#f0ece4');
-    poly(ctx, [hx + 9 + bob, y + 4 + up, hx + 22 + bob, y + 8 + up, hx + 9 + bob, y + 11 + up], '#e8902a');
-    ellipse(ctx, hx + 5 + bob, y + 3 + up, 1.6, 1.6, '#111');
-  }
-  ctx.fillStyle = '#8a6a3a';
-  for (let k = 0; k < 6; k++) ctx.fillRect(x + k * 30, y, 12, 160);
-  ctx.fillRect(x, y + 60, 160, 12); ctx.fillRect(x, y + 148, 160, 12);
-}
-
 async function strongboxOpened() {
   flag('strongboxOpen', true);
   Sound.sfx('unlock');
@@ -6518,47 +6657,6 @@ async function cliffhangerScene() {
   await wait(2.6);
   store.del(CHAPTER.saveKey);
   await Ending.cliffhanger();
-}
-
-// ---------- the train window: a moving landscape -----------------------------------
-function drawTrainWindow(ctx, t, x, y, w, h, speed) {
-  ctx.save();
-  rrect(ctx, x + 9, y + 9, w - 18, h - 18, 28); ctx.clip();
-  ctx.fillStyle = linGrad(ctx, 0, y, 0, y + h, [[0, '#050a18'], [0.6, '#15233c'], [1, '#2a3650']]); ctx.fillRect(x, y, w, h);
-  ellipse(ctx, x + w * 0.7, y + 120, 26, 26, '#eef2f6'); glow(ctx, x + w * 0.7, y + 120, 140, 'rgba(190,210,255,0.3)');
-  const layer = (canvasKey, painter, rate, yy) => {
-    if (!drawTrainWindow[canvasKey]) { const c = makeCanvas(1200, 400), cx = c.getContext('2d'); painter(cx); drawTrainWindow[canvasKey] = c; }
-    const img = drawTrainWindow[canvasKey], off = (t * rate * speed) % 1200;
-    for (let k = -1; k < 2; k++) ctx.drawImage(img, x - off + k * 1200, y + yy);
-  };
-  layer('_far', c => paintMountains(c, 3, 300, 220, '#1c2a44', 'rgba(210,225,245,0.55)', 0, 1200), 20, 20);
-  layer('_mid', c => { paintMountains(c, 9, 330, 120, '#141e30', 'rgba(200,215,240,0.4)', 0, 1200); paintPines(c, 4, 360, 120, '#0a1220', 0, 1200, 0.8); }, 80, 40);
-  layer('_near', c => { c.fillStyle = '#dfe6ee'; c.fillRect(0, 330, 1200, 70); paintPines(c, 8, 340, 190, '#060a12', 0, 1200, 0.5); }, 420, 80);
-  // telegraph poles flicking past
-  const pp = (t * 900 * speed) % 700;
-  ctx.fillStyle = '#05070c'; ctx.fillRect(x + w - pp, y, 10, h);
-  ctx.strokeStyle = 'rgba(10,14,20,0.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x, y + 60 + Math.sin(t * 3) * 6); ctx.lineTo(x + w, y + 60 + Math.sin(t * 3 + 1) * 6); ctx.stroke();
-  // snow streaking past the glass
-  ctx.fillStyle = 'rgba(240,244,250,0.8)';
-  for (let k = 0; k < 40; k++) { const sx = x + w - ((t * 700 * speed + k * 131) % (w + 60)), sy = y + ((k * 97 + t * 60) % h); ctx.fillRect(sx, sy, 8, 2); }
-  // reflection of the lamp in the glass
-  ctx.globalAlpha = 0.1; ctx.fillStyle = linGrad(ctx, x, y, x + w, y + h, [[0, 'rgba(255,232,192,0)'], [0.45, 'rgba(255,232,192,1)'], [0.55, 'rgba(255,232,192,0)']]); ctx.fillRect(x, y, w, h);
-  ctx.restore();
-}
-
-// Snow falling beyond a window (the station hall and the buffet).
-function drawSnowInWindow(ctx, t, x, y, w, h, arch) {
-  ctx.save();
-  ctx.beginPath();
-  if (arch) { ctx.moveTo(x, y + h); ctx.lineTo(x, y + w / 2); ctx.arc(x + w / 2, y + w / 2, w / 2, Math.PI, 0); ctx.lineTo(x + w, y + h); }
-  else ctx.rect(x, y, w, h);
-  ctx.clip();
-  ctx.fillStyle = 'rgba(235,240,248,0.75)';
-  for (let k = 0; k < 90; k++) {
-    const sx = x + ((k * 53 + Math.sin(t * 0.7 + k) * 30 + t * 20) % w), sy = y + ((k * 71 + t * (40 + (k % 5) * 12)) % h);
-    ctx.beginPath(); ctx.arc(sx, sy, 1.2 + (k % 3), 0, 7); ctx.fill();
-  }
-  ctx.restore();
 }
 
 // The split-flap departure board.
