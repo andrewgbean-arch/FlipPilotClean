@@ -67,4 +67,13 @@ export const CHAPTERS: Chapter[] = [
     comingLabel: "Coming soon",
     download: { version: 1, mb: 6.1 },
   },
+  {
+    id: 5,
+    number: "Five",
+    place: "The Golden Horn",
+    blurb:
+      "Istanbul, and the stolen jet is up for auction. Talk your way out of an airfield with a tray of tea, dodge Kolar through the Grand Bazaar, and gatecrash the sale as a buyer nobody has ever seen.",
+    comingLabel: "Coming soon",
+    download: { version: 1, mb: 6.1 },
+  },
 ];
