@@ -6,6 +6,7 @@ import { StatusBar } from "expo-status-bar";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 
 import { CHAPTERS, GAME_PAGES } from "@/game/nightglass";
+import { chapterFile, chapterUrl, isDownloaded } from "@/game/nightglassDownloads";
 
 const INK = "#03060a";
 const AMBER = "#f0b35b";
@@ -16,12 +17,15 @@ const AMBER = "#f0b35b";
  * portrait-only. "Exit to FlipPilot" in the game's menu posts {type: "exit"}.
  */
 export default function NightglassPlayer() {
-  // Each chapter is one self-contained page bundled with the app.
+  // Each chapter is one self-contained page: Chapter One comes with the app, later ones are downloaded.
   const { chapter } = useLocalSearchParams<{ chapter?: string }>();
   const id = Number(chapter) || 1;
-  const page = GAME_PAGES[id] ?? GAME_PAGES[1];
-  const place = CHAPTERS.find((c) => c.id === id)?.place ?? "Vienna";
-  const [uri, setUri] = useState<string | null>(null);
+  const ch = CHAPTERS.find((c) => c.id === id) ?? CHAPTERS[0];
+  const place = ch.place;
+  // The web build has nowhere to keep a download, so it plays a later chapter straight from the server.
+  const streamed = Platform.OS === "web" && !GAME_PAGES[ch.id] ? chapterUrl(ch) : null;
+  const [loaded, setUri] = useState<string | null>(null);
+  const uri = streamed ?? loaded;
   const [failed, setFailed] = useState(false);
   const web = useRef<WebView>(null);
 
@@ -37,14 +41,21 @@ export default function NightglassPlayer() {
 
   useEffect(() => {
     let alive = true;
-    Asset.fromModule(page)
-      .downloadAsync()
-      .then((a) => alive && setUri(a.localUri ?? a.uri))
-      .catch(() => alive && setFailed(true));
+    const bundled = GAME_PAGES[ch.id];
+    if (bundled) {
+      Asset.fromModule(bundled)
+        .downloadAsync()
+        .then((a) => alive && setUri(a.localUri ?? a.uri))
+        .catch(() => alive && setFailed(true));
+    } else if (!streamed) {
+      isDownloaded(ch.id)
+        .then((ok) => alive && (ok ? setUri(chapterFile(ch.id)) : setFailed(true)))
+        .catch(() => alive && setFailed(true));
+    }
     return () => {
       alive = false;
     };
-  }, [page]);
+  }, [ch, streamed]);
 
   const onMessage = (e: WebViewMessageEvent) => {
     try {
@@ -57,7 +68,9 @@ export default function NightglassPlayer() {
   if (failed) {
     return (
       <View style={styles.center}>
-        <Text style={styles.text}>The game could not be opened. Please try again.</Text>
+        <Text style={styles.text}>
+          {GAME_PAGES[ch.id] ? "The game could not be opened. Please try again." : `Chapter ${ch.number} isn't on this phone yet. Download it from the chapter list first.`}
+        </Text>
       </View>
     );
   }
@@ -79,7 +92,7 @@ export default function NightglassPlayer() {
       style: { border: 0, width: "100%", height: "100%", background: INK },
     });
   }
-  // WKWebView needs read access to the folder holding the bundled page.
+  // WKWebView needs read access to the folder holding the page (bundled, or downloaded).
   const folder = uri.slice(0, uri.lastIndexOf("/") + 1);
   return (
     <View style={styles.screen}>
