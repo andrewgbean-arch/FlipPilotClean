@@ -15,6 +15,7 @@ import {
   placementFull,
   allPictures,
   advertiserKey,
+  trustKey,
   imagesOf,
   isTrusted,
   loadAdverts,
@@ -36,6 +37,9 @@ import { mediaForAdvert } from "../utils/media";
 import { deleteUploads, saveUpload, sniffImage } from "../utils/uploadStore";
 import { callerDeviceId } from "./messages";
 import { REPORT_REASONS } from "./safety";
+import { accountById } from "../utils/accountStore";
+import { advertEmails } from "../utils/advertEmails";
+import { approveForPayment, markPaid, rejectBooking } from "../utils/advertBooking";
 
 /**
  * Adverts.
@@ -60,17 +64,17 @@ import { REPORT_REASONS } from "./safety";
  */
 
 // A "system:" owner can never be a phone (see uploadStore), so no request can name it to list or delete these.
-const IMAGE_OWNER = "system:advert-images";
+export const IMAGE_OWNER = "system:advert-images";
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
 
-const text = (v: unknown, max: number): string | null => {
+export const text = (v: unknown, max: number): string | null => {
   if (typeof v !== "string") return null;
   const t = v.trim();
   return t.length > 0 && t.length <= max ? t : null;
 };
 
 /** https only, with a real host and no embedded login. */
-function cleanWebsite(v: unknown): string | null {
+export function cleanWebsite(v: unknown): string | null {
   if (typeof v !== "string" || v.length > 300) return null;
   try {
     const u = new URL(v.trim());
@@ -81,14 +85,14 @@ function cleanWebsite(v: unknown): string | null {
   }
 }
 
-function cleanDate(v: unknown): string | null {
+export function cleanDate(v: unknown): string | null {
   if (typeof v !== "string") return null;
   const t = new Date(v).getTime();
   return Number.isFinite(t) ? new Date(t).toISOString() : null;
 }
 
 /** Where the phone says it is, rounded to about a mile. Nothing is kept. */
-function parseViewer(req: Request): Viewer {
+export function parseViewer(req: Request): Viewer {
   const raw = req.headers["x-approx-location"];
   const value = Array.isArray(raw) ? raw[0] : raw;
   const m = typeof value === "string" ? value.match(/^\s*(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$/) : null;
@@ -101,7 +105,7 @@ function parseViewer(req: Request): Viewer {
 }
 
 /** Saves one picture sent as base64, judged by its own bytes. */
-function storeImage(raw: unknown): { path: string } | { error: string } {
+export function storeImage(raw: unknown): { path: string } | { error: string } {
   const encoded = typeof raw === "string" ? raw.replace(/^data:image\/[a-z+]+;base64,/i, "") : "";
   if (encoded.length < 100) return { error: "No picture received" };
   const buffer = Buffer.from(encoded, "base64");
@@ -120,7 +124,7 @@ const MAX_ARTWORK_SIDE = 4500;
 const MIN_ARTWORK_RATIO = 0.5; // height / width: nothing wider than 2:1
 const MAX_ARTWORK_RATIO = 2.3; // nothing taller than about 9:21
 
-function storeArtwork(raw: unknown): { path: string } | { error: string } {
+export function storeArtwork(raw: unknown): { path: string } | { error: string } {
   const encoded = typeof raw === "string" ? raw.replace(/^data:image\/[a-z+]+;base64,/i, "") : "";
   if (encoded.length < 100) return { error: "No design received" };
   const buffer = Buffer.from(encoded, "base64");
@@ -143,7 +147,7 @@ function storeArtwork(raw: unknown): { path: string } | { error: string } {
 }
 
 /** Saves up to MAX_IMAGES pictures; if any is bad, none are kept. */
-function storeImages(raw: unknown): { paths: string[] } | { error: string } {
+export function storeImages(raw: unknown): { paths: string[] } | { error: string } {
   const list = Array.isArray(raw) ? raw : raw === undefined ? [] : [raw];
   if (list.length === 0) return { error: "No picture received" };
   if (list.length > MAX_IMAGES) return { error: `An advert can have at most ${MAX_IMAGES} pictures` };
@@ -168,7 +172,7 @@ type Area = Pick<Advert, "scope" | "postcode" | "lat" | "lng" | "radiusMiles">;
  * refused rather than guessed, since a wrong area shows an advert to the wrong
  * people.
  */
-async function resolveArea(b: any, current?: Advert): Promise<{ area: Area } | { error: string }> {
+export async function resolveArea(b: any, current?: Advert): Promise<{ area: Area } | { error: string }> {
   const scope = b.scope ?? current?.scope;
   if (scope !== "local" && scope !== "nationwide") {
     return { error: 'scope must be "local" (people near the advertiser) or "nationwide"' };
@@ -206,7 +210,7 @@ async function resolveArea(b: any, current?: Advert): Promise<{ area: Area } | {
   return { area: { scope, postcode, lat: point.lat, lng: point.lng, radiusMiles: radius } };
 }
 
-function stateOf(ad: Advert, now = new Date()): string {
+export function stateOf(ad: Advert, now = new Date()): string {
   if (ad.pausedAt && !ad.approved) return "paused-by-reports";
   if (!ad.approved) return "awaiting-approval";
   if (now.getTime() >= new Date(ad.endsAt).getTime()) return "ended";
@@ -223,17 +227,21 @@ function forAdmin(ad: Advert, req: Request, all: Advert[] = loadAdverts()) {
     // Something a person has to look at: not approved yet (or taken off), and not already over.
     needsAttention: !ad.approved && new Date(ad.endsAt).getTime() > Date.now(),
     reportCount: new Set((ad.reports ?? []).map((r) => r.deviceId)).size,
-    trustedAdvertiser: isTrusted(advertiserKey(ad.website), all),
+    trustedAdvertiser: isTrusted(trustKey(ad), all),
     // Why people reported it: how many said each reason, and the words they added. Never who.
     reportReasons: (ad.reports ?? []).reduce<Record<string, number>>((acc, r) => {
       acc[r.reason] = (acc[r.reason] ?? 0) + 1;
       return acc;
     }, {}),
     reportNotes: (ad.reports ?? []).map((r) => r.details).filter(Boolean).slice(-10),
+    // Booked through the portal: the business's email and where the booking has got to.
+    ownerEmail: ad.ownerAccountId ? accountById(ad.ownerAccountId)?.email ?? null : null,
+    booking: ad.booking ?? null,
+    logo: ad.logo ?? null,
   };
 }
 
-function fullReply(res: Response, full: NonNullable<ReturnType<typeof placementFull>>) {
+export function fullReply(res: Response, full: NonNullable<ReturnType<typeof placementFull>>) {
   return res.status(409).json({
     ok: false,
     error: "placement-full",
@@ -242,7 +250,7 @@ function fullReply(res: Response, full: NonNullable<ReturnType<typeof placementF
 }
 
 /** Async admin handlers: an error inside one (a corrupt file, a failed write) is a 500, not a dead server. */
-const safe =
+export const safe =
   (fn: (req: Request, res: Response) => Promise<unknown>) =>
   (req: Request, res: Response) => {
     fn(req, res).catch((err) => {
@@ -251,7 +259,7 @@ const safe =
     });
   };
 
-function contentReply(res: Response, problems: ReturnType<typeof checkAdvert>) {
+export function contentReply(res: Response, problems: ReturnType<typeof checkAdvert>) {
   return res.status(422).json({
     ok: false,
     error: "advert-content",
@@ -570,7 +578,7 @@ export default function registerAdvertsRoute(app: Express) {
     let heldAfterEdit = false;
     const contentChanged = wordingChanged || oldImages.length > 0 || oldArtwork !== null;
     if (contentChanged && ad.approved && next.approved && !approving) {
-      const trustedNow = isTrusted(advertiserKey(next.website), all.filter((a) => a.id !== ad.id));
+      const trustedNow = isTrusted(trustKey(next), all.filter((a) => a.id !== ad.id));
       const cleanNow = checkAdvert(next).length === 0 && b.reviewed !== true;
       if (!(trustedNow && cleanNow && next.aiReview?.verdict === "ok")) {
         next.approved = false;
@@ -592,6 +600,11 @@ export default function registerAdvertsRoute(app: Express) {
       next.approved = true;
       next.approvedBy = "person";
       next.approvedAt = new Date().toISOString();
+      // A business's own booking now waits for them to pay (or, if already paid, goes back on).
+      if (next.booking) {
+        next.booking = { ...next.booking };
+        approveForPayment(next, "person");
+      }
       // Approving against the AI's advice is allowed, but the advertiser is never trusted after it.
       if (next.aiReview?.verdict === "reject") next.overrodeAi = true;
       next.pausedAt = null;
@@ -616,6 +629,10 @@ export default function registerAdvertsRoute(app: Express) {
     // Old files go, unless the saved advert still uses them.
     const stillUsed = new Set(allPictures(merged));
     deleteUploads([...oldImages, ...(oldArtwork ? [oldArtwork] : [])].filter((p) => !stillUsed.has(p)));
+    if (approving && merged.booking && merged.ownerAccountId) {
+      const to = accountById(merged.ownerAccountId)?.email;
+      if (to && merged.booking.status === "awaiting-payment") void advertEmails.approved(merged, to).catch(() => {});
+    }
     res.json({
       ok: true,
       advert: forAdmin(merged, req, latest.map((a) => (a.id === ad.id ? merged : a))),
@@ -638,6 +655,38 @@ export default function registerAdvertsRoute(app: Express) {
     saveAdverts(latest);
     res.json({ ok: true, advert: forAdmin(current, req, latest) });
   }));
+
+  // Turn down a business's advert, saying why. They see the reason and can change it and send it again.
+  app.post("/admin/adverts/:id/reject", (req: Request, res: Response) => {
+    if (!adminOk(req, res)) return;
+    const reason = text(req.body?.reason, 500);
+    if (!reason) return res.status(400).json({ ok: false, error: "Say why, so they can put it right (500 characters at most)." });
+    const all = loadAdverts();
+    const ad = all.find((a) => a.id === req.params.id);
+    if (!ad) return res.status(404).json({ ok: false, error: "No such advert" });
+    if (!ad.booking) return res.status(400).json({ ok: false, error: "Only adverts booked through the portal are rejected this way; use PATCH approved: false or delete it." });
+    rejectBooking(ad, reason);
+    saveAdverts(all);
+    const to = ad.ownerAccountId ? accountById(ad.ownerAccountId)?.email : null;
+    if (to) void advertEmails.rejected(ad, to, reason).catch(() => {});
+    res.json({ ok: true, advert: forAdmin(ad, req, all) });
+  });
+
+  // Paid by invoice (or any way outside card payments): it shows for this many months.
+  app.post("/admin/adverts/:id/mark-paid", (req: Request, res: Response) => {
+    if (!adminOk(req, res)) return;
+    const months = Number(req.body?.months);
+    if (!Number.isInteger(months) || months < 1 || months > 12) return res.status(400).json({ ok: false, error: "months must be 1 to 12" });
+    const all = loadAdverts();
+    const ad = all.find((a) => a.id === req.params.id);
+    if (!ad || !ad.booking) return res.status(404).json({ ok: false, error: "No such portal booking" });
+    if (!ad.approved) return res.status(409).json({ ok: false, error: "Approve it first: nothing shows until a person has approved it." });
+    markPaid(ad, months);
+    saveAdverts(all);
+    const to = ad.ownerAccountId ? accountById(ad.ownerAccountId)?.email : null;
+    if (to) void advertEmails.live(ad, to).catch(() => {});
+    res.json({ ok: true, advert: forAdmin(ad, req, all) });
+  });
 
   app.delete("/admin/adverts/:id", (req: Request, res: Response) => {
     if (!adminOk(req, res)) return;
