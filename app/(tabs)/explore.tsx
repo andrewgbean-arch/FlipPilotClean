@@ -10,249 +10,125 @@ import {
   View,
 } from "react-native";
 import {
-  AirplaneTilt,
   Barcode,
+  BellRinging,
   BookOpen,
+  Buildings,
+  Car,
   CaretRight,
-  ChartLineUp,
+  ChatCircleDots,
   ClipboardText,
-  ClockCounterClockwise,
-  CurrencyGbp,
-  FloppyDisk,
-  GearSix,
-  Heart,
-  Lightbulb,
-  Lightning,
+  CloudSun,
+  Coins,
+  Detective,
+  GameController,
+  ListBullets,
   MagnifyingGlass,
   Megaphone,
   Sparkle,
   Storefront,
+  Tag,
+  Tent,
   XCircle,
 } from "phosphor-react-native";
 import type { Icon as PhosphorIcon } from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { GUIDES } from "@/content/guides";
 import { useTheme } from "@/styles/ThemeContext";
+import { openPartnerLink, type PartnerLinkKind } from "@/utils/partnerLinks";
 
-type Feature = {
-  // What this screen draws for the feature.
-  Icon: PhosphorIcon;
-  // Handed to /feature/[slug] as its `icon` route param exactly as before,
-  // because that screen still renders it. It is never drawn on this screen.
-  emoji: string;
+// Everything on this tab opens something real: a screen in the app, a guide worth reading, or
+// (for businesses) the page they need. Nothing here is a description of a feature instead of it.
+
+type Action = { href: Href } | { partner: PartnerLinkKind };
+
+type Item = {
   title: string;
   desc: string;
-  category: string;
-  premium: boolean;
-  content: string;
-};
-
-const FEATURES: Feature[] = [
-  {
-    Icon: CurrencyGbp,
-    emoji: "💰",
-    title: "Market Check",
-    desc: "See what similar items are listed for.",
-    category: "Market Tools",
-    premium: true,
-    content: `
-Shows live eBay asking prices for similar items, and how many were found. These are asking prices, not confirmed sales, so real sale prices are usually a little lower.
-
-Pro Tips:
-• Look for lots of similar listings at similar prices  
-• Be wary when only one or two listings turn up  
-• Compare condition carefully  
-`,
-  },
-  {
-    Icon: FloppyDisk,
-    emoji: "💾",
-    title: "Save Flip",
-    desc: "Track profit and ROI.",
-    category: "Tools",
-    premium: false,
-    content: `
-Track profit, ROI, and performance for every item you flip.
-
-Pro Tips:
-• Add photos  
-• Tag items by category  
-`,
-  },
-  {
-    Icon: Heart,
-    emoji: "⭐",
-    title: "Favourites",
-    desc: "Quick access to top flips.",
-    category: "Tools",
-    premium: false,
-    content: `
-Save high‑value or interesting items for quick access.
-
-Pro Tips:
-• Use for items you want to research later  
-`,
-  },
-  {
-    Icon: ClockCounterClockwise,
-    emoji: "📊",
-    title: "History",
-    desc: "Your flipping stats.",
-    category: "Tools",
-    premium: false,
-    content: `
-Your flipping performance dashboard.
-
-Pro Tips:
-• Track trends  
-• See which categories make you the most profit  
-`,
-  },
-  {
-    Icon: Megaphone,
-    emoji: "📢",
-    title: "Advertising Hub",
-    desc: "Promote your stall.",
-    category: "Pro Features",
-    premium: true,
-    content: `
-Promote your stall and attract more buyers.
-
-Pro Tips:
-• Use clear photos  
-• Highlight your best items  
-`,
-  },
-  {
-    Icon: Lightning,
-    emoji: "⚡",
-    title: "Supernova AI Pricing",
-    desc: "Your scan's price estimate.",
-    category: "AI Tools",
-    premium: true,
-    content: `
-Your scan works out what an item is worth from live listings, with an AI cross-check when there are few of them.
-
-Pro Tips:
-• Use after scanning  
-• Treat it as a guide, not a promise  
-• Check eBay's sold filter yourself before a big buy  
-`,
-  },
-  {
-    Icon: AirplaneTilt,
-    emoji: "✈️",
-    title: "FlipPilot Method",
-    desc: "Your flipping blueprint.",
-    category: "Guides",
-    premium: true,
-    content: `
-Your complete flipping blueprint.
-
-Includes:
-• Sourcing  
-• Scanning  
-• Pricing  
-• Negotiation  
-• Selling  
-• Scaling  
-`,
-  },
-  {
-    Icon: Lightbulb,
-    emoji: "💡",
-    title: "Pro Tips",
-    desc: "Level up your flips.",
-    category: "Guides",
-    premium: false,
-    content: `
-Level up your flipping skills.
-
-Includes:
-• Negotiation  
-• Spotting fakes  
-• Pricing strategies  
-• Avoiding bad buys  
-`,
-  },
-  {
-    Icon: GearSix,
-    emoji: "⚙️",
-    title: "Advanced Rules",
-    desc: "For serious flippers.",
-    category: "Guides",
-    premium: true,
-    content: `
-For serious flippers.
-Includes:
-• Trend tracking  
-• Seasonal flips  
-• High‑ROI strategies  
-• Risk management  
-`,
-  },
-];
-
-type QuickAccessItem = {
-  title: string;
-  desc: string;
-  href: Href;
   Icon: PhosphorIcon;
+  action: Action;
+  /** Extra words people might search for. */
+  keywords?: string;
 };
 
-const QUICK_ACCESS: QuickAccessItem[] = [
-  {
-    title: "AI Lookup",
-    desc: "Identify any item instantly",
-    href: "/ai-camera",
-    Icon: Sparkle,
-  },
-  {
-    title: "Barcode Scanner",
-    desc: "Fastest way to check value",
-    href: "/scan",
-    Icon: Barcode,
-  },
-  {
-    title: "Bootfairs & Events",
-    desc: "Fairs, fêtes, markets & sales",
-    href: "/bootfairs",
-    Icon: Storefront,
-  },
-  {
-    title: "MOT Checker",
-    desc: "Look up any UK vehicle",
-    href: "/vehicles/mot-lookup",
-    Icon: ClipboardText,
-  },
-  {
-    title: "Marketplace",
-    desc: "Buy, sell and message locally",
-    href: "/marketplace",
-    Icon: ChartLineUp,
-  },
-  {
-    title: "How to use FlipPilot",
-    desc: "A quick guide to get you flipping",
-    href: "/help",
-    Icon: BookOpen,
-  },
-];
+type Section = { title: string; items: Item[] };
+
+const QUICK_ACCESS: Item[] = [
+  { title: "AI Lookup", desc: "Identify any item instantly", href: "/ai-camera", Icon: Sparkle },
+  { title: "Barcode Scanner", desc: "Fastest way to check value", href: "/scan", Icon: Barcode },
+  { title: "Bootfairs & Events", desc: "Fairs, fêtes, markets & sales", href: "/bootfairs", Icon: Tent },
+  { title: "MOT Checker", desc: "Look up any UK vehicle", href: "/vehicles/mot-lookup", Icon: ClipboardText },
+  { title: "Marketplace", desc: "Buy, sell and message locally", href: "/marketplace", Icon: Storefront },
+  { title: "How to use FlipPilot", desc: "A quick guide to get you flipping", href: "/help", Icon: BookOpen },
+].map(({ href, ...rest }) => ({ ...rest, action: { href: href as Href } }));
 
 // Two tiles to a row.
-const QUICK_ACCESS_ROWS = [
-  QUICK_ACCESS.slice(0, 2),
-  QUICK_ACCESS.slice(2, 4),
-  QUICK_ACCESS.slice(4, 6),
+const QUICK_ACCESS_ROWS = [QUICK_ACCESS.slice(0, 2), QUICK_ACCESS.slice(2, 4), QUICK_ACCESS.slice(4, 6)];
+
+// The newest things in the app. Keep this to the last two or three, and update it when
+// something ships.
+const WHATS_NEW: Item[] = [
+  {
+    title: "Operation Nightglass",
+    desc: "A new spy adventure every month, played inside the app",
+    Icon: Detective,
+    action: { href: "/nightglass" },
+    keywords: "game play story",
+  },
+  {
+    title: "Lampy's Boot Fair Dash",
+    desc: "Catch the bargains, dodge the tat: a quick arcade game",
+    Icon: GameController,
+    action: { href: "/game" },
+    keywords: "game play arcade",
+  },
 ];
 
-// Category names double as search keys, so they stay as written in FEATURES.
-// This only changes how a section heading reads.
-const CATEGORY_LABELS: Record<string, string> = {
-  "Market Tools": "Market tools",
-  "Pro Features": "Pro features",
-  "AI Tools": "AI tools",
-};
+const SECTIONS: Section[] = [
+  {
+    title: "Play",
+    items: [
+      { title: "Operation Nightglass", desc: "Monthly spy adventure", Icon: Detective, action: { href: "/nightglass" }, keywords: "game story" },
+      { title: "Lampy's Boot Fair Dash", desc: "Arcade game: catch the bargains", Icon: GameController, action: { href: "/game" }, keywords: "game arcade" },
+    ],
+  },
+  {
+    title: "Buying & selling",
+    items: [
+      { title: "Sell an item", desc: "List something on the Marketplace", Icon: Tag, action: { href: "/marketplace/create/new" }, keywords: "listing list sell" },
+      { title: "My listings", desc: "Edit, reprice or mark as sold", Icon: ListBullets, action: { href: "/marketplace/my-listings" }, keywords: "sold selling" },
+      { title: "Messages", desc: "Chat with buyers and sellers", Icon: ChatCircleDots, action: { href: "/messages" }, keywords: "chat inbox" },
+      { title: "Scan credits", desc: "See your balance or top up", Icon: Coins, action: { href: "/credits" }, keywords: "buy pay scans" },
+      { title: "Boot fair weather", desc: "Conditions near you before you go", Icon: CloudSun, action: { href: "/weather" }, keywords: "rain forecast" },
+    ],
+  },
+  {
+    title: "Motors",
+    items: [
+      { title: "My vehicles", desc: "Your cars, their details and history", Icon: Car, action: { href: "/vehicles" }, keywords: "car van garage" },
+      { title: "MOT alerts", desc: "Know before an MOT runs out", Icon: BellRinging, action: { href: "/motors/mot-alerts" }, keywords: "reminder expiry" },
+      { title: "Sell a car", desc: "List a vehicle on the Marketplace", Icon: Tag, action: { href: "/marketplace/create/new?category=motors" }, keywords: "listing vehicle" },
+    ],
+  },
+  {
+    title: "Guides",
+    items: GUIDES.map((g) => ({
+      title: g.title,
+      desc: `${g.desc} · ${g.minutes} min`,
+      Icon: BookOpen,
+      action: { href: { pathname: "/guide/[slug]", params: { slug: g.slug } } as Href },
+      keywords: "guide tips how learn " + g.sections.map((s) => s.heading ?? "").join(" "),
+    })),
+  },
+  {
+    title: "For businesses",
+    items: [
+      { title: "Advertise your business", desc: "Put your business in front of local buyers and sellers", Icon: Megaphone, action: { partner: "advertise" }, keywords: "advert sponsor promote" },
+      { title: "Car dealers", desc: "Stock and listings with FlipPilot Dealer OS", Icon: Buildings, action: { partner: "dealers" }, keywords: "dealer trade garage" },
+    ],
+  },
+];
 
 const NEUTRAL_TINT = "rgba(255, 255, 255, 0.07)";
 
@@ -265,14 +141,20 @@ const softTint = (color: string, alpha: number) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
+const matches = (item: Item, section: string, q: string) =>
+  `${item.title} ${item.desc} ${section} ${item.keywords ?? ""}`.toLowerCase().includes(q);
+
+function open(item: Item) {
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  if ("partner" in item.action) openPartnerLink(item.action.partner);
+  else router.push(item.action.href);
+}
+
 function SectionTitle({ children }: { children: string }) {
   const theme = useTheme();
 
   return (
-    <Text
-      style={[styles.sectionTitle, { color: theme.text }]}
-      accessibilityRole="header"
-    >
+    <Text style={[styles.sectionTitle, { color: theme.text }]} accessibilityRole="header">
       {children}
     </Text>
   );
@@ -293,12 +175,7 @@ function IconCircle({
     <View
       style={[
         styles.iconCircle,
-        {
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          backgroundColor: background,
-        },
+        { width: size, height: size, borderRadius: size / 2, backgroundColor: background },
       ]}
     >
       <Icon size={Math.round(size * 0.5)} color={iconColor} />
@@ -306,55 +183,26 @@ function IconCircle({
   );
 }
 
-function ProBadge() {
-  const theme = useTheme();
-
-  return (
-    <View
-      style={[styles.proBadge, { backgroundColor: softTint(theme.gold, 0.14) }]}
-    >
-      <Text style={[styles.proBadgeText, { color: theme.gold }]}>PRO</Text>
-    </View>
-  );
-}
-
-function QuickTile({
-  item,
-  onOpen,
-}: {
-  item: QuickAccessItem;
-  onOpen: (item: QuickAccessItem) => void;
-}) {
+function QuickTile({ item }: { item: Item }) {
   const theme = useTheme();
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${item.title}. ${item.desc}`}
-      onPress={() => onOpen(item)}
+      onPress={() => open(item)}
       style={({ pressed }) => [
         styles.tile,
         { backgroundColor: theme.card, borderColor: theme.hairline },
         pressed && styles.pressed,
       ]}
     >
-      <IconCircle
-        Icon={item.Icon}
-        size={44}
-        iconColor={theme.secondary}
-        background={softTint(theme.secondary, 0.16)}
-      />
+      <IconCircle Icon={item.Icon} size={44} iconColor={theme.secondary} background={softTint(theme.secondary, 0.16)} />
       <View>
-        <Text
-          style={[styles.tileTitle, { color: theme.text }]}
-          numberOfLines={2}
-        >
+        <Text style={[styles.tileTitle, { color: theme.text }]} numberOfLines={2}>
           {item.title}
         </Text>
-        <Text
-          style={[styles.tileDesc, { color: theme.muted }]}
-          numberOfLines={2}
-        >
+        <Text style={[styles.tileDesc, { color: theme.muted }]} numberOfLines={2}>
           {item.desc}
         </Text>
       </View>
@@ -362,26 +210,14 @@ function QuickTile({
   );
 }
 
-// One tappable feature: icon, title, one line of description, a PRO marker
-// where it applies, and a chevron.
-function FeatureRow({
-  feature,
-  onOpen,
-  divider,
-}: {
-  feature: Feature;
-  onOpen: (feature: Feature) => void;
-  divider?: boolean;
-}) {
+function Row({ item, divider, highlight }: { item: Item; divider?: boolean; highlight?: boolean }) {
   const theme = useTheme();
 
   return (
     <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${feature.title}. ${feature.desc}${
-        feature.premium ? " Pro feature." : ""
-      }`}
-      onPress={() => onOpen(feature)}
+      accessibilityRole={"partner" in item.action ? "link" : "button"}
+      accessibilityLabel={`${item.title}. ${item.desc}`}
+      onPress={() => open(item)}
       style={({ pressed }) => [
         styles.row,
         divider && { borderTopWidth: 1, borderTopColor: theme.hairline },
@@ -389,51 +225,31 @@ function FeatureRow({
       ]}
     >
       <IconCircle
-        Icon={feature.Icon}
+        Icon={item.Icon}
         size={40}
-        iconColor={theme.text}
-        background={NEUTRAL_TINT}
+        iconColor={highlight ? theme.gold : theme.text}
+        background={highlight ? softTint(theme.gold, 0.14) : NEUTRAL_TINT}
       />
-
       <View style={styles.rowText}>
-        <Text
-          style={[styles.rowTitle, { color: theme.text }]}
-          numberOfLines={2}
-        >
-          {feature.title}
+        <Text style={[styles.rowTitle, { color: theme.text }]} numberOfLines={2}>
+          {item.title}
         </Text>
-        <Text
-          style={[styles.rowDesc, { color: theme.muted }]}
-          numberOfLines={2}
-        >
-          {feature.desc}
+        <Text style={[styles.rowDesc, { color: theme.muted }]} numberOfLines={2}>
+          {item.desc}
         </Text>
       </View>
-
-      {feature.premium ? <ProBadge /> : null}
       <CaretRight size={16} color={theme.muted} />
     </Pressable>
   );
 }
 
-function FeatureGroup({
-  features,
-  onOpen,
-}: {
-  features: Feature[];
-  onOpen: (feature: Feature) => void;
-}) {
+function Group({ items, highlight }: { items: Item[]; highlight?: boolean }) {
   const theme = useTheme();
 
   return (
-    <View
-      style={[
-        styles.group,
-        { backgroundColor: theme.card, borderColor: theme.hairline },
-      ]}
-    >
-      {features.map((f, i) => (
-        <FeatureRow key={f.title} feature={f} onOpen={onOpen} divider={i > 0} />
+    <View style={[styles.group, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
+      {items.map((item, i) => (
+        <Row key={item.title} item={item} divider={i > 0} highlight={highlight} />
       ))}
     </View>
   );
@@ -443,68 +259,33 @@ export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
   const theme = useTheme();
-
   const [search, setSearch] = useState("");
-  const [recent, setRecent] = useState<string[]>([]);
 
   useFocusEffect(
     useCallback(() => {
       setSearch("");
-      setRecent([]);
       scrollRef.current?.scrollTo({ y: 0, animated: false });
     }, [])
   );
 
-  const filtered = useMemo(() => {
-    if (!search.trim()) return FEATURES;
-    return FEATURES.filter((f) =>
-      `${f.title} ${f.desc} ${f.category}`
-        .toLowerCase()
-        .includes(search.toLowerCase())
-    );
-  }, [search]);
+  const q = search.trim().toLowerCase();
+  const browsing = q === "";
 
-  const grouped = useMemo(() => {
-    const groups: Record<string, Feature[]> = {};
-    filtered.forEach((f) => {
-      if (!groups[f.category]) groups[f.category] = [];
-      groups[f.category].push(f);
-    });
-    return groups;
-  }, [filtered]);
-
-  const smartSuggestions = useMemo(() => {
-    return FEATURES.filter((f) =>
-      ["AI Tools", "Market Tools"].includes(f.category)
-    ).slice(0, 3);
-  }, []);
-
-  const recentFeatures = recent
-    .map((title) => FEATURES.find((x) => x.title === title))
-    .filter((f): f is Feature => !!f);
-
-  const handleOpenFeature = (f: Feature) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setRecent((prev) => {
-      const updated = [f.title, ...prev.filter((x) => x !== f.title)];
-      return updated.slice(0, 5);
-    });
-    router.push({
-      pathname: "/feature/[slug]",
-      params: {
-        slug: f.title,
-        content: f.content,
-        icon: f.emoji,
-      },
-    });
-  };
-
-  const handleOpenQuickAccess = (item: QuickAccessItem) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push(item.href);
-  };
-
-  const browsing = !search;
+  // Searching looks through everything on the tab, quick access included, once each.
+  const results = useMemo(() => {
+    if (!q) return [];
+    const seen = new Set<string>();
+    const out: Item[] = [];
+    const add = (item: Item, section: string) => {
+      if (!seen.has(item.title) && matches(item, section, q)) {
+        seen.add(item.title);
+        out.push(item);
+      }
+    };
+    QUICK_ACCESS.forEach((i) => add(i, "Quick access"));
+    SECTIONS.forEach((s) => s.items.forEach((i) => add(i, s.title)));
+    return out;
+  }, [q]);
 
   return (
     <ScrollView
@@ -515,31 +296,19 @@ export default function ExploreScreen() {
       keyboardDismissMode="on-drag"
       showsVerticalScrollIndicator={false}
     >
-      {/* HEADER */}
-      <Text
-        style={[styles.title, { color: theme.text }]}
-        accessibilityRole="header"
-      >
+      <Text style={[styles.title, { color: theme.text }]} accessibilityRole="header">
         Explore
       </Text>
-      <Text style={[styles.subtitle, { color: theme.muted }]}>
-        Tools, guides and AI features for flippers
-      </Text>
+      <Text style={[styles.subtitle, { color: theme.muted }]}>Tools, games and guides for flippers</Text>
 
-      {/* SEARCH */}
-      <View
-        style={[
-          styles.search,
-          { backgroundColor: theme.card, borderColor: theme.hairline },
-        ]}
-      >
+      <View style={[styles.search, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
         <MagnifyingGlass size={20} color={theme.muted} />
         <TextInput
-          placeholder="Search tools, features, guides..."
+          placeholder="Search tools, games, guides..."
           placeholderTextColor={theme.muted}
           value={search}
           onChangeText={setSearch}
-          accessibilityLabel="Search tools, features and guides"
+          accessibilityLabel="Search tools, games and guides"
           selectionColor={theme.gold}
           style={[styles.searchInput, { color: theme.text }]}
         />
@@ -548,17 +317,13 @@ export default function ExploreScreen() {
             accessibilityRole="button"
             accessibilityLabel="Clear search"
             onPress={() => setSearch("")}
-            style={({ pressed }) => [
-              styles.clearButton,
-              pressed && styles.pressed,
-            ]}
+            style={({ pressed }) => [styles.clearButton, pressed && styles.pressed]}
           >
             <XCircle size={20} weight="fill" color={theme.muted} />
           </Pressable>
         ) : null}
       </View>
 
-      {/* QUICK ACCESS */}
       {browsing ? (
         <>
           <SectionTitle>Quick access</SectionTitle>
@@ -566,72 +331,38 @@ export default function ExploreScreen() {
             {QUICK_ACCESS_ROWS.map((pair) => (
               <View key={pair[0].title} style={styles.tileRow}>
                 {pair.map((item) => (
-                  <QuickTile
-                    key={item.title}
-                    item={item}
-                    onOpen={handleOpenQuickAccess}
-                  />
+                  <QuickTile key={item.title} item={item} />
                 ))}
               </View>
             ))}
           </View>
-        </>
-      ) : null}
 
-      {/* WHAT'S NEW */}
-      {browsing ? (
-        <>
           <SectionTitle>What’s new</SectionTitle>
-          <FeatureGroup
-            features={FEATURES.slice(0, 1)}
-            onOpen={handleOpenFeature}
-          />
-        </>
-      ) : null}
+          <Group items={WHATS_NEW} highlight />
 
-      {/* SUGGESTED FOR YOU */}
-      {browsing ? (
+          {SECTIONS.map((s) => (
+            <View key={s.title}>
+              <SectionTitle>{s.title}</SectionTitle>
+              <Group items={s.items} />
+            </View>
+          ))}
+        </>
+      ) : results.length > 0 ? (
         <>
-          <SectionTitle>Suggested for you</SectionTitle>
-          <FeatureGroup features={smartSuggestions} onOpen={handleOpenFeature} />
+          <SectionTitle>{results.length === 1 ? "1 match" : `${results.length} matches`}</SectionTitle>
+          <Group items={results} />
         </>
-      ) : null}
-
-      {/* RECENTLY VIEWED */}
-      {browsing && recentFeatures.length > 0 ? (
-        <>
-          <SectionTitle>Recently viewed</SectionTitle>
-          <FeatureGroup features={recentFeatures} onOpen={handleOpenFeature} />
-        </>
-      ) : null}
-
-      {/* GROUPED SECTIONS */}
-      {Object.keys(grouped).map((category) => (
-        <View key={category}>
-          <SectionTitle>{CATEGORY_LABELS[category] ?? category}</SectionTitle>
-          <FeatureGroup features={grouped[category]} onOpen={handleOpenFeature} />
-        </View>
-      ))}
-
-      {/* NO RESULTS */}
-      {filtered.length === 0 ? (
+      ) : (
         <View style={styles.empty}>
-          <View
-            style={[
-              styles.emptyIcon,
-              { backgroundColor: theme.card, borderColor: theme.hairline },
-            ]}
-          >
+          <View style={[styles.emptyIcon, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
             <MagnifyingGlass size={28} color={theme.muted} />
           </View>
-          <Text style={[styles.emptyTitle, { color: theme.text }]}>
-            No matches
-          </Text>
+          <Text style={[styles.emptyTitle, { color: theme.text }]}>No matches</Text>
           <Text style={[styles.emptyBody, { color: theme.muted }]}>
             {`Nothing matched "${search.trim()}". Try a shorter word, or clear the search to browse everything.`}
           </Text>
         </View>
-      ) : null}
+      )}
     </ScrollView>
   );
 }
@@ -700,9 +431,6 @@ const styles = StyleSheet.create({
   rowText: { flex: 1 },
   rowTitle: { fontSize: 16, fontWeight: "600" },
   rowDesc: { fontSize: 13, marginTop: 2 },
-
-  proBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
-  proBadgeText: { fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
 
   empty: { alignItems: "center", paddingTop: 40, paddingHorizontal: 24 },
   emptyIcon: {
