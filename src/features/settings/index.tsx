@@ -25,6 +25,7 @@ import {
   Export,
   FileText,
   Info,
+  Play,
   ShieldCheck,
   SignIn,
   SignOut,
@@ -456,6 +457,13 @@ export default function SettingsScreen() {
             title="How to use FlipPilot"
             subtitle="Scanning, pricing, selling and plans"
             onPress={() => router.push("/help")}
+            divider
+          />
+          <MenuRow
+            Icon={Play}
+            title="Watch the welcome tour again"
+            subtitle="The short walkthrough shown when you first opened the app"
+            onPress={() => router.push("/onboarding")}
           />
         </View>
 
