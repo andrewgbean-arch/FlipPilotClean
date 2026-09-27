@@ -51,7 +51,7 @@ export const CHAPTERS: Chapter[] = [
     blurb:
       "Who pulled the trigger? Follow the real plans behind the Iron Curtain: a night train, a snowbound station, and a portrait of the vainest man in Europe.",
     comingLabel: "Arriving next month",
-    download: { version: 2, mb: 8.8 },
+    download: { version: 3, mb: 8.8 },
   },
   {
     id: 3,
@@ -60,7 +60,7 @@ export const CHAPTERS: Chapter[] = [
     blurb:
       "Handcuffed on a night train to Moscow, with the plans hidden under the mattress. Borrow a waiter's jacket, serve the Colonel his champagne, and find out why Ilse dropped her glove.",
     comingLabel: "Arriving the month after",
-    download: { version: 2, mb: 5.5 },
+    download: { version: 3, mb: 5.5 },
   },
   {
     id: 4,
@@ -69,7 +69,7 @@ export const CHAPTERS: Chapter[] = [
     blurb:
       "A village inn, a secret airbase inside a mountain and a goose called Colonel. Get inside disguised as the baker's boy, photograph the aircraft nobody is supposed to see, and get out again.",
     comingLabel: "Coming soon",
-    download: { version: 2, mb: 6.2 },
+    download: { version: 3, mb: 6.2 },
   },
   {
     id: 5,
@@ -78,7 +78,7 @@ export const CHAPTERS: Chapter[] = [
     blurb:
       "Istanbul, and the stolen jet is up for auction. Talk your way out of an airfield with a tray of tea, dodge Kolar through the Grand Bazaar, and gatecrash the sale as a buyer nobody has ever seen.",
     comingLabel: "Coming soon",
-    download: { version: 2, mb: 6.2 },
+    download: { version: 3, mb: 6.2 },
   },
   {
     id: 6,
@@ -87,6 +87,6 @@ export const CHAPTERS: Chapter[] = [
     blurb:
       "Venice in the fog, and a masked ball where the buyer from London comes to collect. Wake a gondolier with the help of a goose, blow a glass swan on Murano, and row for your life down the Grand Canal.",
     comingLabel: "Coming soon",
-    download: { version: 1, mb: 6.2 },
+    download: { version: 2, mb: 6.2 },
   },
 ];
