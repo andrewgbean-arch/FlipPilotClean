@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Platform, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { ActivityIndicator, AppState, Platform, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { Asset } from "expo-asset";
 import { StatusBar } from "expo-status-bar";
@@ -19,6 +19,17 @@ const AMBER = "#f0b35b";
 export default function NightglassPlayer() {
   const [uri, setUri] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const web = useRef<WebView>(null);
+
+  // The game makes its own sound. Pause it when FlipPilot goes to the
+  // background (Android would otherwise keep playing) and resume on return.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      const call = state === "active" ? "resume" : "pause";
+      web.current?.injectJavaScript(`window.NightglassAudio && window.NightglassAudio.${call}(); true;`);
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -70,6 +81,7 @@ export default function NightglassPlayer() {
     <View style={styles.screen}>
       <StatusBar hidden />
       <WebView
+        ref={web}
         source={{ uri }}
         originWhitelist={["*"]}
         allowingReadAccessToURL={folder}
@@ -77,8 +89,11 @@ export default function NightglassPlayer() {
         allowFileAccessFromFileURLs
         javaScriptEnabled
         domStorageEnabled
+        // Sound starts on the player's first tap inside the game; the game
+        // also marks itself as media playback so it is heard on silent mode.
         mediaPlaybackRequiresUserAction={false}
         allowsInlineMediaPlayback
+        allowsAirPlayForMediaPlayback={false}
         bounces={false}
         scrollEnabled={false}
         overScrollMode="never"
