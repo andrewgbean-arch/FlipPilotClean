@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DeviceRotate, HandTap, Headphones, Lock, Play } from "phosphor-react-native";
 import type { Icon as PhosphorIcon } from "phosphor-react-native";
 
-import { CHAPTERS } from "@/game/nightglass";
+import { CHAPTERS, GAME_PAGES } from "@/game/nightglass";
 
 // A fixed noir palette, like the game's own title screen: it is the same in
 // light and dark mode on purpose.
@@ -33,6 +33,8 @@ export default function NightglassScreen() {
 
       {CHAPTERS.map((ch) => {
         const locked = !!ch.comingLabel;
+        // Development builds can play a bundled chapter before its release day.
+        const preview = locked && __DEV__ && !!GAME_PAGES[ch.id];
         return (
           <View key={ch.number} style={[styles.card, locked && styles.cardLocked]}>
             <View style={styles.cardHead}>
@@ -41,20 +43,23 @@ export default function NightglassScreen() {
             </View>
             <Text style={styles.place}>{ch.place}</Text>
             <Text style={styles.blurb}>{ch.blurb}</Text>
-            {locked ? (
+            {locked && (
               <View style={styles.lockedRow}>
                 <Lock size={18} color={MUTED} />
                 <Text style={styles.lockedText}>Unlocks on release day</Text>
               </View>
-            ) : (
+            )}
+            {(!locked || preview) && (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`Play chapter ${ch.number}, ${ch.place}`}
-                onPress={() => router.push("/nightglass-play")}
-                style={({ pressed }) => [styles.playBtn, pressed && styles.pressed]}
+                accessibilityLabel={`${preview ? "Preview" : "Play"} chapter ${ch.number}, ${ch.place}`}
+                onPress={() => router.push({ pathname: "/nightglass-play", params: { chapter: String(ch.id) } })}
+                style={({ pressed }) => [styles.playBtn, preview && styles.previewBtn, pressed && styles.pressed]}
               >
-                <Play size={20} color={INK} weight="fill" />
-                <Text style={styles.playText}>Play Chapter {ch.number}</Text>
+                <Play size={20} color={preview ? AMBER : INK} weight="fill" />
+                <Text style={[styles.playText, preview && styles.previewText]}>
+                  {preview ? `Preview Chapter ${ch.number} (test builds only)` : `Play Chapter ${ch.number}`}
+                </Text>
               </Pressable>
             )}
           </View>
@@ -119,6 +124,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   playText: { color: INK, fontSize: 17, fontWeight: "900" },
+  previewBtn: { backgroundColor: "transparent", borderWidth: 1, borderColor: AMBER },
+  previewText: { color: AMBER, fontSize: 15 },
   pressed: { opacity: 0.8 },
   lockedRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
   lockedText: { color: MUTED, fontSize: 14 },

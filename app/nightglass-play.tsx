@@ -1,12 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, AppState, Platform, StyleSheet, Text, View } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { Asset } from "expo-asset";
 import { StatusBar } from "expo-status-bar";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 
-// The whole game is one self-contained page bundled with the app.
-const GAME = require("../assets/games/nightglass/index.html");
+import { CHAPTERS, GAME_PAGES } from "@/game/nightglass";
 
 const INK = "#03060a";
 const AMBER = "#f0b35b";
@@ -17,6 +16,11 @@ const AMBER = "#f0b35b";
  * portrait-only. "Exit to FlipPilot" in the game's menu posts {type: "exit"}.
  */
 export default function NightglassPlayer() {
+  // Each chapter is one self-contained page bundled with the app.
+  const { chapter } = useLocalSearchParams<{ chapter?: string }>();
+  const id = Number(chapter) || 1;
+  const page = GAME_PAGES[id] ?? GAME_PAGES[1];
+  const place = CHAPTERS.find((c) => c.id === id)?.place ?? "Vienna";
   const [uri, setUri] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const web = useRef<WebView>(null);
@@ -33,14 +37,14 @@ export default function NightglassPlayer() {
 
   useEffect(() => {
     let alive = true;
-    Asset.fromModule(GAME)
+    Asset.fromModule(page)
       .downloadAsync()
       .then((a) => alive && setUri(a.localUri ?? a.uri))
       .catch(() => alive && setFailed(true));
     return () => {
       alive = false;
     };
-  }, []);
+  }, [page]);
 
   const onMessage = (e: WebViewMessageEvent) => {
     try {
@@ -62,7 +66,7 @@ export default function NightglassPlayer() {
       <View style={styles.center}>
         <StatusBar hidden />
         <ActivityIndicator color={AMBER} size="large" />
-        <Text style={styles.text}>Loading Vienna…</Text>
+        <Text style={styles.text}>Loading {place}…</Text>
       </View>
     );
   }
@@ -104,7 +108,7 @@ export default function NightglassPlayer() {
         renderLoading={() => (
           <View style={[styles.center, StyleSheet.absoluteFill]}>
             <ActivityIndicator color={AMBER} size="large" />
-            <Text style={styles.text}>Loading Vienna…</Text>
+            <Text style={styles.text}>Loading {place}…</Text>
           </View>
         )}
       />
