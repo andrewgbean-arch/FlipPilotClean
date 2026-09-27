@@ -1609,6 +1609,32 @@ const LOOKS = {
     skin: '#d4a07c', hair: '#1a1410', hairStyle: 'fedora', hat: '#e8d8a0', hatBand: '#9e1f28', top: 'jacket', bare: true, stripes: '#9e1f28', build: 1.15, belly: 0.7, mustache: true,
     coat: '#f4f0e8', coatDark: '#c8c2b4', pants: '#141418', shoes: '#0a0a0a', shirt: '#f4f0e8', eye: '#3a2a1a',
   },
+  // --- Chapter Seven: East Berlin ---------------------------------------------------
+  jackCleaner: {
+    skin: '#d9a883', hair: '#2a1d16', hairStyle: 'flatcap', cap: '#5a5a54', top: 'longcoat', stubble: true, eye: '#4a6a7a',
+    coat: '#7a7a70', coatDark: '#4a4a44', pants: '#3a3a36', shoes: '#141414', shirt: '#d8d4c8',
+    face: { outfit: 'overcoat', hairStyle: 'flatcap', cap: '#5a5a54', coat: '#7a7a70' },
+  },
+  uwe: {
+    skin: '#dcac8a', hair: '#6a5a4a', hairStyle: 'flatcap', cap: '#2a3a5a', top: 'vest', build: 1.1, belly: 0.5, mustache: true, apron: '#2a4a7a',
+    coat: '#2a4a7a', coatDark: '#1a2a4a', pants: '#2a4a7a', shoes: '#1a1a1a', shirt: '#c8c8c0', eye: '#4a5a6a',
+  },
+  nina: {
+    skin: '#f0d4c0', hair: '#e8408a', hairStyle: 'mohawk', top: 'jacket', female: true, earrings: true,
+    coat: '#141414', coatDark: '#050505', pants: '#1a1a1a', shoes: '#0a0a0a', shirt: '#e8e2d6', lips: '#2a1a2a', eye: '#3a6a5a',
+  },
+  kalle: {
+    skin: '#dcae8c', hair: '#3a3028', hairStyle: 'slick', top: 'vest', build: 1.15, belly: 0.6, mustache: true,
+    coat: '#3a3028', coatDark: '#1a1612', pants: '#1a1a1a', shoes: '#0a0a0a', shirt: '#d8d0c0', eye: '#3a3a3a',
+  },
+  kessler: {
+    skin: '#e6c4aa', hair: '#b8b2a8', hairStyle: 'bun', top: 'dress', female: true, glasses: true, build: 1.1,
+    coat: '#7a6a4a', coatDark: '#4a3e2a', pants: '#3a3228', shoes: '#1a1612', shirt: '#7a6a4a', lips: '#9a5c5a', eye: '#4a4a3a',
+  },
+  stasi: {
+    skin: '#d8a882', hair: '#4a3a2a', hairStyle: 'cap', cap: '#4a5a4a', capBand: '#8a1a1a', top: 'uniform', build: 1.08, brass: true, belt: '#1c1a16',
+    coat: '#5a6a58', coatDark: '#3a463a', pants: '#3a463a', shoes: '#0f0f0f', shirt: '#3a463a', trim: '#8a1a1a',
+  },
   // Toni, having lent Jack his jersey and his hat: a white vest and a lot of hair
   toniVest: {
     skin: '#d4a07c', hair: '#1a1410', hairStyle: 'slick', top: 'jacket', bare: true, build: 1.15, belly: 0.7, mustache: true,
@@ -2060,6 +2086,13 @@ function drawHead(ctx, f, L, t) {
     ctx.fillStyle = h;
     ctx.beginPath(); ctx.moveTo(-11, 6); ctx.quadraticCurveTo(-12, -4, -7, -8); ctx.lineTo(-5, 4); ctx.closePath(); ctx.fill();
     ellipse(ctx, 1, -13.5, 5, 1.6, 'rgba(255,255,255,0.22)');
+  } else if (L.hairStyle === 'mohawk') {
+    // shaved sides, and a crest of spikes from brow to nape
+    ctx.fillStyle = 'rgba(40,30,30,0.35)'; ctx.beginPath(); ctx.moveTo(-11, 5); ctx.quadraticCurveTo(-13, -12, 0, -16); ctx.quadraticCurveTo(10, -16, 12, -8); ctx.quadraticCurveTo(4, -12, -6, -6); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = h;
+    ctx.beginPath(); ctx.moveTo(-12, -6);
+    for (let k = 0; k <= 6; k++) { const x = -12 + k * 3.8, y = -15 - Math.sin((k / 6) * Math.PI) * 3; ctx.lineTo(x - 1.6, y); ctx.lineTo(x + 0.4, y - 10 - (k % 2) * 3); }
+    ctx.lineTo(12, -12); ctx.quadraticCurveTo(0, -18, -12, -6); ctx.fill();
   } else if (L.hairStyle === 'cap') {
     ctx.fillStyle = h; ctx.fillRect(-10, -8, 6, 12);
     poly(ctx, [-13, -11, 13, -11, 16, -21, -9, -24], L.cap);
@@ -2387,6 +2420,34 @@ Object.assign(FACES, {
     outfit: 'overcoat', coat: '#0e0e12',
   },
 });
+Object.assign(FACES, {
+  // --- Chapter Seven ----------------------------------------------------------------
+  uwe: {
+    skin: '#deae8c', skinDark: '#ae7e5e', hair: '#6a5a4a', hairHi: '#8a7a6a', hairStyle: 'flatcap', cap: '#2a3a5a', eye: '#4a5a6a',
+    brow: 12, jaw: 1.25, cheek: 1.3, nose: 'bulb', lip: '#a0604e', mustache: '#6a5a4a', mustacheStyle: 'walrus', age: 0.55, flushed: 0.35, stubble: 0.4,
+    outfit: 'vest', coat: '#2a4a7a', collar: '#c8c8c0',
+  },
+  nina: {
+    skin: '#f2d6c2', skinDark: '#c2a692', hair: '#e8408a', hairHi: '#ff90c0', hairStyle: 'mohawk', eye: '#3a6a5a',
+    brow: 6, jaw: 0.88, cheek: 1.1, nose: 'straight', lip: '#2a1a2a', female: true, blush: 0.1, age: 0.2, earrings: true,
+    outfit: 'jacket', coat: '#141414', collar: '#e8e2d6',
+  },
+  kalle: {
+    skin: '#dcae8c', skinDark: '#ac7e5c', hair: '#3a3028', hairHi: '#5a4a3a', hairStyle: 'slick', eye: '#3a3a3a',
+    brow: 13, jaw: 1.3, cheek: 1.3, nose: 'broad', lip: '#9a5c4a', mustache: '#3a3028', mustacheStyle: 'walrus', age: 0.55, flushed: 0.3,
+    outfit: 'vest', coat: '#3a3028', collar: '#d8d0c0',
+  },
+  kessler: {
+    skin: '#e8c6ac', skinDark: '#b8967c', hair: '#b8b2a8', hairHi: '#e0dad0', hairStyle: 'bun', eye: '#4a4a3a',
+    brow: 8, jaw: 1.05, cheek: 1.2, nose: 'straight', lip: '#9a5c5a', female: true, blush: 0.2, age: 0.8, glasses: true,
+    outfit: 'dress', coat: '#7a6a4a',
+  },
+  stasi: {
+    skin: '#d8a882', skinDark: '#a87852', hair: '#4a3a2a', hairHi: '#6a5a4a', hairStyle: 'cap', cap: '#4a5a4a', capBand: '#8a1a1a', eye: '#3a3a2a',
+    brow: 12, jaw: 1.3, cheek: 1.05, nose: 'straight', lip: '#9a5c4a', age: 0.45, stubble: 0.3,
+    outfit: 'uniform', coat: '#5a6a58',
+  },
+});
 FACES.soldier1 = FACES.soldier;
 FACES.soldier2 = { ...FACES.soldier, skin: '#d0a07a', nose: 'broad', jaw: 1.15, stubble: 0.4, eye: '#3a2a1a', blush: 0 };
 const NAMES = {
@@ -2394,6 +2455,7 @@ const NAMES = {
   bogdan: 'CONDUCTOR BOGDAN', olga: 'AUNT OLGA', anicka: 'ANIČKA',
   vasko: 'COLONEL VASKO', novak: 'ZDENKA NOVAK', zora: 'AUNTIE ZORA', borderGuard: 'BORDER GUARD', militia: 'MILITIAMAN', soldier1: 'SOLDIER', soldier2: 'SOLDIER', kolar: 'CAPTAIN KOLAR', pavel: 'OLD PAVEL',
 };
+Object.assign(NAMES, { uwe: 'UWE', nina: 'NINA', kalle: 'KALLE', kessler: 'FRAU KESSLER', stasi: 'STASI GUARD' });
 Object.assign(NAMES, { toni: 'TONI', bepi: 'MAESTRO BEPI', lucrezia: 'CONTESSA LUCREZIA', plague: 'THE PLAGUE DOCTOR', control: 'CONTROL' });
 Object.assign(NAMES, { selim: 'BAY SELIM', airGuard: 'AIRFIELD GUARD', riza: 'RIZA', mustafa: 'MUSTAFA', nuri: 'NURİ', leyla: 'LEYLA', brunner: 'HERR BRUNNER', hollis: 'MR HOLLIS', dupont: 'MONSIEUR DUPONT', bidder: 'THE TELEPHONE', cayci: 'TEA BOY' });
 Object.assign(NAMES, { marta: 'MARTA', mirek: 'MIREK', vlasta: 'VLASTA', hana: 'DR HANA VESELÁ', hruby: 'SERGEANT HRUBÝ', control: 'CONTROL' });
@@ -2744,6 +2806,16 @@ function drawHairFront(ctx, F, t) {
     ctx.globalAlpha = 1;
     // finger wave
     ctx.strokeStyle = shadeColor(h, -0.25); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(150, 104); ctx.bezierCurveTo(170, 90, 190, 120, 214, 104); ctx.bezierCurveTo(236, 92, 250, 112, 262, 126); ctx.stroke();
+  } else if (F.hairStyle === 'mohawk') {
+    // shaved sides with a shadow of stubble, and a tall crest of spikes
+    for (const d of [-1, 1]) { ctx.fillStyle = 'rgba(60,40,40,0.3)'; ctx.beginPath(); ctx.moveTo(200 + d * 92, 200); ctx.bezierCurveTo(200 + d * 104, 140, 200 + d * 80, 80, 200 + d * 30, 64); ctx.lineTo(200 + d * 28, 110); ctx.lineTo(200 + d * 84, 200); ctx.fill(); }
+    ctx.fillStyle = linGrad(ctx, 160, 0, 240, 0, [[0, shadeColor(h, -0.25)], [0.5, h], [1, shadeColor(h, -0.2)]]);
+    ctx.beginPath(); ctx.moveTo(166, 110);
+    for (let k = 0; k <= 7; k++) { const x = 164 + k * 10, base = 70 - Math.sin(k / 7 * Math.PI) * 14; ctx.lineTo(x, base); ctx.lineTo(x + 5, base - 70 - (k % 2) * 22); }
+    ctx.lineTo(240, 70); ctx.lineTo(236, 110); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = hi; ctx.globalAlpha = 0.5; ctx.lineWidth = 2;
+    for (let k = 0; k < 7; k++) { ctx.beginPath(); ctx.moveTo(170 + k * 10, 90); ctx.lineTo(172 + k * 10, 20 - (k % 2) * 16); ctx.stroke(); }
+    ctx.globalAlpha = 1;
   } else if (F.hairStyle === 'bald') {
     for (const d of [-1, 1]) {
       ctx.fillStyle = h; ctx.beginPath(); ctx.moveTo(200 + d * 90, 214); ctx.bezierCurveTo(200 + d * 100, 170, 200 + d * 94, 136, 200 + d * 78, 116); ctx.lineTo(200 + d * 70, 170); ctx.lineTo(200 + d * 80, 214); ctx.fill();
@@ -3408,7 +3480,7 @@ async function combineItems(a, b) {
   await say(G.jack, 'Those two don\'t go together.');
 }
 function drawInventory(ctx) {
-  const want = (G.mode === 'play' && !G.busy && !G.choices && !G.overlay && (G.invPinned || (!G.touch && G.mouse.y > H - INV.h - 10) || G.sel)) ? 1 : 0;
+  const want = (G.mode === 'play' && !G.busy && !G.choices && !G.overlay && (G.invPinned || (!G.touch && G.mouse.y > (G.invOpen > 0.5 ? H - INV.h - 10 : H - 40)) || G.sel)) ? 1 : 0;
   G.invOpen += (want - G.invOpen) * 0.2;
   // Always-visible hint tab.
   ctx.save();
