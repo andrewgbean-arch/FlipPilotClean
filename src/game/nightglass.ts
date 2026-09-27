@@ -23,6 +23,7 @@ export const GAME_PAGES: Record<number, number> = {
   1: require("../../assets/games/nightglass/chapter1.html"),
   2: require("../../assets/games/nightglass/chapter2.html"),
   3: require("../../assets/games/nightglass/chapter3.html"),
+  4: require("../../assets/games/nightglass/chapter4.html"),
 };
 
 export const CHAPTERS: Chapter[] = [
@@ -48,5 +49,13 @@ export const CHAPTERS: Chapter[] = [
     blurb:
       "Handcuffed on a night train to Moscow, with the plans hidden under the mattress. Borrow a waiter's jacket, serve the Colonel his champagne, and find out why Ilse dropped her glove.",
     comingLabel: "Arriving the month after",
+  },
+  {
+    id: 4,
+    number: "Four",
+    place: "Nightglass",
+    blurb:
+      "A village inn, a secret airbase inside a mountain and a goose called Colonel. Get inside disguised as the baker's boy, photograph the aircraft nobody is supposed to see, and get out again.",
+    comingLabel: "Coming soon",
   },
 ];
