@@ -63,6 +63,27 @@ export default function registerGamesRoute(app: Express) {
     // The server turns caching off for everything else; a chapter at a given version never changes.
     res.setHeader("Cache-Control", "public, max-age=604800, immutable");
     res.removeHeader("Pragma");
+    // The server's own security policy only allows scripts from separate files, and a chapter is one
+    // self-contained page with its code, voices and pictures inside it. Without this the page never
+    // gets past its loading screen in a browser. The page may be framed by the web app, and it
+    // fetches nothing but its fonts.
+    res.setHeader(
+      "Content-Security-Policy",
+      [
+        "default-src 'none'",
+        "script-src 'unsafe-inline'",
+        "style-src 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src https://fonts.gstatic.com data:",
+        "img-src data: blob:",
+        "media-src data: blob:",
+        "connect-src data: blob:",
+        "base-uri 'none'",
+        "form-action 'none'",
+        "frame-ancestors *",
+      ].join("; ")
+    );
+    res.removeHeader("X-Frame-Options");
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
     res.sendFile(full, { headers: { "Content-Type": "text/html; charset=utf-8" } });
   });
 }
