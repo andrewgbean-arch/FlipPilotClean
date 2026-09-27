@@ -5,6 +5,7 @@ import { Asset } from "expo-asset";
 import { StatusBar } from "expo-status-bar";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 
+import ChapterFinished from "@/game/ChapterFinished";
 import { CHAPTERS, GAME_PAGES } from "@/game/nightglass";
 import { chapterFile, chapterUrl, isDownloaded } from "@/game/nightglassDownloads";
 
@@ -14,7 +15,8 @@ const AMBER = "#f0b35b";
 /**
  * Full-screen player for Operation Nightglass. The page lays itself sideways
  * on an upright phone, so it plays in landscape although the app is
- * portrait-only. "Exit to FlipPilot" in the game's menu posts {type: "exit"}.
+ * portrait-only. "Exit to FlipPilot" in the game's menu posts {type: "exit"}; reaching the end of
+ * a chapter posts {type: "finished", chapter}, and the way on to the next chapter is shown over it.
  */
 export default function NightglassPlayer() {
   // Each chapter is one self-contained page: Chapter One comes with the app, later ones are downloaded.
@@ -27,6 +29,7 @@ export default function NightglassPlayer() {
   const [loaded, setUri] = useState<string | null>(null);
   const uri = streamed ?? loaded;
   const [failed, setFailed] = useState(false);
+  const [finished, setFinished] = useState(false);
   const web = useRef<WebView>(null);
 
   // The game makes its own sound. Pause it when FlipPilot goes to the
@@ -57,13 +60,27 @@ export default function NightglassPlayer() {
     };
   }, [ch, streamed]);
 
+  const handle = (msg: any) => {
+    if (msg?.type === "exit") router.back();
+    if (msg?.type === "finished" && Number(msg.chapter) === ch.id) setFinished(true);
+  };
   const onMessage = (e: WebViewMessageEvent) => {
     try {
-      if (JSON.parse(e.nativeEvent.data)?.type === "exit") router.back();
+      handle(JSON.parse(e.nativeEvent.data));
     } catch {
       // not a message from the game
     }
   };
+
+  // In the web build the game runs in an iframe and talks to the page around it instead.
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return;
+    const listen = (e: MessageEvent) => {
+      if (e.data?.source === "nightglass") handle(e.data);
+    };
+    window.addEventListener("message", listen);
+    return () => window.removeEventListener("message", listen);
+  });
 
   if (failed) {
     return (
@@ -85,12 +102,17 @@ export default function NightglassPlayer() {
   }
   if (Platform.OS === "web") {
     // react-native-webview has no web build; a plain iframe does the job there.
-    return React.createElement("iframe", {
-      src: uri,
-      title: "Operation Nightglass",
-      allow: "autoplay; fullscreen",
-      style: { border: 0, width: "100%", height: "100%", background: INK },
-    });
+    return (
+      <View style={styles.screen}>
+        {React.createElement("iframe", {
+          src: uri,
+          title: "Operation Nightglass",
+          allow: "autoplay; fullscreen",
+          style: { border: 0, width: "100%", height: "100%", background: INK },
+        })}
+        {finished && <ChapterFinished ch={ch} onStay={() => setFinished(false)} />}
+      </View>
+    );
   }
   // WKWebView needs read access to the folder holding the page (bundled, or downloaded).
   const folder = uri.slice(0, uri.lastIndexOf("/") + 1);
@@ -125,6 +147,7 @@ export default function NightglassPlayer() {
           </View>
         )}
       />
+      {finished && <ChapterFinished ch={ch} onStay={() => setFinished(false)} />}
     </View>
   );
 }
