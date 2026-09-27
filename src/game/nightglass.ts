@@ -1,10 +1,17 @@
 /**
  * Operation Nightglass: a point-and-click spy adventure released one chapter a
- * month. Each chapter is a single web page bundled with the app in
- * assets/games/nightglass/chapter<N>.html and played in a WebView, so it works
- * offline. To add a chapter: copy dist/chapter<N>.html from the
- * operation-nightglass repo into that folder, add it to GAME_PAGES below and
- * list it in CHAPTERS. To release it, remove its comingLabel.
+ * month. Each chapter is a single web page played in a WebView.
+ *
+ * Chapter One is bundled with the app (assets/games/nightglass/chapter1.html),
+ * so a new player can start at once, offline. Later chapters are downloaded
+ * from the FlipPilot server (backend/public/games/nightglass) when the player
+ * asks, kept on the phone, and play offline from then on; the player can
+ * delete one and download it again (see nightglassDownloads.ts).
+ *
+ * To add a chapter: copy dist/chapter<N>.html from the operation-nightglass
+ * repo into backend/public/games/nightglass and list it in CHAPTERS with a
+ * `download` entry. When a chapter is rebuilt, bump its version so players get
+ * the new copy. To release it, remove its comingLabel.
  */
 export type Chapter = {
   id: number;
@@ -13,17 +20,16 @@ export type Chapter = {
   blurb: string;
   /**
    * Shown instead of a Play button until the chapter is released. Development
-   * builds can still preview a chapter that is bundled but not yet released.
+   * builds can still preview (and download) a chapter before its release day.
    */
   comingLabel?: string;
+  /** For a chapter that is downloaded rather than bundled: its version and size. */
+  download?: { version: number; mb: number };
 };
 
-// The bundled pages, by chapter id. Chapters without a page are coming soon.
+// The bundled pages, by chapter id.
 export const GAME_PAGES: Record<number, number> = {
   1: require("../../assets/games/nightglass/chapter1.html"),
-  2: require("../../assets/games/nightglass/chapter2.html"),
-  3: require("../../assets/games/nightglass/chapter3.html"),
-  4: require("../../assets/games/nightglass/chapter4.html"),
 };
 
 export const CHAPTERS: Chapter[] = [
@@ -41,6 +47,7 @@ export const CHAPTERS: Chapter[] = [
     blurb:
       "Who pulled the trigger? Follow the real plans behind the Iron Curtain: a night train, a snowbound station, and a portrait of the vainest man in Europe.",
     comingLabel: "Arriving next month",
+    download: { version: 1, mb: 8.8 },
   },
   {
     id: 3,
@@ -49,6 +56,7 @@ export const CHAPTERS: Chapter[] = [
     blurb:
       "Handcuffed on a night train to Moscow, with the plans hidden under the mattress. Borrow a waiter's jacket, serve the Colonel his champagne, and find out why Ilse dropped her glove.",
     comingLabel: "Arriving the month after",
+    download: { version: 1, mb: 5.5 },
   },
   {
     id: 4,
@@ -57,5 +65,6 @@ export const CHAPTERS: Chapter[] = [
     blurb:
       "A village inn, a secret airbase inside a mountain and a goose called Colonel. Get inside disguised as the baker's boy, photograph the aircraft nobody is supposed to see, and get out again.",
     comingLabel: "Coming soon",
+    download: { version: 1, mb: 6.1 },
   },
 ];
