@@ -22,6 +22,7 @@ export type Chapter = {
 export const GAME_PAGES: Record<number, number> = {
   1: require("../../assets/games/nightglass/chapter1.html"),
   2: require("../../assets/games/nightglass/chapter2.html"),
+  3: require("../../assets/games/nightglass/chapter3.html"),
 };
 
 export const CHAPTERS: Chapter[] = [
@@ -39,5 +40,13 @@ export const CHAPTERS: Chapter[] = [
     blurb:
       "Who pulled the trigger? Follow the real plans behind the Iron Curtain: a night train, a snowbound station, and a portrait of the vainest man in Europe.",
     comingLabel: "Arriving next month",
+  },
+  {
+    id: 3,
+    number: "Three",
+    place: "The Iron Arrow",
+    blurb:
+      "Handcuffed on a night train to Moscow, with the plans hidden under the mattress. Borrow a waiter's jacket, serve the Colonel his champagne, and find out why Ilse dropped her glove.",
+    comingLabel: "Arriving the month after",
   },
 ];
