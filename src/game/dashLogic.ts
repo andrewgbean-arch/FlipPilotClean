@@ -54,8 +54,12 @@ export function kindById(id: string): ItemKind | undefined {
    game that becomes impossible is a game nobody beats their score at.
 -------------------------------------------------------------- */
 
-/** How fast things fall, in points per second. */
+/**
+ * How fast things fall, in points per second. It runs inside the frame loop on the UI thread, so
+ * it must be a worklet: without the marker, calling it there closed the app on phones.
+ */
 export function fallSpeed(elapsed: number): number {
+  "worklet";
   return 150 + Math.min(300, Math.max(0, elapsed) * 11);
 }
 
