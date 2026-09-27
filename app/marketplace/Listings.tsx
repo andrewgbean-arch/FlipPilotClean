@@ -125,6 +125,14 @@ export default function Listings() {
     getCategory(params.category)?.id ?? "All"
   );
 
+  // Tapping a different category tile on the Hub navigates to this SAME screen with a new
+  // param — expo-router can reuse the screen instance rather than remounting it, so the initial
+  // state above only ever ran once. Without this, every tile after the first opened the same
+  // category the screen was first shown with, whatever tile was actually tapped.
+  useEffect(() => {
+    if (params.category) setCategory(getCategory(params.category)?.id ?? "All");
+  }, [params.category]);
+
   useEffect(() => {
     let live = true;
     setLoading(true);
