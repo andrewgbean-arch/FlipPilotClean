@@ -19,7 +19,6 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
-  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -33,6 +32,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/styles/ThemeContext";
 
 import AdReportButton from "@/components/AdReportButton";
+import { advertAction, openAdvertAction } from "@/lib/advertAction";
 import { reportAdvertEvent, useAdverts, type BootfairAdverts } from "@/lib/adverts";
 import type { BusinessAdvert } from "../../src/lib/businessAdverts";
 import { Fair, getAllFairs, isFeatured } from "../../src/lib/fairs";
@@ -175,10 +175,11 @@ function FairCard({ item }: { item: Fair }) {
 }
 
 // A local business advert. Always labelled Sponsored; the card opens the
-// advertiser's website when it has one.
+// advertiser's button (website, call or directions) when it has one.
 function AdCard({ advert, style }: { advert: BusinessAdvert; style?: StyleProp<ViewStyle> }) {
   const theme = useTheme();
-  const website = advert.website;
+  // The advertiser's button: their website, a call, or directions (their choice when they booked).
+  const action = advertAction(advert);
   // A photo that won't load leaves a dead block, so drop it and show the text alone.
   const [imageFailed, setImageFailed] = useState(false);
   useEffect(() => reportAdvertEvent(advert.id, "view", 30), [advert.id]);
@@ -194,16 +195,16 @@ function AdCard({ advert, style }: { advert: BusinessAdvert; style?: StyleProp<V
       ]}
     >
     <Pressable
-      disabled={!website}
-      accessibilityRole={website ? "button" : undefined}
+      disabled={!action}
+      accessibilityRole={action ? "button" : undefined}
       accessibilityLabel={
-        website
-          ? `Sponsored: ${advert.title}. Visit website`
+        action
+          ? `Sponsored: ${advert.title}. ${action.accessibility}`
           : `Sponsored: ${advert.title}`
       }
       onPress={() => {
         reportAdvertEvent(advert.id, "click");
-        if (website) Linking.openURL(website);
+        openAdvertAction(action);
       }}
       style={({ pressed }) => (pressed ? styles.pressed : undefined)}
     >
@@ -237,9 +238,9 @@ function AdCard({ advert, style }: { advert: BusinessAdvert; style?: StyleProp<V
           </Text>
         ) : null}
 
-        {website ? (
+        {action ? (
           <View style={[styles.cardFooter, { borderTopColor: theme.hairline }]}>
-            <Text style={[styles.cardFooterText, { color: theme.text }]}>Visit website</Text>
+            <Text style={[styles.cardFooterText, { color: theme.text }]}>{action.label === "Visit" ? "Visit website" : action.label}</Text>
             <ArrowSquareOut size={18} color={theme.muted} />
           </View>
         ) : null}
@@ -268,12 +269,12 @@ function HeroAd({ advert }: { advert: BusinessAdvert }) {
       ]}
     >
       <Pressable
-        accessibilityRole={advert.website ? "button" : undefined}
+        accessibilityRole={advertAction(advert) ? "button" : undefined}
         accessibilityLabel={`Sponsored stall: ${advert.title}`}
-        disabled={!advert.website}
+        disabled={!advertAction(advert)}
         onPress={() => {
           reportAdvertEvent(advert.id, "click");
-          if (advert.website) Linking.openURL(advert.website);
+          openAdvertAction(advertAction(advert));
         }}
         style={StyleSheet.absoluteFill}
       >

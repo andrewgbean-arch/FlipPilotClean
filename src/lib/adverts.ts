@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { loadRotation } from "@/lib/adRotation";
 import { approxLocation } from "@/lib/approxLocation";
 import { BASE_URL } from "@/utils/api";
+import { getDeviceId } from "@/utils/deviceId";
 import type { BusinessAdvert } from "@/lib/businessAdverts";
 
 /**
@@ -98,9 +99,16 @@ export function reportAdvertEvent(id: string, type: "view" | "click" | "save", q
     if (Date.now() - last < quietMinutes * 60_000) return;
     lastCounted.set(id, Date.now());
   }
-  fetch(`${BASE_URL}/adverts/${encodeURIComponent(id)}/event`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ type }),
-  }).catch(() => {});
+  // `viewer` lets the server count this phone's view of an advert once a day. It is sent as its own
+  // field (not as a device id) and the server never stores it.
+  getDeviceId()
+    .catch(() => null)
+    .then((viewer) =>
+      fetch(`${BASE_URL}/adverts/${encodeURIComponent(id)}/event`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, ...(viewer ? { viewer } : {}) }),
+      })
+    )
+    .catch(() => {});
 }

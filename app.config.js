@@ -1,18 +1,22 @@
+// Testing builds (eas.json "development", APP_VARIANT=development) are a separate app, "FlipPilot Dev",
+// with their own id and link scheme, so they install beside the real FlipPilot instead of replacing it.
+const DEV = process.env.APP_VARIANT === "development";
+
 export default {
   expo: {
-    name: "FlipPilot",
+    name: DEV ? "FlipPilot Dev" : "FlipPilot",
     slug: "flippilot-new",
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/images/app-icon.png",
-    scheme: "flippilotnew",
+    scheme: DEV ? "flippilotdev" : "flippilotnew",
     // The app is dark-only for now, so keep system UI (keyboard, alerts) dark to match.
     userInterfaceStyle: "dark",
     assetBundlePatterns: ["**/*"],
     ios: {
       icon: "./assets/images/app-icon.png",
       // Permanent once the app is published. Keep in step with android.package.
-      bundleIdentifier: "com.flippilot.app"
+      bundleIdentifier: DEV ? "com.flippilot.app.dev" : "com.flippilot.app"
     },
     android: {
       adaptiveIcon: {
@@ -21,7 +25,7 @@ export default {
         monochromeImage: "./assets/images/android-icon-monochrome.png"
       },
       predictiveBackGestureEnabled: false,
-      package: "com.flippilot.app"
+      package: DEV ? "com.flippilot.app.dev" : "com.flippilot.app"
     },
     web: {
       output: "single",
