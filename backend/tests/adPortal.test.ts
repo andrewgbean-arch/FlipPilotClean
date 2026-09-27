@@ -372,6 +372,8 @@ describe("a business books an advert", () => {
     const r = await call("PATCH", `/admin/adverts/${advertId}`, { approved: true }, ADMIN);
     assert.equal(r.status, 200, JSON.stringify(r.data));
     assert.equal(r.data.advert.booking.status, "awaiting-payment");
+    // The admin page mustn't call it live before it's paid for.
+    assert.equal(r.data.advert.state, "awaiting-payment");
     const feed = await call("GET", "/adverts?placement=feed", undefined, nearLeeds);
     assert.equal(feed.data.adverts.length, 0);
   });

@@ -21,7 +21,7 @@ import {
 } from "../utils/advertStore";
 import { checkAdvertLink, checkAdvertText, type Problem } from "../utils/advertCheck";
 import { reviewAdvert } from "../utils/advertReview";
-import { cleanPostcode } from "../utils/geocode";
+import { cleanPostcode, geocodePostcode, looksLikeUkPoint } from "../utils/geocode";
 import { deleteUploads } from "../utils/uploadStore";
 import { mediaForAdvert } from "../utils/media";
 import { cleanPhone, profileFor, saveProfile, type AdvertiserProfile } from "../utils/advertiserStore";
@@ -279,7 +279,7 @@ export default function registerAdvertiserPortalRoutes(app: Express) {
     });
   });
 
-  app.put("/advertiser/profile", ...portal, (req: Request, res: Response) => {
+  app.put("/advertiser/profile", ...portal, safe(async (req: Request, res: Response) => {
     const b = req.body ?? {};
     const current = profileFor(req.account!.id);
     const businessName = b.businessName !== undefined ? text(b.businessName, 80) : current?.businessName ?? null;
@@ -307,6 +307,11 @@ export default function registerAdvertiserPortalRoutes(app: Express) {
     if (b.postcode !== undefined) {
       postcode = b.postcode === "" ? null : cleanPostcode(b.postcode);
       if (b.postcode !== "" && !postcode) return res.status(400).json({ ok: false, error: "That doesn't look like a UK postcode." });
+      // A postcode that looks right can still be one that no longer exists: find it now, not when they book.
+      if (postcode && postcode !== current?.postcode) {
+        const point = await geocodePostcode(postcode);
+        if (!point || !looksLikeUkPoint(point.lat, point.lng)) return res.status(400).json({ ok: false, error: `We couldn't find ${postcode} on the map. Please check it: some older postcodes have been withdrawn.` });
+      }
     }
     const words = checkAdvertText({ advertiser: businessName, title: "", tagline: "", description: address ?? "" }).filter((p) => p.kind === "language");
     if (words.length > 0) return res.status(422).json({ ok: false, error: "Please keep your business details free of bad language." });
@@ -360,7 +365,7 @@ export default function registerAdvertiserPortalRoutes(app: Express) {
     const stillUsed = new Set(all.flatMap((a) => (a.logo ? [a.logo] : [])));
     if (oldLogo && !stillUsed.has(oldLogo)) deleteUploads([oldLogo]);
     res.json({ ok: true, profile: mediaForAdvert({ ...profile, image: undefined }, req) });
-  });
+  }));
 
   app.post("/advertiser/quote", ...portal, safe(async (req: Request, res: Response) => {
     const profile = profileFor(req.account!.id);

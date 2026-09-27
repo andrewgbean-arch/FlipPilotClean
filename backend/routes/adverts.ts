@@ -17,6 +17,7 @@ import {
   advertiserKey,
   trustKey,
   imagesOf,
+  isPaidUp,
   isTrusted,
   loadAdverts,
   messagesAdverts,
@@ -213,6 +214,12 @@ export async function resolveArea(b: any, current?: Advert): Promise<{ area: Are
 export function stateOf(ad: Advert, now = new Date()): string {
   if (ad.pausedAt && !ad.approved) return "paused-by-reports";
   if (!ad.approved) return "awaiting-approval";
+  // A business's own booking isn't live until it's paid for (and while it stays paid up).
+  if (ad.booking && !isPaidUp(ad, now)) {
+    if (ad.booking.status === "awaiting-payment") return "awaiting-payment";
+    if (ad.booking.status === "active" || ad.booking.status === "cancelling") return ad.booking.paidThrough ? "payment-lapsed" : "awaiting-first-payment";
+    return ad.booking.status;
+  }
   if (now.getTime() >= new Date(ad.endsAt).getTime()) return "ended";
   if (now.getTime() < new Date(ad.startsAt).getTime()) return "scheduled";
   return "live";
