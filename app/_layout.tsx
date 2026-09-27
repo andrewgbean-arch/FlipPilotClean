@@ -201,7 +201,7 @@ function ThemedStack() {
 
         {/* Core non-tab screens */}
         <Stack.Screen name="ai-camera" options={{ headerShown: false }} />
-        <Stack.Screen name="upgrade" options={{ title: "Upgrade" }} />
+        <Stack.Screen name="upgrade" options={{ title: "More scans" }} />
         <Stack.Screen name="manage-subscription" options={{ title: "Manage Subscription" }} />
         <Stack.Screen name="pro-success" options={{ headerShown: false }} />
         {/* Operation Nightglass plays full screen; leaving is through the game's own menu or Back */}

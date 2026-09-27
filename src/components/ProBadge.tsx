@@ -3,7 +3,7 @@ import { useTheme } from "@/styles/ThemeContext";
 
 import { StyleSheet, Text, View } from "react-native";
 
-// A small, quiet marker shown while Pro is active: a thin gold outline, no fill.
+// A small, quiet marker shown while the Trader plan is active: a thin gold outline, no fill.
 export default function ProBadge() {
   const { isPro } = useSubscription();
   const theme = useTheme();
@@ -13,10 +13,10 @@ export default function ProBadge() {
   return (
     <View
       accessible
-      accessibilityLabel="FlipPilot Pro"
+      accessibilityLabel="Trader plan"
       style={[styles.badge, { backgroundColor: theme.background, borderColor: theme.gold }]}
     >
-      <Text style={[styles.text, { color: theme.gold }]}>PRO</Text>
+      <Text style={[styles.text, { color: theme.gold }]}>TRADER</Text>
     </View>
   );
 }

@@ -1,21 +1,18 @@
 import type { PurchasesOfferings } from "react-native-purchases";
 
 import GoldFoil from "@/components/ui/GoldFoil";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Check, Info, Minus } from "phosphor-react-native";
+import { Check, Info } from "phosphor-react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useSubscription } from "../src/context/SubscriptionContext";
 import { useTheme } from "@/styles/ThemeContext";
 
-type TierId = "free" | "boltOn" | "pro";
+type TierId = "free" | "credits" | "trader";
 
-// A plain string is a checked benefit; { heading } is a small section label
-// with no checkmark, for grouping a run of related benefits (e.g. Pro's
-// vehicle perks, which otherwise sit unexplained between Marketplace and
-// export benefits).
+// A plain string is a checked benefit; { heading } is a small section label with no checkmark.
 type IncludedItem = string | { heading: string };
 
 type Tier = {
@@ -26,57 +23,59 @@ type Tier = {
   period: string;
   badge?: string;
   included: IncludedItem[];
-  notIncluded?: string[];
 };
 
-// The prices and claims shown on this screen are written out here; a real
-// purchase always uses the matching RevenueCat package (see boltOnPackage /
-// proPackage below) — Free never purchases anything.
+// How FlipPilot is paid for (owner's choice, 2026-09-27): free scans every week, then either
+// pay-as-you-go credit packs or the Trader plan. The prices here are written out; a real purchase
+// always uses the matching store product (credit packs on the Scan credits screen, Trader below).
+const TRADER_SCANS = 300;
 const TIERS: Tier[] = [
   {
     id: "free",
     name: "Free",
-    tagline: "Browse everything, try it out",
+    tagline: "5 scans every week",
     price: "£0",
     period: "forever",
-    included: ["Browse the Marketplace and every screen", "5 AI lookups a week", "See vehicle listings"],
-    notIncluded: ["Sell on the Marketplace", "List a vehicle"],
+    included: [
+      "5 scans every week, back each Monday",
+      "Buy and sell on the Marketplace (free during our launch)",
+      "Boot fairs, MOT checks, guides and games",
+    ],
   },
   {
-    id: "boltOn",
-    name: "Bolt-on",
-    tagline: "For the occasional flip",
-    price: "£2.99",
-    period: "month",
-    included: ["200 AI lookups a month", "Sell up to 5 items on the Marketplace", "Everything in Free"],
-    notIncluded: ["List a vehicle"],
+    id: "credits",
+    name: "Scan credit packs",
+    tagline: "Pay as you go · never expire",
+    price: "from £1.99",
+    period: "one-off",
+    included: [
+      "25, 50, 100 or 200 scans, from £1.99",
+      "Used only after your free scans run out",
+      "Never expire, no subscription",
+      "Also pay for a car listing after our launch offer",
+    ],
   },
   {
-    id: "pro",
-    name: "Pro",
-    tagline: "Full use — built for trading",
-    price: "£6.99",
+    id: "trader",
+    name: "Trader",
+    tagline: "For regular buying and selling",
+    price: "£9.99",
     period: "month",
     badge: "Best value",
     included: [
-      "Unlimited AI lookups",
-      "Sell unlimited items on the Marketplace",
-      "Export listings straight to eBay",
-      "Share listings to Facebook, Gumtree, Vinted & more",
-      { heading: "For your vehicles" },
-      "2 free",
-      "Extra ones billed per vehicle",
-      "Everything in Bolt-on",
+      `${TRADER_SCANS} scans every month, on top of your 5 free a week`,
+      "Export your listings straight to eBay",
+      "Everything in Free",
+      "Cancel any time in your phone's settings",
     ],
   },
 ];
 
-// Feature, Free, Bolt-on, Pro — kept short so four columns fit a phone width.
+// Feature, Free, Credits, Trader — kept short so four columns fit a phone width.
 const COMPARISON: [string, string, string, string][] = [
-  ["AI lookups", "5 / week", "200 / month", "Unlimited"],
-  ["Sell on Marketplace", "—", "Up to 5 items", "Unlimited"],
+  ["Scans", "5 a week", "Buy as needed", `${TRADER_SCANS} a month + 5 a week`],
+  ["Cost", "£0", "From £1.99", "£9.99 a month"],
   ["Export to eBay", "—", "—", "Included"],
-  ["Vehicle listings", "—", "—", "2 free, then billed"],
 ];
 
 type TierOptionProps = {
@@ -85,17 +84,16 @@ type TierOptionProps = {
   onPress: () => void;
 };
 
-// One selectable tier card. The gold outline and the filled tick mark the chosen one.
+// One selectable option card. The gold outline and the filled tick mark the chosen one.
 function TierOption({ tier, selected, onPress }: TierOptionProps) {
   const theme = useTheme();
+  const priceLabel = tier.period === "month" ? `${tier.price} per month` : tier.price;
 
   return (
     <Pressable
       accessibilityRole="radio"
       accessibilityState={{ checked: selected }}
-      accessibilityLabel={`${tier.name} plan, ${tier.price} per ${tier.period}${
-        tier.badge ? `, ${tier.badge}` : ""
-      }`}
+      accessibilityLabel={`${tier.name}, ${priceLabel}${tier.badge ? `, ${tier.badge}` : ""}`}
       onPress={onPress}
       style={({ pressed }) => [
         styles.plan,
@@ -133,8 +131,8 @@ function TierOption({ tier, selected, onPress }: TierOptionProps) {
 
       <Text style={[styles.planPrice, { color: theme.text }]}>
         {tier.price}
-        {tier.period !== "forever" ? (
-          <Text style={[styles.planPeriod, { color: theme.muted }]}> / {tier.period}</Text>
+        {tier.period === "month" ? (
+          <Text style={[styles.planPeriod, { color: theme.muted }]}> / month</Text>
         ) : null}
       </Text>
     </Pressable>
@@ -145,49 +143,64 @@ export default function UpgradeScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
-  // RevenueCat subscription context
-  const { offerings, purchase, restore } = useSubscription() as {
+  const { offerings, purchase, restore, isPro } = useSubscription() as {
     offerings: PurchasesOfferings | null;
     purchase: (pkg: any) => Promise<void>;
     restore: () => Promise<void>;
+    isPro: boolean;
   };
 
-  const [selected, setSelected] = useState<TierId>("pro");
+  const [selected, setSelected] = useState<TierId>("trader");
 
-  // Only "Pro" has a real product in RevenueCat today. Bolt-on's price and
-  // features are shown honestly, but it can't be bought until a matching
-  // product exists there — this looks for one by identifier rather than
-  // assuming it's there, so the button never pretends a purchase happened.
-  const proPackage = offerings?.current?.monthly ?? null;
-  const boltOnPackage = useMemo(() => {
-    const packages = offerings?.current?.availablePackages ?? [];
-    return packages.find((p) => p.identifier.toLowerCase().includes("bolt")) ?? null;
-  }, [offerings]);
+  // The Trader plan's store product (flippilot_trader_monthly), found by name rather than assumed,
+  // so the button never pretends a purchase happened when the store hasn't offered it yet.
+  const packages = offerings?.current?.availablePackages ?? [];
+  const traderPackage =
+    packages.find((p) => p.product.identifier === "flippilot_trader_monthly") ??
+    packages.find((p) => p.identifier.toLowerCase().includes("trader")) ??
+    offerings?.current?.monthly ??
+    null;
 
   const tier = TIERS.find((t) => t.id === selected)!;
   const card = { backgroundColor: theme.card, borderColor: theme.hairline };
-
-  const activePackage = selected === "free" ? null : selected === "boltOn" ? boltOnPackage : proPackage;
-  const notReadyToBuy = selected !== "free" && !activePackage;
+  const notReadyToBuy = selected === "trader" && !traderPackage && !isPro;
 
   const handleCta = () => {
     if (selected === "free") {
       router.back();
       return;
     }
-    if (!activePackage) {
-      Alert.alert(
-        `${tier.name} isn't ready yet`,
-        "This plan is coming soon — check back shortly."
-      );
+    if (selected === "credits") {
+      router.push("/credits");
       return;
     }
-    purchase(activePackage);
+    if (isPro) {
+      router.push("/manage-subscription");
+      return;
+    }
+    if (!traderPackage) {
+      Alert.alert("Trader isn't ready yet", "The Trader plan will be here shortly. Credit packs work in the meantime.");
+      return;
+    }
+    purchase(traderPackage);
   };
 
   const ctaLabel =
-    selected === "free" ? "Continue with Free" : `Get ${tier.name}`;
-  const ctaSub = selected === "free" ? "No card needed" : `${tier.price} / ${tier.period} · Cancel anytime`;
+    selected === "free"
+      ? "Carry on with Free"
+      : selected === "credits"
+        ? "See credit packs"
+        : isPro
+          ? "Manage your Trader plan"
+          : "Get Trader";
+  const ctaSub =
+    selected === "free"
+      ? "No card needed"
+      : selected === "credits"
+        ? "Pay once · credits never expire"
+        : isPro
+          ? "You're on Trader"
+          : `${traderPackage ? traderPackage.product.priceString : "£9.99"} a month · Cancel any time`;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -198,13 +211,13 @@ export default function UpgradeScreen() {
       >
         {/* HEADLINE */}
         <Text style={[styles.title, { color: theme.text }]} accessibilityRole="header">
-          Choose your plan
+          More scans
         </Text>
         <Text style={[styles.subtitle, { color: theme.muted }]}>
-          Start free, add what you need
+          5 free every week. Need more? Pay as you go, or go Trader.
         </Text>
 
-        {/* TIERS */}
+        {/* OPTIONS */}
         <View accessibilityRole="radiogroup" style={styles.plans}>
           {TIERS.map((t) => (
             <TierOption key={t.id} tier={t} selected={selected === t.id} onPress={() => setSelected(t.id)} />
@@ -213,7 +226,7 @@ export default function UpgradeScreen() {
 
         {/* WHAT'S INCLUDED */}
         <Text style={[styles.sectionTitle, { color: theme.text }]} accessibilityRole="header">
-          What's in {tier.name}
+          {tier.id === "credits" ? "How credit packs work" : `What's in ${tier.name}`}
         </Text>
         <View style={[styles.group, styles.benefits, card]}>
           {tier.included.map((item, i) =>
@@ -233,19 +246,11 @@ export default function UpgradeScreen() {
               </Text>
             )
           )}
-          {tier.notIncluded?.map((item) => (
-            <View key={item} style={styles.benefitRow}>
-              <View style={[styles.benefitCheck, { backgroundColor: theme.muted + "1A" }]}>
-                <Minus size={14} weight="bold" color={theme.muted} />
-              </View>
-              <Text style={[styles.benefitText, { color: theme.muted }]}>{item}</Text>
-            </View>
-          ))}
         </View>
 
         {/* COMPARISON */}
         <Text style={[styles.sectionTitle, { color: theme.text }]} accessibilityRole="header">
-          Compare plans
+          Side by side
         </Text>
         <View style={[styles.group, card]}>
           <View
@@ -255,33 +260,33 @@ export default function UpgradeScreen() {
           >
             <View style={styles.compareLabel} />
             <Text style={[styles.compareHeadText, { color: theme.muted }]}>Free</Text>
-            <Text style={[styles.compareHeadText, { color: theme.muted }]}>Bolt-on</Text>
-            <Text style={[styles.compareHeadText, { color: theme.text }]}>Pro</Text>
+            <Text style={[styles.compareHeadText, { color: theme.muted }]}>Credits</Text>
+            <Text style={[styles.compareHeadText, { color: theme.text }]}>Trader</Text>
           </View>
 
-          {COMPARISON.map(([label, free, boltOn, pro]) => (
+          {COMPARISON.map(([label, free, credits, trader]) => (
             <View
               key={label}
               accessible
-              accessibilityLabel={`${label}. Free: ${free === "—" ? "not included" : free}. Bolt-on: ${
-                boltOn === "—" ? "not included" : boltOn
-              }. Pro: ${pro}.`}
+              accessibilityLabel={`${label}. Free: ${free === "—" ? "not included" : free}. Credit packs: ${
+                credits === "—" ? "not included" : credits
+              }. Trader: ${trader === "—" ? "not included" : trader}.`}
               style={[styles.compareRow, { borderTopWidth: 1, borderTopColor: theme.hairline }]}
             >
               <Text style={[styles.compareLabel, styles.compareLabelText, { color: theme.text }]}>
                 {label}
               </Text>
               <Text style={[styles.compareValue, { color: theme.muted }]}>{free}</Text>
-              <Text style={[styles.compareValue, { color: theme.muted }]}>{boltOn}</Text>
+              <Text style={[styles.compareValue, { color: theme.muted }]}>{credits}</Text>
               <Text style={[styles.compareValue, styles.compareValuePro, { color: theme.text }]}>
-                {pro}
+                {trader}
               </Text>
             </View>
           ))}
         </View>
       </ScrollView>
 
-      {/* PURCHASE */}
+      {/* ACTION */}
       <View
         style={[
           styles.footer,
@@ -296,9 +301,7 @@ export default function UpgradeScreen() {
           <View style={styles.noticeRow} accessibilityLiveRegion="polite">
             <Info size={16} color={theme.muted} />
             <Text style={[styles.noticeText, { color: theme.muted }]}>
-              {selected === "boltOn"
-                ? "Bolt-on isn't available to buy yet — check back shortly."
-                : "Store prices aren't available yet. You can subscribe once they've loaded."}
+              {"Store prices aren't available yet. You can subscribe once they've loaded."}
             </Text>
           </View>
         ) : null}
@@ -318,18 +321,19 @@ export default function UpgradeScreen() {
           <Text style={[styles.ctaSub, { color: theme.black }]}>{ctaSub}</Text>
         </Pressable>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Restore purchases"
-          onPress={restore}
-          style={({ pressed }) => [styles.restore, pressed && styles.pressed]}
-        >
-          <Text style={[styles.restoreLabel, { color: theme.text }]}>Restore purchases</Text>
-        </Pressable>
+        {selected === "trader" ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Restore purchases"
+            onPress={restore}
+            style={({ pressed }) => [styles.restore, pressed && styles.pressed]}
+          >
+            <Text style={[styles.restoreLabel, { color: theme.text }]}>Restore purchases</Text>
+          </Pressable>
+        ) : null}
 
         <Text style={[styles.legal, { color: theme.muted }]}>
-          Bolt-on and Pro renew automatically until cancelled. You can manage or cancel in your
-          device's subscription settings.
+          {"Trader renews monthly until cancelled; manage or cancel it in your phone's subscription settings. Credit packs are one-off purchases and never expire."}
         </Text>
       </View>
     </View>

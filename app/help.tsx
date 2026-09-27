@@ -65,8 +65,8 @@ const SECTIONS: Section[] = [
     Icon: Storefront,
     title: "Sell on the Marketplace",
     steps: [
-      "Anyone can browse the Marketplace for free, on any plan.",
-      "To list something for sale yourself, you'll need Bolt-on or Pro — Free is browse-only.",
+      "Anyone can browse the Marketplace for free.",
+      "Listing things for sale is free for everyone during our launch. Cars are one at a time, and cost 25 scan credits once the launch offer ends.",
       "Buyers message you straight from your listing to arrange a sale.",
     ],
   },
@@ -75,8 +75,8 @@ const SECTIONS: Section[] = [
     title: "Add a vehicle",
     steps: [
       "In the Vehicles Hub, look up any UK vehicle by registration for its MOT and DVLA details.",
-      "Your first 2 vehicle listings are free on Pro.",
-      "List more than that and each extra one is billed — either one at a time, or as a discounted block for higher-volume traders.",
+      "Track your own vehicles and their MOT dates, free.",
+      "To sell a car, list it on the Marketplace: one at a time, free during our launch, then 25 scan credits.",
     ],
   },
   {
@@ -91,9 +91,9 @@ const SECTIONS: Section[] = [
     Icon: Crown,
     title: "Choose your plan",
     steps: [
-      "Free: browse everything, 5 AI lookups a week, can't sell yet.",
-      "Bolt-on (£2.99/month): 200 lookups a month and up to 5 Marketplace listings.",
-      "Pro (£6.99/month): unlimited lookups and selling, plus 2 free vehicle listings.",
+      "Free: 5 scans every week, back each Monday, and everything else in the app.",
+      "Scan credit packs: 25, 50, 100 or 200 scans from £1.99. They never expire and are only used once your free scans run out.",
+      "Trader (£9.99 a month): 300 scans every month on top of your free ones, and export your listings to eBay.",
     ],
   },
 ];
@@ -162,7 +162,7 @@ export default function HelpScreen() {
           style={({ pressed }) => [styles.secondaryLink, pressed && styles.pressed]}
           onPress={() => router.push("/upgrade")}
         >
-          <Text style={[styles.secondaryLinkLabel, { color: theme.text }]}>See plans and pricing</Text>
+          <Text style={[styles.secondaryLinkLabel, { color: theme.text }]}>More scans and pricing</Text>
         </Pressable>
       </ScrollView>
     </View>

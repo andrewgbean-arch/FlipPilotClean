@@ -375,11 +375,11 @@ export default function SettingsScreen() {
           <InfoRow
             Icon={Crown}
             tint={isPro ? theme.gold : undefined}
-            title={isPro ? "FlipPilot Pro" : "Free plan"}
+            title={isPro ? "Trader plan" : "Free plan"}
             subtitle={
               isPro
-                ? "You have full access to every FlipPilot tool"
-                : "Upgrade to unlock the full set of FlipPilot tools"
+                ? "300 scans a month on top of your free ones, and eBay export"
+                : "5 free scans every week. Buy credit packs or go Trader for more"
             }
           />
           {isPro ? (
@@ -393,8 +393,8 @@ export default function SettingsScreen() {
           ) : (
             <MenuRow
               Icon={Crown}
-              title="Upgrade to Pro"
-              subtitle="See what Pro includes"
+              title="More scans"
+              subtitle="Credit packs from £1.99, or Trader at £9.99 a month"
               onPress={() => router.push("/upgrade")}
               divider
             />

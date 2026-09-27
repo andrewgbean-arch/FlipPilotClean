@@ -54,7 +54,9 @@ const REVENUECAT_KEY =
     }) ?? process.env.EXPO_PUBLIC_REVENUECAT_KEY
   )?.trim() || undefined;
 
-const isProActive = (info: CustomerInfo) => !!info.entitlements.active["pro"];
+// The paid plan is called Trader (300 scans a month and eBay export). It was called Pro before
+// 2026-09-27, and a subscriber under that name still counts. `isPro` below means "on the plan".
+const isProActive = (info: CustomerInfo) => !!(info.entitlements.active["trader"] ?? info.entitlements.active["pro"]);
 
 const notifyUnavailable = () =>
   Alert.alert(
@@ -152,8 +154,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         router.push("/pro-success");
       } else {
         Alert.alert(
-          "Pro isn't showing yet",
-          "Your purchase went through, but Pro hasn't unlocked yet. Try Restore Purchases in a moment."
+          "Trader isn't showing yet",
+          "Your purchase went through, but the Trader plan hasn't switched on yet. Try Restore Purchases in a moment."
         );
       }
     } catch (err: any) {
@@ -218,8 +220,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       Alert.alert(
         active ? "Purchases restored" : "Nothing to restore",
         active
-          ? "FlipPilot Pro is unlocked on this device."
-          : "We couldn't find an active FlipPilot Pro subscription for this account."
+          ? "Your Trader plan is on for this device."
+          : "We couldn't find an active Trader plan for this account."
       );
     } catch (err) {
       console.log("Restore error:", err);
