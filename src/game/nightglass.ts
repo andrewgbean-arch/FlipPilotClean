@@ -89,4 +89,13 @@ export const CHAPTERS: Chapter[] = [
     comingLabel: "Coming soon",
     download: { version: 2, mb: 6.2 },
   },
+  {
+    id: 7,
+    number: "Seven",
+    place: "The Wall",
+    blurb:
+      "Wanted by both sides, Jack goes where nobody will look for him: East Berlin. Fix a Trabant with a punk singer's tights, talk your way into the Stasi archive as the night cleaner, and crawl under the death strip to the West.",
+    comingLabel: "Coming soon",
+    download: { version: 1, mb: 5.4 },
+  },
 ];
