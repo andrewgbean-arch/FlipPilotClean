@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Platform } from "react-native";
 import Animated, { SharedValue, useAnimatedProps, useSharedValue } from "react-native-reanimated";
 import Svg, {
   Circle,
@@ -34,6 +35,29 @@ import Svg, {
 export type Mood = "idle" | "joy" | "star" | "hurt";
 
 const AnimatedG = Animated.createAnimatedComponent(G);
+
+/*
+ * How his arms, head and eyes move each frame.
+ *
+ * On a phone these must be numbers, not text. Reanimated 4.5 turns a text transform such as
+ * "rotate(12 200 262)" into numbers with a helper that only exists on the JavaScript side, so it
+ * threw on the UI thread and closed the app the moment the game opened (found on the live build,
+ * 2026-09-27). So on phones he gets an SVG matrix directly, which react-native-svg's native side
+ * takes as it is: [a, b, c, d, e, f] means x' = a·x + c·y + e and y' = b·x + d·y + f.
+ * The web draws through a different path that reads text happily, so it keeps the text.
+ */
+const WEB = Platform.OS === "web";
+
+type Moves = { transform?: string; matrix?: number[] };
+
+/** Turn by `deg` about (cx, cy), then move by (tx, ty). */
+function turnAbout(deg: number, cx: number, cy: number, tx: number, ty: number): number[] {
+  "worklet";
+  const r = (deg * Math.PI) / 180;
+  const cos = Math.cos(r);
+  const sin = Math.sin(r);
+  return [cos, sin, -sin, cos, cx - cos * cx + sin * cy + tx, cy - sin * cx - cos * cy + ty];
+}
 
 const B = "lBrass";
 const S = "lShade";
@@ -100,18 +124,19 @@ export default function Lampy({
   const eyesShut = blinking || hurt;
 
   /* ---- the per-frame bits ---- */
-  const armLProps = useAnimatedProps(() => ({
-    transform: `translate(190 360) rotate(${-arm.value})`,
-  }));
-  const armRProps = useAnimatedProps(() => ({
-    transform: `translate(210 360) rotate(${arm.value})`,
-  }));
-  const headProps = useAnimatedProps(() => ({
-    transform: `rotate(${tilt.value} 200 262)`,
-  }));
-  const pupilProps = useAnimatedProps(() => ({
-    transform: `translate(${Math.max(-9, Math.min(9, eyes.value * 9))} 0)`,
-  }));
+  const armLProps = useAnimatedProps<Moves>(() =>
+    WEB ? { transform: `translate(190 360) rotate(${-arm.value})` } : { matrix: turnAbout(-arm.value, 0, 0, 190, 360) }
+  );
+  const armRProps = useAnimatedProps<Moves>(() =>
+    WEB ? { transform: `translate(210 360) rotate(${arm.value})` } : { matrix: turnAbout(arm.value, 0, 0, 210, 360) }
+  );
+  const headProps = useAnimatedProps<Moves>(() =>
+    WEB ? { transform: `rotate(${tilt.value} 200 262)` } : { matrix: turnAbout(tilt.value, 200, 262, 0, 0) }
+  );
+  const pupilProps = useAnimatedProps<Moves>(() => {
+    const dx = Math.max(-9, Math.min(9, eyes.value * 9));
+    return WEB ? { transform: `translate(${dx} 0)` } : { matrix: [1, 0, 0, 1, dx, 0] };
+  });
 
   return (
     <Svg width={width} height={height} viewBox="0 0 400 640">
