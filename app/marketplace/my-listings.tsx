@@ -13,7 +13,7 @@ import {
   Pressable,
 } from "react-native";
 import { router } from "expo-router";
-import { Export, ShareNetwork } from "phosphor-react-native";
+import { Export, ShareNetwork, Storefront } from "phosphor-react-native";
 import { useTheme } from "@/styles/ThemeContext";
 
 import { BASE_URL } from "@/utils/api";
@@ -31,6 +31,9 @@ export default function MyListings() {
   const theme = useTheme();
 
   const [listings, setListings] = useState<any[]>([]);
+  // A failed load must never look like "no listings": a seller would think their items had gone.
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "failed">("loading");
+  const [reloadKey, setReloadKey] = useState(0);
   const [exportingId, setExportingId] = useState<string | number | null>(null);
   const [markingId, setMarkingId] = useState<string | number | null>(null);
   // The listing being marked sold, and the conversations to choose the buyer from.
@@ -66,12 +69,20 @@ export default function MyListings() {
   };
 
   useEffect(() => {
+    setLoadState("loading");
     getDeviceId()
       .then((deviceId) => fetch(`${BASE_URL}/my-listings?deviceId=${encodeURIComponent(deviceId)}`))
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data) => setListings(Array.isArray(data) ? data : []))
-      .catch(() => setListings([]));
-  }, []);
+      .then((res) => {
+        if (!res.ok) throw new Error(`status ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        if (!Array.isArray(data)) throw new Error("not a list");
+        setListings(data);
+        setLoadState("ready");
+      })
+      .catch(() => setLoadState("failed"));
+  }, [reloadKey]);
 
   // Marking it sold is the only thing "items sold" on your seller profile
   // counts, so the number on your profile is one you have earned.
@@ -238,22 +249,31 @@ export default function MyListings() {
   return (
     <>
     <ScrollView
-      style={{ flex: 1, backgroundColor: theme.black }}
-      contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+      style={{ flex: 1, backgroundColor: theme.background }}
+      contentContainerStyle={{ padding: 20, paddingBottom: 40, flexGrow: 1 }}
     >
-      <Text
-        style={{
-          color: theme.goldDeep,
-          fontSize: 28,
-          fontWeight: "900",
-          marginBottom: 16,
-        }}
-      >
-        Your Listings
-      </Text>
+      {loadState === "loading" && (
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 80 }}>
+          <ActivityIndicator color={theme.gold} />
+        </View>
+      )}
 
-      {listings.length === 0 && (
-        <Text style={{ color: theme.text }}>You have no active listings.</Text>
+      {loadState === "failed" && (
+        <EmptyState
+          title="Couldn't load your listings"
+          body="Check your connection and try again. Your listings are safe."
+          action="Try again"
+          onAction={() => setReloadKey((k) => k + 1)}
+        />
+      )}
+
+      {loadState === "ready" && listings.length === 0 && (
+        <EmptyState
+          title="No listings yet"
+          body="Put something up for sale and it will show up here."
+          action="Sell an item"
+          onAction={() => router.push("/marketplace/create/new")}
+        />
       )}
 
       {listings.map((item) => (
@@ -555,5 +575,38 @@ export default function MyListings() {
         </Pressable>
       </Modal>
     </>
+  );
+}
+
+/** The middle of the screen when there's nothing to list: says why, and what to do next. */
+function EmptyState({ title, body, action, onAction }: { title: string; body: string; action: string; onAction: () => void }) {
+  const theme = useTheme();
+  return (
+    <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 80, paddingHorizontal: 20 }}>
+      <View
+        style={{
+          width: 64,
+          height: 64,
+          borderRadius: 32,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: theme.card,
+          borderWidth: 1,
+          borderColor: theme.hairline,
+          marginBottom: 16,
+        }}
+      >
+        <Storefront size={28} color={theme.gold} />
+      </View>
+      <Text style={{ color: theme.text, fontSize: 18, fontWeight: "700", textAlign: "center" }}>{title}</Text>
+      <Text style={{ color: theme.muted, fontSize: 14, lineHeight: 20, textAlign: "center", marginTop: 6 }}>{body}</Text>
+      <TouchableOpacity
+        accessibilityRole="button"
+        onPress={onAction}
+        style={{ marginTop: 18, backgroundColor: theme.gold, borderRadius: 999, paddingHorizontal: 24, paddingVertical: 12, minHeight: 44, justifyContent: "center" }}
+      >
+        <Text style={{ color: theme.black, fontWeight: "800", fontSize: 15 }}>{action}</Text>
+      </TouchableOpacity>
+    </View>
   );
 }

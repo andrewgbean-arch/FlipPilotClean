@@ -17,7 +17,6 @@ import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 
 import { useTheme } from "../../../src/styles/ThemeContext";
-import AnimatedHeroHeader from "../../../src/components/ui/AnimatedHeroHeader";
 import SparklesOverlay from "../../../src/components/ui/SparklesOverlay";
 
 import { identifyPhoto, BASE_URL } from "../../../src/utils/api";
@@ -364,8 +363,6 @@ export default function CreateNewListing() {
       style={{ flex: 1, backgroundColor: theme.background }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <AnimatedHeroHeader title="Sell something" />
-
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 60 }}>
         <SparklesOverlay />
 
