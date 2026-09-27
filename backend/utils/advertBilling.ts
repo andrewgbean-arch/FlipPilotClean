@@ -116,6 +116,20 @@ export const billing = {
     return { id: session.id, url: session.url };
   },
 
+  /**
+   * A free month for a card-paying advert: a credit on its Stripe customer, the size of a full
+   * month, which Stripe uses to pay the next invoice. (Not a 100%-off coupon: that would make a £0
+   * invoice, which the webhook rightly treats as paying for nothing.) Each advert's checkout makes
+   * its own Stripe customer, so the credit can only go to this advert.
+   */
+  async creditNextMonth(customerId: string, pence: number, advertTitle: string): Promise<void> {
+    await stripe("POST", `/customers/${encodeURIComponent(customerId)}/balance_transactions`, {
+      amount: -Math.abs(Math.round(pence)),
+      currency: "gbp",
+      description: `FlipPilot free month: "${advertTitle}"`.slice(0, 350),
+    });
+  },
+
   async cancelAtPeriodEnd(subscriptionId: string): Promise<void> {
     await stripe("POST", `/subscriptions/${encodeURIComponent(subscriptionId)}`, { cancel_at_period_end: "true" });
   },

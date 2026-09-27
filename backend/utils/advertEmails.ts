@@ -24,7 +24,7 @@ function priceLine(ad: Advert): string {
   const b = ad.booking;
   if (!b) return "";
   return b.launchMonthlyPence !== null && b.launchMonths > 0
-    ? `${pounds(b.launchMonthlyPence)} a month for your first ${b.launchMonths} months, then ${pounds(b.monthlyPence)} a month`
+    ? `your first ${b.launchMonths} months for the price of 1 (${pounds(b.launchMonthlyPence)} a month), then ${pounds(b.monthlyPence)} a month`
     : `${pounds(b.monthlyPence)} a month`;
 }
 
@@ -70,6 +70,31 @@ export const advertEmails = {
 
   async paymentFailed(ad: Advert, to: string) {
     await send(to, `Payment for "${ad.title}" didn't go through`, `We couldn't take this month's payment for your advert "${ad.title}". Please update your card from the link in Stripe's email, or in your portal: ${portalUrl()}\n\nYour advert stops at the end of the month already paid for if the payment isn't made.`);
+  },
+
+  async freeMonthAsked(ad: Advert, to: string, note: string | null) {
+    await send(to, `Your free month for "${ad.title}"`, `Thanks for telling us. We'll add your free month to "${ad.title}" and email you when it's done, usually within one working day.`);
+    await send(staffAddress(), `Free month asked for: ${ad.advertiser}, "${ad.title}"`, `${ad.advertiser} (${to}) asked for the launch offer's free month for "${ad.title}".${note ? `
+
+They said: ${note}` : ""}
+
+Add it on the admin page: ${portalUrl()}/admin`);
+  },
+
+  async freeMonthDecided(ad: Advert, to: string, granted: boolean, byCard: boolean, reason: string | null) {
+    await send(
+      to,
+      granted ? `A free month for "${ad.title}"` : `About your free month for "${ad.title}"`,
+      granted
+        ? byCard
+          ? `We've added a free month to "${ad.title}". Your next monthly payment is covered by a credit on your account, so nothing is taken from your card that month. Your advert keeps showing as normal.`
+          : `We've added a free month to "${ad.title}": it now shows until ${new Date(ad.booking?.paidThrough ?? ad.endsAt).toLocaleDateString("en-GB")}, at no charge.`
+        : `We weren't able to add a free month to "${ad.title}".${reason ? `
+
+Why: ${reason}` : ""}
+
+If you'd like to talk about it, just reply to this email.`
+    );
   },
 
   async ended(ad: Advert, to: string) {

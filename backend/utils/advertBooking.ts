@@ -62,9 +62,56 @@ export function markPaid(ad: Advert, months: number, now = new Date()) {
     if (new Date(ad.startsAt).getTime() < now.getTime()) ad.startsAt = now.toISOString();
   }
   ad.booking.status = "active";
+  if (!ad.booking.firstPaidAt) ad.booking.firstPaidAt = from;
   ad.booking.paidAt = now.toISOString();
   ad.booking.paidThrough = addMonths(from, months);
   ad.booking.holdUntil = null;
   ad.booking.invoiceRequested = false;
+  ad.endsAt = ad.booking.paidThrough;
+}
+
+/**
+ * The launch offer's promise: if a business's first paid month is quieter than it hoped, it can
+ * ask for a month free. Any booking made under the launch offer can ask once, from the end of its
+ * first paid month until FREE_MONTH_ASK_MONTHS months after that, while the advert is still
+ * running. A person at FlipPilot then adds it (see grantFreeMonth).
+ */
+export const FREE_MONTH_ASK_MONTHS = 2;
+
+export type FreeMonthState =
+  | "none" // not a launch-offer booking, or never paid for
+  | "not-yet" // its first paid month isn't over
+  | "can-ask"
+  | "not-running" // cancelled or ended: there's no next month to make free
+  | "too-late"
+  | "asked"
+  | "granted"
+  | "declined";
+
+export function freeMonthState(ad: Advert, now = new Date()): { state: FreeMonthState; askFrom: string | null; askUntil: string | null } {
+  const b = ad.booking;
+  const first = b?.firstPaidAt ?? null;
+  const askFrom = first ? addMonths(first, 1) : null;
+  const askUntil = first ? addMonths(first, 1 + FREE_MONTH_ASK_MONTHS) : null;
+  const out = (state: FreeMonthState) => ({ state, askFrom, askUntil });
+  if (!b || !(b.launchMonths > 0) || !first) return out("none");
+  if (b.freeMonth?.granted === true) return out("granted");
+  if (b.freeMonth?.granted === false) return out("declined");
+  if (b.freeMonth?.requestedAt) return out("asked");
+  if (now.getTime() < new Date(askFrom!).getTime()) return out("not-yet");
+  if (now.getTime() > new Date(askUntil!).getTime()) return out("too-late");
+  if (b.status !== "active") return out("not-running");
+  return out("can-ask");
+}
+
+/**
+ * Adds the free month to an advert paid by invoice: a month more of paid time. (One paid by card
+ * gets a credit on its Stripe account instead, which pays its next monthly invoice: see
+ * advertBilling.creditNextMonth. Its paid time then moves on as usual when that invoice is paid.)
+ */
+export function extendPaidTime(ad: Advert, months: number, now = new Date()) {
+  if (!ad.booking) return;
+  const from = ad.booking.paidThrough && new Date(ad.booking.paidThrough).getTime() > now.getTime() ? ad.booking.paidThrough : now.toISOString();
+  ad.booking.paidThrough = addMonths(from, months);
   ad.endsAt = ad.booking.paidThrough;
 }

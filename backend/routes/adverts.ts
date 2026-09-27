@@ -40,7 +40,8 @@ import { callerDeviceId } from "./messages";
 import { REPORT_REASONS } from "./safety";
 import { accountById } from "../utils/accountStore";
 import { advertEmails } from "../utils/advertEmails";
-import { approveForPayment, markPaid, rejectBooking } from "../utils/advertBooking";
+import { approveForPayment, extendPaidTime, freeMonthState, markPaid, rejectBooking } from "../utils/advertBooking";
+import { billing } from "../utils/advertBilling";
 import { shouldCount } from "../utils/advertEventGate";
 
 /**
@@ -233,7 +234,9 @@ function forAdmin(ad: Advert, req: Request, all: Advert[] = loadAdverts()) {
     totals: totals(ad),
     state,
     // Something a person has to look at: not approved yet (or taken off), and not already over.
-    needsAttention: !ad.approved && new Date(ad.endsAt).getTime() > Date.now(),
+    // Or a business asking for the launch offer's free month.
+    needsAttention: (!ad.approved && new Date(ad.endsAt).getTime() > Date.now()) || freeMonthState(ad).state === "asked",
+    freeMonth: freeMonthState(ad).state,
     reportCount: new Set((ad.reports ?? []).map((r) => r.deviceId)).size,
     trustedAdvertiser: isTrusted(trustKey(ad), all),
     // Why people reported it: how many said each reason, and the words they added. Never who.
@@ -699,6 +702,44 @@ export default function registerAdvertsRoute(app: Express) {
     if (to) void advertEmails.live(ad, to).catch(() => {});
     res.json({ ok: true, advert: forAdmin(ad, req, all) });
   });
+
+  // The launch offer's free month, which a business asked for: add it (grant: true) or say why not.
+  // Card payers get a credit that pays their next month; invoice payers get a month more of paid time.
+  app.post("/admin/adverts/:id/free-month", safe(async (req: Request, res: Response) => {
+    if (!adminOk(req, res)) return;
+    const grant = req.body?.grant === true;
+    const reason = grant ? null : text(req.body?.reason, 500);
+    if (!grant && !reason) return res.status(400).json({ ok: false, error: "Say why not, so they understand (500 characters at most)." });
+    const all = loadAdverts();
+    const ad = all.find((a) => a.id === req.params.id);
+    if (!ad || !ad.booking) return res.status(404).json({ ok: false, error: "No such portal booking" });
+    if (freeMonthState(ad).state !== "asked") return res.status(409).json({ ok: false, error: "They haven't asked for a free month, or it's already been decided." });
+    const byCard = !!ad.booking.stripe?.subscriptionId;
+    if (grant && byCard && !ad.booking.stripe?.customerId) return res.status(409).json({ ok: false, error: "This card booking has no Stripe customer recorded, so the credit can't be added here. Add it in the Stripe dashboard instead." });
+    // Decided before Stripe is called, so a second click can't add a second month.
+    ad.booking.freeMonth = { ...ad.booking.freeMonth!, decidedAt: new Date().toISOString(), granted: grant, reason };
+    if (grant && !byCard) extendPaidTime(ad, 1);
+    saveAdverts(all);
+    if (grant && byCard) {
+      try {
+        await billing.creditNextMonth(ad.booking.stripe!.customerId!, ad.booking.monthlyPence, ad.title);
+      } catch (err: any) {
+        console.error("free month credit failed:", err?.response?.data?.error?.message ?? err?.message ?? err);
+        const latest = loadAdverts();
+        const again = latest.find((a) => a.id === ad.id);
+        if (again?.booking?.freeMonth) {
+          again.booking.freeMonth = { ...again.booking.freeMonth, decidedAt: null, granted: null, reason: null };
+          saveAdverts(latest);
+        }
+        return res.status(502).json({ ok: false, error: "Stripe didn't take the credit, so nothing was added. Try again, or add it in the Stripe dashboard." });
+      }
+    }
+    const to = ad.ownerAccountId ? accountById(ad.ownerAccountId)?.email : null;
+    if (to) void advertEmails.freeMonthDecided(ad, to, grant, byCard, reason).catch(() => {});
+    const latest = loadAdverts();
+    const now = latest.find((a) => a.id === ad.id) ?? ad;
+    res.json({ ok: true, advert: forAdmin(now, req, latest), note: grant ? (byCard ? "Added: their next monthly payment is covered." : "Added: a month more of paid time.") : "Told them why." });
+  }));
 
   app.delete("/admin/adverts/:id", (req: Request, res: Response) => {
     if (!adminOk(req, res)) return;

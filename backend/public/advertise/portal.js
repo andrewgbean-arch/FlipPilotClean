@@ -145,7 +145,7 @@ async function screenWelcome() {
         <span class="label">Advertise in the FlipPilot app</span>
         <h1>Put your business in front of local buyers and sellers.</h1>
         <p class="lede">FlipPilot is a UK app for reselling and second-hand buying. Your advert appears in the moments people already use it, clearly marked as sponsored, to people near you. Add your logo and photos, see exactly how it looks, and go live once we've checked it.</p>
-        <div class="offer"><span style="font-size:1.4rem">★</span><div><b>Half price for your first 2 months.</b><div class="small muted">Prices below cover people within 10, 25 or 50 miles of you. No VAT is added.</div></div></div>
+        <div class="offer"><span style="font-size:1.4rem">★</span><div><b>Your first 2 months for the price of 1.</b><div class="small muted">Half price each month for your first two months. And if your first month is quieter than you hoped, ask and we'll add a month free. Prices below cover people within 10, 25 or 50 miles of you. No VAT is added.</div></div></div>
         <div class="row"><a class="btn primary" href="#/sign-in">Start advertising</a><button class="btn" type="button" id="howBtn">How it works</button></div>
       </div>
       <div>${previewFeed({ title: "Your headline here", tagline: "A short line about what you offer", photo: null, logo: "icon.png", name: "Your business", cta: "website" })}</div>
@@ -171,7 +171,7 @@ async function screenWelcome() {
 
     <section class="card stack">
       <h2>Honest numbers</h2>
-      <p class="muted">You see how many times your advert was shown, tapped and saved, by day, as counted by the app. We're new and our audience is growing, so we don't promise a number of views: that's why the first two months are half price.</p>
+      <p class="muted">You see how many times your advert was shown, tapped and saved, by day, as counted by the app. We're new and our audience is growing, so we don't promise a number of views. That's why your first two months are for the price of one, and why, if your first month is quieter than you hoped, we add a month free: just ask from your advert's page.</p>
     </section>
   </div>`;
   $("#howBtn").addEventListener("click", () => $("#how").scrollIntoView({ behavior: "smooth", block: "start" }));
@@ -297,7 +297,7 @@ async function screenAdverts() {
   app.innerHTML = `
   <div class="stack-lg">
     <div class="spread"><div class="stack" style="gap:4px"><h1 style="font-size:2rem">${esc(me.profile.businessName)}</h1><p class="muted">Your adverts, their status and how they're doing.</p></div><a class="btn primary" href="#/new">Book a new advert</a></div>
-    ${ads.length === 0 ? `<div class="card empty stack" style="align-items:center"><h2>No adverts yet</h2><p class="muted">Book your first one: it takes about five minutes, and half price for 2 months.</p><a class="btn primary" href="#/new">Book an advert</a></div>` : `
+    ${ads.length === 0 ? `<div class="card empty stack" style="align-items:center"><h2>No adverts yet</h2><p class="muted">Book your first one: it takes about five minutes, and your first 2 months are for the price of 1.</p><a class="btn primary" href="#/new">Book an advert</a></div>` : `
     <div class="ads">
       ${ads.map((a) => `
         <a class="card ad-row" href="#/advert/${esc(a.id)}">
@@ -503,7 +503,7 @@ async function screenBuilder(editId) {
       <h3>${paid ? "Your booking" : "Your price"}</h3>
       ${q.lines.map((l) => `<div class="line"><span>${esc(l.name)}</span><span class="num">${pounds(l.monthlyPence)}</span></div>`).join("")}
       ${q.bundle ? `<div class="line"><span>Three shared places together</span><span class="num gold">−${pounds(q.bundle.savedPence)}</span></div>` : ""}
-      ${q.launchMonthlyPence !== null && q.launchMonths ? `<div><span class="total num">${pounds(q.launchMonthlyPence)}</span> <span class="muted">a month for your first ${q.launchMonths} months</span></div><p class="muted">Then ${pounds(q.monthlyPence)} a month. Cancel any time.</p>` : `<div><span class="total num">${pounds(q.monthlyPence)}</span> <span class="muted">a month</span></div><p class="muted">${paid ? "Your price stays as booked." : "Cancel any time."}</p>`}
+      ${q.launchMonthlyPence !== null && q.launchMonths ? `<div><span class="total num">${pounds(q.launchMonthlyPence)}</span> <span class="muted">a month for your first ${q.launchMonths} months</span></div><p class="muted"><b class="gold">${q.launchMonths === 2 ? "2 months for the price of 1." : "Half price to start."}</b> Then ${pounds(q.monthlyPence)} a month. Cancel any time. A quiet first month? Ask and we'll add a month free.</p>` : `<div><span class="total num">${pounds(q.monthlyPence)}</span> <span class="muted">a month</span></div><p class="muted">${paid ? "Your price stays as booked." : "Cancel any time."}</p>`}
       <p class="small muted">Nothing is charged now. We read your advert first (usually within a working day), then you pay to go live.</p>
       <button class="btn primary" type="button" id="send">${existing ? "Send changes" : "Send for approval"}</button>`;
     $("#send").addEventListener("click", send);
@@ -582,7 +582,7 @@ async function screenAdvert(id, query) {
       : `<div class="note ok"><b>Approved.</b> Pay to go live. We're holding your place until ${dateUK(bk.holdUntil)}.</div>`,
     rejected: `<div class="note bad"><b>We couldn't approve it as it is.</b><br>${esc(bk.rejectedReason || "")}<br><span class="small">Change it and send it again: nothing has been charged.</span></div>`,
     "starting-soon": `<div class="note ok">Paid. It starts on ${dateUK(ad.startsAt)}.</div>`,
-    live: `<div class="note ok">Live in the app now. It renews monthly on your card until you cancel. Paid up to ${dateUK(bk.paidThrough)}.</div>`,
+    live: `<div class="note ok">Live in the app now. ${bk.byCard ? "It renews monthly on your card until you cancel." : "We'll email you an invoice before the next month."} Paid up to ${dateUK(bk.paidThrough)}.</div>`,
     "live-until-end": `<div class="note">Cancelled: it keeps showing until ${dateUK(bk.paidThrough)}, then stops. Nothing more will be charged.</div>`,
     "payment-due": `<div class="note bad">This month's payment hasn't come through, so it has stopped showing. Check the email from Stripe to update your card.</div>`,
     paused: `<div class="note bad">Paused: people reported it, so a person is looking at it again. We'll be in touch.</div>`,
@@ -608,6 +608,7 @@ async function screenAdvert(id, query) {
           ${canCancel ? `<button class="btn quiet danger" id="cancel" type="button">Cancel at the end of the month</button>` : ""}
         </div>
         <p class="error" id="actErr" role="alert"></p>
+        ${freeMonthCard(bk)}
         <section class="card stack">
           <h2>How it's doing</h2>
           <div class="stats">
@@ -654,6 +655,14 @@ async function screenAdvert(id, query) {
     await loadMe(true);
     render();
   });
+  $("#askFree")?.addEventListener("click", async (e) => {
+    e.target.disabled = true;
+    const res = await api("POST", `/advertiser/adverts/${id}/free-month`, { note: $("#freeNote").value });
+    if (!res.ok) { e.target.disabled = false; $("#freeErr").textContent = errorOf(res); return; }
+    await loadMe(true);
+    toast("Thanks: we'll email you when your free month is added.");
+    render();
+  });
   $("#cancel")?.addEventListener("click", async () => {
     if (!confirm(`Cancel? It keeps showing until ${dateUK(bk.paidThrough)}, then stops, and nothing more is charged.`)) return;
     const res = await api("POST", `/advertiser/adverts/${id}/cancel`, {});
@@ -662,6 +671,26 @@ async function screenAdvert(id, query) {
     toast("Cancelled. It runs to the end of the month you've paid for.");
     render();
   });
+}
+
+/* The launch offer's promise: a quiet first month earns a month free. */
+function freeMonthCard(bk) {
+  const fm = bk.freeMonth;
+  if (!fm) return "";
+  const head = `<h2>A quiet first month?</h2>`;
+  if (fm.state === "not-yet") {
+    return `<section class="card flat stack">${head}<p class="muted">Part of our launch offer: if your first paid month is quieter than you hoped, you can ask for a month free here, from ${dateUK(fm.askFrom)} to ${dateUK(fm.askUntil)}.</p></section>`;
+  }
+  if (fm.state === "can-ask") {
+    return `<section class="card stack">${head}<p class="muted">If your first month was quieter than you hoped, ask and we'll add a month free${bk.byCard ? ": your next monthly payment is covered" : ": a month more, at no charge"}. You can ask until ${dateUK(fm.askUntil)}.</p>
+      <label class="field"><span>How did it go? <span class="muted">(optional, it helps us improve)</span></span><textarea id="freeNote" maxlength="500"></textarea></label>
+      <p class="error" id="freeErr" role="alert"></p>
+      <div class="row"><button class="btn primary" id="askFree" type="button">Ask for my free month</button></div></section>`;
+  }
+  if (fm.state === "asked") return `<div class="note">You've asked for your free month. We'll email you when it's added, usually within one working day.</div>`;
+  if (fm.state === "granted") return `<div class="note ok">Your free month has been added. ${bk.byCard ? "Your next monthly payment is covered by a credit, so nothing is taken from your card that month." : `It now shows until ${dateUK(bk.paidThrough)}, at no charge.`}</div>`;
+  if (fm.state === "declined") return `<div class="note">We couldn't add a free month${fm.reason ? `: ${esc(fm.reason)}` : "."}</div>`;
+  return "";
 }
 
 /* ---------------- router ---------------- */

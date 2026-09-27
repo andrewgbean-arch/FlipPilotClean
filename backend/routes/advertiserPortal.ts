@@ -28,7 +28,7 @@ import { cleanPhone, profileFor, saveProfile, type AdvertiserProfile } from "../
 import { MONTHLY_PENCE, PLACEMENT_NAMES, SELLABLE, SHARED_BUNDLE_PENCE, launchOfferOn, quote } from "../utils/advertPricing";
 import { advertEmails } from "../utils/advertEmails";
 import { billing } from "../utils/advertBilling";
-import { HOLD_DAYS, addMonths, approveForPayment } from "../utils/advertBooking";
+import { HOLD_DAYS, addMonths, approveForPayment, freeMonthState } from "../utils/advertBooking";
 import { cleanDate, cleanWebsite, resolveArea, safe, stateOf, storeArtwork, storeImage, storeImages, text } from "./adverts";
 
 /**
@@ -102,6 +102,12 @@ function forOwner(ad: Advert, req: Request) {
           paidThrough: ad.booking.paidThrough ?? null,
           invoiceRequested: !!ad.booking.invoiceRequested,
           holdUntil: ad.booking.holdUntil ?? null,
+          byCard: !!ad.booking.stripe?.subscriptionId,
+          freeMonth: {
+            ...freeMonthState(ad),
+            note: ad.booking.freeMonth?.note ?? null,
+            reason: ad.booking.freeMonth?.reason ?? null,
+          },
         }
       : null,
     // A report someone made pauses it; the business is told it's paused, never who or why exactly.
@@ -570,6 +576,33 @@ export default function registerAdvertiserPortalRoutes(app: Express) {
     saveAdverts(all);
     res.json({ ok: true, advert: forOwner(ad, req) });
   }));
+
+  // The launch offer's promise: a quiet first month earns a month free. The business asks here;
+  // a person adds it from the admin page.
+  app.post("/advertiser/adverts/:id/free-month", ...portal, (req: Request, res: Response) => {
+    const all = loadAdverts();
+    const ad = all.find((a) => a.id === req.params.id && mine(req, a));
+    if (!ad || !ad.booking) return res.status(404).json({ ok: false, error: "No such advert" });
+    const { state, askFrom } = freeMonthState(ad);
+    if (state !== "can-ask") {
+      const why: Record<string, string> = {
+        none: "The free month comes with bookings made under our launch offer, once they've been paid for.",
+        "not-yet": `You can ask once your first paid month is over, from ${askFrom ? new Date(askFrom).toLocaleDateString("en-GB") : "then"}.`,
+        "not-running": "The free month is added to a running advert, and this one has been cancelled.",
+        "too-late": "The time to ask for this advert's free month has passed.",
+        asked: "You've already asked: we'll email you when it's added.",
+        granted: "This advert has already had its free month.",
+        declined: "We've already answered about this advert's free month.",
+      };
+      return res.status(409).json({ ok: false, error: why[state] ?? "You can't ask for a free month for this advert." });
+    }
+    const raw = typeof req.body?.note === "string" ? req.body.note.trim() : "";
+    if (raw.length > 500) return res.status(400).json({ ok: false, error: "Please keep it to 500 characters." });
+    ad.booking.freeMonth = { requestedAt: new Date().toISOString(), note: raw || null };
+    saveAdverts(all);
+    void advertEmails.freeMonthAsked(ad, req.account!.email, raw || null).catch(() => {});
+    res.json({ ok: true, advert: forOwner(ad, req) });
+  });
 
   app.get("/advertiser/adverts/:id/report", ...portal, (req: Request, res: Response) => {
     const ad = loadAdverts().find((a) => a.id === req.params.id && mine(req, a));

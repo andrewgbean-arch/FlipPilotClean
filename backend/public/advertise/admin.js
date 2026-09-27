@@ -75,11 +75,14 @@ function card(ad) {
         <div class="note ${ai?.verdict === "ok" ? "ok" : ai?.verdict === "reject" ? "bad" : "warn"}"><b>AI check: ${esc(ai?.verdict ?? "not checked")}</b>${ai?.reasons?.length ? `<br><span class="small">${ai.reasons.map(esc).join("<br>")}</span>` : ""}</div>
         ${ad.reportCount ? `<div class="note bad"><b>${ad.reportCount} report${ad.reportCount === 1 ? "" : "s"}</b>: ${Object.entries(ad.reportReasons || {}).map(([k, v]) => `${esc(k)} ×${v}`).join(", ")}${(ad.reportNotes || []).length ? `<br><span class="small">${ad.reportNotes.map(esc).join("<br>")}</span>` : ""}</div>` : ""}
         ${b?.rejectedReason ? `<p class="small">Told them: <i>${esc(b.rejectedReason)}</i></p>` : ""}
+        ${ad.freeMonth === "asked" ? `<div class="note warn"><b>Asked for the launch offer's free month</b> (${day(b.freeMonth.requestedAt)}). ${b.stripe?.subscriptionId ? "Card payer: adding it puts a month's credit on their Stripe account, which pays their next invoice." : "Invoice payer: adding it gives a month more of paid time."}${b.freeMonth.note ? `<br><span class="small">They said: <i>${esc(b.freeMonth.note)}</i></span>` : ""}</div>` : ""}
+        ${ad.freeMonth === "granted" ? `<p class="small">Free month added ${day(b.freeMonth.decidedAt)}.</p>` : ""}
         <p class="small muted num">Shown ${ad.totals.views} · tapped ${ad.totals.clicks} · saved ${ad.totals.saves}${ad.trustedAdvertiser ? " · trusted advertiser" : ""}</p>
         <div class="row">
           ${!ad.approved && (!b || ["in-review", "active", "cancelling"].includes(b.status)) ? `<button class="btn primary small" data-act="approve">Approve</button>` : ""}
           ${b && ["in-review", "awaiting-payment", "active", "cancelling"].includes(b.status) ? `<button class="btn small" data-act="reject">Turn down…</button>` : ""}
-          ${b && b.status === "awaiting-payment" && ad.approved ? `<button class="btn small" data-act="paid">Mark paid…</button>` : ""}
+          ${ad.freeMonth === "asked" ? `<button class="btn primary small" data-act="free">Add the free month</button><button class="btn small" data-act="nofree">Say no…</button>` : ""}
+          ${b && ad.approved && (b.status === "awaiting-payment" || (["active", "cancelling"].includes(b.status) && !b.stripe?.subscriptionId)) ? `<button class="btn small" data-act="paid">Mark paid…</button>` : ""}
           ${ad.approved ? `<button class="btn small quiet" data-act="pause">Pause</button>` : ""}
           <button class="btn small quiet danger" data-act="delete">Delete</button>
         </div>
@@ -138,6 +141,13 @@ async function act(what, ad) {
     const months = Number(prompt("Paid for how many months?", "1"));
     if (!months) return;
     r = await api("POST", `/admin/adverts/${ad.id}/mark-paid`, { months });
+  } else if (what === "free") {
+    if (!confirm("Add their free month?")) return;
+    r = await api("POST", `/admin/adverts/${ad.id}/free-month`, { grant: true });
+  } else if (what === "nofree") {
+    const reason = prompt("Why not? They see this, so be kind and clear.");
+    if (!reason) return;
+    r = await api("POST", `/admin/adverts/${ad.id}/free-month`, { grant: false, reason });
   } else if (what === "pause") {
     if (!confirm("Stop showing it until you approve it again?")) return;
     r = await api("PATCH", `/admin/adverts/${ad.id}`, { approved: false });

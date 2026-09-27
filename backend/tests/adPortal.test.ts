@@ -7,7 +7,8 @@ import http from "http";
 import express from "express";
 import { quote, pounds } from "../utils/advertPricing";
 import { Advert, holdsSpace, isLive, loadAdverts, placementLoad, saveAdverts, toPublicAdvert } from "../utils/advertStore";
-import { checkoutRequest, formEncode, verifyStripeSignature } from "../utils/advertBilling";
+import { billing, checkoutRequest, formEncode, verifyStripeSignature } from "../utils/advertBilling";
+import { addMonths, freeMonthState, markPaid } from "../utils/advertBooking";
 import { applyStripeEvent } from "../routes/stripeWebhook";
 import { accountGuard } from "../middleware/accountGuard";
 import { createSession, findOrCreateAccount } from "../utils/accountStore";
@@ -495,5 +496,155 @@ describe("honest counts", () => {
     // Without an id, the address stands in: one view per address per advert per day.
     assert.equal(shouldCount("ad3", "view", null, "198.51.100.8"), true);
     assert.equal(shouldCount("ad3", "view", null, "198.51.100.8"), false);
+  });
+});
+
+describe("the launch offer's free month", () => {
+  const DAY = 86400e3;
+  const ago = (days: number) => new Date(Date.now() - days * DAY).toISOString();
+
+  test("can be asked for once the first paid month is over, for two months, while it's running", () => {
+    const ad = portalAd();
+    assert.equal(freeMonthState(ad).state, "none"); // never paid
+    ad.booking!.firstPaidAt = ago(10);
+    assert.equal(freeMonthState(ad).state, "not-yet");
+    ad.booking!.firstPaidAt = ago(40);
+    assert.equal(freeMonthState(ad).state, "can-ask");
+    ad.booking!.status = "cancelling";
+    assert.equal(freeMonthState(ad).state, "not-running");
+    ad.booking!.status = "active";
+    ad.booking!.firstPaidAt = ago(100);
+    assert.equal(freeMonthState(ad).state, "too-late");
+    const noOffer = portalAd({ booking: { ...portalAd().booking!, launchMonths: 0, launchMonthlyPence: null, firstPaidAt: ago(40) } });
+    assert.equal(freeMonthState(noOffer).state, "none");
+  });
+
+  test("the first paid month is remembered, and later payments don't move it", () => {
+    const ad = portalAd({ booking: { ...portalAd().booking!, status: "awaiting-payment", paidThrough: null } });
+    const t0 = new Date();
+    markPaid(ad, 1, t0);
+    const first = ad.booking!.firstPaidAt;
+    assert.ok(first);
+    markPaid(ad, 1, new Date(t0.getTime() + 20 * DAY));
+    assert.equal(ad.booking!.firstPaidAt, first);
+
+    const card = portalAd({ booking: { ...portalAd().booking!, stripe: { subscriptionId: "sub_1" } } });
+    const invoice = (end: number) => ({ type: "invoice.paid", data: { object: { subscription: "sub_1", amount_paid: 9900, total: 9900, lines: { data: [{ period: { end } }] } } } });
+    applyStripeEvent(invoice(Math.floor(Date.now() / 1000) + 30 * 86400), [card]);
+    const cardFirst = card.booking!.firstPaidAt;
+    assert.ok(cardFirst);
+    applyStripeEvent(invoice(Math.floor(Date.now() / 1000) + 60 * 86400), [card], new Date(Date.now() + 30 * DAY));
+    assert.equal(card.booking!.firstPaidAt, cardFirst);
+  });
+
+  test("a month paid by the free-month credit still counts as paid (the invoice isn't £0)", () => {
+    const ad = portalAd({ booking: { ...portalAd().booking!, stripe: { subscriptionId: "sub_2" } } });
+    const end = Math.floor(Date.now() / 1000) + 45 * 86400;
+    // Stripe used the credit: nothing taken from the card, but the invoice was for a full month.
+    const change = applyStripeEvent({ type: "invoice.paid", data: { object: { subscription: "sub_2", amount_paid: 0, total: 9900, lines: { data: [{ period: { end } }] } } } }, [ad]);
+    assert.ok(change);
+    assert.equal(ad.booking!.paidThrough, new Date(end * 1000).toISOString());
+  });
+
+  test("paid by invoice: the business asks, a person adds it, and it runs a month longer", async () => {
+    const email = `quiet-${Date.now()}@example.com`;
+    const token = signIn(email);
+    const { account } = findOrCreateAccount(email, undefined);
+    const other = signIn(`nosy-${Date.now()}@example.com`);
+    const ad = portalAd({ ownerAccountId: account.id, title: "Quiet month shop" });
+    ad.booking!.firstPaidAt = ago(5);
+    saveAdverts([...loadAdverts(), ad]);
+
+    let r = await call("POST", `/advertiser/adverts/${ad.id}/free-month`, {}, as(token));
+    assert.equal(r.status, 409, "not before the first month is over");
+    assert.match(r.data.error, /first paid month is over/);
+
+    const all = loadAdverts();
+    all.find((a) => a.id === ad.id)!.booking!.firstPaidAt = ago(35);
+    saveAdverts(all);
+
+    r = await call("POST", `/advertiser/adverts/${ad.id}/free-month`, { note: "Hardly any taps" }, as(other));
+    assert.equal(r.status, 404, "only the business that booked it");
+    r = await call("POST", `/advertiser/adverts/${ad.id}/free-month`, { note: "Hardly any taps" }, as(token));
+    assert.equal(r.status, 200, JSON.stringify(r.data));
+    assert.equal(r.data.advert.booking.freeMonth.state, "asked");
+    r = await call("POST", `/advertiser/adverts/${ad.id}/free-month`, {}, as(token));
+    assert.equal(r.status, 409, "once only");
+
+    const list = await call("GET", "/admin/adverts?needs=attention", undefined, ADMIN);
+    const row = list.data.adverts.find((a: any) => a.id === ad.id);
+    assert.ok(row, "it lands in the admin's Needs you list");
+    assert.equal(row.freeMonth, "asked");
+    assert.equal(row.booking.freeMonth.note, "Hardly any taps");
+
+    const before = loadAdverts().find((a) => a.id === ad.id)!.booking!.paidThrough!;
+    r = await call("POST", `/admin/adverts/${ad.id}/free-month`, { grant: true }, ADMIN);
+    assert.equal(r.status, 200, JSON.stringify(r.data));
+    const after = loadAdverts().find((a) => a.id === ad.id)!;
+    assert.equal(after.booking!.paidThrough, addMonths(before, 1));
+    assert.equal(after.endsAt, after.booking!.paidThrough);
+    r = await call("POST", `/admin/adverts/${ad.id}/free-month`, { grant: true }, ADMIN);
+    assert.equal(r.status, 409, "never twice");
+
+    const me = await call("GET", "/advertiser/me", undefined, as(token));
+    assert.equal(me.data.adverts.find((a: any) => a.id === ad.id).booking.freeMonth.state, "granted");
+  });
+
+  test("paid by card: one month's credit goes on its Stripe customer, once, and a failure changes nothing", async () => {
+    const email = `card-${Date.now()}@example.com`;
+    const token = signIn(email);
+    const { account } = findOrCreateAccount(email, undefined);
+    const ad = portalAd({ ownerAccountId: account.id, title: "Card shop" });
+    ad.booking!.firstPaidAt = ago(35);
+    ad.booking!.stripe = { customerId: "cus_123", subscriptionId: "sub_123" };
+    saveAdverts([...loadAdverts(), ad]);
+    const paidThrough = ad.booking!.paidThrough;
+    await call("POST", `/advertiser/adverts/${ad.id}/free-month`, {}, as(token));
+
+    const real = billing.creditNextMonth;
+    const credits: unknown[][] = [];
+    try {
+      billing.creditNextMonth = async () => {
+        throw new Error("stripe down");
+      };
+      const r = await call("POST", `/admin/adverts/${ad.id}/free-month`, { grant: true }, ADMIN);
+      assert.equal(r.status, 502);
+      assert.equal(freeMonthState(loadAdverts().find((a) => a.id === ad.id)!).state, "asked", "still waiting, so it can be tried again");
+
+      // As slow as a real call to Stripe, so two clicks really do overlap.
+      billing.creditNextMonth = async (...args: unknown[]) => {
+        credits.push(args);
+        await new Promise((ok) => setTimeout(ok, 150));
+      };
+      const [a, b] = await Promise.all([
+        call("POST", `/admin/adverts/${ad.id}/free-month`, { grant: true }, ADMIN),
+        call("POST", `/admin/adverts/${ad.id}/free-month`, { grant: true }, ADMIN),
+      ]);
+      assert.deepEqual([a.status, b.status].sort(), [200, 409]);
+    } finally {
+      billing.creditNextMonth = real;
+    }
+    assert.equal(credits.length, 1, "a double click adds one month, not two");
+    assert.deepEqual(credits[0].slice(0, 2), ["cus_123", 9900]);
+    // Its paid time moves on when Stripe says the (credit-paid) invoice is paid, not now.
+    assert.equal(loadAdverts().find((a) => a.id === ad.id)!.booking!.paidThrough, paidThrough);
+  });
+
+  test("a person can say no, with a reason the business sees", async () => {
+    const email = `no-${Date.now()}@example.com`;
+    const token = signIn(email);
+    const { account } = findOrCreateAccount(email, undefined);
+    const ad = portalAd({ ownerAccountId: account.id });
+    ad.booking!.firstPaidAt = ago(35);
+    saveAdverts([...loadAdverts(), ad]);
+    await call("POST", `/advertiser/adverts/${ad.id}/free-month`, {}, as(token));
+    let r = await call("POST", `/admin/adverts/${ad.id}/free-month`, { grant: false }, ADMIN);
+    assert.equal(r.status, 400, "a no needs a reason");
+    r = await call("POST", `/admin/adverts/${ad.id}/free-month`, { grant: false, reason: "It was paused by reports for most of the month." }, ADMIN);
+    assert.equal(r.status, 200);
+    const me = await call("GET", "/advertiser/me", undefined, as(token));
+    const fm = me.data.adverts.find((a: any) => a.id === ad.id).booking.freeMonth;
+    assert.equal(fm.state, "declined");
+    assert.match(fm.reason, /paused by reports/);
   });
 });

@@ -75,6 +75,20 @@ export type Booking = {
   /** They asked to pay by invoice instead of by card (or card payments aren't switched on yet). */
   invoiceRequested?: boolean;
   stripe?: { customerId?: string | null; subscriptionId?: string | null; checkoutSessionId?: string | null };
+  /** When its first paid month began (paidAt moves with every payment; this doesn't). */
+  firstPaidAt?: string | null;
+  /** The launch offer's quiet-first-month promise: asked for, then granted or not (see advertBooking). */
+  freeMonth?: FreeMonth | null;
+};
+
+export type FreeMonth = {
+  requestedAt: string;
+  /** What the business said about its first month, if anything. */
+  note: string | null;
+  decidedAt?: string | null;
+  granted?: boolean | null;
+  /** Why not, shown to the business, when it wasn't granted. */
+  reason?: string | null;
 };
 
 /** Where a phone is, roughly. Rounded, never stored. */

@@ -70,6 +70,7 @@ export function applyStripeEvent(event: any, all: Advert[], now = new Date()): C
       } else if (first && new Date(ad.startsAt).getTime() < now.getTime()) {
         ad.startsAt = now.toISOString();
       }
+      if (!ad.booking.firstPaidAt) ad.booking.firstPaidAt = new Date(Math.max(new Date(ad.startsAt).getTime(), now.getTime())).toISOString();
       return { ad, email: first ? "live" : undefined };
     }
     case "invoice.payment_failed": {
