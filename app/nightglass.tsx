@@ -2,11 +2,12 @@ import React from "react";
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { ArrowClockwise, DeviceRotate, DownloadSimple, HandTap, Headphones, Lock, Play, Trash } from "phosphor-react-native";
+import { ArrowClockwise, DeviceRotate, DownloadSimple, HandTap, Headphones, Lock, LockOpen, Play, Trash } from "phosphor-react-native";
 import type { Icon as PhosphorIcon } from "phosphor-react-native";
 
 import { CHAPTERS, GAME_PAGES, type Chapter } from "@/game/nightglass";
 import { DOWNLOADS_AVAILABLE, useChapterDownloads } from "@/game/nightglassDownloads";
+import { confirmUnlock, isUnlocked, useSeasonProgress, whenUnlocks, type SeasonProgress } from "@/game/nightglassUnlocks";
 
 // A fixed noir palette, like the game's own title screen: it is the same in
 // light and dark mode on purpose.
@@ -20,10 +21,20 @@ const SERIF = Platform.select({ ios: "Georgia", android: "serif", default: "Geor
 export default function NightglassScreen() {
   const insets = useSafeAreaInsets();
   const downloads = useChapterDownloads();
+  const season = useSeasonProgress();
 
-  // A chapter can be played once it is out, or before release day in a development build.
-  const available = (ch: Chapter) => !ch.comingLabel || __DEV__;
   const onPhone = (ch: Chapter) => !!GAME_PAGES[ch.id] || downloads.versions[ch.id] !== undefined;
+  // A chapter can be played once it is out and the player has unlocked it (one already on the phone
+  // stays playable offline), or before release day in a development build.
+  const available = (ch: Chapter) => (ch.comingLabel ? __DEV__ : isUnlocked(season.progress, ch.id) || onPhone(ch));
+
+  const unlock = async (ch: Chapter) => {
+    const cost = season.progress?.signedIn ? season.progress.unlockCredits : 25;
+    const next = await confirmUnlock(ch, cost);
+    if (!next) return;
+    season.setProgress(next);
+    if (DOWNLOADS_AVAILABLE && ch.download && !onPhone(ch)) downloads.download(ch);
+  };
   const toFetch = CHAPTERS.filter((ch) => ch.download && available(ch) && !onPhone(ch) && downloads.progress[ch.id] === undefined);
   const fetchMb = toFetch.reduce((sum, ch) => sum + (ch.download?.mb ?? 0), 0);
 
@@ -40,7 +51,7 @@ export default function NightglassScreen() {
         </Text>
         <View style={styles.rule} />
         <Text style={styles.tagline}>Vienna, 1987. One night. One microfilm. No second chances.</Text>
-        <Text style={styles.meta}>A fully voiced spy adventure · a new chapter every month</Text>
+        <Text style={styles.meta}>A fully voiced spy adventure · a new chapter every four weeks</Text>
       </View>
 
       {DOWNLOADS_AVAILABLE && toFetch.length > 1 && (
@@ -56,7 +67,15 @@ export default function NightglassScreen() {
       )}
 
       {CHAPTERS.map((ch) => (
-        <ChapterCard key={ch.number} ch={ch} downloads={downloads} available={available(ch)} />
+        <ChapterCard
+          key={ch.number}
+          ch={ch}
+          downloads={downloads}
+          available={available(ch)}
+          season={season.progress}
+          checked={season.loaded}
+          onUnlock={() => unlock(ch)}
+        />
       ))}
 
       <View style={styles.tips}>
@@ -65,15 +84,27 @@ export default function NightglassScreen() {
         <Tip Icon={Headphones} text="Best with headphones" />
       </View>
       <Text style={styles.footnote}>
-        Chapter One comes with the app. Download the others as they arrive: once downloaded they play offline, and you can delete them
-        at any time to free up space. Your progress is saved on this phone and kept if you delete a chapter.
+        Chapter One comes with the app. A new chapter unlocks every four weeks from the day you start, or unlock the next one straight
+        away for credits. Once downloaded, chapters play offline, and you can delete them at any time to free up space and download
+        them again whenever you want to revisit them. Your progress is saved on this phone and kept if you delete a chapter.
       </Text>
     </ScrollView>
   );
 }
 
-function ChapterCard({ ch, downloads, available }: { ch: Chapter; downloads: ReturnType<typeof useChapterDownloads>; available: boolean }) {
+type CardProps = {
+  ch: Chapter;
+  downloads: ReturnType<typeof useChapterDownloads>;
+  available: boolean;
+  season: SeasonProgress | null;
+  checked: boolean;
+  onUnlock: () => void;
+};
+
+function ChapterCard({ ch, downloads, available, season, checked, onUnlock }: CardProps) {
   const locked = !!ch.comingLabel;
+  // Out, but not yet unlocked for this player.
+  const waiting = !locked && !available;
   const preview = locked && __DEV__;
   const bundled = !!GAME_PAGES[ch.id];
   const version = downloads.versions[ch.id];
@@ -109,6 +140,7 @@ function ChapterCard({ ch, downloads, available }: { ch: Chapter; downloads: Ret
           <Text style={styles.lockedText}>Unlocks on release day</Text>
         </View>
       )}
+      {waiting && <UnlockPanel ch={ch} progress={season} checked={checked} onUnlock={onUnlock} />}
 
       {available && progress !== undefined && (
         <View style={styles.progressBox} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(progress * 100) }}>
@@ -175,6 +207,45 @@ function ChapterCard({ ch, downloads, available }: { ch: Chapter; downloads: Ret
 
       {!!error && <Text style={styles.errorText}>{error}</Text>}
     </View>
+  );
+}
+
+/** For a chapter that is out but not yet unlocked: when it comes, and how to have it now. */
+function UnlockPanel({ ch, progress, checked, onUnlock }: { ch: Chapter; progress: SeasonProgress | null; checked: boolean; onUnlock: () => void }) {
+  const row = (text: string) => (
+    <View style={styles.lockedRow}>
+      <Lock size={18} color={MUTED} />
+      <Text style={[styles.lockedText, styles.flex]}>{text}</Text>
+    </View>
+  );
+  if (!progress) return row(checked ? "Connect to the internet to see when this chapter unlocks." : "Checking…");
+  if (!progress.signedIn) {
+    return (
+      <>
+        {row("Sign in to unlock a new chapter every four weeks.")}
+        <Pressable accessibilityRole="button" onPress={() => router.push("/sign-in")} style={({ pressed }) => [styles.outlineBtn, pressed && styles.pressed]}>
+          <Text style={styles.outlineText}>Sign in</Text>
+        </Pressable>
+      </>
+    );
+  }
+  if (progress.next?.chapter !== ch.id) {
+    const before = CHAPTERS.find((c) => c.id === ch.id - 1);
+    return row(`Unlocks four weeks after Chapter ${before?.number ?? ch.id - 1}.`);
+  }
+  return (
+    <>
+      {row(`Unlocks by itself ${whenUnlocks(progress.next.unlocksAt)}.`)}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Unlock chapter ${ch.number} now for ${progress.unlockCredits} credits`}
+        onPress={onUnlock}
+        style={({ pressed }) => [styles.outlineBtn, pressed && styles.pressed]}
+      >
+        <LockOpen size={20} color={AMBER} weight="bold" />
+        <Text style={styles.outlineText}>Unlock now · {progress.unlockCredits} credits</Text>
+      </Pressable>
+    </>
   );
 }
 
@@ -252,6 +323,7 @@ const styles = StyleSheet.create({
   errorText: { color: "#ff9a8a", fontSize: 14, lineHeight: 20 },
   lockedRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
   lockedText: { color: MUTED, fontSize: 14 },
+  flex: { flex: 1 },
 
   tips: { flexDirection: "row", gap: 10, marginTop: 4 },
   tip: { flex: 1, alignItems: "center", gap: 6, backgroundColor: CARD, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 6 },

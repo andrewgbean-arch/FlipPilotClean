@@ -10,6 +10,7 @@ import { deleteUserData, exportUserData } from "../utils/userData";
 import { adminOk } from "../utils/adminAuth";
 import { runRetention } from "../utils/retentionJob";
 import { creditsFor } from "../utils/creditStore";
+import { nightglassFor } from "../utils/nightglassStore";
 
 /**
  * "My data": export it, delete it, and delete one listing or fair of your own.
@@ -61,7 +62,7 @@ export default function registerMeRoute(app: Express) {
     if (!deviceId) return res.status(401).json({ ok: false, error: "Missing device id" });
     res.json({
       ok: true,
-      data: { ...exportUserData(deviceId), ...(req.account ? { scanCredits: creditsFor(req.account.id) } : {}) },
+      data: { ...exportUserData(deviceId), ...(req.account ? { scanCredits: creditsFor(req.account.id), nightglass: nightglassFor(req.account.id) } : {}) },
     });
   });
 

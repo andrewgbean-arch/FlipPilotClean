@@ -2,6 +2,7 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { deleteAccountCredits } from "./creditStore";
+import { deleteAccountNightglass } from "./nightglassStore";
 import { DATA_DIR } from "../config/dataDir";
 
 /**
@@ -303,6 +304,7 @@ export function deleteAccount(id: string): boolean {
   retireDeviceId(account.canonicalDeviceId);
   saveAccounts(accounts.filter((a) => a.id !== id));
   deleteAccountCredits(id);
+  deleteAccountNightglass(id);
   saveSessions(loadSessions().filter((s) => s.accountId !== id));
   saveCodes(loadCodes().filter((c) => c.email !== account.email));
   return true;
@@ -332,6 +334,7 @@ export function purgeAuth(inactiveMonths: number, now = new Date()): { codes: nu
       if (kept.has(a.id)) continue;
       retireDeviceId(a.canonicalDeviceId);
       deleteAccountCredits(a.id);
+      deleteAccountNightglass(a.id);
     }
   }
 

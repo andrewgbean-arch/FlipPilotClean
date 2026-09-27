@@ -1,6 +1,8 @@
 import fs from "fs";
 import path from "path";
 import { Express, Request, Response } from "express";
+import { rateLimit } from "../middleware/rateLimit";
+import { LAST_CHAPTER, progressFor, unlockWithCredits } from "../utils/nightglassStore";
 
 /**
  * Operation Nightglass chapters for download. Chapter One is built into the app; the later chapters
@@ -12,6 +14,12 @@ import { Express, Request, Response } from "express";
  * The app asks for ?v=<version>, so a rebuilt chapter is a new address and no cache along the way can
  * hand out an old copy. Files live in backend/public/games/nightglass; in compiled code this file is
  * backend/dist/routes, so the folder is found from either place.
+ *
+ * Each player's place in the season (which chapters they have unlocked, and when the next one comes)
+ * belongs to their account (see utils/nightglassStore.ts):
+ *
+ *   GET  /games/nightglass/progress    { signedIn, unlocked, next: { chapter, unlocksAt }, unlockCredits }
+ *   POST /games/nightglass/unlock      { chapter }  unlocks the next chapter now, for credits
  */
 function gamesDir(): string {
   const here = path.resolve(__dirname, "..");
@@ -21,6 +29,31 @@ function gamesDir(): string {
 
 export default function registerGamesRoute(app: Express) {
   const dir = gamesDir();
+  const released = (n: number) => n === 1 || fs.existsSync(path.join(dir, `chapter${n}.html`));
+
+  // Signed out is an answer, not an error: the app shows "sign in to unlock" rather than a sign-in screen.
+  app.get("/games/nightglass/progress", rateLimit(60), (req: Request, res: Response) => {
+    if (!req.account) return res.json({ ok: true, signedIn: false });
+    res.json({ ok: true, signedIn: true, ...progressFor(req.account.id) });
+  });
+
+  app.post("/games/nightglass/unlock", rateLimit(20), (req: Request, res: Response) => {
+    const account = req.account;
+    if (!account) {
+      return res.status(401).json({ ok: false, error: "sign-in-required", message: "Please sign in with your email to unlock chapters." });
+    }
+    const chapter = Number(req.body?.chapter);
+    if (!Number.isInteger(chapter) || chapter < 2 || chapter > LAST_CHAPTER || !released(chapter)) {
+      return res.status(404).json({ ok: false, error: "not-found", message: "That chapter isn't out yet." });
+    }
+    const result = unlockWithCredits(account.id, chapter);
+    if (result.ok) return res.json({ ...result, signedIn: true, ...result.progress });
+    if (result.error === "credits-required") {
+      return res.status(402).json({ ...result, message: "You need more credits to unlock this chapter now." });
+    }
+    return res.status(409).json({ ...result, message: "Chapters unlock in order. Play the one before it first." });
+  });
+
   app.get("/games/nightglass/:file", (req: Request, res: Response) => {
     const file = String(req.params.file);
     // Only chapter pages, by name: nothing else in the folder (or outside it) can be asked for.
