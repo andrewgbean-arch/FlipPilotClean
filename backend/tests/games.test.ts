@@ -3,6 +3,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import http from "http";
 import express from "express";
+import helmet from "helmet";
 import registerGamesRoute from "../routes/games";
 import { accountGuard } from "../middleware/accountGuard";
 import { createSession, findOrCreateAccount } from "../utils/accountStore";
@@ -33,6 +34,25 @@ test("serves a chapter page with its size and a long cache", async () => {
   assert.ok(Number(res.headers.get("content-length")) > 1_000_000, "a whole chapter, with a length for the progress bar");
   const page = await res.text();
   assert.match(page, /CHAPTER|Nightglass/);
+});
+
+test("a chapter page may run its own inline code, and be shown inside the web app", async () => {
+  const app = express();
+  app.use(helmet());
+  registerGamesRoute(app);
+  const s = app.listen(0);
+  await new Promise((r) => s.once("listening", r));
+  try {
+    const res = await fetch(`http://127.0.0.1:${(s.address() as { port: number }).port}/games/nightglass/chapter2.html?v=1`);
+    assert.equal(res.status, 200);
+    const csp = res.headers.get("content-security-policy") ?? "";
+    assert.match(csp, /script-src 'unsafe-inline'/, "the whole game is one inline script");
+    assert.match(csp, /frame-ancestors \*/);
+    assert.equal(res.headers.get("x-frame-options"), null);
+    await res.arrayBuffer();
+  } finally {
+    s.close();
+  }
 });
 
 test("anything that is not a chapter page is not found", async () => {
