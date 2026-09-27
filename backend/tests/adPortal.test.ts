@@ -415,9 +415,12 @@ describe("a business books an advert", () => {
     assert.equal(back.data.adverts.length, 1);
   });
 
-  test("its report counts showings and taps by day", async () => {
-    await call("POST", `/adverts/${advertId}/event`, { type: "view" });
-    await call("POST", `/adverts/${advertId}/event`, { type: "click" });
+  test("its report counts showings and taps by day, one showing per phone per day", async () => {
+    await call("POST", `/adverts/${advertId}/event`, { type: "view", viewer: "phone-a" });
+    // The same phone seeing it again today isn't another showing.
+    const again = await call("POST", `/adverts/${advertId}/event`, { type: "view", viewer: "phone-a" });
+    assert.equal(again.data.counted, false);
+    await call("POST", `/adverts/${advertId}/event`, { type: "click", viewer: "phone-a" });
     const r = await call("GET", `/advertiser/adverts/${advertId}/report`, undefined, as(shop));
     assert.equal(r.status, 200);
     assert.equal(r.data.report.timesShown, 1);
@@ -476,5 +479,21 @@ describe("full areas and turned-down adverts", () => {
     assert.equal(w.data.advert.state, "withdrawn");
     const pay = await call("POST", `/advertiser/adverts/${id}/pay`, {}, as(second));
     assert.equal(pay.status, 409);
+  });
+});
+
+describe("honest counts", () => {
+  test("one address can't pile up an advert's figures, however many phones it pretends to be", async () => {
+    const { shouldCount, resetEventGate } = await import("../utils/advertEventGate.js");
+    resetEventGate();
+    let counted = 0;
+    for (let i = 0; i < 100; i++) if (shouldCount("ad1", "view", `fake-${i}`, "203.0.113.9")) counted++;
+    assert.equal(counted, 40);
+    // Another address, and another advert, are counted separately.
+    assert.equal(shouldCount("ad1", "view", "real-phone", "198.51.100.7"), true);
+    assert.equal(shouldCount("ad2", "view", "fake-1", "203.0.113.9"), true);
+    // Without an id, the address stands in: one view per address per advert per day.
+    assert.equal(shouldCount("ad3", "view", null, "198.51.100.8"), true);
+    assert.equal(shouldCount("ad3", "view", null, "198.51.100.8"), false);
   });
 });

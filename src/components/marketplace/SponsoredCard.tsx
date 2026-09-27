@@ -1,19 +1,21 @@
 import React from "react";
-import { Image, Linking, Text, TouchableOpacity, View } from "react-native";
+import { Image, Text, TouchableOpacity, View } from "react-native";
 
 import AdReportButton from "@/components/AdReportButton";
 import { HouseFeedCard } from "@/components/HousePromo";
 import SaveSponsorButton from "@/components/SaveSponsorButton";
+import { advertAction, openAdvertAction } from "@/lib/advertAction";
 import { reportAdvertEvent } from "@/lib/adverts";
 import type { BusinessAdvert } from "@/lib/businessAdverts";
 import { useTheme } from "@/styles/ThemeContext";
 
 /**
  * A paid advert in the marketplace feed, made to sit between listings but never
- * to pass for one: it always says "Sponsored", and it opens the advertiser's
- * website, not a listing.
+ * to pass for one: it always says "Sponsored", and its button opens the
+ * advertiser's website, rings them, or shows the way there (their choice), not a
+ * listing.
  *
- * Small like a listing card, and like one only its button (Visit) opens
+ * Small like a listing card, and like one only its button opens
  * anything: touching or scrolling past the card never sends anyone off to a
  * website by accident.
  *
@@ -25,9 +27,10 @@ const PaidCard = React.memo(function PaidCard({ advert }: { advert: BusinessAdve
 
   // Counting it as seen is done by the feed, when it is really on screen (see Listings).
 
+  const action = advertAction(advert);
   const open = () => {
     reportAdvertEvent(advert.id, "click");
-    if (advert.website) Linking.openURL(advert.website).catch(() => {});
+    openAdvertAction(action);
   };
 
   return (
@@ -49,19 +52,27 @@ const PaidCard = React.memo(function PaidCard({ advert }: { advert: BusinessAdve
         />
         <View style={{ flex: 1, paddingVertical: 10, paddingHorizontal: 12, justifyContent: "space-between" }}>
           <View>
-            <View
-              style={{
-                alignSelf: "flex-start",
-                paddingHorizontal: 8,
-                paddingVertical: 2,
-                borderRadius: 999,
-                backgroundColor: theme.goldDeep,
-                marginBottom: 4,
-              }}
-            >
-              <Text style={{ color: theme.black, fontSize: 10, fontWeight: "800", letterSpacing: 0.4 }}>
-                SPONSORED
-              </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
+              <View
+                style={{
+                  paddingHorizontal: 8,
+                  paddingVertical: 2,
+                  borderRadius: 999,
+                  backgroundColor: theme.goldDeep,
+                }}
+              >
+                <Text style={{ color: theme.black, fontSize: 10, fontWeight: "800", letterSpacing: 0.4 }}>
+                  SPONSORED
+                </Text>
+              </View>
+              {advert.logo ? (
+                <Image
+                  source={{ uri: advert.logo }}
+                  style={{ width: 18, height: 18, borderRadius: 4, backgroundColor: "#fff" }}
+                  resizeMode="contain"
+                  accessibilityIgnoresInvertColors
+                />
+              ) : null}
             </View>
             <Text style={{ color: theme.goldDeep, fontSize: 16, fontWeight: "700" }} numberOfLines={2}>
               {advert.title}
@@ -77,11 +88,11 @@ const PaidCard = React.memo(function PaidCard({ advert }: { advert: BusinessAdve
             <AdReportButton advertId={advert.id} />
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <SaveSponsorButton advert={advert} />
-            {advert.website ? (
+            {action ? (
               <TouchableOpacity
                 onPress={open}
                 accessibilityRole="button"
-                accessibilityLabel={`Sponsored: ${advert.title}. Visit website`}
+                accessibilityLabel={`Sponsored: ${advert.title}. ${action.accessibility}`}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 style={{
                   backgroundColor: theme.goldDeep,
@@ -90,7 +101,7 @@ const PaidCard = React.memo(function PaidCard({ advert }: { advert: BusinessAdve
                   borderRadius: 999,
                 }}
               >
-                <Text style={{ color: theme.black, fontSize: 13, fontWeight: "800" }}>Visit</Text>
+                <Text style={{ color: theme.black, fontSize: 13, fontWeight: "800" }}>{action.label}</Text>
               </TouchableOpacity>
             ) : null}
             </View>

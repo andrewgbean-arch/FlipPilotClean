@@ -41,6 +41,7 @@ import { REPORT_REASONS } from "./safety";
 import { accountById } from "../utils/accountStore";
 import { advertEmails } from "../utils/advertEmails";
 import { approveForPayment, markPaid, rejectBooking } from "../utils/advertBooking";
+import { shouldCount } from "../utils/advertEventGate";
 
 /**
  * Adverts.
@@ -304,13 +305,17 @@ export default function registerAdvertsRoute(app: Express) {
     return res.status(400).json({ ok: false, error: "Unknown placement" });
   });
 
-  // A view or a tap. Counts only: who did it is never recorded.
+  // A view or a tap. Counts only: who did it is never recorded. Each phone's view of an advert
+  // counts once a day, and one address can't pile up an advert's figures (see advertEventGate).
   app.post("/adverts/:id/event", rateLimit(240), (req: Request, res: Response) => {
     const type = req.body?.type;
     if (type !== "view" && type !== "click" && type !== "save") {
       return res.status(400).json({ ok: false, error: "Unknown event" });
     }
-    res.json({ ok: true, counted: recordEvent(String(req.params.id), type) });
+    const id = String(req.params.id);
+    const viewer = typeof req.body?.viewer === "string" ? req.body.viewer : null;
+    if (!shouldCount(id, type, viewer, req.ip || "unknown")) return res.json({ ok: true, counted: false });
+    res.json({ ok: true, counted: recordEvent(id, type) });
   });
 
   // "Report this advert". Private: the advertiser is never told who reported.
