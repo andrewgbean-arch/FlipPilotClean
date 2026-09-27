@@ -8,7 +8,16 @@ import Svg, { Defs, Ellipse, LinearGradient, Path, Rect, Stop } from "react-nati
  * job is to stop the screen reading as a plain dark rectangle — you should be
  * able to tell where you are before anything has fallen.
  */
-export default function Backdrop({ width, height }: { width: number; height: number }) {
+export default function Backdrop({
+  width,
+  height,
+  sky = ["#2a2145", "#111938"],
+}: {
+  width: number;
+  height: number;
+  /** The top and middle of the sky: the rounds of a day move from dawn towards noon. */
+  sky?: [string, string];
+}) {
   const stalls = [];
   for (let i = 0; i < 8; i++) {
     const x = -20 + i * (width / 6.4);
@@ -39,8 +48,8 @@ export default function Backdrop({ width, height }: { width: number; height: num
     <Svg width={width} height={height} style={{ position: "absolute" }}>
       <Defs>
         <LinearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#2a2145" />
-          <Stop offset="0.55" stopColor="#111938" />
+          <Stop offset="0" stopColor={sky[0]} />
+          <Stop offset="0.55" stopColor={sky[1]} />
           <Stop offset="1" stopColor="#070c1d" />
         </LinearGradient>
       </Defs>

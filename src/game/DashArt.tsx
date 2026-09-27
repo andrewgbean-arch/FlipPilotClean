@@ -173,6 +173,31 @@ const ART: Record<string, React.ReactNode> = {
   ),
 };
 
+/** An umbrella: not a bargain, it keeps one bit of tat off him. Bright blue, so it reads as neither. */
+const UMBRELLA_ART = (
+  <>
+    <Circle cx={50} cy={52} r={44} fill="rgba(110,190,255,0.18)" />
+    <Path d="M12 50 Q50 6 88 50 Q79 43 69 50 Q59 43 50 50 Q41 43 31 50 Q21 43 12 50 Z" fill="#4FA3FF" stroke="#1d5fa8" strokeWidth={3} />
+    <Path d="M50 50 V80 q0 8 -8 8 q-7 0 -7 -7" stroke="#e8eef8" strokeWidth={5} fill="none" strokeLinecap="round" />
+    <Path d="M50 12 V6" stroke="#1d5fa8" strokeWidth={4} strokeLinecap="round" />
+  </>
+);
+
+/**
+ * The tell on a fake: a crooked red tag with a question mark. A genuine bargain has a warm glow and
+ * no tag, so there are two differences to spot, not one tiny one.
+ */
+function FakeTag() {
+  return (
+    <G transform="rotate(-16 74 26)">
+      <Path d="M56 10 H96 V42 H56 L46 26 Z" fill="#d6453d" stroke="#7a1d18" strokeWidth={3} />
+      <Circle cx={56} cy={26} r={3.2} fill="#7a1d18" />
+      <Path d="M70 20 q0 -6 6 -6 q6 0 6 6 q0 4.5 -6 6 v4.5" stroke="#fff" strokeWidth={3.6} fill="none" strokeLinecap="round" />
+      <Circle cx={76} cy={36} r={2.2} fill="#fff" />
+    </G>
+  );
+}
+
 /** The fly that hangs around anything not worth having. */
 function Fly() {
   return (
@@ -188,19 +213,30 @@ export default function ItemArt({
   tat,
   golden,
   size,
+  fake = false,
 }: {
   kindId: string;
   tat: boolean;
   golden: boolean;
   size: number;
+  /** A fake bargain: drawn like the real thing, without the glow, and with a wonky red tag. */
+  fake?: boolean;
 }) {
+  if (kindId === "umbrella") {
+    return (
+      <Svg width={size} height={size} viewBox="0 0 100 100">
+        {UMBRELLA_ART}
+      </Svg>
+    );
+  }
   return (
     <Svg width={size} height={size} viewBox="0 0 100 100">
       <ItemDefs />
-      {golden && <Circle cx={50} cy={52} r={46} fill="rgba(255,215,0,0.24)" />}
-      {!tat && <Circle cx={50} cy={52} r={42} fill="rgba(255,215,0,0.10)" />}
+      {golden && !fake && <Circle cx={50} cy={52} r={46} fill="rgba(255,215,0,0.24)" />}
+      {!tat && !fake && <Circle cx={50} cy={52} r={42} fill="rgba(255,215,0,0.10)" />}
       {ART[kindId] ?? ART.teapot}
       {tat && <Fly />}
+      {fake && <FakeTag />}
     </Svg>
   );
 }
