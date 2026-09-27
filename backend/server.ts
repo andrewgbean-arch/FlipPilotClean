@@ -14,6 +14,9 @@ import registerSafetyRoute from "./routes/safety";
 import registerUploadsRoute from "./routes/uploads";
 import registerMeRoute from "./routes/me";
 import registerAdvertsRoute from "./routes/adverts";
+import registerAdvertiserPortalRoutes from "./routes/advertiserPortal";
+import registerStripeWebhook from "./routes/stripeWebhook";
+import registerAdvertisePages from "./routes/advertisePages";
 import registerAuthRoutes from "./routes/auth";
 import { defectsOfKind, fetchMotHistory, motTestList, odometerMiles } from "./utils/dvsaMot";
 import registerCreditsRoutes from "./routes/credits";
@@ -54,6 +57,8 @@ if (trustProxyHops > 0) app.set("trust proxy", trustProxyHops);
    /search-image, /ai/description, publish-listing and messages).
 ------------------------------------------------------- */
 app.use(cors());
+// Stripe's payment messages need the body exactly as sent to check their signature: before the JSON parser.
+registerStripeWebhook(app);
 app.use(express.json({ limit: "10mb" }));
 app.use(helmet());
 // Method, path, status and time. The query string is left out on purpose: it
@@ -102,6 +107,8 @@ registerSafetyRoute(app);
 registerUploadsRoute(app);
 registerMeRoute(app);
 registerAdvertsRoute(app);
+registerAdvertiserPortalRoutes(app);
+registerAdvertisePages(app);
 registerAIDescriptionRoute(app);
 registerListingDescriptionRoute(app);
 registerEbayExportRoute(app);

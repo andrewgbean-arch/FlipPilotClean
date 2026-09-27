@@ -51,3 +51,32 @@ export async function sendLoginCode(email: string, code: string): Promise<void> 
 
   throw new Error("email-not-configured");
 }
+
+/**
+ * Any other email (the advertising portal's notices). Same settings as the sign-in code. Without
+ * them, development prints the subject line to the log and production quietly sends nothing:
+ * these are notices, and the portal shows the same thing on screen.
+ */
+export async function sendEmail(to: string, subject: string, textBody: string, htmlBody?: string): Promise<boolean> {
+  const key = process.env.RESEND_API_KEY?.trim();
+  const from = process.env.EMAIL_FROM?.trim();
+  if (!looksLikeAnEmail(to)) return false;
+  if (key && from) {
+    const replyTo = process.env.EMAIL_REPLY_TO?.trim();
+    await axios.post(
+      "https://api.resend.com/emails",
+      {
+        from,
+        to: [to],
+        ...(replyTo && looksLikeAnEmail(replyTo) ? { reply_to: replyTo } : {}),
+        subject,
+        text: textBody,
+        ...(htmlBody ? { html: htmlBody } : {}),
+      },
+      { timeout: 10_000, headers: { Authorization: `Bearer ${key}` } }
+    );
+    return true;
+  }
+  if (process.env.NODE_ENV !== "production") console.log(`[dev] email to ${to}: ${subject}`);
+  return false;
+}

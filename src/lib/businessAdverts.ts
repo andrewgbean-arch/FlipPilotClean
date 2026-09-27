@@ -18,6 +18,14 @@ export type BusinessAdvert = {
   /** A ready-made portrait design the advertiser made themselves: the full page is this picture, edge to edge. */
   artwork?: string;
   website?: string;
+  /** The business's logo (a full address), if it added one. */
+  logo?: string | null;
+  /** For a Call button. */
+  phone?: string | null;
+  /** For a Directions button. */
+  address?: string | null;
+  /** What its button does, chosen when it booked: open the website, call, or show the way. */
+  cta?: "website" | "call" | "directions";
   /** Boot Fairs only: the big banner rather than a small card. */
   featured?: boolean;
   /** Set on FlipPilot's own promos (see houseAdverts): drawn in the app and opens our own link. */

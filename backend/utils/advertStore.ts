@@ -45,6 +45,52 @@ export type AdvertReport = { deviceId: string; reason: string; details: string; 
 /** This many different phones reporting an advert takes it off until someone has looked. */
 export const REPORTS_TO_PAUSE = 3;
 
+/** What the advert's button does: open the website, ring the business, or show the way there. */
+export type Cta = "website" | "call" | "directions";
+
+/**
+ * A booking a business made itself through the advertising portal (adverts made by hand in the
+ * admin routes have none). The order: in review (a person reads it) -> awaiting payment (approved,
+ * the business pays to go live) -> active (paid; shown from its start date) -> cancelling (paid up
+ * to paidThrough, not renewing) -> ended. Or rejected (with a reason) or withdrawn by the business.
+ */
+export type BookingStatus = "in-review" | "rejected" | "awaiting-payment" | "active" | "cancelling" | "ended" | "withdrawn";
+
+export type Booking = {
+  status: BookingStatus;
+  /** The price when it was booked, in pence a month. A booking keeps its price. */
+  monthlyPence: number;
+  /** The first months' price under the launch offer, or null. */
+  launchMonthlyPence: number | null;
+  launchMonths: number;
+  submittedAt: string;
+  reviewedAt?: string | null;
+  /** Why a person turned it down, shown to the business. */
+  rejectedReason?: string | null;
+  /** An unpaid booking keeps its place in a full area until then, and no longer. */
+  holdUntil?: string | null;
+  paidAt?: string | null;
+  /** Paid up to here: the advert shows until this moment. */
+  paidThrough?: string | null;
+  /** They asked to pay by invoice instead of by card (or card payments aren't switched on yet). */
+  invoiceRequested?: boolean;
+  stripe?: { customerId?: string | null; subscriptionId?: string | null; checkoutSessionId?: string | null };
+  /** When its first paid month began (paidAt moves with every payment; this doesn't). */
+  firstPaidAt?: string | null;
+  /** The launch offer's quiet-first-month promise: asked for, then granted or not (see advertBooking). */
+  freeMonth?: FreeMonth | null;
+};
+
+export type FreeMonth = {
+  requestedAt: string;
+  /** What the business said about its first month, if anything. */
+  note: string | null;
+  decidedAt?: string | null;
+  granted?: boolean | null;
+  /** Why not, shown to the business, when it wasn't granted. */
+  reason?: string | null;
+};
+
 /** Where a phone is, roughly. Rounded, never stored. */
 export type Viewer = { lat: number; lng: number } | null;
 
@@ -93,6 +139,18 @@ export type Advert = {
   everPaused?: boolean;
   /** A person approved it although the AI said reject. Never trusted afterwards. */
   overrodeAi?: boolean;
+
+  /* Booked by the business itself, through the advertising portal. */
+  /** The FlipPilot account that booked it. Private. */
+  ownerAccountId?: string | null;
+  /** "/uploads/<name>": the business's logo. */
+  logo?: string | null;
+  /** The business's phone number, for the Call button. */
+  phone?: string | null;
+  /** The business's address, for the Directions button. */
+  address?: string | null;
+  cta?: Cta;
+  booking?: Booking | null;
 };
 
 function readAdverts(): Advert[] {
@@ -129,9 +187,29 @@ export function imagesOf(ad: { image?: string; images?: string[] }): string[] {
   return Array.isArray(ad.images) && ad.images.length > 0 ? ad.images : ad.image ? [ad.image] : [];
 }
 
-/** Approved, and today falls inside the booked dates. */
+/** A portal booking is only shown once it has been paid for (and while it is paid up). */
+export function isPaidUp(ad: Advert, now = new Date()): boolean {
+  if (!ad.booking) return true;
+  if (ad.booking.status !== "active" && ad.booking.status !== "cancelling") return false;
+  return !!ad.booking.paidThrough && now.getTime() < ms(ad.booking.paidThrough);
+}
+
+/** Approved, paid for, and today falls inside the booked dates. */
 export function isLive(ad: Advert, now = new Date()): boolean {
-  return ad.approved && ms(ad.startsAt) <= now.getTime() && now.getTime() < ms(ad.endsAt);
+  return ad.approved && isPaidUp(ad, now) && ms(ad.startsAt) <= now.getTime() && now.getTime() < ms(ad.endsAt);
+}
+
+/**
+ * Does this advert take up one of the limited places in its area? Anything booked by hand does. A
+ * portal booking does while it is paid, and while it is being reviewed or waiting to be paid for,
+ * but only until its hold runs out: a booking nobody pays for can't keep an area full for ever.
+ */
+export function holdsSpace(ad: Advert, now = new Date()): boolean {
+  const b = ad.booking;
+  if (!b) return true;
+  if (b.status === "active" || b.status === "cancelling") return true;
+  if (b.status === "in-review" || b.status === "awaiting-payment") return !!b.holdUntil && now.getTime() < ms(b.holdUntil);
+  return false;
 }
 
 /* ------------------------------- geography ------------------------------- */
@@ -222,32 +300,51 @@ function samplePoints(candidate: Advert, others: Advert[]): { lat: number; lng: 
  */
 export function placementFull(
   candidate: Advert,
-  all: Advert[]
+  all: Advert[],
+  now = new Date()
 ): { placement: Placement; label: string; count: number; limit: number } | null {
+  for (const load of placementLoad(candidate, all, now)) {
+    if (load.count > load.limit) return load;
+  }
+  return null;
+}
+
+/**
+ * For each limited placement the candidate asks for: how many advertisers would be sharing it at
+ * the busiest point of its area and dates, counting the candidate itself, and the limit. What the
+ * booking page shows as "2 of 3 places left".
+ */
+export function placementLoad(
+  candidate: Advert,
+  all: Advert[],
+  now = new Date()
+): { placement: Placement; label: string; count: number; limit: number }[] {
+  const out: { placement: Placement; label: string; count: number; limit: number }[] = [];
   for (const rule of LIMITED) {
     if (!candidate.placements.includes(rule.placement)) continue;
     const limit = maxSharing(rule.placement);
     const others = all.filter(
       (o) =>
         o.id !== candidate.id &&
+        holdsSpace(o, now) &&
         o.placements.includes(rule.placement) &&
         ms(o.startsAt) < ms(candidate.endsAt) &&
         ms(o.endsAt) > ms(candidate.startsAt)
     );
-    if (others.length < limit) continue;
-
-    const times = [ms(candidate.startsAt), ...others.map((o) => ms(o.startsAt)).filter((t) => t > ms(candidate.startsAt))];
-    let worst = 0;
-    for (const p of samplePoints(candidate, others)) {
-      if (!reaches(candidate, p)) continue;
-      for (const t of times) {
-        const here = others.filter((o) => ms(o.startsAt) <= t && t < ms(o.endsAt) && reaches(o, p)).length + 1;
-        if (here > worst) worst = here;
+    let worst = 1;
+    if (others.length > 0) {
+      const times = [ms(candidate.startsAt), ...others.map((o) => ms(o.startsAt)).filter((t) => t > ms(candidate.startsAt))];
+      for (const p of samplePoints(candidate, others)) {
+        if (!reaches(candidate, p)) continue;
+        for (const t of times) {
+          const here = others.filter((o) => ms(o.startsAt) <= t && t < ms(o.endsAt) && reaches(o, p)).length + 1;
+          if (here > worst) worst = here;
+        }
       }
     }
-    if (worst > limit) return { placement: rule.placement, label: rule.label, count: worst, limit };
+    out.push({ placement: rule.placement, label: rule.label, count: worst, limit });
   }
-  return null;
+  return out;
 }
 
 /* ------------------------------- what to show ------------------------------ */
@@ -418,6 +515,14 @@ export function performanceReport(ad: Advert) {
 
 /* ------------------------------- trusted advertisers ------------------------------ */
 
+/**
+ * Who an advert is from, for trust. A business that booked through the portal is its account (it
+ * may have no website at all); an advert made by hand is its website's address, without "www".
+ */
+export function trustKey(ad: Pick<Advert, "website" | "ownerAccountId">): string {
+  return ad.ownerAccountId ? `account:${ad.ownerAccountId}` : advertiserKey(ad.website);
+}
+
 /** Who an advert is from: its website's address, without "www". Names can be typed any way; the site is the identity. */
 export function advertiserKey(website: string): string {
   try {
@@ -435,7 +540,7 @@ export function advertiserKey(website: string): string {
  * clean. It is never given for a first advert, and it is lost at the first sign of trouble.
  */
 export function isTrusted(key: string, all: Advert[]): boolean {
-  const theirs = all.filter((a) => advertiserKey(a.website) === key);
+  const theirs = all.filter((a) => trustKey(a) === key);
   if (theirs.some((a) => a.everPaused || a.overrodeAi)) return false;
   return theirs.some((a) => a.approvedBy === "person");
 }
@@ -444,7 +549,8 @@ export function isTrusted(key: string, all: Advert[]): boolean {
 export function toPublicAdvert(ad: Advert) {
   const {
     advertiser, stats, approved, createdAt, startsAt, endsAt, placements,
-    aiReview, reports, pausedAt, scope, postcode, lat, lng, radiusMiles, approvedBy, approvedAt, everPaused, overrodeAi, ...rest
+    aiReview, reports, pausedAt, scope, postcode, lat, lng, radiusMiles, approvedBy, approvedAt, everPaused, overrodeAi,
+    ownerAccountId, booking, ...rest
   } = ad;
-  return { ...rest, images: imagesOf(ad) };
+  return { ...rest, images: imagesOf(ad), cta: ad.cta ?? "website" };
 }

@@ -1,6 +1,7 @@
 import { Alert, Linking } from "react-native";
 
 import { LEGAL } from "@/constants/legal";
+import { API_CONFIGURED, BASE_URL } from "@/utils/api";
 
 export type PartnerLinkKind = "dealers" | "advertise";
 
@@ -18,11 +19,13 @@ export const PARTNER_LINKS: Record<
   },
   advertise: {
     title: "Advertise your business",
-    text: "Reach local sellers and buyers with a sponsored spot in FlipPilot.",
-    button: "Enquire",
+    text: "Reach local sellers and buyers with a sponsored spot in FlipPilot. See the prices, add your logo and photos, and book online.",
+    button: "Advertise with us",
     subject: "FlipPilot advertising enquiry",
     body: "Hello, I'd like to advertise my business in FlipPilot.\n\nBusiness name:\nWebsite:\nPhone:\nWhat I'd like to promote:",
-    url: () => LEGAL.advertiseUrl,
+    // The advertising portal on our own server (a business books, pays and follows its adverts there),
+    // unless EXPO_PUBLIC_ADVERTISE_URL points somewhere else.
+    url: () => LEGAL.advertiseUrl || (API_CONFIGURED ? `${BASE_URL.replace(/\/+$/, "")}/advertise/` : ""),
   },
 };
 

@@ -23,6 +23,15 @@ export function looksLikeUkPoint(lat: number, lng: number): boolean {
 }
 
 export async function geocodePostcode(postcode: string): Promise<{ lat: number; lng: number } | null> {
+  // Tests only: fixed places, so they never depend on postcodes.io being up ("LS1 1AA=53.8,-1.55;...").
+  if (process.env.NODE_ENV === "test" && process.env.GEOCODE_STUB) {
+    for (const pair of process.env.GEOCODE_STUB.split(";")) {
+      const [code, point] = pair.split("=");
+      const [lat, lng] = (point ?? "").split(",").map(Number);
+      if (code?.replace(/\s+/g, "").toUpperCase() === postcode.replace(/\s+/g, "").toUpperCase()) return { lat, lng };
+    }
+    return null;
+  }
   try {
     const res = await axios.get(`https://api.postcodes.io/postcodes/${encodeURIComponent(postcode)}`, {
       timeout: 6000,

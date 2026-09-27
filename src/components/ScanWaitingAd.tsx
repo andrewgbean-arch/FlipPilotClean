@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { ArrowSquareOut } from "phosphor-react-native";
 
 import AdReportButton from "@/components/AdReportButton";
 import { HousePanel } from "@/components/HousePromo";
 import SaveSponsorButton from "@/components/SaveSponsorButton";
 import { lastShownAt, markShown, useRotated } from "@/lib/adRotation";
+import { advertAction, openAdvertAction } from "@/lib/advertAction";
 import { reportAdvertEvent, useAdverts, type ScanAdverts } from "@/lib/adverts";
 import type { BusinessAdvert } from "@/lib/businessAdverts";
 import { HOUSE_ADVERTS, fillWithHouse } from "@/lib/houseAdverts";
@@ -27,7 +28,7 @@ import { useTheme } from "@/styles/ThemeContext";
  * booked it shows nothing at all. It goes the moment the result is ready, and
  * never holds anything up.
  *
- * Only the Visit button opens the advertiser's website. Touching the advert
+ * Only the advert's button (Visit, Call or Directions, the advertiser's choice) goes anywhere. Touching the advert
  * anywhere else does nothing, so a stray tap during a scan can't throw someone
  * out of the app before their result arrives.
  */
@@ -42,20 +43,21 @@ const NO_ADVERTS: BusinessAdvert[] = [];
 /** A full page just shown on this phone is rested for this long, so scans never repeat it. */
 export const FULL_PAGE_REST_MS = 10 * 60_000;
 
-function open(advert: BusinessAdvert) {
-  reportAdvertEvent(advert.id, "click");
-  if (advert.website) Linking.openURL(advert.website).catch(() => {});
-}
-
-function VisitButton({ advert, label = "Visit" }: { advert: BusinessAdvert; label?: string }) {
+/** The advert's button: Visit, Call or Directions. `long` spells a Visit out as "Visit website". */
+function VisitButton({ advert, long = false }: { advert: BusinessAdvert; long?: boolean }) {
   const theme = useTheme();
-  if (!advert.website) return null;
+  const action = advertAction(advert);
+  if (!action) return null;
+  const label = long && action.label === "Visit" ? "Visit website" : action.label;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Sponsored: ${advert.title}. Visit website`}
+      accessibilityLabel={`Sponsored: ${advert.title}. ${action.accessibility}`}
       hitSlop={8}
-      onPress={() => open(advert)}
+      onPress={() => {
+        reportAdvertEvent(advert.id, "click");
+        openAdvertAction(action);
+      }}
       style={({ pressed }) => [styles.cta, { backgroundColor: theme.goldDeep }, pressed && styles.pressed]}
     >
       <Text style={[styles.ctaText, { color: theme.black }]}>{label}</Text>
@@ -81,8 +83,11 @@ function PaidPanel({ advert }: { advert: BusinessAdvert }) {
 
       <View style={styles.panelBody}>
         <View style={styles.panelHeaderRow}>
-          <View style={[styles.pill, { backgroundColor: theme.background }]}>
-            <Text style={[styles.pillText, { color: theme.muted }]}>Sponsored</Text>
+          <View style={styles.pillRow}>
+            <View style={[styles.pill, { backgroundColor: theme.background }]}>
+              <Text style={[styles.pillText, { color: theme.muted }]}>Sponsored</Text>
+            </View>
+            {advert.logo ? <Image source={{ uri: advert.logo }} style={styles.logo} resizeMode="contain" /> : null}
           </View>
           <View style={styles.buttons}>
             <SaveSponsorButton advert={advert} />
@@ -186,7 +191,7 @@ function DesignedAd({ advert }: { advert: BusinessAdvert }) {
         <View style={styles.fullActions}>
           <View style={styles.buttons}>
             <SaveSponsorButton advert={advert} />
-            <VisitButton advert={advert} label="Visit website" />
+            <VisitButton advert={advert} long />
           </View>
           <AdReportButton advertId={advert.id} />
         </View>
@@ -209,8 +214,11 @@ function TemplateAd({ advert }: { advert: BusinessAdvert }) {
       <Gallery pictures={pictures} />
 
       <View style={styles.fullBody}>
-        <View style={[styles.pill, { backgroundColor: theme.background }]}>
-          <Text style={[styles.pillText, { color: theme.muted }]}>Sponsored</Text>
+        <View style={styles.pillRow}>
+          <View style={[styles.pill, { backgroundColor: theme.background }]}>
+            <Text style={[styles.pillText, { color: theme.muted }]}>Sponsored</Text>
+          </View>
+          {advert.logo ? <Image source={{ uri: advert.logo }} style={styles.logo} resizeMode="contain" /> : null}
         </View>
         <Text style={[styles.fullTitle, { color: theme.text }]} numberOfLines={2}>
           {advert.title}
@@ -228,7 +236,7 @@ function TemplateAd({ advert }: { advert: BusinessAdvert }) {
         <View style={styles.fullActions}>
           <View style={styles.buttons}>
             <SaveSponsorButton advert={advert} />
-            <VisitButton advert={advert} label="Visit website" />
+            <VisitButton advert={advert} long />
           </View>
           <AdReportButton advertId={advert.id} />
         </View>
@@ -346,6 +354,8 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 999,
   },
+  pillRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  logo: { width: 22, height: 22, borderRadius: 5, backgroundColor: "#fff" },
   pillText: { fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.4 },
   panelTitle: { fontSize: 17, fontWeight: "800" },
   panelTagline: { fontSize: 13 },
