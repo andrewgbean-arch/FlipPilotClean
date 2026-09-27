@@ -1,7 +1,7 @@
 import axios from "axios";
 
 /* --------------------------------------------------
-   Is this device a real, paying Pro subscriber?
+   Is this device a real, paying subscriber to the Trader plan?
 
    The app configures RevenueCat with our own device id as its app user id
    (see src/context/SubscriptionContext.tsx), so the same id sent with every
@@ -18,41 +18,79 @@ import axios from "axios";
 -------------------------------------------------- */
 
 const REVENUECAT_SECRET_KEY = process.env.REVENUECAT_SECRET_KEY;
+const API_BASE = (process.env.REVENUECAT_API_BASE || "https://api.revenuecat.com").replace(/\/+$/, "");
 
-// Only checked once a device is about to be blocked (see freeScanLimit.ts),
-// so this cache just stops a device hammering the endpoint while capped from
-// causing a RevenueCat call on every single retry.
+/**
+ * The entitlements that mean "on the paid plan". The plan is called Trader (300 scans a month and
+ * eBay export); before 2026-09-27 it was called Pro, and a subscriber under that name still counts.
+ */
+const PLAN_ENTITLEMENTS = ["trader", "pro"];
+
+export type PlanStatus = {
+  active: boolean;
+  /** Names the current billing period: the date of the subscription's latest payment. Null when not active. */
+  period: string | null;
+  /** When the current period ends (the plan renews or stops then). Null when not active. */
+  renewsOn: string | null;
+};
+
+const NOT_ON_PLAN: PlanStatus = { active: false, period: null, renewsOn: null };
+
+// Only checked once a device's free scans are used up (see scanMeter.ts), so this cache just stops
+// a device that keeps scanning from causing a RevenueCat call on every lookup.
 const CACHE_TTL_MS = 5 * 60 * 1000;
-// A "not Pro" answer is only remembered briefly, so someone who has just bought Pro isn't kept out for minutes.
-const NOT_PRO_TTL_MS = 60 * 1000;
-const cache = new Map<string, { isPro: boolean; checkedAt: number }>();
+// A "not on the plan" answer is only remembered briefly, so someone who has just subscribed isn't kept out for minutes.
+const NOT_ON_PLAN_TTL_MS = 60 * 1000;
+const cache = new Map<string, { status: PlanStatus; checkedAt: number }>();
 
-export async function isProSubscriber(deviceId: string): Promise<boolean> {
-  if (!REVENUECAT_SECRET_KEY) return false;
+/** Is this device on the paid plan, and which billing period is it in? Asked of RevenueCat itself, never the phone. */
+export async function planStatus(deviceId: string): Promise<PlanStatus> {
+  if (!REVENUECAT_SECRET_KEY) return NOT_ON_PLAN;
 
   const cached = cache.get(deviceId);
-  if (cached && Date.now() - cached.checkedAt < (cached.isPro ? CACHE_TTL_MS : NOT_PRO_TTL_MS)) return cached.isPro;
+  if (cached && Date.now() - cached.checkedAt < (cached.status.active ? CACHE_TTL_MS : NOT_ON_PLAN_TTL_MS)) return cached.status;
 
-  let isPro = false;
+  let status = NOT_ON_PLAN;
   let answered = true;
   try {
-    const res = await axios.get(
-      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(deviceId)}`,
-      { headers: { Authorization: `Bearer ${REVENUECAT_SECRET_KEY}` }, timeout: 5000 }
-    );
-    const pro = res.data?.subscriber?.entitlements?.pro;
-    isPro = !!pro && (!pro.expires_date || new Date(pro.expires_date).getTime() > Date.now());
+    const res = await axios.get(`${API_BASE}/v1/subscribers/${encodeURIComponent(deviceId)}`, {
+      headers: { Authorization: `Bearer ${REVENUECAT_SECRET_KEY}` },
+      timeout: 5000,
+    });
+    const entitlements = res.data?.subscriber?.entitlements ?? {};
+    for (const name of PLAN_ENTITLEMENTS) {
+      const e = entitlements[name];
+      if (!e) continue;
+      const expires = e.expires_date ? new Date(e.expires_date).getTime() : null;
+      if (expires !== null && !(expires > Date.now())) continue;
+      status = {
+        active: true,
+        // Each renewal has its own payment date, so the monthly count starts again by itself.
+        period: typeof e.purchase_date === "string" && e.purchase_date ? e.purchase_date : `no-date:${e.expires_date ?? name}`,
+        renewsOn: typeof e.expires_date === "string" ? e.expires_date : null,
+      };
+      break;
+    }
   } catch (err: any) {
-    // Includes a 404 for a device RevenueCat has never seen (not configured,
-    // or never opened the app with purchases available) - not Pro either way.
+    // Includes a 404 for a device RevenueCat has never seen: not on the plan either way.
     console.log("RevenueCat subscriber check failed:", err?.response?.status ?? err?.message);
-    isPro = false;
+    status = NOT_ON_PLAN;
     // Only a definite "RevenueCat has never seen this person" (404) is remembered. A timeout or a 5xx says nothing.
     answered = err?.response?.status === 404;
   }
 
-  if (answered) cache.set(deviceId, { isPro, checkedAt: Date.now() });
-  return isPro;
+  if (answered) cache.set(deviceId, { status, checkedAt: Date.now() });
+  return status;
+}
+
+/** On the paid plan (Trader, or Pro under its old name)? Used where the plan unlocks a feature, such as eBay export. */
+export async function isProSubscriber(deviceId: string): Promise<boolean> {
+  return (await planStatus(deviceId)).active;
+}
+
+/** For tests: forget cached answers. */
+export function clearPlanCache() {
+  cache.clear();
 }
 
 /* --------------------------------------------------
@@ -62,8 +100,6 @@ export async function isProSubscriber(deviceId: string): Promise<boolean> {
    `non_subscriptions`, each purchase with its own unique id. Credits are granted
    from THAT list only (never from anything the phone says), once per purchase id.
 -------------------------------------------------- */
-
-const API_BASE = (process.env.REVENUECAT_API_BASE || "https://api.revenuecat.com").replace(/\/+$/, "");
 
 export type OneTimePurchase = { id: string; productId: string; storeTxn?: string };
 

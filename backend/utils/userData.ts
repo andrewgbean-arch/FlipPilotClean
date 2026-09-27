@@ -12,6 +12,7 @@ import {
 import { deleteUploads, uploadsBy } from "./uploadStore";
 import { removeReadsFor } from "./readState";
 import { freeScanRecordFor } from "../middleware/freeScanLimit";
+import { traderScanRecordFor } from "./traderAllowance";
 import { advertReportsBy, anonymiseAdvertReportsBy } from "./advertStore";
 import { deleteFeedbackBy, feedbackBy } from "./feedbackStore";
 import { disconnect as disconnectEbay, isConnected as ebayConnected } from "../ebay/ebaySellAuth";
@@ -113,6 +114,7 @@ export function exportUserData(deviceId: string) {
     })),
     peopleYouHaveBlocked: blockCountFor(deviceId),
     freeScanCounter: freeScanRecordFor(deviceId),
+    traderScanCounter: traderScanRecordFor(deviceId),
     advertReports: advertReportsBy(deviceId),
     feedbackYouSent: feedbackBy(deviceId),
     ebayAccountConnected: ebayConnected(deviceId),

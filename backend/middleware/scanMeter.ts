@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
-import { isProSubscriber } from "../subscriptions/revenueCat";
+import { planStatus } from "../subscriptions/revenueCat";
+import { TRADER_MONTHLY_SCANS, returnTraderScan, takeTraderScan } from "../utils/traderAllowance";
 import { freeScanCapEnabled, freeScanStatus, returnFreeScan, takeFreeScan } from "./freeScanLimit";
 import { getBalance, refund, spend } from "../utils/creditStore";
 
@@ -7,7 +8,7 @@ import { getBalance, refund, spend } from "../utils/creditStore";
  * What a lookup (barcode, photo or search) costs the person, in this order:
  *
  *   1. one of their 5 free scans this week (counted per phone, no account needed);
- *   2. otherwise, if they are a paying Pro subscriber, nothing;
+ *   2. otherwise, on the Trader plan, one of its TRADER_MONTHLY_SCANS scans this billing period;
  *   3. otherwise one scan credit from their account (they must be signed in);
  *   4. otherwise the lookup is refused, and the reply says which of "sign in" or "buy credits" fits.
  *
@@ -64,9 +65,21 @@ export async function scanMeter(req: Request, res: Response, next: NextFunction)
   }
 
   // Only worth the extra round trip once the free scans are gone.
-  if (await isProSubscriber(deviceId)) return next();
+  const plan = await planStatus(deviceId);
+  if (plan.active && plan.period) {
+    const period = plan.period;
+    if (takeTraderScan(deviceId, period)) {
+      payBackOnFailure(res, () => returnTraderScan(deviceId, period));
+      return next();
+    }
+  }
 
   const free = freeScanStatus(deviceId);
+  // A Trader who has used this month's scans is told when they come back, not just about the free ones.
+  const traderLine =
+    plan.active && plan.renewsOn
+      ? ` Your ${TRADER_MONTHLY_SCANS} Trader scans come back when your plan renews on ${new Date(plan.renewsOn).toLocaleDateString("en-GB", { day: "numeric", month: "long" })}.`
+      : "";
   const account = req.account;
 
   if (account) {
@@ -78,7 +91,7 @@ export async function scanMeter(req: Request, res: Response, next: NextFunction)
     }
     res.json({
       error: "out-of-credits",
-      message: `You've used your ${free.limit} free scans this week and have no scan credits left. Get more credits, or your free scans come back on ${free.resetsOn}.`,
+      message: `You've used your ${free.limit} free scans this week and have no scan credits left. Get more credits, or your free scans come back on ${free.resetsOn}.${traderLine}`,
       resetsOn: free.resetsOn,
       signedIn: true,
       credits: getBalance(account.id),
@@ -88,7 +101,7 @@ export async function scanMeter(req: Request, res: Response, next: NextFunction)
 
   res.json({
     error: "free-scan-limit",
-    message: `You've used your ${free.limit} free scans this week. Sign in to use scan credits, or your free scans come back on ${free.resetsOn}.`,
+    message: `You've used your ${free.limit} free scans this week. Sign in to use scan credits, or your free scans come back on ${free.resetsOn}.${traderLine}`,
     resetsOn: free.resetsOn,
     signedIn: false,
     credits: 0,

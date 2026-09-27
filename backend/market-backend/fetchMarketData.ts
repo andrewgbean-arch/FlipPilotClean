@@ -293,12 +293,13 @@ export const marketCacheStats = () => ({
 
 /**
  * Google Shopping is the dearest source (a paid search on every scan).
- *   GOOGLE_SHOPPING=always       (default) search on every scan, as before
- *   GOOGLE_SHOPPING=when-needed  search only when eBay did not give enough to price the item from
- * Turn "when-needed" on once the cost log (GET /admin/costs) shows it is worth the small difference
- * in some prices: Google is one of the sources the shelf price is worked out from.
+ *   GOOGLE_SHOPPING=when-needed  (default) search only when eBay did not give enough to price the item from
+ *   GOOGLE_SHOPPING=always       search on every scan, as before 2026-09-27
+ * "when-needed" is the default since the owner chose it on 2026-09-27 (Trader plan pricing): the
+ * Google search is most of what a scan costs (about 1.1-1.9p of ~2.2p), and when eBay already has
+ * plenty of matching listings it adds little. Set "always" to go back; GET /admin/costs shows the effect.
  */
-const googleWhenNeeded = () => (process.env.GOOGLE_SHOPPING ?? "").trim().toLowerCase() === "when-needed";
+const googleWhenNeeded = () => (process.env.GOOGLE_SHOPPING ?? "").trim().toLowerCase() !== "always";
 
 /** eBay alone is enough when it found a good number of matching listings (and, for a used item, of new ones too). */
 const STRONG_LISTINGS = 5;

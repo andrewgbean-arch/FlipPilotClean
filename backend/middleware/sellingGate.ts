@@ -2,16 +2,10 @@ import type { NextFunction, Request, Response } from "express";
 import { isProSubscriber } from "../subscriptions/revenueCat";
 
 /* --------------------------------------------------
-   Selling on the Marketplace is a paid feature (see app/upgrade.tsx):
-   Free can browse but not sell, Bolt-on can sell up to 5 items, Pro
-   sells unlimited. Bolt-on has no real RevenueCat product yet (see
-   backend/subscriptions/revenueCat.ts) - there's no way today to tell
-   a genuine Bolt-on subscriber apart from a Free one, only a verified
-   Pro entitlement can be checked server-side. So until Bolt-on is a
-   real purchasable product, selling is Pro-only here; add a listing
-   count check for a real Bolt-on entitlement once that product exists,
-   rather than a guessed cap for everyone that would undercut the whole
-   point of gating selling behind payment.
+   Exporting a listing to eBay comes with the Trader plan (see app/upgrade.tsx).
+   Listing on the FlipPilot Marketplace itself does not: that is decided by
+   config/marketplacePolicy.ts (free during the launch offer, cars cost credits).
+   Only a subscription RevenueCat itself confirms counts, never a flag from the phone.
 
    SELLING_ALLOWED_DEVICE_IDS lets named devices through — the phones the
    app is being built and demonstrated on, which have nothing to buy Pro
@@ -55,6 +49,6 @@ export async function sellingGate(req: Request, res: Response, next: NextFunctio
   res.status(403).json({
     ok: false,
     error: "selling-locked",
-    message: "Selling on the Marketplace needs Bolt-on or Pro. Upgrade to start listing items.",
+    message: "Exporting listings to eBay comes with the Trader plan. Selling on the FlipPilot Marketplace itself doesn't need it.",
   });
 }
