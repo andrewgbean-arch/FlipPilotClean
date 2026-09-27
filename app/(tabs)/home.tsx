@@ -40,6 +40,7 @@ import { formatMoney, formatSignedMoney } from "@/features/vehicles/utils/vehicl
 import WeatherCard from "@/components/WeatherCard";
 import FeedbackSheet from "@/components/sheets/FeedbackSheet";
 import FlashingMessageIcon from "@/components/FlashingMessageIcon";
+import GettingStartedCard from "@/components/GettingStartedCard";
 import { useMessageAlerts } from "@/context/MessageAlertsContext";
 
 const TOOLS: { key: string; label: string; Icon: PhosphorIcon; route: string; tint: string }[] = [
@@ -229,6 +230,9 @@ export default function HomeScreen() {
             )}
           </Pressable>
         </View>
+
+        {/* GETTING STARTED — real milestones, ticked from what's actually happened; hides itself once done */}
+        <GettingStartedCard flips={flips} />
 
         {/* WEATHER */}
         <WeatherCard theme={theme} style={styles.weatherCard} />

@@ -34,7 +34,7 @@ export default function WelcomeScreen() {
     setSaving(true);
     try {
       await recordLegalAcceptance();
-      router.replace("/home");
+      router.replace("/onboarding");
     } catch {
       setSaving(false);
       Alert.alert("Couldn't save that", "Please try again.");

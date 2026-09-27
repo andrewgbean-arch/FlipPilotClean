@@ -15,12 +15,18 @@ import { BASE_URL } from "@/utils/api";
 import { getDeviceId } from "@/utils/deviceId";
 import PartnerLinks from "@/components/marketplace/PartnerLinks";
 import GoldParticles from "@/components/ui/GoldParticles";
+import { markMarketplaceVisited } from "@/utils/onboarding";
 
 export default function MarketplaceHub() {
   const theme = useTheme();
 
   const [trending, setTrending] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // A real fact for Home's "Getting started" card, not something the user has to tell it.
+  useEffect(() => {
+    markMarketplaceVisited();
+  }, []);
 
   useEffect(() => {
     getDeviceId()

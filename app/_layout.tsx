@@ -194,6 +194,8 @@ function ThemedStack() {
 
         {/* Adult + terms confirmation, shown once before the app is usable */}
         <Stack.Screen name="welcome" options={{ headerShown: false, gestureEnabled: false }} />
+        {/* The first-run walkthrough that follows it, also shown once */}
+        <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
 
         {/* Core non-tab screens */}
         <Stack.Screen name="ai-camera" options={{ headerShown: false }} />
