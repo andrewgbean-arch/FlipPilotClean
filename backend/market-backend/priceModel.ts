@@ -46,6 +46,18 @@ export const CONDITION_SHARE: Record<Grade, number> = {
 export const NOT_WORKING_SHARE = CONDITION_SHARE["not-working"];
 
 /**
+ * How far above the plain condition-and-age estimate real market data (real listings, the AI's
+ * own read of the market) is allowed to push a used price. Those real sources are trusted over
+ * the simple share table when they disagree — see the "opinions" blend below — but without a
+ * ceiling tied to condition, a strong signal from real (asking-price, not confirmed-sale)
+ * listings could put a "Perfect" item within a few pounds of a new one, which nobody would
+ * believe, or worse for a "Poor" one. The old ceiling was one flat 90% of new for every
+ * condition; found live on real items (a Sony XM4 and a Nintendo Switch both priced "Perfect"
+ * within 11-13% of new): fixed to scale with the condition actually chosen.
+ */
+export const USED_PRICE_UPLIFT_ALLOWED = 1.2;
+
+/**
  * Extra discount for age, on top of condition — multiplied together. A recently
  * bought item holds more of its value even in the same physical condition.
  */
@@ -182,7 +194,9 @@ export function decidePrices(e: PriceEvidence): PriceDecision {
         sell = opinions[0];
       }
     }
-    if (sell !== null && newPrice) sell = Math.min(sell, newPrice * 0.9);
+    // A ceiling that scales with the condition (and age) actually chosen, not one flat number for
+    // every grade — see USED_PRICE_UPLIFT_ALLOWED above.
+    if (sell !== null && newPrice) sell = Math.min(sell, newPrice * conditionShare * ageFactor * USED_PRICE_UPLIFT_ALLOWED);
   } else {
     if (valid(e.ebay) && !(newPrice && e.ebay > newPrice * 1.5)) {
       sell = e.ebay;
