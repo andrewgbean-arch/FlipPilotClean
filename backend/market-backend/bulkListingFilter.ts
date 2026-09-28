@@ -70,7 +70,7 @@ const NON_X_MULTIPLIER = [
 const COUNT_STEMS =
   "lozen\\w*|tablets?|capsules?|caplets?|sachets?|pouches|pastilles?|softgels?|pcs|pieces?|" +
   "count|units?|doses?|servings?|portions?|gums?|strips?|patches|tea\\s?bags?|" +
-  "nappies|diapers?|swabs?|refills?|wipes?";
+  "nappies|diapers?|swabs?|refills?|wipes?|packs?";
 // "ct" on its own means "count" ("80ct"), but is exactly how gold purity is written ("9ct", "18ct
 // gold") — kept apart so it can be excluded specifically when it's plainly a carat mark, not merged
 // into COUNT_STEMS where every use would be trusted equally.

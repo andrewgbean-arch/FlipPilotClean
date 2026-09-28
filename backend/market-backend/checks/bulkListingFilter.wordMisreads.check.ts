@@ -34,6 +34,11 @@ eq("2 XL tshirt: not bulk", isBulkListing("Tshirt 2 XL"), false);
 // a real multiplier must still work
 eq("6x Nicorette still totals 480", extractPackCount("6x Nicorette Cools 4mg Icy Mint Lozenges 80s – Total 480 Lozenges"), 480);
 eq("2 x 500ml still a bulk multiplier", isBulkListing("Fairy Washing Up Liquid 2 x 500ml"), true);
+// Found live 2026-09-28: this exact real listing slipped through the dimension guard above
+// (an unintended side effect of it) because "packs" wasn't a recognised count-stem word, so
+// "6 X3 Packs" read as a dimension like "34x32" instead of the genuine multipack it is —
+// and its unfiltered £12.99 became the market floor for a single 72g bag of crisps.
+eq("6 X3 Packs is a real multipack, not a dimension", isBulkListing("Walkers Monster Munch Roast Beef Flavour Crisp Snack 6 X3 Packs 0.70"), true);
 
 // "console bundle" must not be dropped as bulk wording
 eq("PS5 Console Bundle: not bulk", isBulkListing("Sony PS5 Console Bundle with 2 Controllers"), false);
