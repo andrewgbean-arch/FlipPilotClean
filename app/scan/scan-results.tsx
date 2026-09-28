@@ -1307,9 +1307,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 12,
   },
-  factLabel: { fontSize: 14 },
+  // A minimum share of the row, wider than the short labels, so the text box always has slack
+  // ("New in the shops" was clipping to "New in the" on Android).
+  factLabel: { fontSize: 14, minWidth: "42%", flexShrink: 0, marginRight: 8 },
   factValue: {
-    flexShrink: 1,
+    flex: 1,
     fontSize: 16,
     fontWeight: "600",
     textAlign: "right",
