@@ -238,26 +238,51 @@ function withDeadline<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> 
 // for the same lookups again.
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const CACHE_MAX = 200;
-const cache = new Map<string, { at: number; value: UnifiedMarketResult }>();
 
-function cacheGet(key: string): UnifiedMarketResult | null {
-  const hit = cache.get(key);
+// Everything about an item EXCEPT its sell/buy price (which depends on Condition and Age — see
+// priceModel.ts) is the same whoever is asking and whatever they choose on those two boxes. Cached
+// under a key with no Condition or Age in it, so changing either box, or two different people
+// scanning the same thing, reuses exactly the same real-world evidence — not a second live lookup
+// that, being a live marketplace, could genuinely come back with a different answer by chance. Sell
+// and buy are worked out fresh every time from `priceInputs`, which costs nothing (no lookup).
+export type MarketEvidence = Omit<UnifiedMarketResult, "average" | "smartPrice"> & {
+  priceInputs: {
+    ebayNew: number | null;
+    ebay: number | null;
+    googleNew: number | null;
+    aiNew: number | null;
+    aiUsedMin: number | null;
+    aiUsedMax: number | null;
+    marketFloor: number | null;
+  };
+};
+
+const evidenceCache = new Map<string, { at: number; value: MarketEvidence }>();
+
+function evidenceCacheGet(key: string): MarketEvidence | null {
+  const hit = evidenceCache.get(key);
   if (!hit) return null;
   if (Date.now() - hit.at > CACHE_TTL_MS) {
-    cache.delete(key);
+    evidenceCache.delete(key);
     return null;
   }
   return hit.value;
 }
 
-function cacheSet(key: string, value: UnifiedMarketResult) {
+function evidenceCacheSet(key: string, value: MarketEvidence) {
   // Only remember answers that found something; a failed lookup should be retried.
-  if (value.lowest == null && value.smartPrice == null) return;
-  if (cache.size >= CACHE_MAX) {
-    const oldest = cache.keys().next().value;
-    if (oldest !== undefined) cache.delete(oldest);
+  if (value.lowest == null && value.priceInputs.ebay == null && value.priceInputs.googleNew == null && value.priceInputs.aiNew == null) return;
+  if (evidenceCache.size >= CACHE_MAX) {
+    const oldest = evidenceCache.keys().next().value;
+    if (oldest !== undefined) evidenceCache.delete(oldest);
   }
-  cache.set(key, { at: Date.now(), value });
+  evidenceCache.set(key, { at: Date.now(), value });
+}
+
+/** Sell and buy for the CURRENT grade/age, from evidence that may have been fetched for a different one. */
+export function priceEvidence(evidence: MarketEvidence, usedMode: boolean, grade: Grade, age: AgeBand): UnifiedMarketResult {
+  const decision = decidePrices({ used: usedMode, grade, age, ...evidence.priceInputs });
+  return { ...evidence, average: decision.sell, smartPrice: decision.buy };
 }
 
 /* --------------------------------------------------
@@ -280,7 +305,7 @@ const sourceKey = (query: string, count: number | null | undefined, extra = "") 
   `${query.trim().toLowerCase()}|${count ?? ""}|${extra}`;
 
 export function clearMarketCachesForTests() {
-  cache.clear();
+  evidenceCache.clear();
   googleCache.clear();
   aiEstimateCache.clear();
   ebayCache.clear();
@@ -329,9 +354,10 @@ export default async function fetchMarketData(
   const usedMode = condition === "used";
   const grade = options.grade ?? "good";
   const age = options.age ?? "within-6-months";
-  const cacheKey = `${query.trim().toLowerCase()}|${wantedCount ?? ""}|${condition ?? ""}|${grade}|${age}`;
-  const cached = query ? cacheGet(cacheKey) : null;
-  if (cached) return cached;
+  // No Condition or Age in this key — see MarketEvidence above.
+  const evidenceCacheKey = `${query.trim().toLowerCase()}|${wantedCount ?? ""}|${condition ?? ""}`;
+  const cachedEvidence = query ? evidenceCacheGet(evidenceCacheKey) : null;
+  if (cachedEvidence) return priceEvidence(cachedEvidence, usedMode, grade, age);
 
   if (!query) {
     return {
@@ -419,13 +445,12 @@ export default async function fetchMarketData(
     const aiPriceMax = safeNumber(aiEstimate?.max);
     const aiPriceConfidence = safeNumber(aiEstimate?.confidence);
 
-    // 5️⃣ The three prices: new, sell, buy (see priceModel.ts)
+    // 5️⃣ The three prices: new, sell, buy (see priceModel.ts). These scalar inputs are the only
+    // things that can change between one Condition/Age choice and another for the SAME item — kept
+    // as their own object so a later request for a different Condition or Age can redo just this
+    // step, with no fresh lookup, from evidence that never varies with what was picked.
     const usedPrice = safeNumber(ebay?.average ?? ebay?.lowest ?? null);
-
-    const decision = decidePrices({
-      used: usedMode,
-      grade,
-      age,
+    const priceInputs = {
       // With Google skipped, a sealed/new item's own eBay listings are the shelf-price evidence: they are
       // new listings, and their average is 90% of the middle asking price, so it is put back to that.
       ebayNew: safeNumber(ebayNew?.average ?? (googleSkipped && !usedMode && ebay?.average ? ebay.average / 0.9 : null)),
@@ -435,11 +460,11 @@ export default async function fetchMarketData(
       aiUsedMin: aiPriceMin,
       aiUsedMax: aiPriceMax,
       marketFloor: safeNumber(google?.min),
-    });
-
-    const retailPrice = decision.newPrice;
-    const average = decision.sell;
-    const smartPrice = decision.buy;
+    };
+    // Only newPrice is needed here (it never varies with grade/age — see priceModel.ts); this
+    // request's own sell/buy are worked out below, from priceEvidence(), the same way a cache hit's
+    // are, so there is exactly one place that turns evidence into a price.
+    const retailPrice = decidePrices({ used: usedMode, grade, age, ...priceInputs }).newPrice;
 
     // 6️⃣ Range + stats
     const googlePriceMin = safeNumber(google?.min ?? aiPriceMin ?? usedPrice ?? null);
@@ -476,15 +501,13 @@ const image =
     const ebayItems = ebay?.ebayData?.items ?? ebay?.items ?? [];
     const googleItems = google?.items ?? [];
 
-    const result: UnifiedMarketResult = {
+    const evidence: MarketEvidence = {
       usedPrice,
       retailPrice,
       googlePriceMin,
       googlePriceMax,
       lowest,
       highest,
-      average,
-      smartPrice,
       soldCount,
       demandScore,
       sellThroughRating,
@@ -496,10 +519,11 @@ const image =
       ebayItems,
       googleItems,
       image,
+      priceInputs,
     };
 
-    cacheSet(cacheKey, result);
-    return result;
+    evidenceCacheSet(evidenceCacheKey, evidence);
+    return priceEvidence(evidence, usedMode, grade, age);
   } catch (err: any) {
     console.error("Unified Market Engine Error:", err?.message || err);
 
