@@ -8,10 +8,12 @@ import {
   Image,
   Modal,
   Pressable,
+  ScrollView,
   Share,
   StyleSheet,
   TextInput,
   Text,
+  TouchableOpacity,
 } from "react-native";
 import { Broom, Export, Heart, Trophy } from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -32,6 +34,35 @@ const detailsHref = (f: FlipRecord) =>
 
 // CSV text cell: rarity and sell speed are words ("Common", "Fast"), not numbers.
 const csvText = (v: string | null | undefined) => `"${(v ?? "").replace(/"/g, '""')}"`;
+
+type SortMode =
+  | "newest"
+  | "profit"
+  | "roi"
+  | "faves"
+  | "az"
+  | "confidence"
+  | "aiPrice"
+  | "flipScore"
+  | "demand"
+  | "smartPrice"
+  | "googlePrice";
+
+// The switch below already sorts by every one of these; this is what turns that
+// into something the user can actually pick (it never had a control at all).
+const SORT_OPTIONS: { id: SortMode; label: string }[] = [
+  { id: "newest", label: "Newest" },
+  { id: "profit", label: "Profit" },
+  { id: "roi", label: "ROI" },
+  { id: "flipScore", label: "FlipScore" },
+  { id: "confidence", label: "Confidence" },
+  { id: "aiPrice", label: "AI price" },
+  { id: "smartPrice", label: "Smart price" },
+  { id: "googlePrice", label: "Market price" },
+  { id: "demand", label: "Demand" },
+  { id: "az", label: "A–Z" },
+  { id: "faves", label: "Favourites" },
+];
 
 // text variants
 const textVariants = StyleSheet.create({
@@ -117,19 +148,7 @@ export default function HistoryScreen() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [confirmClearAll, setConfirmClearAll] = useState(false);
 
-  const [sortMode, setSortMode] = useState<
-    | "newest"
-    | "profit"
-    | "roi"
-    | "faves"
-    | "az"
-    | "confidence"
-    | "aiPrice"
-    | "flipScore"
-    | "demand"
-    | "smartPrice"
-    | "googlePrice"
-  >("newest");
+  const [sortMode, setSortMode] = useState<SortMode>("newest");
 
   const [search, setSearch] = useState("");
   const [showFavesOnly, setShowFavesOnly] = useState(false);
@@ -596,6 +615,43 @@ export default function HistoryScreen() {
           ]}
         />
       </View>
+
+      {/* SORT */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.sortRow}
+        keyboardShouldPersistTaps="handled"
+      >
+        {SORT_OPTIONS.map((opt) => {
+          const active = sortMode === opt.id;
+          return (
+            <TouchableOpacity
+              key={opt.id}
+              accessibilityRole="button"
+              accessibilityLabel={`Sort by ${opt.label}`}
+              onPress={() => setSortMode(opt.id)}
+              style={[
+                styles.sortChip,
+                {
+                  borderColor: theme.gold,
+                  backgroundColor: active ? theme.gold : theme.card,
+                },
+              ]}
+            >
+              <Text
+                style={{
+                  color: active ? theme.background : theme.text,
+                  fontSize: 13,
+                  fontWeight: "600",
+                }}
+              >
+                {opt.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
           </>
         }
       />
@@ -839,6 +895,18 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
     fontSize: 16,
+  },
+
+  /* SORT */
+  sortRow: {
+    marginBottom: 12,
+  },
+  sortChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginRight: 8,
   },
 
   /* LIST */
