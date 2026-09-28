@@ -140,6 +140,57 @@ function PriceTile({
   );
 }
 
+// "High"/"Medium"/"Low", coloured the same way FlipScore already bands a number on this
+// screen (>=70 success, >=40 warning, else danger) — a single "£45.00" reads as certain
+// whatever the real spread of asking prices was; this says how sure that number actually is.
+function ConfidenceChip({ confidence }: { confidence: number }) {
+  const theme = useTheme();
+  const band =
+    confidence >= 70
+      ? { label: "High", color: theme.success }
+      : confidence >= 40
+      ? { label: "Medium", color: theme.warning }
+      : { label: "Low", color: theme.danger };
+
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${band.label} confidence`}
+      style={[styles.confidenceChip, { borderColor: band.color }]}
+    >
+      <Text style={[styles.confidenceChipText, { color: band.color }]}>{band.label} confidence</Text>
+    </View>
+  );
+}
+
+// A low-to-high asking-price track, the same shape as the vehicle market screen's own
+// (not shared between the two — each screen keeps its own small copy of this pattern).
+function PriceRangeBar({ low, high, mid }: { low: number; high: number; mid: number | null }) {
+  const theme = useTheme();
+  const span = high - low;
+  const position = mid != null && span > 0 ? Math.min(1, Math.max(0, (mid - low) / span)) : null;
+
+  return (
+    <View style={styles.rangeBlock}>
+      <View style={styles.rangeWrap}>
+        <View style={[styles.rangeTrack, { backgroundColor: theme.background }]} />
+        {position != null ? (
+          <View
+            style={[
+              styles.rangeMarker,
+              { left: `${position * 100}%`, backgroundColor: theme.text, borderColor: theme.card },
+            ]}
+          />
+        ) : null}
+      </View>
+      <View style={styles.rangeLabels}>
+        <Text style={[styles.rangeLabel, { color: theme.muted }]}>£{low.toFixed(2)}</Text>
+        <Text style={[styles.rangeLabel, { color: theme.muted }]}>£{high.toFixed(2)}</Text>
+      </View>
+    </View>
+  );
+}
+
 // A label on the left and a value on the right, used inside a grouped card.
 function FactRow({ label, value, divider }: { label: string; value: string; divider?: boolean }) {
   const theme = useTheme();
@@ -528,6 +579,21 @@ export default function ScanResultsScreen() {
 
   const fairPrice = data.ai?.fair_price;
 
+  // Real asking-price spread when there's enough of it to trust; the AI's own guessed
+  // range otherwise. Either way this is what the single "Fair market price" number
+  // above was actually drawn from, not a second, competing estimate.
+  const marketLow = data.market?.lowest;
+  const marketHigh = data.market?.highest;
+  const priceRange =
+    typeof marketLow === "number" && typeof marketHigh === "number" && marketHigh > marketLow
+      ? { low: marketLow, high: marketHigh }
+      : typeof data.aiPriceMin === "number" &&
+        typeof data.aiPriceMax === "number" &&
+        data.aiPriceMax > data.aiPriceMin
+      ? { low: data.aiPriceMin, high: data.aiPriceMax }
+      : null;
+  const priceConfidence = typeof data.aiPriceConfidence === "number" ? data.aiPriceConfidence : null;
+
   const scoreColor =
     flipScore >= 70 ? theme.success : flipScore >= 40 ? theme.warning : theme.danger;
   const scoreBand = flipScore >= 70 ? "Strong" : flipScore >= 40 ? "Fair" : "Weak";
@@ -713,6 +779,13 @@ export default function ScanResultsScreen() {
               {fairPrice != null ? `£${Number(fairPrice).toFixed(2)}` : "—"}
             </Text>
           </View>
+
+          {priceRange ? <PriceRangeBar low={priceRange.low} high={priceRange.high} mid={fairPrice ?? null} /> : null}
+          {priceConfidence != null ? (
+            <View style={{ marginTop: priceRange ? 0 : 12 }}>
+              <ConfidenceChip confidence={priceConfidence} />
+            </View>
+          ) : null}
         </View>
 
         {/* BUY + SELL */}
@@ -1246,6 +1319,31 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
   },
   fairValue: { fontSize: 16, fontWeight: "600", fontVariant: ["tabular-nums"] },
+
+  /* PRICE RANGE + CONFIDENCE */
+  confidenceChip: {
+    alignSelf: "flex-start",
+    marginTop: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  confidenceChipText: { fontSize: 12, fontWeight: "700" },
+  rangeBlock: { marginTop: 12 },
+  rangeWrap: { height: 16, justifyContent: "center" },
+  rangeTrack: { height: 6, borderRadius: 3 },
+  rangeMarker: {
+    position: "absolute",
+    top: 0,
+    width: 16,
+    height: 16,
+    marginLeft: -8,
+    borderRadius: 8,
+    borderWidth: 3,
+  },
+  rangeLabels: { flexDirection: "row", justifyContent: "space-between", marginTop: 4 },
+  rangeLabel: { fontSize: 12, fontVariant: ["tabular-nums"] },
 
   /* BUY + SELL */
   tilesRow: { flexDirection: "row", gap: 12, marginTop: 12 },
