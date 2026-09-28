@@ -40,6 +40,39 @@ const none = { ebay: null, googleNew: null, aiNew: null, aiUsedMin: null, aiUsed
   between("speaker buy", d.buy, 15, 15.5);
 }
 
+/* --------------------------------------------------
+   AI vs real data, far apart, above the cheap-item threshold — the De'Longhi Rivelia case
+   found live: real listings genuinely far above a wrong AI guess for an expensive item must
+   land BETWEEN the two, not dismiss the real listings outright the way a cheap item does.
+-------------------------------------------------- */
+{
+  // The exact reported numbers: AI says 150, real new listings say 535.50.
+  const d = decidePrices({ ...none, used: false, ebayNew: 535.5, aiNew: 150 });
+  if (!(d.newPrice! > 150 && d.newPrice! < 535.5)) {
+    fail++;
+    console.log("FAIL expensive item lands between AI and real data", d.newPrice);
+  }
+}
+{
+  // Just below the cheap-item threshold: still trusts the AI outright, same as crisps.
+  const d = decidePrices({ ...none, used: false, googleNew: 60, aiNew: 19 });
+  eq("just under the threshold still trusts the AI", d.newPrice, 19);
+}
+{
+  // Just at/above the threshold: blends instead.
+  const d = decidePrices({ ...none, used: false, googleNew: 80, aiNew: 20 });
+  if (!(d.newPrice! > 20)) {
+    fail++;
+    console.log("FAIL at the threshold, blends rather than trusting the AI alone", d.newPrice);
+  }
+}
+{
+  // The AI and real data still roughly agreeing (within 2x) is untouched by any of this —
+  // this only ever fires once they're far enough apart to disagree in the first place.
+  const d = decidePrices({ ...none, used: false, googleNew: 250, aiNew: 200 });
+  eq("still agreeing: averaged as before", d.newPrice, 225);
+}
+
 // A used speaker where the market and the AI agree: the market wins.
 {
   const d = decidePrices({ ...none, used: true, ebay: 55, aiNew: 130, aiUsedMin: 40, aiUsedMax: 70 });

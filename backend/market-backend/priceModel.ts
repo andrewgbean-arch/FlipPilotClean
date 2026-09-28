@@ -120,6 +120,11 @@ const roundUpNice = (n: number) => {
   return round2(Math.ceil(n / step) * step);
 };
 
+// Below this, a real listing miles above the AI's guess is overwhelmingly a multipack or a
+// wholesale/premium-seller listing (the exact territory bulkListingFilter.ts was built for) — at
+// or above it, "the AI just doesn't know this specific thing well" becomes at least as likely.
+const CHEAP_ITEM_THRESHOLD = 20;
+
 function median(values: number[]) {
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
@@ -142,9 +147,17 @@ export function decidePrices(e: PriceEvidence): PriceDecision {
     if (agree(e.aiNew, dataLow)) {
       newPrice = (e.aiNew + dataLow) / 2;
     } else if (dataLow > e.aiNew) {
-      // Far ABOVE the AI: search results for cheap things are full of multipacks
-      // and premium sellers, which only ever push a price up. Trust the AI.
-      newPrice = e.aiNew;
+      // Far ABOVE the AI. For a cheap item this is almost always multipacks and premium
+      // sellers pushing the price up — real listings already go through pack-size scaling
+      // and bulk-listing filtering upstream (bulkListingFilter.ts), but that filter can't
+      // catch everything, and a cheap item is rarely wrong about its own rough shelf price
+      // by this much for any other reason, so the AI still wins outright below this.
+      // Above it, a genuinely wrong AI guess — an unfamiliar model, a rare or newer
+      // release, a niche product it simply doesn't know well — is at least as likely as
+      // leftover multipack contamination, so land between the two instead of dismissing
+      // real listings entirely (found live: a De'Longhi Rivelia espresso machine, real
+      // listings around £350-535, priced at £150 because the AI alone was trusted).
+      newPrice = e.aiNew < CHEAP_ITEM_THRESHOLD ? e.aiNew : Math.sqrt(e.aiNew * dataLow);
     } else {
       // Far BELOW the AI: a listing can't easily be cheaper than the shelf
       // price by accident, but a bulk discount can make it look so. Land between.
