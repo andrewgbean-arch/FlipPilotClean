@@ -168,8 +168,14 @@ You are pricing an item for a UK reseller.
 
 Item: "${title}"${packCount ? `\nPack size: ${packCount} in the pack` : ""}
 
-If the title could match multiple different models or quality tiers, assume the
-common/budget version, not a premium or flagship one.
+If the title is generic and could genuinely mean several different models or quality tiers
+(nothing in it points to one specific product), assume the common/budget version rather than
+a premium or flagship one. But if the title names an ACTUAL specific model (a model name,
+number or product line — even one you don't have detailed pricing knowledge of, such as a
+newer or less common release), price that real model as accurately as you can from what you
+do know of the brand and line it belongs to. Never substitute a cheaper, better-known model
+from the same brand just because you are less sure about this exact one — say what you
+genuinely think this specific thing costs, and lower "confidence" instead of lowering the price.
 
 Return ONLY valid JSON (prices in pounds sterling):
 {
