@@ -20,7 +20,10 @@
    ("pack of 5", "6 x 1L", "x12") is treated as bulk and dropped.
 -------------------------------------------------- */
 
-// Wording that means "not a single retail unit", whatever the size.
+// Wording that means "not a single retail unit", whatever the size. "Bundle" is deliberately not
+// here: for electronics it overwhelmingly means one retail SKU sold with its official accessories
+// ("PS5 Console Bundle"), not a wholesale lot — a genuinely wholesale one is still caught by
+// "job lot", "wholesale", "bulk buy/lot/pack" or one of the others below.
 const BULK_WORDING = [
   /\bmulti[- ]?packs?\b/i,
   /\bvalue\s*packs?\b/i,
@@ -28,7 +31,6 @@ const BULK_WORDING = [
   /\bjob\s*lot\b/i,
   /\bwholesale\b/i,
   /\bbulk\s*(buy|lot|pack)?\b/i,
-  /\bbundle\b/i,
   /\blot of\b/i,
   /\bfamily\s*packs?\b/i,
   /\bsaver\s*packs?\b/i,
@@ -39,11 +41,26 @@ const BULK_WORDING = [
 
 const X = "[x×X]"; // listings use a plain x, a capital X and the multiplication sign
 
+// A genuine "6x"/"2 x" multiplier is followed by nothing significant, a product name (letters), or —
+// when it states a size — a volume/weight/count unit ("2 x 500ml", "4 x 40 Tablets"). It is never
+// followed by another bare number (at most with a LENGTH unit) — that is a physical dimension or a
+// clothing size ("34x32", "120 x 60cm", "30 x 20 x 10cm"), not a multipack. Checked against whatever
+// comes after a candidate "Nx" match before it is trusted.
+const LENGTH_UNIT = "cm|mm|m|in|inch(?:es)?|[\"″]";
+function looksLikeDimensionTail(tail: string, countStems: string): boolean {
+  const m = tail.match(new RegExp(`^\\s*(\\d+(?:\\.\\d+)?)(?:\\s*(?:${LENGTH_UNIT}))?\\b`, "i"));
+  if (!m) return false; // no second bare number right away (or it's glued to a non-length unit like "ml") — not a dimension
+  const after = tail.slice(m[0].length);
+  return !new RegExp(`^\\s*(?:${countStems})\\b`, "i").test(after);
+}
+
 // Quantity multipliers: "pack of 5", "6 x 1L", "6x Nicorette", "x12", "(2Pcs)", "3 pack".
-const MULTIPLIER = [
+const X_MULTIPLIER = [
+  new RegExp(`\\b(\\d+)\\s*${X}(?![a-zA-Z])`, "gi"), // "6x ", "2 X(80)", "40 x Nicotine", "2×"
+  new RegExp(`\\b${X}\\s?(\\d+)\\b`, "gi"), //        "x12", "x 12"
+];
+const NON_X_MULTIPLIER = [
   /\bpack of\s*(\d+)/i,
-  new RegExp(`\\b(\\d+)\\s*${X}(?![a-zA-Z])`), // "6x ", "2 X(80)", "40 x Nicotine", "2×"
-  new RegExp(`\\b${X}\\s?(\\d+)\\b`), //        "x12", "x 12"
   /\(\s*(\d+)\s*p(?:c|cs|iece|ieces)?\s*\)/i, // "(2Pcs)"
   /\b(\d+)\s*(?:packs?|pk)\b/i, //               "3 pack", "4pk"
 ];
@@ -52,17 +69,29 @@ const MULTIPLIER = [
 // thing in the box"; "Lozengse" and similar typos are common in listings.
 const COUNT_STEMS =
   "lozen\\w*|tablets?|capsules?|caplets?|sachets?|pouches|pastilles?|softgels?|pcs|pieces?|" +
-  "count|ct|units?|doses?|servings?|portions?|gums?|strips?|patches|tea\\s?bags?|" +
+  "count|units?|doses?|servings?|portions?|gums?|strips?|patches|tea\\s?bags?|" +
   "nappies|diapers?|swabs?|refills?|wipes?";
+// "ct" on its own means "count" ("80ct"), but is exactly how gold purity is written ("9ct", "18ct
+// gold") — kept apart so it can be excluded specifically when it's plainly a carat mark, not merged
+// into COUNT_STEMS where every use would be trusted equally.
+const COUNT_STEMS_WITH_CT = `${COUNT_STEMS}|ct`;
+const HAS_COUNT_STEM = new RegExp(`\\b(?:${COUNT_STEMS})\\b`, "i");
 
-// "72 lozenges", "210 Gums".
-const COUNT_WORD = new RegExp(`\\b(\\d{1,4})\\s?(?:${COUNT_STEMS})\\b`, "i");
-// The trailing-s style: "Lozenges 80s".
+// "9ct gold", "18ct white gold": a carat mark. Stripped before any count/multiplier check runs, so
+// it can never be misread as "9 count" — an actual pack rarely if ever states its size as "Nct" this
+// way, and even a mis-strip here just means the pack size falls back to "not stated", not a wrong one.
+const GOLD_CARAT = /\b\d{1,2}\s?ct\b(?=\s*(?:yellow|white|rose)?\s*gold\b)/gi;
+const dropCaratMarks = (text: string) => text.replace(GOLD_CARAT, "");
+
+// "72 lozenges", "210 Gums", "80ct" (but not "9ct gold" — see dropCaratMarks above).
+const COUNT_WORD = new RegExp(`\\b(\\d{1,4})\\s?(?:${COUNT_STEMS_WITH_CT})\\b`, "i");
+// The trailing-s style: "Lozenges 80s" — only trusted when a real count-stem word is ALSO somewhere
+// in the text; bare "NNs" alone is just as often a style number ("Levi's 501s") or a decade ("80s").
 const COUNT_S = /\b(\d{2,3})['’]?s\b/i;
 // "40 x Nicotine Lozenges": the number in front of the x is the count.
-const NX_COUNT = new RegExp(`\\b(\\d{1,4})\\s*${X}\\s*(?:[a-z0-9%.-]+\\s+){0,3}(?:${COUNT_STEMS})\\b`, "i");
+const NX_COUNT = new RegExp(`\\b(\\d{1,4})\\s*${X}\\s*(?:[a-z0-9%.-]+\\s+){0,3}(?:${COUNT_STEMS_WITH_CT})\\b`, "i");
 // "2x80 Lozenges", "4 x 20 Tablets": the two numbers multiply.
-const AXB_COUNT = new RegExp(`(\\d+)\\s*${X}\\s*(\\d+)\\s*(?:${COUNT_STEMS})\\b`, "i");
+const AXB_COUNT = new RegExp(`(\\d+)\\s*${X}\\s*(\\d+)\\s*(?:${COUNT_STEMS_WITH_CT})\\b`, "i");
 // "(4 x 40 Packs)": says how the count in front of it is made up, so it is not a further multiple.
 const PACK_MAKEUP = new RegExp(`(\\d+)\\s*${X}\\s*(\\d+)`, "g");
 // "Total 480 Lozenges"
@@ -70,8 +99,10 @@ const TOTAL = /\btotal\s*(?:of\s*)?(\d{1,4})\b/i;
 // "2 X(80) ..." — a bracketed count, only trusted next to a multiplier.
 const BRACKETED = /\(\s*(\d{2,3})\s*\)/;
 
-// A single retail unit of a consumable is essentially never 2+ litres or 2+ kg —
-// that's a catering/bulk container even when it's listed as "one" item.
+// A single retail unit of a consumable is essentially never 2+ litres or 2+ kg — that's a
+// catering/bulk container even when it's listed as "one" item. But a scan for something that is
+// itself naturally that size (a 5.2L air fryer, a 3kg dumbbell) must not have its own genuine match
+// thrown out on the same rule — see the `ownSize` parameter on isBulkListing/priceForPack below.
 const OVERSIZED_VOLUME = /\b(\d+(?:\.\d+)?)\s?(?:l|litre|litres|kg|kilograms?)\b/i;
 const OVERSIZED_THRESHOLD = 2;
 
@@ -90,22 +121,42 @@ function firstNumber(text: string, patterns: RegExp[], min: number, max: number)
   return null;
 }
 
-/** How many multiples of the item a listing sells ("6x", "pack of 3"), or null. */
+/** How many multiples of the item a listing sells ("6x", "pack of 3"), or null — never a physical
+ *  dimension or clothing size ("34x32", "120 x 60cm") mistaken for one. */
 function multiplierOf(title: string): number | null {
-  return firstNumber(title, MULTIPLIER, 2, 1000);
+  for (const re of X_MULTIPLIER) {
+    re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(title))) {
+      const n = parseInt(m[1], 10);
+      const head = title.slice(0, m.index);
+      const tail = title.slice(m.index + m[0].length);
+      // A bare number right before this "x" ("30 x 20 x 10cm") means this "x" is the middle of an
+      // N x M x P dimension chain, not a standalone "xN" multiplier — already judged by the earlier
+      // "N x" pairing, so it must not be re-approved here just because THIS number's own tail
+      // happens to be another "x" rather than a bare digit.
+      const precededByNumber = /\d\s*$/.test(head);
+      if (n >= 2 && n <= 1000 && !precededByNumber && !looksLikeDimensionTail(tail, COUNT_STEMS_WITH_CT)) return n;
+    }
+  }
+  return firstNumber(title, NON_X_MULTIPLIER, 2, 1000);
 }
 
 /**
  * The total number of units a piece of text says it holds ("72 lozenges" → 72,
  * "6x ... 80s" → 480, "Total 480 Lozenges" → 480), or null when it doesn't say.
  */
-function unitsOf(text: string): number | null {
+function unitsOf(rawText: string): number | null {
+  const text = dropCaratMarks(rawText);
   const total = text.match(TOTAL);
   if (total) return parseInt(total[1], 10);
 
   const mult = multiplierOf(text);
   const per =
-    firstNumber(text, [COUNT_WORD, COUNT_S], 1, 1000) ??
+    firstNumber(text, [COUNT_WORD], 1, 1000) ??
+    // "Lozenges 80s": only trusted when a real count-stem word is somewhere in the text too —
+    // bare "NNs" alone is just as often a style number ("501s") or a decade ("80s").
+    (HAS_COUNT_STEM.test(text) ? firstNumber(text, [COUNT_S], 1, 1000) : null) ??
     (mult !== null ? firstNumber(text, [BRACKETED], 2, 1000) : null);
   if (per !== null) {
     // "160 Pieces (4 x 40 Packs)": the 4 x 40 explains the 160, it doesn't multiply it.
@@ -125,13 +176,21 @@ function unitsOf(text: string): number | null {
 /** The pack size a piece of text states ("72 lozenges" → 72, "pack of 4" → 4), or null. */
 export function extractPackCount(text: string | null | undefined): number | null {
   if (!text) return null;
-  return unitsOf(text) ?? multiplierOf(text);
+  return unitsOf(text) ?? multiplierOf(dropCaratMarks(text));
 }
 
 /** The total number of units a listing sells, or null when it doesn't say
  *  (a multiplier with no size, like "pack of 3", can't be scaled reliably). */
 export function listingUnits(title: string): number | null {
   return unitsOf(title);
+}
+
+/** The volume or weight (litres or kg) a piece of text itself states, if any — so a listing for
+ *  something the SCANNED item is genuinely this size is never called bulk on that alone. */
+export function extractVolume(text: string | null | undefined): number | null {
+  if (!text) return null;
+  const m = text.match(OVERSIZED_VOLUME);
+  return m ? parseFloat(m[1]) : null;
 }
 
 // Listings for something that goes WITH the item, or for a broken one, are not
@@ -154,18 +213,25 @@ export function isNotTheItem(title: string | null | undefined, query: string): b
 }
 
 /**
- * True when a listing is not comparable to the item that was scanned and
- * should be ignored. See the note at the top for what `wantedCount` changes.
+ * True when a listing is not comparable to the item that was scanned and should be ignored. See the
+ * note at the top for what `wantedCount` changes. `ownVolume` is the litres/kg the SCANNED item's own
+ * title states, if any — so a real 5.2L air fryer's own listings aren't thrown out by the same rule
+ * that (rightly) drops a 5L catering tub of washing-up liquid for a scan of a small bottle of it.
  */
 export function isBulkListing(
   title: string | null | undefined,
-  wantedCount?: number | null
+  wantedCount?: number | null,
+  ownVolume?: number | null
 ): boolean {
   if (!title) return false;
   if (BULK_WORDING.some((re) => re.test(title))) return true;
 
   const volumeMatch = title.match(OVERSIZED_VOLUME);
-  if (volumeMatch && parseFloat(volumeMatch[1]) >= OVERSIZED_THRESHOLD) return true;
+  if (volumeMatch) {
+    const listingVolume = parseFloat(volumeMatch[1]);
+    const allowed = ownVolume && ownVolume >= OVERSIZED_THRESHOLD ? ownVolume * 1.5 : OVERSIZED_THRESHOLD;
+    if (listingVolume >= allowed) return true;
+  }
 
   if (wantedCount && wantedCount >= 1) {
     const units = listingUnits(title);
@@ -177,7 +243,7 @@ export function isBulkListing(
     return mult !== null && Math.abs(mult - wantedCount) > Math.max(1, wantedCount * 0.1);
   }
 
-  return MULTIPLIER.some((re) => re.test(title));
+  return multiplierOf(title) !== null;
 }
 
 /**
@@ -190,10 +256,11 @@ export function isBulkListing(
 export function priceForPack(
   title: string | null | undefined,
   price: number,
-  wantedCount?: number | null
+  wantedCount?: number | null,
+  ownVolume?: number | null
 ): number | null {
   if (!Number.isFinite(price) || price <= 0) return null;
-  if (isBulkListing(title, wantedCount)) return null;
+  if (isBulkListing(title, wantedCount, ownVolume)) return null;
 
   if (wantedCount && wantedCount >= 1 && title) {
     const units = listingUnits(title);

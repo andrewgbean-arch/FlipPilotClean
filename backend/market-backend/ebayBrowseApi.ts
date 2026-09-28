@@ -1,6 +1,6 @@
 import axios from "axios";
 import { EbayMarketResult } from "./ebayMarket";
-import { isNotTheItem, matchesQuery, priceForPack } from "./bulkListingFilter";
+import { extractVolume, isNotTheItem, matchesQuery, priceForPack } from "./bulkListingFilter";
 import { recordCost } from "../utils/costLog";
 
 /* --------------------------------------------------
@@ -138,8 +138,22 @@ export default async function fetchEbayBrowseMarket(
       if (!conditionFilter) throw err;
     }
     if (summaries.length < 3 && conditionFilter) {
-      summaries = (await search()).data.itemSummaries ?? [];
+      // Too few for that exact filter — search again without it, since eBay's own filter can be
+      // stricter than needed and miss real matches. But this must not silently start counting brand
+      // NEW listings towards what a USED one is worth (or the other way round): still keep only
+      // items whose own condition doesn't outright contradict what was actually asked for.
+      const wider = (await search()).data.itemSummaries ?? [];
+      summaries =
+        condition === "used"
+          ? wider.filter((i: any) => !/^new\b/i.test(String(i?.condition ?? "")))
+          : condition === "new"
+          ? wider.filter((i: any) => /^new\b/i.test(String(i?.condition ?? "")) || !/used|refurbished/i.test(String(i?.condition ?? "")))
+          : wider;
     }
+
+    // The scanned item's own volume/weight, if it states one — so a listing that genuinely matches
+    // that size (a 5.2L air fryer) isn't thrown out by the same rule that drops a catering-size tub.
+    const ownVolume = extractVolume(query);
 
     const rawPrices: number[] = [];
     const items: any[] = [];
@@ -156,7 +170,7 @@ export default async function fetchEbayBrowseMarket(
 
       // Scaled to the scanned pack size where the listing says its own; dropped if bulk.
       const listed = parseFloat(item?.price?.value);
-      const value = priceForPack(item?.title, listed, wantedCount) ?? NaN;
+      const value = priceForPack(item?.title, listed, wantedCount, ownVolume) ?? NaN;
       if (isNaN(value)) continue;
       rawPrices.push(value);
 
