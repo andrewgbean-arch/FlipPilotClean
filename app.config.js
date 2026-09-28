@@ -45,6 +45,7 @@ export default {
       "expo-router",
       "expo-image",
       "expo-video",
+      "expo-audio",
       [
         "expo-camera",
         {

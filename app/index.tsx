@@ -3,10 +3,13 @@ import { Animated, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
+import { useAudioPlayer } from "expo-audio";
 
 import { useTheme } from "@/styles/useTheme";
 
 const STARTUP_VIDEO = require("../src/assets/videos/startup.mp4");
+// The video's own track stays muted (see below); this is the startup screen's actual soundtrack.
+const INTRO_MUSIC = require("../assets/sounds/intro.mp3");
 // Safety net: never strand the user on this screen if the video's end
 // event never fires (a slow device, a codec issue, an empty video track).
 const FALLBACK_MS = 8000;
@@ -51,19 +54,24 @@ export default function IntroScreen() {
     p.muted = true;
     p.play();
   });
+  const music = useAudioPlayer(INTRO_MUSIC);
 
   const goHome = () => {
     if (navigatedRef.current) return;
     navigatedRef.current = true;
+    music.pause();
     router.replace("/home");
   };
 
   useEffect(() => {
     const sub = player.addListener("playToEnd", goHome);
     const fallback = setTimeout(goHome, FALLBACK_MS);
+    // Starts alongside the (muted) video, so the two are heard as one intro.
+    music.play();
     return () => {
       sub.remove();
       clearTimeout(fallback);
+      music.pause();
     };
   }, [player]);
 
