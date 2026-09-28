@@ -116,6 +116,10 @@ export default function MessagesScreen() {
   const [reviewStatus, setReviewStatus] = useState<ReviewStatus | null>(null);
   const [reviewing, setReviewing] = useState(false);
   const [loading, setLoading] = useState(true);
+  // A failed load must not look like "no messages yet" — but a background poll
+  // failing once real messages are already showing must not blank them out either,
+  // so this only matters while the relevant list is still empty.
+  const [loadError, setLoadError] = useState(false);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
@@ -130,16 +134,18 @@ export default function MessagesScreen() {
         headers: { "x-device-id": deviceId },
       });
       const data = await res.json();
-      if (!data.ok) return;
+      if (!res.ok || !data.ok) throw new Error("bad-status");
 
       setRole(data.role);
       setBlocked(Boolean(data.blocked));
       if (data.threads) setThreads(data.threads);
       if (data.messages) setMessages(data.messages);
+      setLoadError(false);
       // Fetching your own chat is what marks it read, so let Home know.
       refreshAlerts();
     } catch (err) {
       console.log("❌ Load messages error:", err);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -297,7 +303,21 @@ export default function MessagesScreen() {
         </View>
       ) : inInbox ? (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
-          {threads.length === 0 && (
+          {threads.length === 0 && loadError && (
+            <View style={{ marginTop: 20, gap: 10, alignItems: "center" }}>
+              <Text style={{ color: theme.text, textAlign: "center" }}>
+                Couldn't load your messages. Check your connection and try again.
+              </Text>
+              <TouchableOpacity
+                accessibilityRole="button"
+                onPress={loadMessages}
+                style={{ borderWidth: 1, borderColor: theme.goldDeep, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 16 }}
+              >
+                <Text style={{ color: theme.goldDeep, fontWeight: "700" }}>Try again</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          {threads.length === 0 && !loadError && (
             <Text style={{ color: theme.muted, textAlign: "center", marginTop: 20 }}>
               No messages yet. When a buyer writes to you, it will appear here.
             </Text>
@@ -343,7 +363,22 @@ export default function MessagesScreen() {
         >
           <SafetyCard title="Watch out for scams" tips={MESSAGE_SAFETY_TIPS} />
 
-          {messages.length === 0 && (
+          {messages.length === 0 && loadError && (
+            <View style={{ marginTop: 20, gap: 10, alignItems: "center" }}>
+              <Text style={{ color: theme.text, textAlign: "center" }}>
+                Couldn't load this conversation. Check your connection and try again.
+              </Text>
+              <TouchableOpacity
+                accessibilityRole="button"
+                onPress={loadMessages}
+                style={{ borderWidth: 1, borderColor: theme.goldDeep, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 16 }}
+              >
+                <Text style={{ color: theme.goldDeep, fontWeight: "700" }}>Try again</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {messages.length === 0 && !loadError && (
             <Text style={{ color: theme.muted, textAlign: "center", marginTop: 20 }}>
               No messages yet. Say hello!
             </Text>

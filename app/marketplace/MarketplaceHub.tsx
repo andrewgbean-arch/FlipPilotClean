@@ -22,6 +22,9 @@ export default function MarketplaceHub() {
 
   const [trending, setTrending] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  // A failed load must not look like "nothing listed".
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   // A real fact for Home's "Getting started" card, not something the user has to tell it.
   useEffect(() => {
@@ -29,12 +32,19 @@ export default function MarketplaceHub() {
   }, []);
 
   useEffect(() => {
+    let live = true;
+    setLoading(true);
+    setLoadError(false);
     getDeviceId()
       .then((deviceId) =>
         fetch(`${BASE_URL}/published-listings`, { headers: { "x-device-id": deviceId } })
       )
-      .then((res) => (res.ok ? res.json() : []))
+      .then((res) => {
+        if (!res.ok) throw new Error("bad-status");
+        return res.json();
+      })
       .then((data) => {
+        if (!live) return;
         const listings = Array.isArray(data) ? data : [];
         // Newest first, and only what is still for sale. Ranking by a "deal score"
         // would mean using eBay-derived pricing inside the marketplace.
@@ -45,8 +55,15 @@ export default function MarketplaceHub() {
         setTrending(newest);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
-  }, []);
+      .catch(() => {
+        if (!live) return;
+        setLoadError(true);
+        setLoading(false);
+      });
+    return () => {
+      live = false;
+    };
+  }, [reloadKey]);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.black }}>
@@ -162,11 +179,25 @@ export default function MarketplaceHub() {
           <ActivityIndicator size="large" color={theme.accent} />
         )}
 
-        {!loading && trending.length === 0 && (
+        {!loading && loadError && (
+          <View style={{ gap: 10 }}>
+            <Text style={{ color: theme.text }}>Couldn't load what's just listed. Check your connection and try again.</Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              onPress={() => setReloadKey((k) => k + 1)}
+              style={{ alignSelf: "flex-start", borderWidth: 1, borderColor: theme.goldDeep, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 16 }}
+            >
+              <Text style={{ color: theme.goldDeep, fontWeight: "700" }}>Try again</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {!loading && !loadError && trending.length === 0 && (
           <Text style={{ color: theme.text }}>Nothing listed yet.</Text>
         )}
 
         {!loading &&
+          !loadError &&
           trending.map((listing) => (
             <TouchableOpacity
               key={listing.id}
