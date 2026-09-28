@@ -110,6 +110,15 @@ const valid = (n: number | null | undefined): n is number =>
   typeof n === "number" && Number.isFinite(n) && n > 0;
 
 const round2 = (n: number) => Number(n.toFixed(2));
+// A real listing is priced "£135", not "£134.31" — rounds up, never down, so the recommendation
+// is never showing less than what the underlying numbers actually support. Whole pounds only
+// makes sense once a pound is a small step relative to the price itself: rounding a £1.20 packet
+// of crisps up to a flat £2.00 would be a 67% jump, so the step this rounds to scales with size —
+// 10p under £10, 50p from £10 to £50, a whole £1 above that (where "134.31" becomes "135").
+const roundUpNice = (n: number) => {
+  const step = n < 10 ? 0.1 : n < 50 ? 0.5 : 1;
+  return round2(Math.ceil(n / step) * step);
+};
 
 function median(values: number[]) {
   const sorted = [...values].sort((a, b) => a - b);
@@ -209,9 +218,13 @@ export function decidePrices(e: PriceEvidence): PriceDecision {
     if (sell !== null && newPrice) sell = Math.min(sell, newPrice * 0.95);
   }
 
+  // Buy is worked out from this same rounded sell (not the raw one above), so the Buy price shown
+  // and the profit shown (sell minus buy) both agree with the sell price on screen to the penny.
+  const finalSell = sell === null ? null : roundUpNice(sell);
+
   return {
     newPrice: newPrice === null ? null : round2(newPrice),
-    sell: sell === null ? null : round2(sell),
-    buy: sell === null ? null : round2(sell * BUY_SHARE),
+    sell: finalSell,
+    buy: finalSell === null ? null : round2(finalSell * BUY_SHARE),
   };
 }

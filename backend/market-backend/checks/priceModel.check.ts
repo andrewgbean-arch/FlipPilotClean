@@ -29,12 +29,15 @@ const none = { ebay: null, googleNew: null, aiNew: null, aiUsedMin: null, aiUsed
 }
 
 // A used speaker: market says 150, the AI says 40-50 used, new is about 60.
-// No grade/age given, so the defaults (good, within-6-months) apply — median of
-// three opinions still lands in the same place either way.
+// No grade/age given, so the defaults (good, within-6-months) apply. The blend of three
+// opinions (150, fromNew, 45) would land on the AI's own 45 — but the condition/age ceiling
+// (USED_PRICE_UPLIFT_ALLOWED, added after this test was first written) caps a "good" item at
+// 6 months at 60 * 0.5 * 0.85 * 1.2 = 30.6 regardless of what the market or the AI's own used
+// range implies, so that's what wins here.
 {
   const d = decidePrices({ ...none, used: true, ebay: 150, aiNew: 60, aiUsedMin: 40, aiUsedMax: 50 });
-  between("speaker sell", d.sell, 40, 50);
-  between("speaker buy", d.buy, 20, 25);
+  between("speaker sell", d.sell, 30, 31);
+  between("speaker buy", d.buy, 15, 15.5);
 }
 
 // A used speaker where the market and the AI agree: the market wins.
@@ -164,6 +167,36 @@ eq("chuck is a spare", isNotTheItem("Chuck for DeWalt Cordless Drill DW959K DCD7
 eq("the drill itself", isNotTheItem("DEWALT DCD771B 20V MAX 1/2 Cordless Drill Driver - TOOL ONLY", "DeWalt DCD771 Cordless Drill"), false);
 eq("query word is allowed", isNotTheItem("Padded speaker case", "speaker case"), false);
 eq("a case for the speaker", isNotTheItem("JBL Charge 4 Travel Case", "JBL Charge 4 Bluetooth Speaker"), true);
+
+/* --------------------------------------------------
+   ROUNDING — "£134.31" is never what a real listing is priced at; and buy (half of sell) has
+   to be worked out from the SAME rounded number the app shows, not a hidden unrounded one.
+   A single ebay opinion with nothing else keeps this isolated from the new-price/ceiling
+   maths above (already covered by its own tests) — just the raw sell going into rounding.
+-------------------------------------------------- */
+{
+  // A real reported case: an appliance rounds up to a whole pound, never down.
+  const d = decidePrices({ ...none, used: true, ebay: 134.2 });
+  eq("appliance sell rounds up to a whole pound", d.sell, 135);
+  eq("buy is worked out from the rounded sell, not the raw 134.xx", d.buy, 67.5);
+}
+{
+  // A cheap item is rounded far more gently — to the nearest 10p, not a flat whole pound (which
+  // would turn £1.2x into £2.00, a 67% jump for something this cheap).
+  const d = decidePrices({ ...none, used: true, ebay: 1.23 });
+  eq("a cheap item rounds to the nearest 10p, not a whole pound", d.sell, 1.3);
+}
+{
+  // A mid-range item rounds to the nearest 50p.
+  const d = decidePrices({ ...none, used: true, ebay: 31.2 });
+  eq("a mid-range item rounds to the nearest 50p", d.sell, 31.5);
+}
+{
+  // Never rounds DOWN — a price already sitting exactly on a step is left alone, not
+  // pushed to the next one up.
+  const d = decidePrices({ ...none, used: true, ebay: 40 });
+  eq("a price already on a clean step is left alone", d.sell, 40);
+}
 
 console.log(fail === 0 ? "ALL PASS" : `${fail} FAILED`);
 process.exit(fail ? 1 : 0);
