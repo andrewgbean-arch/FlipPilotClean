@@ -107,4 +107,13 @@ export const CHAPTERS: Chapter[] = [
     comingLabel: "Coming soon",
     download: { version: 1, mb: 5.0 },
   },
+  {
+    id: 9,
+    number: "Nine",
+    place: "Thin Air",
+    blurb:
+      "The Swiss Alps. Pose as a ski instructor, give a banker the worst lesson of his life, find the vault code hidden in a shop full of cuckoo clocks, then climb a cable car in a gale to the vault inside the mountain.",
+    comingLabel: "Coming soon",
+    download: { version: 1, mb: 4.1 },
+  },
 ];
