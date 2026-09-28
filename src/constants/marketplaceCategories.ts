@@ -338,7 +338,7 @@ export const MARKETPLACE_CATEGORIES: MarketplaceCategory[] = [
     icon: "truck",
     emoji: "🚗",
     legacy: ["Motors"],
-    keywords: ["car", "van", "motorbike", "motorcycle", "motor", "vehicle", "caravan", "trailer", "scooter"],
+    keywords: ["car", "van", "motorbike", "motorcycle", "motor", "vehicle", "trailer", "scooter"],
     fields: [
       {
         key: "registration",
@@ -363,6 +363,39 @@ export const MARKETPLACE_CATEGORIES: MarketplaceCategory[] = [
       { key: "fuel", label: "Fuel", type: "choice", options: ["Petrol", "Diesel", "Hybrid", "Electric", "Other"] },
       { key: "motExpiry", label: "MOT until", type: "text", placeholder: "e.g. March 2027" },
       { key: "serviceHistory", label: "Service history", type: "choice", options: ["Full", "Partial", "None"] },
+    ],
+  },
+  {
+    id: "caravans",
+    label: "Caravans & Motorhomes",
+    icon: "truck",
+    emoji: "🚐",
+    keywords: [
+      "caravan", "motorhome", "campervan", "camper van", "touring caravan",
+      "static caravan", "trailer tent",
+    ],
+    fields: [
+      {
+        key: "type",
+        label: "Type",
+        type: "choice",
+        required: true,
+        options: ["Touring caravan", "Static caravan", "Motorhome", "Campervan", "Trailer tent"],
+      },
+      { key: "make", label: "Make", type: "text", placeholder: "e.g. Swift, Bailey" },
+      { key: "model", label: "Model", type: "text" },
+      { key: "year", label: "Year", type: "number", placeholder: "e.g. 2018" },
+      { key: "berths", label: "Berths (sleeps)", type: "number", placeholder: "e.g. 4" },
+      { key: "length", label: "Length", type: "text", placeholder: "e.g. 6.5m" },
+      {
+        key: "registration",
+        label: "Registration",
+        type: "text",
+        placeholder: "e.g. AB12 CDE",
+        uppercase: true,
+        help: "Only a motorhome or campervan has one — a towed caravan isn't registered on its own.",
+      },
+      { key: "motExpiry", label: "MOT until", type: "text", placeholder: "Motorhomes and campervans only" },
     ],
   },
   {
