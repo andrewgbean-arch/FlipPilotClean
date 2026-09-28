@@ -98,4 +98,13 @@ export const CHAPTERS: Chapter[] = [
     comingLabel: "Coming soon",
     download: { version: 1, mb: 5.4 },
   },
+  {
+    id: 8,
+    number: "Eight",
+    place: "All In",
+    blurb:
+      "Monte Carlo on Grand Prix weekend, and Vasko can't lose at baccarat. Borrow a dinner jacket and a string of pearls, find out how he cheats, go all in, then drive the Grand Prix circuit the wrong way round at midnight.",
+    comingLabel: "Coming soon",
+    download: { version: 1, mb: 5.0 },
+  },
 ];
