@@ -403,8 +403,8 @@ export default function CreateNewListing() {
             </Text>
             <Text style={{ color: theme.muted, fontSize: 13, lineHeight: 19 }}>
               {policy.promoActive
-                ? `One car for sale at a time. Listings stay up for ${policy.listingDays ?? 30} days, then you can relist. After the launch offer, a car costs ${policy.carCreditCost} credits.`
-                : `Listings stay up for ${policy.listingDays ?? 30} days, then you can relist. One car for sale at a time, costing ${policy.carCreditCost} credits. ${policy.freeActiveItemsAfterPromo} items can be for sale free at once.`}
+                ? `Everyday items are free to list, no limit. The only exception is vehicles: one for sale at a time, and after the launch offer a vehicle costs ${policy.carCreditCost} credits. Listings stay up for ${policy.listingDays ?? 30} days, then you can relist.`
+                : `Everyday items are free to list (${policy.freeActiveItemsAfterPromo} for sale at once). The only exception is vehicles: one for sale at a time, costing ${policy.carCreditCost} credits. Listings stay up for ${policy.listingDays ?? 30} days, then you can relist.`}
             </Text>
           </View>
         ) : null}
