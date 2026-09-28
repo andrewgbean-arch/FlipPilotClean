@@ -564,6 +564,21 @@ export default function registerAdvertiserPortalRoutes(app: Express) {
     res.json({ ok: true, mode: "card", url: session.url });
   }));
 
+  // Paid by invoice and still running: ask for next month's invoice. FlipPilot sends it and marks it
+  // paid on the admin page, which extends the paid-up date by a month.
+  app.post("/advertiser/adverts/:id/renew-invoice", ...portal, (req: Request, res: Response) => {
+    const all = loadAdverts();
+    const ad = all.find((a) => a.id === req.params.id && mine(req, a));
+    if (!ad || !ad.booking) return res.status(404).json({ ok: false, error: "No such advert" });
+    if (ad.booking.status !== "active") return res.status(409).json({ ok: false, error: "Only a running advert can be carried on." });
+    if (ad.booking.stripe?.subscriptionId) return res.status(409).json({ ok: false, error: "This advert renews on your card by itself." });
+    if (ad.booking.invoiceRequested) return res.status(409).json({ ok: false, error: "You've already asked: we'll email the invoice." });
+    ad.booking.invoiceRequested = true;
+    saveAdverts(all);
+    void advertEmails.renewalInvoiceRequested(ad, req.account!.email).catch(() => {});
+    res.json({ ok: true, advert: forOwner(ad, req) });
+  });
+
   app.post("/advertiser/adverts/:id/cancel", ...portal, safe(async (req: Request, res: Response) => {
     const all = loadAdverts();
     const ad = all.find((a) => a.id === req.params.id && mine(req, a));

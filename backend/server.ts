@@ -38,6 +38,7 @@ import scanStepsRoute from "./routes/scanSteps";
 import vehiclePhotoAnalysisRoute from "./routes/vehiclePhotoAnalysis";
 import vehiclePriceRoute from "./routes/vehiclePrice";
 import { rateLimit } from "./middleware/rateLimit";
+import { runAdvertReminders } from "./utils/advertReminders";
 
 
 
@@ -368,3 +369,15 @@ function retentionPass() {
 }
 setTimeout(retentionPass, 30_000).unref();
 setInterval(retentionPass, 6 * 60 * 60 * 1000).unref();
+
+// Tell businesses before a booked advert stops (utils/advertReminders.ts): invoice payers get the
+// chance to ask for the next invoice, and cancelled ones a friendly note. Each goes once.
+function advertReminderPass() {
+  runAdvertReminders()
+    .then((sent) => {
+      if (sent > 0) console.log(`Advert reminders sent: ${sent}`);
+    })
+    .catch((err: any) => console.log("Advert reminders failed:", err?.message || err));
+}
+setTimeout(advertReminderPass, 60_000).unref();
+setInterval(advertReminderPass, 6 * 60 * 60 * 1000).unref();

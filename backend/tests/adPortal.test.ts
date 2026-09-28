@@ -9,6 +9,7 @@ import { quote, pounds } from "../utils/advertPricing";
 import { Advert, holdsSpace, isLive, loadAdverts, placementLoad, saveAdverts, toPublicAdvert } from "../utils/advertStore";
 import { billing, checkoutRequest, formEncode, verifyStripeSignature } from "../utils/advertBilling";
 import { addMonths, freeMonthState, markPaid } from "../utils/advertBooking";
+import { dueReminders, runAdvertReminders } from "../utils/advertReminders";
 import { applyStripeEvent } from "../routes/stripeWebhook";
 import { accountGuard } from "../middleware/accountGuard";
 import { createSession, findOrCreateAccount } from "../utils/accountStore";
@@ -646,5 +647,68 @@ describe("the launch offer's free month", () => {
     const fm = me.data.adverts.find((a: any) => a.id === ad.id).booking.freeMonth;
     assert.equal(fm.state, "declined");
     assert.match(fm.reason, /paused by reports/);
+  });
+});
+
+describe("before a booked advert stops", () => {
+  const DAY = 86400e3;
+  const inDays = (d: number) => new Date(Date.now() + d * DAY).toISOString();
+  const booking = (over: Record<string, unknown>) => ({ ...portalAd().booking!, ...over });
+
+  test("invoice payers a week before, cancelled ones too, card payers never, and each only once", async () => {
+    const invoiceSoon = portalAd({ booking: booking({ paidThrough: inDays(5) }) });
+    const invoiceLater = portalAd({ booking: booking({ paidThrough: inDays(10) }) });
+    const cardSoon = portalAd({ booking: booking({ paidThrough: inDays(5), stripe: { subscriptionId: "sub_x" } }) });
+    const cancelledSoon = portalAd({ booking: booking({ paidThrough: inDays(3), status: "cancelling", stripe: { subscriptionId: "sub_y" } }) });
+    const alreadyTold = portalAd({ booking: booking({ paidThrough: inDays(4) }) });
+    alreadyTold.booking!.reminderSentFor = alreadyTold.booking!.paidThrough;
+    const over = portalAd({ booking: booking({ paidThrough: inDays(-1) }) });
+    const paused = portalAd({ approved: false, booking: booking({ paidThrough: inDays(5) }) });
+
+    const due = dueReminders([invoiceSoon, invoiceLater, cardSoon, cancelledSoon, alreadyTold, over, paused]);
+    assert.deepEqual(
+      due.map((d) => [d.ad.id, d.kind]),
+      [
+        [invoiceSoon.id, "renew"],
+        [cancelledSoon.id, "ending"],
+      ]
+    );
+
+    // Sent once: the second run finds nothing.
+    saveAdverts([...loadAdverts(), invoiceSoon, cancelledSoon]);
+    assert.equal(await runAdvertReminders(), 2);
+    assert.equal(await runAdvertReminders(), 0);
+    assert.equal(loadAdverts().find((a) => a.id === invoiceSoon.id)!.booking!.reminderSentFor, invoiceSoon.booking!.paidThrough);
+
+    // Paid for another month: the next month's reminder is due in its turn.
+    const renewed = loadAdverts();
+    const again = renewed.find((a) => a.id === invoiceSoon.id)!;
+    again.booking!.paidThrough = inDays(6);
+    saveAdverts(renewed);
+    assert.equal(dueReminders(loadAdverts()).filter((d) => d.ad.id === invoiceSoon.id).length, 1);
+  });
+
+  test("an invoice payer can ask for next month's invoice once; a card payer or another business can't", async () => {
+    const email = `renew-${Date.now()}@example.com`;
+    const token = signIn(email);
+    const { account } = findOrCreateAccount(email, undefined);
+    const other = signIn(`other-${Date.now()}@example.com`);
+    const invoiceAd = portalAd({ ownerAccountId: account.id, booking: booking({ paidThrough: inDays(5) }) });
+    const cardAd = portalAd({ ownerAccountId: account.id, booking: booking({ paidThrough: inDays(5), stripe: { subscriptionId: "sub_z" } }) });
+    saveAdverts([...loadAdverts(), invoiceAd, cardAd]);
+
+    assert.equal((await call("POST", `/advertiser/adverts/${invoiceAd.id}/renew-invoice`, {}, as(other))).status, 404);
+    const r = await call("POST", `/advertiser/adverts/${invoiceAd.id}/renew-invoice`, {}, as(token));
+    assert.equal(r.status, 200, JSON.stringify(r.data));
+    assert.equal(r.data.advert.booking.invoiceRequested, true);
+    assert.equal((await call("POST", `/advertiser/adverts/${invoiceAd.id}/renew-invoice`, {}, as(token))).status, 409);
+    assert.equal((await call("POST", `/advertiser/adverts/${cardAd.id}/renew-invoice`, {}, as(token))).status, 409);
+
+    // Marked paid on the admin page: a month more, and the request is cleared.
+    const paid = await call("POST", `/admin/adverts/${invoiceAd.id}/mark-paid`, { months: 1 }, ADMIN);
+    assert.equal(paid.status, 200, JSON.stringify(paid.data));
+    const after = loadAdverts().find((a) => a.id === invoiceAd.id)!;
+    assert.equal(after.booking!.invoiceRequested, false);
+    assert.ok(new Date(after.booking!.paidThrough!).getTime() > Date.now() + 30 * DAY);
   });
 });
