@@ -338,11 +338,42 @@ export const marketCacheStats = () => ({
  */
 const googleWhenNeeded = () => (process.env.GOOGLE_SHOPPING ?? "").trim().toLowerCase() !== "always";
 
-/** eBay alone is enough when it found a good number of matching listings (and, for a used item, of new ones too). */
+/**
+ * eBay alone is enough when it found a good number of matching listings (and, for a used item, of
+ * new ones too) that both:
+ *   (a) broadly AGREE WITH EACH OTHER — a handful of listings technically clearing the headcount
+ *       but scattered across a wide price range says the market is too thin or too mismatched to
+ *       trust on its own, however many of them there are;
+ *   (b) aren't being flatly CONTRADICTED BY THE AI's own guess — eBay's own listings can be tight
+ *       among themselves and still be quietly wrong (found live: a De'Longhi Rivelia where eBay's
+ *       "new condition" listings agreed with each other at ~£535, itself already well under its
+ *       real ~£650 UK retail price, while the AI's own guess was £150 — a 3.5x gap between two
+ *       independent opinions that Google's real retailer prices exist specifically to settle).
+ * Either signal alone can miss a genuinely unreliable read; checking both catches more of them
+ * without paying for Google on the many ordinary scans where eBay is simply, verifiably right.
+ */
 const STRONG_LISTINGS = 5;
-function ebayIsStrong(ebay: EbayMarketResult | null, ebayNew: EbayMarketResult | null, usedMode: boolean) {
-  const enough = (r: EbayMarketResult | null, n: number) => !!r && r.average != null && (r.items?.length ?? 0) >= n;
-  return enough(ebay, STRONG_LISTINGS) && (!usedMode || enough(ebayNew, 3));
+const MAX_STRONG_SPREAD = 3;
+const MAX_AGREEMENT_GAP = 2;
+export function ebayIsStrong(ebay: EbayMarketResult | null, ebayNew: EbayMarketResult | null, usedMode: boolean, aiNew: number | null) {
+  const consistent = (r: EbayMarketResult | null, n: number) =>
+    !!r &&
+    r.average != null &&
+    (r.items?.length ?? 0) >= n &&
+    r.lowest != null &&
+    r.highest != null &&
+    r.lowest > 0 &&
+    r.highest / r.lowest <= MAX_STRONG_SPREAD;
+
+  // The source that stands in for "what this costs new" — eBay's own new-condition search for a
+  // used item, or the main search itself for something sealed.
+  const primary = usedMode ? ebayNew : ebay;
+  const agreesWithAi =
+    !(typeof aiNew === "number" && aiNew > 0) ||
+    !primary?.average ||
+    Math.max(aiNew, primary.average) / Math.min(aiNew, primary.average) <= MAX_AGREEMENT_GAP;
+
+  return consistent(ebay, STRONG_LISTINGS) && (!usedMode || consistent(ebayNew, 3)) && agreesWithAi;
 }
 
 /* --------------------------------------------------
@@ -433,8 +464,12 @@ export default async function fetchMarketData(
     let ebayNew: Awaited<typeof ebayNewPromise> = null;
     let googleStartedLate = false;
     if (!googlePromise) {
-      ebayNew = await ebayNewPromise;
-      if (ebayIsStrong(ebay, ebayNew, usedMode)) {
+      // Already running since aiEstimatePromise started alongside ebayPromise above — awaiting it
+      // here to judge eBay's strength costs no extra time, and it's awaited again (instantly, from
+      // the same settled promise) further down where its full value feeds the final price.
+      const [resolvedEbayNew, aiEstimate] = await Promise.all([ebayNewPromise, aiEstimatePromise]);
+      ebayNew = resolvedEbayNew;
+      if (ebayIsStrong(ebay, ebayNew, usedMode, safeNumber(aiEstimate?.newPrice))) {
         console.log(`market: Google skipped for "${query.slice(0, 40)}" (eBay had ${ebay?.items?.length} listings)`);
       } else {
         googlePromise = searchGoogle();
