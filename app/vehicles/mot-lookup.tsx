@@ -67,7 +67,7 @@ export default function MotLookupScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
-  const { addVehicle } = useVehicleHistory();
+  const { vehicles, addVehicle, updateVehicle } = useVehicleHistory();
 
   /* ---------------------------------------------
      MOT Lookup Logic
@@ -101,35 +101,50 @@ export default function MotLookupScreen() {
       const make = tidyName(v.make, true);
       const model = tidyName(v.model, true);
 
-      const newVehicle = addVehicle({
-        title: `${make ?? ""} ${model ?? ""}`.trim() || plate,
-        buyPrice: null,
-        sellPrice: null,
-        mot: {
-          reg: plate,
-          make,
-          model,
-          year: v.year ?? null,
-          colour: tidyName(v.colour),
-          taxStatus: v.taxStatus ?? null,
-          motStatus: v.motStatus ?? motStatusFromExpiry(v.motExpiry),
-          tests,
-          motExpiry: v.motExpiry ?? null,
-          expiryDate: v.motExpiry ?? null,
-          mileage: v.mileage ?? null,
-          advisories: v.advisories?.map((a: any) => a.text ?? String(a)) ?? [],
-          failures: v.failures?.map((f: any) => f.text ?? String(f)) ?? [],
-          // One point per MOT test that has a reading (the whole history), or just the latest if the list is missing.
-          mileageHistory:
-            tests.length > 0
-              ? mileageHistoryFromTests(tests)
-              : v.mileage != null && v.lastMotDate
-              ? [{ date: v.lastMotDate, mileage: v.mileage }]
-              : [],
-        },
-      });
+      const motData = {
+        reg: plate,
+        make,
+        model,
+        year: v.year ?? null,
+        colour: tidyName(v.colour),
+        taxStatus: v.taxStatus ?? null,
+        motStatus: v.motStatus ?? motStatusFromExpiry(v.motExpiry),
+        tests,
+        motExpiry: v.motExpiry ?? null,
+        expiryDate: v.motExpiry ?? null,
+        mileage: v.mileage ?? null,
+        advisories: v.advisories?.map((a: any) => a.text ?? String(a)) ?? [],
+        failures: v.failures?.map((f: any) => f.text ?? String(f)) ?? [],
+        // One point per MOT test that has a reading (the whole history), or just the latest if the list is missing.
+        mileageHistory:
+          tests.length > 0
+            ? mileageHistoryFromTests(tests)
+            : v.mileage != null && v.lastMotDate
+            ? [{ date: v.lastMotDate, mileage: v.mileage }]
+            : [],
+      };
 
-      router.push(`/mot/${newVehicle.id}`);
+      // Looking a plate up again (a second tap, or one already in History) refreshes that
+      // same entry instead of piling up a duplicate with the same reg every time.
+      const existing = vehicles.find(
+        (veh) => veh.mot?.reg?.replace(/\s+/g, "").toUpperCase() === plate
+      );
+
+      if (existing) {
+        updateVehicle(existing.id, {
+          title: `${make ?? ""} ${model ?? ""}`.trim() || plate,
+          mot: motData,
+        });
+        router.push(`/mot/${existing.id}`);
+      } else {
+        const newVehicle = addVehicle({
+          title: `${make ?? ""} ${model ?? ""}`.trim() || plate,
+          buyPrice: null,
+          sellPrice: null,
+          mot: motData,
+        });
+        router.push(`/mot/${newVehicle.id}`);
+      }
     } catch (e) {
       console.log("MOT lookup failed:", e);
       setError("Couldn't reach the lookup service. Try again.");
