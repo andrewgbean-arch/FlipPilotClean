@@ -286,7 +286,11 @@ export default function MotorsHub() {
           >
             MOT attention
           </SectionTitle>
-          {motAttention.length === 0 ? (
+          {vehicles.length === 0 ? (
+            // Distinct from "checked, and all clear" below — a green tick here would claim
+            // something that was never actually checked, since there's nothing to check yet.
+            <EmptyCard Icon={Car} iconColor={theme.muted} text="Add a vehicle to see MOT attention here." />
+          ) : motAttention.length === 0 ? (
             <EmptyCard Icon={CheckCircle} iconColor={theme.success} text="No MOT issues." />
           ) : (
             <Group>
