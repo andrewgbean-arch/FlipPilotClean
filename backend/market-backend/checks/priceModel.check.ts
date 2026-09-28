@@ -190,6 +190,23 @@ eq("match same model", matchesQuery("JBL Charge 4 Portable Waterproof Speaker Bl
 eq("reject charge 5", matchesQuery("JBL Charge 5 Portable Bluetooth Speaker", "JBL Charge 4 Bluetooth Speaker"), false);
 eq("reject xtreme 4", matchesQuery("JBL Xtreme 4 Portable Speaker", "JBL Charge 4 Bluetooth Speaker"), false);
 eq("generic query matches all", matchesQuery("Anything Bluetooth Speaker", "Portable Bluetooth Speaker"), true);
+
+// Found live 2026-09-28: "espresso"/"machine"/"coffee" were treated as required identifying
+// words, so a genuine De'Longhi Rivelia listing that said "coffee machine" instead of "espresso
+// machine" — a completely ordinary synonym — failed to match its own product, while a totally
+// different, much cheaper De'Longhi model (that happened to also say "espresso...machine") could
+// still slip through on a weaker match. Only the brand and model name should be required.
+eq("rivelia words", identifyingWords("De'Longhi Rivelia Espresso Machine").join(","), "longhi,rivelia");
+eq(
+  "a real Rivelia listing worded differently still matches",
+  matchesQuery("De'Longhi Delonghi Rivelia Bean to Cup Coffee Machine", "De'Longhi Rivelia Espresso Machine"),
+  true
+);
+eq(
+  "a different, cheaper De'Longhi model is rejected",
+  matchesQuery("De'Longhi Delonghi Stilosa EC260 Espresso Coffee Machine", "De'Longhi Rivelia Espresso Machine"),
+  false
+);
 eq("crisps other flavour rejected", matchesQuery("Walkers Monster Munch Pickled Onion 72g", "Walkers Monster Munch Roast Beef 72g"), false);
 eq("crisps same flavour, spaced size", matchesQuery("Monster Munch Roast Beef Walkers 72 g", "Walkers Monster Munch Roast Beef 72g"), true);
 eq("lozenges typo-tolerant", matchesQuery("Nicorette Cools 4mg Lozenges Icy Mint", "NICORETTE Icy Mint 4mg Nicotine Lozenges"), true);

@@ -328,7 +328,12 @@ const GENERIC_WORDS = new Set(
     "laptop tablet camera watch toy toys game games mini large small medium big original classic " +
     "edition genuine official uk free delivery fast bargain boxed unboxed sealed working tested " +
     "great good condition quality high low super mega ultra pro plus max lozenge lozenges tablets tablet " +
-    "snacks snack crisps flavour flavor flavoured size sized"
+    "snacks snack crisps flavour flavor flavoured size sized " +
+    // Category words for appliances: what a listing calls the kind of thing varies a lot more than
+    // for electronics ("espresso machine" and "bean-to-cup coffee machine" are the same product),
+    // so treating them as identity-bearing was rejecting a real Rivelia listing for saying "coffee
+    // machine" instead of "espresso machine", the SAME product a genuine match was thrown out for.
+    "machine machines maker makers coffee espresso automatic manual cup"
   ).split(" ")
 );
 
