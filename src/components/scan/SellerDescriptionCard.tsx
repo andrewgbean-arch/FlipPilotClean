@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Copy, Eye } from "phosphor-react-native";
 
@@ -30,6 +30,12 @@ export default function SellerDescriptionCard({ title, condition, age, intro, pa
   const [viewing, setViewing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Correcting the name (or Condition/Age) after a description was already written must not
+  // leave the old, now-wrong-named text sitting there as if it still described this item.
+  useEffect(() => {
+    setText(null);
+  }, [title, condition, age, intro, packCount]);
 
   const say = (message: string) => {
     setNotice(message);
