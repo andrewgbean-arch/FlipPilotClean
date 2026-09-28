@@ -1,7 +1,7 @@
 import axios from "axios";
 import type { EbayMarketResult } from "./ebayMarket";
 import fetchEbayBrowseMarket from "./ebayBrowseApi";
-import { extractPackCount, isNotTheItem, matchesQuery, priceForPack } from "./bulkListingFilter";
+import { extractPackCount, extractVolume, isCapacityRatedGoods, isNotTheItem, matchesQuery, priceForPack } from "./bulkListingFilter";
 import { decidePrices, type AgeBand, type Grade } from "./priceModel";
 import { SourceCache } from "../utils/sourceCache";
 import { openAiUsage, recordCost } from "../utils/costLog";
@@ -109,6 +109,12 @@ async function fetchGoogleShopping(query: string, wantedCount?: number | null) {
     // this product, unless there are too few of those.
     const sameProduct = items.filter((i: any) => matchesQuery(i?.title, query));
 
+    // Same reasoning as the eBay side (ebayBrowseApi.ts): a listing that genuinely matches the
+    // scanned item's own stated size isn't bulk, and a tumble dryer/fridge/etc never states its
+    // own capacity in a photo, so the oversized-volume rule is skipped for it outright.
+    const ownVolume = extractVolume(query);
+    const capacityRatedGoods = isCapacityRatedGoods(query);
+
     for (const item of sameProduct.length >= 3 ? sameProduct : items) {
       // The shelf price of the listing. (`unit_price` is a price per 100g or per
       // litre, which is not what the item costs, so it is not used.)
@@ -118,7 +124,7 @@ async function fetchGoogleShopping(query: string, wantedCount?: number | null) {
 
       const listed = parseFloat(String(c).replace(/[^0-9.,]/g, "").replace(",", "."));
       // Scaled to the scanned pack size where the listing says its own; dropped if bulk.
-      const p = priceForPack(item.title, listed, wantedCount);
+      const p = priceForPack(item.title, listed, wantedCount, ownVolume, capacityRatedGoods);
       if (p !== null) rawPrices.push(p);
     }
 

@@ -106,6 +106,23 @@ const BRACKETED = /\(\s*(\d{2,3})\s*\)/;
 const OVERSIZED_VOLUME = /\b(\d+(?:\.\d+)?)\s?(?:l|litre|litres|kg|kilograms?)\b/i;
 const OVERSIZED_THRESHOLD = 2;
 
+// Appliances and other durable goods where a stated kg/l is a completely normal single-unit
+// spec (load capacity, internal volume, weight) and never a sign of a bulk/catering container.
+// `ownVolume` above can't protect these the way it protects a labelled air fryer or dumbbell:
+// the photo-identify step only states a scanned item's own size when it's printed on the
+// OUTSIDE (see extractVolume), and an appliance's capacity is on an internal rating plate, never
+// visible in a photo — real Hotpoint/Bosch/etc tumble dryer and washing machine listings that
+// state their genuine 7-9kg load size were being dropped as "bulk" wholesale, on every single
+// one, leaving only mismatched or spares listings to price the whole appliance from.
+const CAPACITY_RATED_GOODS =
+  /\b(tumble dryer|washing machine|dishwasher|fridge|freezer|refrigerator|dryer|cooker|oven|dumbbell|kettlebell|weight plate|barbell|gas bottle|gas cylinder|generator|water tank|fish tank|aquarium|suitcase|holdall|rucksack|backpack)\b/i;
+
+/** Whether the SCANNED item (by its own query/title) is one of these — the caller passes this
+ *  through to isBulkListing/priceForPack so the oversized-volume rule is skipped for it entirely. */
+export function isCapacityRatedGoods(query: string | null | undefined): boolean {
+  return !!query && CAPACITY_RATED_GOODS.test(query);
+}
+
 // A listing this many times the size of the scanned pack has a bulk discount
 // so deep that scaling its price down tells us nothing useful.
 const MAX_SCALE = 30;
@@ -217,20 +234,25 @@ export function isNotTheItem(title: string | null | undefined, query: string): b
  * note at the top for what `wantedCount` changes. `ownVolume` is the litres/kg the SCANNED item's own
  * title states, if any — so a real 5.2L air fryer's own listings aren't thrown out by the same rule
  * that (rightly) drops a 5L catering tub of washing-up liquid for a scan of a small bottle of it.
+ * `capacityRatedGoods` skips that same rule outright for a tumble dryer, fridge or similar, where
+ * `ownVolume` alone can't help (see isCapacityRatedGoods above).
  */
 export function isBulkListing(
   title: string | null | undefined,
   wantedCount?: number | null,
-  ownVolume?: number | null
+  ownVolume?: number | null,
+  capacityRatedGoods?: boolean
 ): boolean {
   if (!title) return false;
   if (BULK_WORDING.some((re) => re.test(title))) return true;
 
-  const volumeMatch = title.match(OVERSIZED_VOLUME);
-  if (volumeMatch) {
-    const listingVolume = parseFloat(volumeMatch[1]);
-    const allowed = ownVolume && ownVolume >= OVERSIZED_THRESHOLD ? ownVolume * 1.5 : OVERSIZED_THRESHOLD;
-    if (listingVolume >= allowed) return true;
+  if (!capacityRatedGoods) {
+    const volumeMatch = title.match(OVERSIZED_VOLUME);
+    if (volumeMatch) {
+      const listingVolume = parseFloat(volumeMatch[1]);
+      const allowed = ownVolume && ownVolume >= OVERSIZED_THRESHOLD ? ownVolume * 1.5 : OVERSIZED_THRESHOLD;
+      if (listingVolume >= allowed) return true;
+    }
   }
 
   if (wantedCount && wantedCount >= 1) {
@@ -257,10 +279,11 @@ export function priceForPack(
   title: string | null | undefined,
   price: number,
   wantedCount?: number | null,
-  ownVolume?: number | null
+  ownVolume?: number | null,
+  capacityRatedGoods?: boolean
 ): number | null {
   if (!Number.isFinite(price) || price <= 0) return null;
-  if (isBulkListing(title, wantedCount, ownVolume)) return null;
+  if (isBulkListing(title, wantedCount, ownVolume, capacityRatedGoods)) return null;
 
   if (wantedCount && wantedCount >= 1 && title) {
     const units = listingUnits(title);

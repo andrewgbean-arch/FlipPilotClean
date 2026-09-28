@@ -1,6 +1,6 @@
 import axios from "axios";
 import { EbayMarketResult } from "./ebayMarket";
-import { extractVolume, isNotTheItem, matchesQuery, priceForPack } from "./bulkListingFilter";
+import { extractVolume, isCapacityRatedGoods, isNotTheItem, matchesQuery, priceForPack } from "./bulkListingFilter";
 import { recordCost } from "../utils/costLog";
 
 /* --------------------------------------------------
@@ -154,6 +154,9 @@ export default async function fetchEbayBrowseMarket(
     // The scanned item's own volume/weight, if it states one — so a listing that genuinely matches
     // that size (a 5.2L air fryer) isn't thrown out by the same rule that drops a catering-size tub.
     const ownVolume = extractVolume(query);
+    // A tumble dryer, fridge or similar never states its own capacity in a photo (it's on an
+    // internal rating plate), so ownVolume alone can't protect these — skip that rule for them outright.
+    const capacityRatedGoods = isCapacityRatedGoods(query);
 
     const rawPrices: number[] = [];
     const items: any[] = [];
@@ -170,7 +173,7 @@ export default async function fetchEbayBrowseMarket(
 
       // Scaled to the scanned pack size where the listing says its own; dropped if bulk.
       const listed = parseFloat(item?.price?.value);
-      const value = priceForPack(item?.title, listed, wantedCount, ownVolume) ?? NaN;
+      const value = priceForPack(item?.title, listed, wantedCount, ownVolume, capacityRatedGoods) ?? NaN;
       if (isNaN(value)) continue;
       rawPrices.push(value);
 
