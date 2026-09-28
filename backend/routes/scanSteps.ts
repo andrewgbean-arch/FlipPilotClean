@@ -191,6 +191,37 @@ const gradeOf = (condition: unknown) => {
   return /like new/i.test(c) ? "perfect" : /poor/i.test(c) ? "poor" : /fair/i.test(c) ? "poor" : "good";
 };
 
+/**
+ * Works out how to price this request: as a sealed shelf item (Condition ignored), or as the
+ * specific used item being described (Condition and Age both apply).
+ *
+ * The app sends both Condition and Age together on every recheck (see scan-results.tsx's
+ * recheckPrice), and neither on the very first, automatic lookup. That first lookup, before
+ * anyone has told us anything about this actual item, is a fair moment for a barcode's shelf
+ * price. But the whole point of the Condition and Age boxes is that changing either is meant
+ * to change the price — so once this is a recheck, always price it as the real, specific item
+ * being described, not a sealed shelf one. Without this, "New" in Age silenced Condition
+ * completely: Perfect and Poor priced identically, whatever was chosen.
+ */
+export function priceAs(input: { barcode: unknown; condition: unknown; grade: unknown; age: unknown }): {
+  isNew: boolean;
+  grade: Grade;
+  age: AgeBand | null;
+} {
+  const gradeGiven = typeof input.grade === "string" && GRADES.has(input.grade);
+  const ageGiven = typeof input.age === "string" && AGES.has(input.age);
+  return {
+    isNew:
+      gradeGiven || ageGiven
+        ? false
+        : input.barcode
+        ? true
+        : /^new$/i.test(String(input.condition ?? "").trim()),
+    grade: (gradeGiven ? input.grade : gradeOf(input.condition)) as Grade,
+    age: (ageGiven ? input.age : null) as AgeBand | null,
+  };
+}
+
 // The price step needs the token the identify step handed out, so it can't be used on its own as a free price service.
 router.post("/price", rateLimit(30), requireScanToken, paidLookupBudget, async (req, res) => {
   try {
@@ -198,11 +229,7 @@ router.post("/price", rateLimit(30), requireScanToken, paidLookupBudget, async (
     if (!title || typeof title !== "string") return res.json({ error: "Missing title" });
 
     const startedAt = Date.now();
-    // "New" in the Age box means the item itself is unused, so it is priced like
-    // a new one whatever the app guessed from the barcode or the photo.
-    const chosenAge = (typeof age === "string" && AGES.has(age) ? age : null) as AgeBand | null;
-    const isNew = chosenAge ? chosenAge === "new" : barcode ? true : /^new$/i.test(String(condition ?? "").trim());
-    const chosenGrade = (typeof grade === "string" && GRADES.has(grade) ? grade : gradeOf(condition)) as Grade;
+    const { isNew, grade: chosenGrade, age: chosenAge } = priceAs({ barcode, condition, grade, age });
     const count = Number(packCount);
 
     // The description is written while the prices are looked up.
