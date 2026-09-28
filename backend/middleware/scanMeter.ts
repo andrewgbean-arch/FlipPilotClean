@@ -3,6 +3,7 @@ import { planStatus } from "../subscriptions/revenueCat";
 import { TRADER_MONTHLY_SCANS, returnTraderScan, takeTraderScan } from "../utils/traderAllowance";
 import { freeScanCapEnabled, freeScanStatus, returnFreeScan, takeFreeScan } from "./freeScanLimit";
 import { getBalance, refund, spend } from "../utils/creditStore";
+import { allowedDeviceIds } from "./sellingGate";
 
 /**
  * What a lookup (barcode, photo or search) costs the person, in this order:
@@ -17,6 +18,11 @@ import { getBalance, refund, spend } from "../utils/creditStore";
  * arrives is not refunded: the lookup ran and cost us the same.
  *
  * Off in development (see freeScanCapEnabled) so testing on your own machine never runs out.
+ *
+ * On a live server, a device named in SELLING_ALLOWED_DEVICE_IDS (see sellingGate.ts — the
+ * same list already used for the selling/Pro gate, for the same reason: phones the app is
+ * being built and demonstrated on) skips this meter entirely, so testing on a real phone
+ * against production never runs out of free scans either.
  */
 
 export const callerDevice = (req: Request): string | null => {
@@ -57,6 +63,11 @@ export async function scanMeter(req: Request, res: Response, next: NextFunction)
       message: "Something went wrong identifying your phone. Please update the app and try again.",
     });
     return;
+  }
+
+  if (allowedDeviceIds().includes(deviceId)) {
+    console.log(`scanMeter: allowing a device named in SELLING_ALLOWED_DEVICE_IDS (${deviceId.slice(0, 8)}…)`);
+    return next();
   }
 
   if (takeFreeScan(deviceId)) {
