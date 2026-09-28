@@ -38,6 +38,7 @@ import SellerDescriptionCard from "@/components/scan/SellerDescriptionCard";
 import { dropPending, getPending } from "@/utils/pendingScan";
 import { applyPrices, SCAN_AGAIN_EVENT } from "@/utils/scanTransform";
 import { keepPhoto } from "@/utils/keptPhotos";
+import { markHasScanned } from "@/utils/onboarding";
 
 // Keys of the price keypad, in reading order (three to a row).
 const CALC_KEYS = ["7", "8", "9", "4", "5", "6", "1", "2", "3", "0", ".", "DEL"];
@@ -236,6 +237,9 @@ export default function ScanResultsScreen() {
         setPriceState("ready");
         firstLookupDone.current = true;
         dropPending(pendingId);
+        // A real fact for Home's "Getting started" card: seeing a price is the milestone, whether
+        // or not this particular scan gets saved.
+        markHasScanned();
       })
       .catch((err) => {
         if (controller.signal.aborted) return;

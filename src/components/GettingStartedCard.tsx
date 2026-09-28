@@ -4,7 +4,7 @@ import { router, useFocusEffect } from "expo-router";
 import { CheckCircle, CircleIcon } from "phosphor-react-native";
 
 import { useTheme } from "@/styles/ThemeContext";
-import { hasVisitedMarketplace } from "@/utils/onboarding";
+import { hasScannedBefore, hasVisitedMarketplace } from "@/utils/onboarding";
 import type { FlipRecord } from "@/features/vehicles/models/FlipRecord";
 
 /**
@@ -17,13 +17,15 @@ type Item = { key: string; label: string; route: string; done: boolean };
 export default function GettingStartedCard({ flips }: { flips: FlipRecord[] }) {
   const theme = useTheme();
   const [visitedMarketplace, setVisitedMarketplace] = useState(false);
+  const [scanned, setScanned] = useState(false);
 
-  // Re-checked every time Home is shown again (coming back from Marketplace, say), not just when
-  // a flip is saved, so a tick appears as soon as it's true rather than waiting for something else.
+  // Re-checked every time Home is shown again (coming back from Marketplace or a scan, say), not
+  // just when a flip is saved, so a tick appears as soon as it's true rather than waiting on that.
   useFocusEffect(
     useCallback(() => {
       let live = true;
       hasVisitedMarketplace().then((v) => live && setVisitedMarketplace(v));
+      hasScannedBefore().then((v) => live && setScanned(v));
       return () => {
         live = false;
       };
@@ -31,7 +33,8 @@ export default function GettingStartedCard({ flips }: { flips: FlipRecord[] }) {
   );
 
   const items: Item[] = [
-    { key: "scan", label: "Scan something to see what it's worth", route: "/scan", done: flips.some((f) => !f.mot) },
+    // A price having been shown is the milestone — not whether that particular scan got saved.
+    { key: "scan", label: "Scan something to see what it's worth", route: "/scan", done: scanned || flips.some((f) => !f.mot) },
     { key: "mot", label: "Check a car's MOT history", route: "/vehicles/mot-lookup", done: flips.some((f) => !!f.mot) },
     { key: "favourite", label: "Star a favourite", route: "/history", done: flips.some((f) => f.favourite) },
     { key: "market", label: "Have a look at the Marketplace", route: "/marketplace", done: visitedMarketplace },
