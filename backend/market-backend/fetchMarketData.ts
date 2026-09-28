@@ -69,6 +69,22 @@ function filterOutliers(prices: number[]) {
   return prices.filter((p) => p >= min && p <= max);
 }
 
+/**
+ * The single "shelf price" figure to represent a set of already-filtered, genuinely comparable
+ * listings — the upper quartile, not the middle or the bottom. Used to lean on the lower quartile,
+ * on the reasoning that an unlabelled multipack or a premium seller only ever pushes a price UP.
+ * That's now handled properly, per listing, before a price ever reaches here (priceForPack/
+ * isBulkListing in bulkListingFilter.ts) — so what's left is real variation between genuine
+ * single-unit listings, and erring low on that side quietly undersold a lot of what got scanned
+ * today (a De'Longhi Rivelia's own real £449-808 UK listings, correctly matched, still landed low
+ * as "the" price). Lean dearer instead.
+ */
+export function dearerQuartile(prices: number[]): number | null {
+  if (!prices.length) return null;
+  const sorted = [...prices].sort((a, b) => a - b);
+  return sorted[Math.ceil((sorted.length - 1) * 0.75)];
+}
+
 /* --------------------------------------------------
    ⭐ Helper: merge prices safely
 -------------------------------------------------- */
@@ -134,16 +150,10 @@ async function fetchGoogleShopping(query: string, wantedCount?: number | null) {
       return { min: null, max: null, avg: null, items };
     }
 
-    // Multipacks that don't say so, and premium sellers, only ever push a price
-    // UP, so the shelf price of the item is nearer the bottom of what is listed
-    // than the middle: use the lower quartile.
-    const sorted = [...prices].sort((a, b) => a - b);
-    const lowerQuartile = sorted[Math.floor((sorted.length - 1) * 0.25)];
-
     return {
       min: Math.min(...prices),
       max: Math.max(...prices),
-      avg: lowerQuartile,
+      avg: dearerQuartile(prices),
       items,
     };
   } catch (err: any) {
@@ -348,13 +358,17 @@ const googleWhenNeeded = () => (process.env.GOOGLE_SHOPPING ?? "").trim().toLowe
  *       among themselves and still be quietly wrong (found live: a De'Longhi Rivelia where eBay's
  *       "new condition" listings agreed with each other at ~£535, itself already well under its
  *       real ~£650 UK retail price, while the AI's own guess was £150 — a 3.5x gap between two
- *       independent opinions that Google's real retailer prices exist specifically to settle).
- * Either signal alone can miss a genuinely unreliable read; checking both catches more of them
- * without paying for Google on the many ordinary scans where eBay is simply, verifiably right.
+ *       independent opinions that Google's real retailer prices exist specifically to settle);
+ *   (c) aren't for a genuinely EXPENSIVE item — the same percentage error means a lot more real
+ *       money on a £600 espresso machine than a £15 phone case, so above HIGH_VALUE_THRESHOLD
+ *       Google is always worth the extra penny or two, whatever eBay's own numbers look like.
+ * Any signal alone can miss a genuinely unreliable read; checking all three catches more of them
+ * without paying for Google on the many ordinary, cheap scans where eBay is simply, verifiably right.
  */
 const STRONG_LISTINGS = 5;
 const MAX_STRONG_SPREAD = 3;
 const MAX_AGREEMENT_GAP = 2;
+const HIGH_VALUE_THRESHOLD = 200;
 export function ebayIsStrong(ebay: EbayMarketResult | null, ebayNew: EbayMarketResult | null, usedMode: boolean, aiNew: number | null) {
   const consistent = (r: EbayMarketResult | null, n: number) =>
     !!r &&
@@ -372,8 +386,9 @@ export function ebayIsStrong(ebay: EbayMarketResult | null, ebayNew: EbayMarketR
     !(typeof aiNew === "number" && aiNew > 0) ||
     !primary?.average ||
     Math.max(aiNew, primary.average) / Math.min(aiNew, primary.average) <= MAX_AGREEMENT_GAP;
+  const notHighValue = !primary?.average || primary.average <= HIGH_VALUE_THRESHOLD;
 
-  return consistent(ebay, STRONG_LISTINGS) && (!usedMode || consistent(ebayNew, 3)) && agreesWithAi;
+  return consistent(ebay, STRONG_LISTINGS) && (!usedMode || consistent(ebayNew, 3)) && agreesWithAi && notHighValue;
 }
 
 /* --------------------------------------------------
