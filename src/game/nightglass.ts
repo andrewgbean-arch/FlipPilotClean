@@ -116,4 +116,13 @@ export const CHAPTERS: Chapter[] = [
     comingLabel: "Coming soon",
     download: { version: 1, mb: 4.1 },
   },
+  {
+    id: 10,
+    number: "Ten",
+    place: "Burn Notice",
+    blurb:
+      "London in the rain, wanted by your own side. A chip shop that is a safe house, forty kippers for Headquarters, a chase on the Underground, and tea at the Wellington with the Minister and the man who framed you.",
+    comingLabel: "Coming soon",
+    download: { version: 1, mb: 6.8 },
+  },
 ];
