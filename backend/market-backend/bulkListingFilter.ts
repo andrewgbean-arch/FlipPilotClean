@@ -213,8 +213,12 @@ export function extractVolume(text: string | null | undefined): number | null {
 // Listings for something that goes WITH the item, or for a broken one, are not
 // the item: a "JBL Charge 4 case" or "JBL Charge 4 for parts" says nothing about
 // what a working speaker is worth, but it matches the search and drags the price down.
+// A large appliance's own spares (a motor, a control board, a drum bearing) are the same
+// problem in different words: a search for "Hotpoint Tumble Dryer" with no model number found
+// eBay's whole first page of results was every one of these, none caught by the words above —
+// they name a component, not an accessory, and none of the words below were on the list.
 const NOT_THE_ITEM =
-  /\b(case|cover|pouch|sleeve|skin|strap|lanyard|stand|mount|holder|bracket|cable|charger|charging|adapter|adaptor|battery|batteries|replacement|spare|spares|parts|repair|faulty|broken|damaged|untested|manual|sticker|decal|box only|empty box|not working|no power|dead|clip|hook|chuck|bits|brushes|gasket|nozzle|tank|filter|filters|descaler|descaling|valve|seal|seals|pipe|hose|jug|carafe|portafilter|group\s?head|3d model|3d render|digital model|cad model|stl file|render pack)\b/gi;
+  /\b(case|cover|pouch|sleeve|skin|strap|lanyard|stand|mount|holder|bracket|cable|charger|charging|adapter|adaptor|battery|batteries|replacement|spare|spares|parts|repair|faulty|broken|damaged|untested|manual|sticker|decal|box only|empty box|not working|no power|dead|clip|hook|chuck|bits|brushes|gasket|nozzle|tank|filter|filters|descaler|descaling|valve|seal|seals|pipe|hose|jug|carafe|portafilter|group\s?head|3d model|3d render|digital model|cad model|stl file|render pack|motor|control board|circuit board|pcb|module|drum bearing|bearing|heater element|heating element|condenser unit|condenser box|drive belt|thermostat|capacitor|carbon brush|hinge|door|interlock|control panel)\b/gi;
 
 /**
  * True when a listing looks like an accessory, spare part or faulty unit rather
