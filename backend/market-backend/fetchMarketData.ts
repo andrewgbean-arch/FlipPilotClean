@@ -120,7 +120,7 @@ async function fetchGoogleShopping(query: string, wantedCount?: number | null) {
       // litre, which is not what the item costs, so it is not used.)
       const c = item.extracted_price ?? item.price;
       if (!c) continue;
-      if (isNotTheItem(item.title, query)) continue;
+      if (isNotTheItem(item.title, query, capacityRatedGoods)) continue;
 
       const listed = parseFloat(String(c).replace(/[^0-9.,]/g, "").replace(",", "."));
       // Scaled to the scanned pack size where the listing says its own; dropped if bulk.

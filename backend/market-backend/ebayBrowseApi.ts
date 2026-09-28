@@ -168,7 +168,7 @@ export default async function fetchEbayBrowseMarket(
 
     for (const item of pool) {
       // Accessories, spares and faulty units are not the item.
-      if (isNotTheItem(item?.title, query)) continue;
+      if (isNotTheItem(item?.title, query, capacityRatedGoods)) continue;
       if (/parts|not working|faulty/i.test(String(item?.condition ?? ""))) continue;
 
       // Scaled to the scanned pack size where the listing says its own; dropped if bulk.

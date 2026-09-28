@@ -220,16 +220,28 @@ export function extractVolume(text: string | null | undefined): number | null {
 const NOT_THE_ITEM =
   /\b(case|cover|pouch|sleeve|skin|strap|lanyard|stand|mount|holder|bracket|cable|charger|charging|adapter|adaptor|battery|batteries|replacement|spare|spares|parts|repair|faulty|broken|damaged|untested|manual|sticker|decal|box only|empty box|not working|no power|dead|clip|hook|chuck|bits|brushes|gasket|nozzle|tank|filter|filters|descaler|descaling|valve|seal|seals|pipe|hose|jug|carafe|portafilter|group\s?head|3d model|3d render|digital model|cad model|stl file|render pack|motor|control board|circuit board|pcb|module|drum bearing|bearing|heater element|heating element|condenser unit|condenser box|drive belt|thermostat|capacitor|carbon brush|hinge|door|interlock|control panel)\b/gi;
 
+// More appliance-specific spares — deliberately kept OUT of the list above and only checked when
+// capacityRatedGoods says this really is a tumble dryer/fridge/etc: a "switch", "handle",
+// "container" or "timer" is a completely ordinary, positive thing to mention on countless
+// unrelated whole items (a games "switch" console, a suitcase "handle", a lunch "container"), so
+// blacklisting them for every product would do more harm than good — but for THIS category they
+// only ever name a spare part (found live: several more real spare listings this narrowly missed).
+const APPLIANCE_PARTS_EXTRA = /\b(water container|drawer|pump|micro switch|switch|heat exchanger?|timer|handle|container)\b/gi;
+
 /**
- * True when a listing looks like an accessory, spare part or faulty unit rather
- * than the item searched for. A word the search itself contains does not count
- * (searching "phone charger" must keep listings that say "charger").
+ * True when a listing looks like an accessory, spare part or faulty unit rather than the item
+ * searched for. A word the search itself contains does not count (searching "phone charger" must
+ * keep listings that say "charger"). `capacityRatedGoods` (see isCapacityRatedGoods above) also
+ * checks the narrower, appliance-only vocabulary above that would be too broad for every product.
  */
-export function isNotTheItem(title: string | null | undefined, query: string): boolean {
+export function isNotTheItem(title: string | null | undefined, query: string, capacityRatedGoods?: boolean): boolean {
   if (!title) return false;
   const wanted = query.toLowerCase();
-  const found = title.match(NOT_THE_ITEM);
-  if (!found) return false;
+  const found = [
+    ...(title.match(NOT_THE_ITEM) ?? []),
+    ...(capacityRatedGoods ? title.match(APPLIANCE_PARTS_EXTRA) ?? [] : []),
+  ];
+  if (!found.length) return false;
   return found.some((word) => !wanted.includes(word.toLowerCase()));
 }
 

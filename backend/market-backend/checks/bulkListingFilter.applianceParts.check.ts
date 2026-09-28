@@ -30,5 +30,27 @@ eq("a real whole washing machine: is the item", isNotTheItem("Bosch 9kg Washing 
 // a word the search itself contains is never held against a listing).
 eq("searching for a motor itself keeps a motor listing", isNotTheItem("Hotpoint Tumble Dryer Nidec MOTOR TCFS 73B", "Hotpoint Tumble Dryer Motor"), false);
 
+// A second round of real listings found live, after the first fix: still spares, just with
+// words too generic to blacklist for every product (a "switch", "handle", "container", "timer"
+// is a completely ordinary thing to mention about countless unrelated whole items) — only caught
+// when capacityRatedGoods says this really is appliance territory.
+eq("water container: not the item when capacity-rated", isNotTheItem("Hotpoint Tumble Dryer Water Container C00193521", QUERY, true), true);
+eq("pump micro switch: not the item when capacity-rated", isNotTheItem("Genuine Hotpoint Indesit Condenser Tumble Dryer Pump Micro Switch C00095596", QUERY, true), true);
+eq("water collection drawer: not the item when capacity-rated", isNotTheItem("GENUINE HOTPOINT Tumble Dryer water collection drawer", QUERY, true), true);
+eq("heat exchange handle: not the item when capacity-rated", isNotTheItem("Indesit Hotpoint Condenser Tumble Dryer Heat Exchange V1 Handle Only C00258585", QUERY, true), true);
+eq("timer: not the item when capacity-rated", isNotTheItem("Hotpoint Small Vented  Tumble Dryer TS13 Timer", QUERY, true), true);
+
+// The whole point of gating this list: without capacityRatedGoods, these same generic words must
+// NOT be held against an unrelated whole item — a games console, a suitcase, a lunch box.
+eq("a games switch console is unaffected", isNotTheItem("Nintendo Switch OLED Console White", "Nintendo Switch", false), false);
+eq("a suitcase with a handle is unaffected", isNotTheItem("Large Suitcase with Telescopic Handle 90L", "Suitcase", false), false);
+eq("a lunch container is unaffected", isNotTheItem("Stainless Steel Lunch Container", "Lunch Box", false), false);
+// And the same is true even when the flag is simply left out (the default for every ordinary product).
+eq("without the flag at all, still unaffected (default)", isNotTheItem("Nintendo Switch OLED Console White", "Nintendo Switch"), false);
+
+// Real whole units from the same live search, correctly kept once the spares are gone.
+eq("a real whole dryer with a model number: is the item", isNotTheItem("Hotpoint 9kg Tumble Dryer NTM1192XBUK L52387", QUERY, true), false);
+eq("a real whole Aquarius dryer: is the item", isNotTheItem("Hotpoint Aquarius Tumble Dryer 7kg 1400rpm", QUERY, true), false);
+
 console.log(fail === 0 ? "ALL PASS" : `${fail} FAILED`);
 process.exit(fail ? 1 : 0);
