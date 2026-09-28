@@ -79,6 +79,8 @@ export type Booking = {
   firstPaidAt?: string | null;
   /** The launch offer's quiet-first-month promise: asked for, then granted or not (see advertBooking). */
   freeMonth?: FreeMonth | null;
+  /** The paid-up date the "ends soon" reminder was sent for (see utils/advertReminders.ts), so it goes once. */
+  reminderSentFor?: string | null;
 };
 
 export type FreeMonth = {

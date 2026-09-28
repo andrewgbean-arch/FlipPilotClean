@@ -30,6 +30,9 @@ function priceLine(ad: Advert): string {
 
 const sign = "\n\nThanks,\nFlipPilot";
 
+const ukDate = (iso: string | null | undefined) =>
+  iso ? new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "the end of the month";
+
 async function send(to: string | null | undefined, subject: string, body: string) {
   if (!to) return;
   await sendEmail(to, subject, body + sign);
@@ -61,6 +64,36 @@ export const advertEmails = {
 
   async live(ad: Advert, to: string) {
     await send(to, `Your advert "${ad.title}" is booked`, `Payment received: thank you. Your advert "${ad.title}" shows in the FlipPilot app (${places(ad)}) from ${new Date(ad.startsAt).toLocaleDateString("en-GB")}. It renews monthly until you cancel, and you can see how it's doing, by day, in your portal: ${portalUrl()}`);
+  },
+
+  /** Paid by invoice and ending within a week: offer the next invoice, and tell FlipPilot to send it. */
+  async renewalDue(ad: Advert, to: string) {
+    const ends = ukDate(ad.booking?.paidThrough);
+    await send(
+      to,
+      `Your advert "${ad.title}" is paid up to ${ends}`,
+      `Your advert "${ad.title}" is paid up to ${ends}. To keep it showing after that, ask for next month's invoice in your portal (one tap on the advert's page): ${portalUrl()}\n\nIf you'd rather let it end, you needn't do anything.`
+    );
+    await send(
+      staffAddress(),
+      `Invoice due soon: ${ad.advertiser}, "${ad.title}"`,
+      `${ad.advertiser} (${to}) pays by invoice, and "${ad.title}" is paid up to ${ends} (${priceLine(ad)}). Send the next invoice if they want to carry on, then mark it paid on the admin page: ${portalUrl()}/admin`
+    );
+  },
+
+  /** Cancelled and ending within a week: a friendly note, in case they want to book again. */
+  async endingSoon(ad: Advert, to: string) {
+    await send(
+      to,
+      `Your advert "${ad.title}" stops on ${ukDate(ad.booking?.paidThrough)}`,
+      `As you cancelled, your advert "${ad.title}" stops showing on ${ukDate(ad.booking?.paidThrough)}, and nothing more will be charged. Changed your mind? You can book again any time in your portal: ${portalUrl()}`
+    );
+  },
+
+  /** A business paying by invoice asks for next month's invoice from its portal. */
+  async renewalInvoiceRequested(ad: Advert, to: string) {
+    await send(to, `Next invoice requested for "${ad.title}"`, `Thanks: we'll email you next month's invoice for "${ad.title}" (${priceLine(ad)}). It keeps showing until ${ukDate(ad.booking?.paidThrough)}, and for another month once that's paid.`);
+    await send(staffAddress(), `Next invoice requested: ${ad.advertiser}, "${ad.title}"`, `${ad.advertiser} (${to}) wants to carry on with "${ad.title}" (${priceLine(ad)}); it is paid up to ${ukDate(ad.booking?.paidThrough)}. Send the invoice, then mark it paid on the admin page: ${portalUrl()}/admin`);
   },
 
   async invoiceRequested(ad: Advert, to: string) {

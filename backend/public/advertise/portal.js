@@ -582,7 +582,7 @@ async function screenAdvert(id, query) {
       : `<div class="note ok"><b>Approved.</b> Pay to go live. We're holding your place until ${dateUK(bk.holdUntil)}.</div>`,
     rejected: `<div class="note bad"><b>We couldn't approve it as it is.</b><br>${esc(bk.rejectedReason || "")}<br><span class="small">Change it and send it again: nothing has been charged.</span></div>`,
     "starting-soon": `<div class="note ok">Paid. It starts on ${dateUK(ad.startsAt)}.</div>`,
-    live: `<div class="note ok">Live in the app now. ${bk.byCard ? "It renews monthly on your card until you cancel." : "We'll email you an invoice before the next month."} Paid up to ${dateUK(bk.paidThrough)}.</div>`,
+    live: `<div class="note ok">Live in the app now. ${bk.byCard ? "It renews monthly on your card until you cancel." : "Paid by invoice: we'll remind you a week before it ends, so you can ask for the next one."} Paid up to ${dateUK(bk.paidThrough)}.</div>`,
     "live-until-end": `<div class="note">Cancelled: it keeps showing until ${dateUK(bk.paidThrough)}, then stops. Nothing more will be charged.</div>`,
     "payment-due": `<div class="note bad">This month's payment hasn't come through, so it has stopped showing. Check the email from Stripe to update your card.</div>`,
     paused: `<div class="note bad">Paused: people reported it, so a person is looking at it again. We'll be in touch.</div>`,
@@ -608,6 +608,7 @@ async function screenAdvert(id, query) {
           ${canCancel ? `<button class="btn quiet danger" id="cancel" type="button">Cancel at the end of the month</button>` : ""}
         </div>
         <p class="error" id="actErr" role="alert"></p>
+        ${renewCard(bk)}
         ${freeMonthCard(bk)}
         <section class="card stack">
           <h2>How it's doing</h2>
@@ -655,6 +656,14 @@ async function screenAdvert(id, query) {
     await loadMe(true);
     render();
   });
+  $("#renewInvoice")?.addEventListener("click", async (e) => {
+    e.target.disabled = true;
+    const res = await api("POST", `/advertiser/adverts/${id}/renew-invoice`, {});
+    if (!res.ok) { e.target.disabled = false; $("#actErr").textContent = errorOf(res); return; }
+    await loadMe(true);
+    toast("Thanks: we'll email you next month's invoice.");
+    render();
+  });
   $("#askFree")?.addEventListener("click", async (e) => {
     e.target.disabled = true;
     const res = await api("POST", `/advertiser/adverts/${id}/free-month`, { note: $("#freeNote").value });
@@ -671,6 +680,17 @@ async function screenAdvert(id, query) {
     toast("Cancelled. It runs to the end of the month you've paid for.");
     render();
   });
+}
+
+/* Paid by invoice and running: carry on for another month by asking for the next invoice. */
+function renewCard(bk) {
+  if (bk.status !== "active" || bk.byCard || !bk.paidThrough) return "";
+  const daysLeft = (new Date(bk.paidThrough).getTime() - Date.now()) / 86400e3;
+  if (bk.invoiceRequested) {
+    return `<div class="note">You've asked for next month's invoice. We'll email it to you; your advert keeps showing until ${dateUK(bk.paidThrough)}.</div>`;
+  }
+  if (daysLeft > 14) return "";
+  return `<section class="card stack"><h2>Keep it running</h2><p class="muted">Your advert is paid up to ${dateUK(bk.paidThrough)}. Ask for next month's invoice to keep it showing after that.</p><div class="row"><button class="btn primary" id="renewInvoice" type="button">Request next invoice</button></div></section>`;
 }
 
 /* The launch offer's promise: a quiet first month earns a month free. */
