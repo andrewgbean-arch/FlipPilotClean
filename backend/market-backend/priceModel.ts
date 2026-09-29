@@ -136,10 +136,17 @@ const agree = (a: number, b: number) => Math.max(a, b) / Math.min(a, b) <= 2;
 
 export function decidePrices(e: PriceEvidence): PriceDecision {
   /* ---- NEW ---- */
-  // What the shops and eBay's new listings say. With three opinions the middle
-  // one wins; with two, the lower (contamination only pushes a price up).
-  const shelfList = [e.googleNew, e.ebayNew].filter(valid);
-  const shelf = shelfList.length ? [shelfList.length >= 3 ? median(shelfList) : Math.min(...shelfList)] : [];
+  // What real shops charge, from Google — the source built for exactly this question. eBay's own
+  // "new condition" search (e.ebayNew) deliberately plays NO part here any more: it was the
+  // repeated troublemaker found live today (a Vitamix blender's new-condition search averaging
+  // £16, a Herman Miller Aeron chair's averaging £25-34 — both real premium items, both eBay
+  // "new" searches badly polluted by mismatched or spare-part listings even after real filtering
+  // work). The owner's call: paying customers get the more reliable source driving the actual
+  // price; eBay's own range is still shown, informationally, alongside it (see ebayItems/lowest/
+  // highest on the response) — just no longer blended into what Buy/Sell/Profit are worked out
+  // from.
+  const shelfList = [e.googleNew].filter(valid);
+  const shelf = shelfList.length ? [shelfList[0]] : [];
   let newPrice: number | null = null;
 
   if (valid(e.aiNew) && shelf.length) {

@@ -46,8 +46,9 @@ const none = { ebay: null, googleNew: null, aiNew: null, aiUsedMin: null, aiUsed
    land BETWEEN the two, not dismiss the real listings outright the way a cheap item does.
 -------------------------------------------------- */
 {
-  // The exact reported numbers: AI says 150, real new listings say 535.50.
-  const d = decidePrices({ ...none, used: false, ebayNew: 535.5, aiNew: 150 });
+  // The exact reported numbers: AI says 150, real new listings say 535.50. Google now, not eBay's
+  // own new-condition search — see "eBay's own new-condition search plays no part" below.
+  const d = decidePrices({ ...none, used: false, googleNew: 535.5, aiNew: 150 });
   if (!(d.newPrice! > 150 && d.newPrice! < 535.5)) {
     fail++;
     console.log("FAIL expensive item lands between AI and real data", d.newPrice);
@@ -71,6 +72,29 @@ const none = { ebay: null, googleNew: null, aiNew: null, aiUsedMin: null, aiUsed
   // this only ever fires once they're far enough apart to disagree in the first place.
   const d = decidePrices({ ...none, used: false, googleNew: 250, aiNew: 200 });
   eq("still agreeing: averaged as before", d.newPrice, 225);
+}
+
+/* --------------------------------------------------
+   eBay's own "new condition" search plays NO part in the new/retail price any more (the owner's
+   call, 2026-09-29): it was the repeated troublemaker today (Vitamix, Aeron chair — both real
+   premium items, both badly polluted even after real filtering work). Google drives it instead;
+   eBay's used listings still drive the Sell/resale price exactly as before (a real, separate
+   test — "polluted used listings" below — already covers that eBay side is untouched).
+-------------------------------------------------- */
+{
+  // eBay's own new-condition search says something wildly different from everything else — must
+  // be completely ignored for the new price, not blended in even a little.
+  const withEbayNew = decidePrices({ ...none, used: false, ebayNew: 16.33, aiNew: 20 });
+  const withoutEbayNew = decidePrices({ ...none, used: false, aiNew: 20 });
+  eq("ebayNew alone, with nothing else, is simply ignored", withEbayNew.newPrice, withoutEbayNew.newPrice);
+  eq("...landing on the AI's own guess, not a contaminated blend", withEbayNew.newPrice, 20);
+}
+{
+  // The exact real numbers reported: a garbage ebayNew must not drag a good Google figure down
+  // (or up) at all — the answer is identical whether ebayNew is present or completely absent.
+  const withEbayNew = decidePrices({ ...none, used: false, ebayNew: 86.94, googleNew: 15, aiNew: 15 });
+  const withoutEbayNew = decidePrices({ ...none, used: false, googleNew: 15, aiNew: 15 });
+  eq("a contaminated ebayNew alongside a good googleNew changes nothing", withEbayNew.newPrice, withoutEbayNew.newPrice);
 }
 
 // A used speaker where the market and the AI agree: the market wins.
