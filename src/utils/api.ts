@@ -252,6 +252,20 @@ export async function sendFeedback(input: { kind: "feedback" | "rating"; rating?
   return request("/feedback", { method: "POST", body: { ...input, deviceId }, timeoutMs: 15_000 });
 }
 
+// "Doesn't look right? Report this" on a scan result — a snapshot of what was actually on
+// screen, so a wrong price can be traced back to the real search that produced it.
+export async function reportPrice(input: {
+  title: string;
+  retailPrice: number | null;
+  trendingPrice: number | null;
+  buyPrice: number | null;
+  sellPrice: number | null;
+  note?: string;
+}) {
+  const deviceId = await getDeviceId();
+  return request("/price-report", { method: "POST", body: { ...input, deviceId }, timeoutMs: 15_000 });
+}
+
 export async function identifyPhoto(imageBase64: string, signal?: AbortSignal) {
   assertImageFits(imageBase64);
   const deviceId = await getDeviceId();

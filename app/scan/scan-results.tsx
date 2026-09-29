@@ -33,7 +33,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { useTheme } from "@/styles/ThemeContext";
-import { fetchPrices, type ItemAge, type ItemGrade } from "@/utils/api";
+import { fetchPrices, reportPrice, type ItemAge, type ItemGrade } from "@/utils/api";
 import SellerDescriptionCard from "@/components/scan/SellerDescriptionCard";
 import { dropPending, getPending } from "@/utils/pendingScan";
 import { applyPrices, SCAN_AGAIN_EVENT } from "@/utils/scanTransform";
@@ -241,6 +241,8 @@ export default function ScanResultsScreen() {
   const [calcVisible, setCalcVisible] = useState(false);
   const [calcMode, setCalcMode] = useState<"buy" | "sell" | null>(null);
   const [calcValue, setCalcValue] = useState("");
+
+  const [reportingPrice, setReportingPrice] = useState(false);
 
   useEffect(() => {
     try {
@@ -594,6 +596,27 @@ export default function ScanResultsScreen() {
       : null;
   const priceConfidence = typeof data.aiPriceConfidence === "number" ? data.aiPriceConfidence : null;
 
+  // "Doesn't look right? Report this" — a snapshot of exactly what was on screen, so a wrong
+  // price can be traced back to the real search that produced it, not just a general complaint.
+  const reportThisPrice = async () => {
+    if (reportingPrice) return;
+    setReportingPrice(true);
+    try {
+      await reportPrice({
+        title,
+        retailPrice: typeof data.market?.googlePriceMax === "number" ? data.market.googlePriceMax : null,
+        trendingPrice: typeof data.market?.googlePriceMin === "number" ? data.market.googlePriceMin : null,
+        buyPrice,
+        sellPrice,
+      });
+      Alert.alert("Thanks", "We'll look into it.");
+    } catch {
+      Alert.alert("Couldn't send that", "Please check your connection and try again.");
+    } finally {
+      setReportingPrice(false);
+    }
+  };
+
   const scoreColor =
     flipScore >= 70 ? theme.success : flipScore >= 40 ? theme.warning : theme.danger;
   const scoreBand = flipScore >= 70 ? "Strong" : flipScore >= 40 ? "Fair" : "Weak";
@@ -928,6 +951,44 @@ export default function ScanResultsScreen() {
               </View>
             ) : null}
           </View>
+        ) : null}
+
+        {/* TRENDING ON EBAY: informational only — eBay's own asking-price range, shown
+            alongside the Google-driven Retail/Trending prices above, not blended into them. */}
+        {priceState === "ready" && data.market?.ebay?.lowest != null && data.market?.ebay?.highest != null ? (
+          <>
+            <Text style={[styles.sectionTitle, { color: theme.text }]} accessibilityRole="header">
+              Trending on eBay
+            </Text>
+            <View style={[styles.group, card]}>
+              <FactRow label="From" value={`£${Number(data.market.ebay.lowest).toFixed(2)}`} />
+              <FactRow
+                label="To"
+                value={`£${Number(data.market.ebay.highest).toFixed(2)}`}
+                divider
+              />
+            </View>
+            {data.market?.ebay?.soldCount ? (
+              <Text style={[styles.ebayHint, { color: theme.muted }]}>
+                From {data.market.ebay.soldCount} live eBay listing{data.market.ebay.soldCount === 1 ? "" : "s"} — asking prices, not confirmed sales.
+              </Text>
+            ) : null}
+          </>
+        ) : null}
+
+        {/* REPORT A WRONG PRICE */}
+        {priceState === "ready" ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Report this price as incorrect"
+            disabled={reportingPrice}
+            onPress={reportThisPrice}
+            style={({ pressed }) => [styles.reportRow, pressed && styles.pressed]}
+          >
+            <Text style={[styles.reportRowText, { color: theme.muted }]}>
+              {reportingPrice ? "Sending…" : "Doesn't look right? Report this"}
+            </Text>
+          </Pressable>
         ) : null}
 
         {/* FLIP SCORE */}
@@ -1466,6 +1527,9 @@ const styles = StyleSheet.create({
   },
   sourceChipText: { fontSize: 13, fontWeight: "600" },
   sourceHint: { fontSize: 12, lineHeight: 17, marginTop: 10 },
+  ebayHint: { fontSize: 12, lineHeight: 17, marginTop: 8 },
+  reportRow: { marginTop: 16, alignItems: "center", paddingVertical: 6 },
+  reportRowText: { fontSize: 13, textDecorationLine: "underline" },
   // Condition/Age chips wrap onto more than one line rather than being squeezed
   // to fit, since some labels ("Older than 1 year") are long.
   pickerRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
