@@ -23,6 +23,7 @@ import { defectsOfKind, fetchMotHistory, motTestList, odometerMiles } from "./ut
 import registerCreditsRoutes from "./routes/credits";
 import registerCostsRoute from "./routes/costs";
 import registerFeedbackRoutes from "./routes/feedback";
+import registerPriceReportRoutes from "./routes/priceReports";
 import registerBoostRoute from "./routes/boost";
 import registerWebhookRoutes from "./routes/webhooks";
 import { DATA_DIR } from "./config/dataDir";
@@ -92,6 +93,7 @@ registerAuthRoutes(app);
 registerCreditsRoutes(app);
 registerCostsRoute(app);
 registerFeedbackRoutes(app);
+registerPriceReportRoutes(app);
 
 // The Marketplace has no sign-in yet (anyone can post a listing or a message,
 // under whatever name they type in), so the write routes below carry their own
