@@ -136,7 +136,7 @@ export function isSeatingGoods(query: string | null | undefined): boolean {
   return !!query && SEATING_GOODS.test(query);
 }
 const SEATING_PARTS_EXTRA =
-  /\b(headrest|head\s?rest|gas cylinder|gas lift|lumbar (?:pad|support|cushion)|arm\s?pads?|armrest pads?|foam|touch[\s-]?up|spray paint|castors?|casters?)\b/gi;
+  /\b(headrest|head\s?rest|gas cylinder|gas lift|lumbar(?:\s+\w+){0,3}\s+(?:pad|cushion)|arm\s?pads?|armrest pads?|foam|cushion|wheel|wheels|castors?|casters?|touch[\s-]?up|spray paint)\b/gi;
 
 // A listing this many times the size of the scanned pack has a bulk discount
 // so deep that scaling its price down tells us nothing useful.

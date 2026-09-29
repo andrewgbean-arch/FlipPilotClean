@@ -46,12 +46,32 @@ eq(
   isNotTheItem("Herman Miller Aeron CLASSIC Chair Touch Up Spray Paint Can - Graphite Colour", QUERY, false, true),
   true
 );
+eq(
+  "seat cushion: not the item when seating",
+  isNotTheItem("Seat Cushion for Herman Miller Aeron Chair, Natural Latex Ergonomic Office", QUERY, false, true),
+  true
+);
+eq(
+  "a caster wheel: not the item when seating",
+  isNotTheItem("Wheel For Herman Miller Hummanscale Office Home Chair Aeron Sayl Freedom Liberty", QUERY, false, true),
+  true
+);
+eq(
+  "lumbar support pad with words in between: not the item when seating",
+  isNotTheItem("NEW Lumbar Back Support Pad For Herman Miller Classic Aeron Office Home Chair", QUERY, false, true),
+  true
+);
 
 // The whole point of gating this list: without seatingGoods, "lumbar"/"arm pads"/"casters" must
 // NOT be held against a whole chair genuinely marketed with these as selling points.
 eq(
   "a real whole chair mentioning lumbar support is unaffected without the flag",
   isNotTheItem("Ergonomic Office Chair with Lumbar Support and Adjustable Arm Pads", "Office Chair", false, false),
+  false
+);
+eq(
+  "a real whole chair mentioning wheels and a cushioned seat is unaffected without the flag",
+  isNotTheItem("Ergonomic Office Chair with 5 Smooth Wheels and Cushioned Seat", "Office Chair", false, false),
   false
 );
 // And the same is true even when the flag is simply left out (the default for every ordinary product).
