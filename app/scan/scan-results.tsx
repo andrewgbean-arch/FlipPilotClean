@@ -805,7 +805,7 @@ export default function ScanResultsScreen() {
             ) : null}
             {data.market?.googlePriceMin != null ? (
               <FactRow
-                label="Trending price"
+                label="Trends around"
                 value={`£${Number(data.market.googlePriceMin).toFixed(2)}`}
                 divider={data.market?.googlePriceMax != null}
               />
