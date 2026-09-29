@@ -1,7 +1,7 @@
 import axios from "axios";
 import type { EbayMarketResult } from "./ebayMarket";
 import fetchEbayBrowseMarket from "./ebayBrowseApi";
-import { extractPackCount, extractVolume, isCapacityRatedGoods, isNotTheItem, isSeatingGoods, matchesQuery, priceForPack } from "./bulkListingFilter";
+import { extractPackCount, extractVolume, isCapacityRatedGoods, isNotTheItem, isSeatingGoods, matchesQuery, priceForPack, sharesNumericIdentity } from "./bulkListingFilter";
 import { decidePrices, type AgeBand, type Grade } from "./priceModel";
 import { SourceCache } from "../utils/sourceCache";
 import { openAiUsage, recordCost } from "../utils/costLog";
@@ -124,6 +124,10 @@ async function fetchGoogleShopping(query: string, wantedCount?: number | null) {
     // Google Shopping mixes in other models and other flavours. Use the ones for
     // this product, unless there are too few of those.
     const sameProduct = items.filter((i: any) => matchesQuery(i?.title, query));
+    // Too few strict matches to trust on their own — fall back to the rest, but never to a
+    // listing that states a DIFFERENT size/pack/model number than the one searched for (a
+    // same-brand, wrong-variant listing is not sparse data on our item, it's a different item).
+    const fallbackPool = items.filter((i: any) => sharesNumericIdentity(i?.title, query));
 
     // Same reasoning as the eBay side (ebayBrowseApi.ts): a listing that genuinely matches the
     // scanned item's own stated size isn't bulk, and a tumble dryer/fridge/etc never states its
@@ -132,7 +136,7 @@ async function fetchGoogleShopping(query: string, wantedCount?: number | null) {
     const capacityRatedGoods = isCapacityRatedGoods(query);
     const seatingGoods = isSeatingGoods(query);
 
-    for (const item of sameProduct.length >= 3 ? sameProduct : items) {
+    for (const item of sameProduct.length >= 3 ? sameProduct : fallbackPool) {
       // The shelf price of the listing. (`unit_price` is a price per 100g or per
       // litre, which is not what the item costs, so it is not used.)
       const c = item.extracted_price ?? item.price;

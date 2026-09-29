@@ -411,3 +411,27 @@ export function relevantOrAll<T>(
   const relevant = items.filter((item) => matchesQuery(titleOf(item), query));
   return relevant.length >= minimum ? relevant : items;
 }
+
+/**
+ * True when the listing shares at least one of the search's own numbers — a size, a pack count,
+ * a model number, anything with a digit in it. False only when the query states such a number
+ * and the listing states a DIFFERENT one (or none at all).
+ *
+ * Found live: with too few strict matches (matchesQuery, above) for a search, the Google/eBay
+ * code falls back to using every listing rather than none, so an odd title still gets a price.
+ * That fallback has no product-identity check at all, so a listing for a genuinely different
+ * variant of the same brand — a search for "Old Spice ... 50ml - 6 Pack" pulling in "Old Spice
+ * ... 96ml (3 Pack)" — was passing straight through: same brand and product words, wrong item
+ * entirely, and its price (scaled to look like it matched our pack count) was quietly used as
+ * the shown "retail price". Size/pack/model numbers are the one part of a title neither
+ * `matchesQuery`'s generic-word list nor `isNotTheItem`'s accessory list ever screens for, so a
+ * fallback pool needs its own, narrower check: not "does this look related", but "does this at
+ * least NOT contradict the one number that tells these variants apart".
+ */
+export function sharesNumericIdentity(title: string | null | undefined, query: string): boolean {
+  const queryNumbers = words(query).filter((w) => /\d/.test(w));
+  if (!queryNumbers.length) return true; // nothing numeric in the search to disagree on
+  if (!title) return false;
+  const titleWords = words(title);
+  return queryNumbers.some((qn) => titleWords.some((tw) => sameWord(tw, qn)));
+}

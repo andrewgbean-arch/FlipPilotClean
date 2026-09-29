@@ -1,6 +1,6 @@
 import axios from "axios";
 import { EbayMarketResult } from "./ebayMarket";
-import { extractVolume, isCapacityRatedGoods, isNotTheItem, isSeatingGoods, matchesQuery, priceForPack } from "./bulkListingFilter";
+import { extractVolume, isCapacityRatedGoods, isNotTheItem, isSeatingGoods, matchesQuery, priceForPack, sharesNumericIdentity } from "./bulkListingFilter";
 import { recordCost } from "../utils/costLog";
 
 /* --------------------------------------------------
@@ -164,10 +164,12 @@ export default async function fetchEbayBrowseMarket(
     const rawPrices: number[] = [];
     const items: any[] = [];
 
-    // Prefer listings for the same product (not the next model up); if that
-    // leaves too few, use them all rather than nothing.
+    // Prefer listings for the same product (not the next model up); if that leaves too few, use
+    // the rest — but never a listing whose title states a different size/pack/model number than
+    // the one searched for (see sharesNumericIdentity in bulkListingFilter.ts: same-brand, wrong
+    // variant is a different item, not sparse data on this one).
     const sameProduct = summaries.filter((i: any) => matchesQuery(i?.title, query));
-    const pool = sameProduct.length >= 3 ? sameProduct : summaries;
+    const pool = sameProduct.length >= 3 ? sameProduct : summaries.filter((i: any) => sharesNumericIdentity(i?.title, query));
 
     for (const item of pool) {
       // Accessories, spares and faulty units are not the item.
