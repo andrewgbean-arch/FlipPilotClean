@@ -46,10 +46,10 @@ const TIERS: Tier[] = [
     id: "credits",
     name: "Scan credit packs",
     tagline: "Pay as you go · never expire",
-    price: "from £1.99",
+    price: "from £0.99",
     period: "one-off",
     included: [
-      "25, 50, 100 or 200 scans, from £1.99",
+      "25, 50, 100 or 200 scans, from £0.99",
       "Used only after your free scans run out",
       "Never expire, no subscription",
       "Also pay for a car listing after our launch offer",
@@ -74,7 +74,7 @@ const TIERS: Tier[] = [
 // Feature, Free, Credits, Trader — kept short so four columns fit a phone width.
 const COMPARISON: [string, string, string, string][] = [
   ["Scans", "5 a week", "Buy as needed", `${TRADER_SCANS} a month + 5 a week`],
-  ["Cost", "£0", "From £1.99", "£9.99 a month"],
+  ["Cost", "£0", "From £0.99", "£9.99 a month"],
   ["Export to eBay", "—", "—", "Included"],
 ];
 

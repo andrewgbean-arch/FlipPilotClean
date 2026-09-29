@@ -92,7 +92,7 @@ const SECTIONS: Section[] = [
     title: "Choose your plan",
     steps: [
       "Free: 5 scans every week, back each Monday, and everything else in the app.",
-      "Scan credit packs: 25, 50, 100 or 200 scans from £1.99. They never expire and are only used once your free scans run out.",
+      "Scan credit packs: 25, 50, 100 or 200 scans from £0.99. They never expire and are only used once your free scans run out.",
       "Trader (£9.99 a month): 300 scans every month on top of your free ones, and export your listings to eBay.",
     ],
   },

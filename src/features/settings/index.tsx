@@ -394,7 +394,7 @@ export default function SettingsScreen() {
             <MenuRow
               Icon={Crown}
               title="More scans"
-              subtitle="Credit packs from £1.99, or Trader at £9.99 a month"
+              subtitle="Credit packs from £0.99, or Trader at £9.99 a month"
               onPress={() => router.push("/upgrade")}
               divider
             />
