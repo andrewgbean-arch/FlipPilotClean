@@ -70,11 +70,19 @@ const NON_X_MULTIPLIER = [
 const COUNT_STEMS =
   "lozen\\w*|tablets?|capsules?|caplets?|sachets?|pouches|pastilles?|softgels?|pcs|pieces?|" +
   "count|units?|doses?|servings?|portions?|gums?|strips?|patches|tea\\s?bags?|" +
-  "nappies|diapers?|swabs?|refills?|wipes?|packs?";
+  "nappies|diapers?|swabs?|refills?|wipes?";
 // "ct" on its own means "count" ("80ct"), but is exactly how gold purity is written ("9ct", "18ct
 // gold") — kept apart so it can be excluded specifically when it's plainly a carat mark, not merged
 // into COUNT_STEMS where every use would be trusted equally.
 const COUNT_STEMS_WITH_CT = `${COUNT_STEMS}|ct`;
+// "pack"/"packs" belongs ONLY to the dimension guard below, never to COUNT_STEMS itself: it once
+// lived there (to stop "6 X3 Packs" reading as a dimension like "34x32"), but COUNT_STEMS also
+// feeds COUNT_WORD ("N <stem>" = a stated total count) — with "pack" in it, COUNT_WORD started
+// matching "6 Pack" as if it meant "6 units", on top of the SAME "6 Pack" already being read as a
+// x6 multiplier elsewhere, squaring a real 6-pack into 36 (found live: a genuine Sainsbury's Old
+// Spice 6-pack priced as if it were a 36-pack). "Pack" is a container word, not a unit-of-the-thing
+// word like "lozenge" or "tablet", so it must never reach COUNT_WORD.
+const DIMENSION_GUARD_STEMS = `${COUNT_STEMS_WITH_CT}|packs?`;
 const HAS_COUNT_STEM = new RegExp(`\\b(?:${COUNT_STEMS})\\b`, "i");
 
 // "9ct gold", "18ct white gold": a carat mark. Stripped before any count/multiplier check runs, so
@@ -168,7 +176,7 @@ function multiplierOf(title: string): number | null {
       // "N x" pairing, so it must not be re-approved here just because THIS number's own tail
       // happens to be another "x" rather than a bare digit.
       const precededByNumber = /\d\s*$/.test(head);
-      if (n >= 2 && n <= 1000 && !precededByNumber && !looksLikeDimensionTail(tail, COUNT_STEMS_WITH_CT)) return n;
+      if (n >= 2 && n <= 1000 && !precededByNumber && !looksLikeDimensionTail(tail, DIMENSION_GUARD_STEMS)) return n;
     }
   }
   return firstNumber(title, NON_X_MULTIPLIER, 2, 1000);
