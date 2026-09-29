@@ -281,7 +281,7 @@ export type MarketEvidence = Omit<UnifiedMarketResult, "average" | "smartPrice">
 
 const evidenceCache = new Map<string, { at: number; value: MarketEvidence }>();
 
-function evidenceCacheGet(key: string): MarketEvidence | null {
+export function evidenceCacheGet(key: string): MarketEvidence | null {
   const hit = evidenceCache.get(key);
   if (!hit) return null;
   if (Date.now() - hit.at > CACHE_TTL_MS) {
@@ -291,9 +291,15 @@ function evidenceCacheGet(key: string): MarketEvidence | null {
   return hit.value;
 }
 
-function evidenceCacheSet(key: string, value: MarketEvidence) {
+export function evidenceCacheSet(key: string, value: MarketEvidence, googleStillMissing: boolean) {
   // Only remember answers that found something; a failed lookup should be retried.
   if (value.lowest == null && value.priceInputs.ebay == null && value.priceInputs.googleNew == null && value.priceInputs.aiNew == null) return;
+  // ebayIsStrong specifically decided Google was needed (eBay's own numbers weren't good enough
+  // alone) and it still came back empty even after its own grace period — caching that half-answer
+  // for the full 10 minutes would serve the same wrong price to every identical scan in that
+  // window, when a retry moments later is likely to succeed (found live: exactly this, on a
+  // Vitamix A3500). Not caching it at all means the next identical scan tries Google again fresh.
+  if (googleStillMissing) return;
   if (evidenceCache.size >= CACHE_MAX) {
     const oldest = evidenceCache.keys().next().value;
     if (oldest !== undefined) evidenceCache.delete(oldest);
@@ -496,7 +502,12 @@ export default async function fetchMarketData(
     // from a third of a second to twenty), so it does not hold the answer up:
     // once the others are in it gets a short grace period and is used only if
     // it made it. The AI's price estimate is the cross-check that doesn't wait.
-    const googleGraceMs = googleStartedLate ? 3000 : Math.max(300, Math.min(1000, 4000 - (Date.now() - startedAt)));
+    // A late start means ebayIsStrong specifically decided Google was NEEDED (found live: a
+    // Vitamix A3500 that genuinely needed it kept coming back without Google's price at all,
+    // even though a fresh retry moments later found real results in well under 8s) — worth a
+    // real grace period, not the 3s a merely-optional check got, given the whole reason this
+    // path exists at all is that the answer is otherwise judged unreliable.
+    const googleGraceMs = googleStartedLate ? 8000 : Math.max(300, Math.min(1000, 4000 - (Date.now() - startedAt)));
     const google = googlePromise ? await withDeadline(googlePromise, googleGraceMs, null) : null;
     const googleSkipped = googlePromise === null;
     const aiEstimate = await aiEstimatePromise;
@@ -584,7 +595,7 @@ const image =
       priceInputs,
     };
 
-    evidenceCacheSet(evidenceCacheKey, evidence);
+    evidenceCacheSet(evidenceCacheKey, evidence, googleStartedLate && (!google || google.avg == null));
     return priceEvidence(evidence, usedMode, grade, age);
   } catch (err: any) {
     console.error("Unified Market Engine Error:", err?.message || err);
