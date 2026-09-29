@@ -7,7 +7,9 @@ type Bucket = {
 
 const buckets = new Map<string, Bucket>();
 
-// Auto-clean old buckets every 10 minutes
+// Auto-clean old buckets every 10 minutes. unref() so this alone never keeps a process running —
+// harmless in production (the server runs forever anyway) but without it, any script or test that
+// merely imports this file (almost every route does) never exits on its own once it's done.
 setInterval(() => {
   const now = Date.now();
   for (const [key, bucket] of buckets.entries()) {
@@ -15,7 +17,7 @@ setInterval(() => {
       buckets.delete(key);
     }
   }
-}, 10 * 60 * 1000);
+}, 10 * 60 * 1000).unref();
 
 export function rateLimit(maxPerMinute: number) {
   return (req: Request, res: Response, next: NextFunction) => {
