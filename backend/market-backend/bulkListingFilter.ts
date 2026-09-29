@@ -123,6 +123,21 @@ export function isCapacityRatedGoods(query: string | null | undefined): boolean 
   return !!query && CAPACITY_RATED_GOODS.test(query);
 }
 
+// Chairs and similar seating: found live searching "Herman Miller Aeron Chair" — every "new
+// condition" eBay listing was a spare part (a headrest, a gas cylinder, a lumbar pad, arm pads,
+// seat foam, touch-up paint), none caught by NOT_THE_ITEM, dragging the whole chair's own new
+// price down to a few pounds. Unlike the appliance-parts words above, several of these are
+// completely ordinary things to mention on a WHOLE chair's own listing ("with lumbar support",
+// "smooth-rolling casters", "adjustable arm pads" are selling points, not spare-part listings),
+// so — same as APPLIANCE_PARTS_EXTRA — they're only checked when the scanned item is genuinely
+// seating, never added to the list every product gets checked against.
+const SEATING_GOODS = /\b(chair|armchair|recliner|stool|bench|sofa|settee|couch)\b/i;
+export function isSeatingGoods(query: string | null | undefined): boolean {
+  return !!query && SEATING_GOODS.test(query);
+}
+const SEATING_PARTS_EXTRA =
+  /\b(headrest|head\s?rest|gas cylinder|gas lift|lumbar (?:pad|support|cushion)|arm\s?pads?|armrest pads?|foam|touch[\s-]?up|spray paint|castors?|casters?)\b/gi;
+
 // A listing this many times the size of the scanned pack has a bulk discount
 // so deep that scaling its price down tells us nothing useful.
 const MAX_SCALE = 30;
@@ -231,15 +246,22 @@ const APPLIANCE_PARTS_EXTRA = /\b(water container|drawer|pump|micro switch|switc
 /**
  * True when a listing looks like an accessory, spare part or faulty unit rather than the item
  * searched for. A word the search itself contains does not count (searching "phone charger" must
- * keep listings that say "charger"). `capacityRatedGoods` (see isCapacityRatedGoods above) also
- * checks the narrower, appliance-only vocabulary above that would be too broad for every product.
+ * keep listings that say "charger"). `capacityRatedGoods`/`seatingGoods` (see isCapacityRatedGoods/
+ * isSeatingGoods above) also check narrower, category-only vocabulary that would be too broad for
+ * every product.
  */
-export function isNotTheItem(title: string | null | undefined, query: string, capacityRatedGoods?: boolean): boolean {
+export function isNotTheItem(
+  title: string | null | undefined,
+  query: string,
+  capacityRatedGoods?: boolean,
+  seatingGoods?: boolean
+): boolean {
   if (!title) return false;
   const wanted = query.toLowerCase();
   const found = [
     ...(title.match(NOT_THE_ITEM) ?? []),
     ...(capacityRatedGoods ? title.match(APPLIANCE_PARTS_EXTRA) ?? [] : []),
+    ...(seatingGoods ? title.match(SEATING_PARTS_EXTRA) ?? [] : []),
   ];
   if (!found.length) return false;
   return found.some((word) => !wanted.includes(word.toLowerCase()));

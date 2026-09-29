@@ -1,7 +1,7 @@
 import axios from "axios";
 import type { EbayMarketResult } from "./ebayMarket";
 import fetchEbayBrowseMarket from "./ebayBrowseApi";
-import { extractPackCount, extractVolume, isCapacityRatedGoods, isNotTheItem, matchesQuery, priceForPack } from "./bulkListingFilter";
+import { extractPackCount, extractVolume, isCapacityRatedGoods, isNotTheItem, isSeatingGoods, matchesQuery, priceForPack } from "./bulkListingFilter";
 import { decidePrices, type AgeBand, type Grade } from "./priceModel";
 import { SourceCache } from "../utils/sourceCache";
 import { openAiUsage, recordCost } from "../utils/costLog";
@@ -130,13 +130,14 @@ async function fetchGoogleShopping(query: string, wantedCount?: number | null) {
     // own capacity in a photo, so the oversized-volume rule is skipped for it outright.
     const ownVolume = extractVolume(query);
     const capacityRatedGoods = isCapacityRatedGoods(query);
+    const seatingGoods = isSeatingGoods(query);
 
     for (const item of sameProduct.length >= 3 ? sameProduct : items) {
       // The shelf price of the listing. (`unit_price` is a price per 100g or per
       // litre, which is not what the item costs, so it is not used.)
       const c = item.extracted_price ?? item.price;
       if (!c) continue;
-      if (isNotTheItem(item.title, query, capacityRatedGoods)) continue;
+      if (isNotTheItem(item.title, query, capacityRatedGoods, seatingGoods)) continue;
 
       const listed = parseFloat(String(c).replace(/[^0-9.,]/g, "").replace(",", "."));
       // Scaled to the scanned pack size where the listing says its own; dropped if bulk.

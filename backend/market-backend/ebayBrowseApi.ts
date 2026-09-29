@@ -1,6 +1,6 @@
 import axios from "axios";
 import { EbayMarketResult } from "./ebayMarket";
-import { extractVolume, isCapacityRatedGoods, isNotTheItem, matchesQuery, priceForPack } from "./bulkListingFilter";
+import { extractVolume, isCapacityRatedGoods, isNotTheItem, isSeatingGoods, matchesQuery, priceForPack } from "./bulkListingFilter";
 import { recordCost } from "../utils/costLog";
 
 /* --------------------------------------------------
@@ -157,6 +157,9 @@ export default async function fetchEbayBrowseMarket(
     // A tumble dryer, fridge or similar never states its own capacity in a photo (it's on an
     // internal rating plate), so ownVolume alone can't protect these — skip that rule for them outright.
     const capacityRatedGoods = isCapacityRatedGoods(query);
+    // A chair's own spare parts (a headrest, a gas cylinder, a lumbar pad) are the same problem in
+    // furniture terms — see isSeatingGoods/SEATING_PARTS_EXTRA in bulkListingFilter.ts.
+    const seatingGoods = isSeatingGoods(query);
 
     const rawPrices: number[] = [];
     const items: any[] = [];
@@ -168,7 +171,7 @@ export default async function fetchEbayBrowseMarket(
 
     for (const item of pool) {
       // Accessories, spares and faulty units are not the item.
-      if (isNotTheItem(item?.title, query, capacityRatedGoods)) continue;
+      if (isNotTheItem(item?.title, query, capacityRatedGoods, seatingGoods)) continue;
       if (/parts|not working|faulty/i.test(String(item?.condition ?? ""))) continue;
 
       // Scaled to the scanned pack size where the listing says its own; dropped if bulk.
