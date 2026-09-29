@@ -794,20 +794,20 @@ export default function ScanResultsScreen() {
           <PriceTile label="Sell price" value={sellPrice} locked={saved} checking={priceState === "loading"} onPress={() => openCalculator("sell")} />
         </View>
 
-        {/* PRICE GUIDE: new price, what it should sell for, and where you're buying */}
-        {priceState !== "loading" && (sellPrice != null || data.market?.retailPrice != null) ? (
+        {/* PRICE GUIDE: retail vs trending (Google's own high/low), and where you're buying */}
+        {priceState !== "loading" && (data.market?.googlePriceMax != null || data.market?.googlePriceMin != null) ? (
           <View style={[styles.group, styles.guideCard, card]}>
-            {data.market?.retailPrice != null ? (
+            {data.market?.googlePriceMax != null ? (
               <FactRow
-                label="New in the shops"
-                value={`£${Number(data.market.retailPrice).toFixed(2)}`}
+                label="Retail price"
+                value={`£${Number(data.market.googlePriceMax).toFixed(2)}`}
               />
             ) : null}
-            {data.ai?.suggested_sell != null ? (
+            {data.market?.googlePriceMin != null ? (
               <FactRow
-                label="Should sell for"
-                value={`£${Number(data.ai.suggested_sell).toFixed(2)}`}
-                divider={data.market?.retailPrice != null}
+                label="Trending price"
+                value={`£${Number(data.market.googlePriceMin).toFixed(2)}`}
+                divider={data.market?.googlePriceMax != null}
               />
             ) : null}
 
