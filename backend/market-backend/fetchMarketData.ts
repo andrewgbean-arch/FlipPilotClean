@@ -1,7 +1,7 @@
 import axios from "axios";
 import type { EbayMarketResult } from "./ebayMarket";
 import fetchEbayBrowseMarket from "./ebayBrowseApi";
-import { extractPackCount, extractVolume, isCapacityRatedGoods, isNotTheItem, isSeatingGoods, matchesQuery, priceForPack, sharesNumericIdentity } from "./bulkListingFilter";
+import { extractPackCount, extractVolume, filterOutliers, isCapacityRatedGoods, isNotTheItem, isSeatingGoods, matchesQuery, priceForPack, sharesNumericIdentity } from "./bulkListingFilter";
 import { decidePrices, type AgeBand, type Grade } from "./priceModel";
 import { SourceCache } from "../utils/sourceCache";
 import { openAiUsage, recordCost } from "../utils/costLog";
@@ -52,22 +52,6 @@ export interface UnifiedMarketResult {
   image: string | null;
 }
 
-/* --------------------------------------------------
-   ⭐ OUTLIER FILTER
--------------------------------------------------- */
-function filterOutliers(prices: number[]) {
-  if (prices.length < 4) return prices;
-
-  const sorted = [...prices].sort((a, b) => a - b);
-  const q1 = sorted[Math.floor(sorted.length * 0.25)];
-  const q3 = sorted[Math.floor(sorted.length * 0.75)];
-  const iqr = q3 - q1;
-
-  const min = q1 - iqr * 1.5;
-  const max = q3 + iqr * 1.5;
-
-  return prices.filter((p) => p >= min && p <= max);
-}
 
 /**
  * The single "shelf price" figure to represent a set of already-filtered, genuinely comparable

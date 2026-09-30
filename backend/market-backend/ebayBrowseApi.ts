@@ -1,6 +1,6 @@
 import axios from "axios";
 import { EbayMarketResult } from "./ebayMarket";
-import { extractVolume, isCapacityRatedGoods, isNotTheItem, isSeatingGoods, matchesQuery, priceForPack, sharesNumericIdentity } from "./bulkListingFilter";
+import { extractVolume, filterOutliers, isCapacityRatedGoods, isNotTheItem, isSeatingGoods, matchesQuery, priceForPack, sharesNumericIdentity } from "./bulkListingFilter";
 import { recordCost } from "../utils/costLog";
 
 /* --------------------------------------------------
@@ -56,20 +56,6 @@ export async function getEbayAccessToken(): Promise<string> {
   };
 
   return access_token;
-}
-
-function filterOutliers(prices: number[]) {
-  if (prices.length < 4) return prices;
-
-  const sorted = [...prices].sort((a, b) => a - b);
-  const q1 = sorted[Math.floor(sorted.length * 0.25)];
-  const q3 = sorted[Math.floor(sorted.length * 0.75)];
-  const iqr = q3 - q1;
-
-  const min = q1 - iqr * 1.5;
-  const max = q3 + iqr * 1.5;
-
-  return prices.filter((p) => p >= min && p <= max);
 }
 
 function median(values: number[]) {

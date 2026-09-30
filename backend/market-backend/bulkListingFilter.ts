@@ -463,3 +463,50 @@ export function sharesNumericIdentity(title: string | null | undefined, query: s
   const titleWords = words(title);
   return queryNumbers.some((qn) => titleWords.some((tw) => sameWord(tw, qn)));
 }
+
+/**
+ * The last line of defence, after everything above: a numeric safety net over whatever prices
+ * are left once bulk/mismatched listings are already dropped or scaled. Real listings still
+ * disagree by more than the title alone can explain — a pricier seller, one that bundles postage
+ * in, a size close enough to pass sharesNumericIdentity but not quite the same — and a single
+ * survivor of that kind can otherwise become the shown price outright.
+ *
+ * Below 4 prices there isn't enough data for a proper IQR (interquartile range) check, so this
+ * used to do nothing at all for a small sample — common for a grocery item, where only a
+ * handful of comparable listings turn up. Found live on a real "Cadbury Double Decker 4 Pack":
+ * genuine listings clustered at £1.75-£2.27, but with only 4-5 total, one titled the same way and
+ * priced at £15.12 sailed straight through with zero protection, becoming the shown Retail price.
+ * For a small sample, fall back to a plain ratio check against the cheapest instead: still real,
+ * still simple, and doesn't need 4+ points to say something. Anchored on the cheapest, not the
+ * median, because this file's own reasoning throughout is that a bulk lot, an advert or a
+ * mismatched listing only ever pushes a price UP — the cheapest survivor is the one likeliest to
+ * be a genuine single unit.
+ */
+const SMALL_SAMPLE_MAX_RATIO = 3;
+
+export function filterOutliers(prices: number[]): number[] {
+  if (prices.length < 2) return prices;
+
+  const sorted = [...prices].sort((a, b) => a - b);
+  const cheapest = sorted[0];
+  const byRatio = prices.filter((p) => p <= cheapest * SMALL_SAMPLE_MAX_RATIO);
+
+  if (sorted.length < 4) return byRatio;
+
+  // With 4+ prices, also apply the standard IQR (interquartile range) check — but on its OWN,
+  // IQR breaks down for a small-to-medium sample where the one outlier ends up defining its own
+  // quartile boundary. Found live on the exact real Double Decker case: 3 genuine listings
+  // (£1.75-£2.27) plus one real £15.12 outlier is only 4 prices, so the outlier itself became q3
+  // — its "upper bound" was drawn around itself, and it survived untouched. Taking the
+  // intersection of both checks fixes it: a price must be unremarkable by BOTH measures to
+  // survive, and the ratio check (which needs no minimum sample size and isn't skewed by the
+  // outlier defining its own bound) catches what IQR alone misses here.
+  const q1 = sorted[Math.floor(sorted.length * 0.25)];
+  const q3 = sorted[Math.floor(sorted.length * 0.75)];
+  const iqr = q3 - q1;
+
+  const min = q1 - iqr * 1.5;
+  const max = q3 + iqr * 1.5;
+
+  return byRatio.filter((p) => p >= min && p <= max);
+}
