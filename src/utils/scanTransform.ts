@@ -12,7 +12,7 @@ export const normalizeConfidence = (raw: unknown): number | null => {
 
 // Only the numbers that scan-results and History use. The raw market object also carries every
 // eBay and Google listing, which would all be pushed through the route params.
-const pickMarket = (market: any) => ({
+export const pickMarket = (market: any) => ({
   demandScore: market?.demandScore ?? null,
   googlePriceMin: market?.googlePriceMin ?? null,
   googlePriceMax: market?.googlePriceMax ?? null,
@@ -26,6 +26,17 @@ const pickMarket = (market: any) => ({
   aiPriceMin: market?.aiPriceMin ?? null,
   aiPriceMax: market?.aiPriceMax ?? null,
   aiPriceConfidence: market?.aiPriceConfidence ?? null,
+  // eBay's own asking-price range, shown as its own "Trending on eBay" card — informational only,
+  // not blended into the prices above. Dropped here until 2026-09-30, so that card never rendered
+  // for anyone: the backend has always sent it, this whitelist just never forwarded it.
+  ebay:
+    market?.ebay?.lowest != null || market?.ebay?.highest != null
+      ? {
+          lowest: market.ebay.lowest ?? null,
+          highest: market.ebay.highest ?? null,
+          soldCount: market.ebay.soldCount ?? null,
+        }
+      : null,
 });
 
 // `/search` and `/search-image` return { ai, market, pricing, flipScore, image, title, barcode, ... }.
@@ -72,6 +83,10 @@ export const transformIdentity = (
     suggested_buy: null,
     suggested_sell: null,
     flip_score: 0,
+    // Set here, at identify time, and left alone by applyPrices below (it only spreads ...data.ai
+    // and overrides specific fields) — /price never echoes packCount back, so this is the one place
+    // it can be read from.
+    packCount: input?.packCount ?? null,
   },
   market: pickMarket(null),
   flipPotential: null,

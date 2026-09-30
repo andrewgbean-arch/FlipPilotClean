@@ -70,51 +70,67 @@ export async function scanMeter(req: Request, res: Response, next: NextFunction)
     return next();
   }
 
-  if (takeFreeScan(deviceId)) {
-    payBackOnFailure(res, () => returnFreeScan(deviceId));
-    return next();
-  }
-
-  // Only worth the extra round trip once the free scans are gone.
-  const plan = await planStatus(deviceId);
-  if (plan.active && plan.period) {
-    const period = plan.period;
-    if (takeTraderScan(deviceId, period)) {
-      payBackOnFailure(res, () => returnTraderScan(deviceId, period));
+  // Everything below reads/writes the credits, free-scan and Trader-allowance JSON files, which
+  // deliberately THROW rather than silently reset to {} on a corrupted file (see creditStore.ts) —
+  // on purpose, so a damaged file is never mistaken for an empty one. But Express 4 does not catch a
+  // throw from inside async middleware like this one: with nothing here to catch it, that throw was
+  // an unhandled rejection, and Node's default policy for those is to crash the whole process — one
+  // damaged file taking down scanning for every user, not just whoever's file it was. A clean 503
+  // keeps the deliberate "never guess" behaviour of the stores while stopping it from being able to
+  // take the server down.
+  try {
+    if (takeFreeScan(deviceId)) {
+      payBackOnFailure(res, () => returnFreeScan(deviceId));
       return next();
     }
-  }
 
-  const free = freeScanStatus(deviceId);
-  // A Trader who has used this month's scans is told when they come back, not just about the free ones.
-  const traderLine =
-    plan.active && plan.renewsOn
-      ? ` Your ${TRADER_MONTHLY_SCANS} Trader scans come back when your plan renews on ${new Date(plan.renewsOn).toLocaleDateString("en-GB", { day: "numeric", month: "long" })}.`
-      : "";
-  const account = req.account;
+    // Only worth the extra round trip once the free scans are gone.
+    const plan = await planStatus(deviceId);
+    if (plan.active && plan.period) {
+      const period = plan.period;
+      if (takeTraderScan(deviceId, period)) {
+        payBackOnFailure(res, () => returnTraderScan(deviceId, period));
+        return next();
+      }
+    }
 
-  if (account) {
-    if (spend(account.id, 1, "scan").ok) {
-      payBackOnFailure(res, () => {
-        refund(account.id, 1, "scan-refund");
+    const free = freeScanStatus(deviceId);
+    // A Trader who has used this month's scans is told when they come back, not just about the free ones.
+    const traderLine =
+      plan.active && plan.renewsOn
+        ? ` Your ${TRADER_MONTHLY_SCANS} Trader scans come back when your plan renews on ${new Date(plan.renewsOn).toLocaleDateString("en-GB", { day: "numeric", month: "long" })}.`
+        : "";
+    const account = req.account;
+
+    if (account) {
+      if (spend(account.id, 1, "scan").ok) {
+        payBackOnFailure(res, () => {
+          refund(account.id, 1, "scan-refund");
+        });
+        return next();
+      }
+      res.json({
+        error: "out-of-credits",
+        message: `You've used your ${free.limit} free scans this week and have no scan credits left. Get more credits, or your free scans come back on ${free.resetsOn}.${traderLine}`,
+        resetsOn: free.resetsOn,
+        signedIn: true,
+        credits: getBalance(account.id),
       });
-      return next();
+      return;
     }
-    res.json({
-      error: "out-of-credits",
-      message: `You've used your ${free.limit} free scans this week and have no scan credits left. Get more credits, or your free scans come back on ${free.resetsOn}.${traderLine}`,
-      resetsOn: free.resetsOn,
-      signedIn: true,
-      credits: getBalance(account.id),
-    });
-    return;
-  }
 
-  res.json({
-    error: "free-scan-limit",
-    message: `You've used your ${free.limit} free scans this week. Sign in to use scan credits, or your free scans come back on ${free.resetsOn}.${traderLine}`,
-    resetsOn: free.resetsOn,
-    signedIn: false,
-    credits: 0,
-  });
+    res.json({
+      error: "free-scan-limit",
+      message: `You've used your ${free.limit} free scans this week. Sign in to use scan credits, or your free scans come back on ${free.resetsOn}.${traderLine}`,
+      resetsOn: free.resetsOn,
+      signedIn: false,
+      credits: 0,
+    });
+  } catch (err: any) {
+    console.log("SCAN METER ERROR:", err?.message || err);
+    res.status(503).json({
+      error: "busy",
+      message: "FlipPilot is having trouble right now. Please try again in a moment.",
+    });
+  }
 }

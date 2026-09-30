@@ -85,6 +85,33 @@ export function dearerQuartile(prices: number[]): number | null {
   return sorted[Math.ceil((sorted.length - 1) * 0.75)];
 }
 
+/**
+ * Whether Google's evidence should be treated as missing, for caching purposes: it was actually
+ * expected to answer (not skipped because eBay alone was already judged enough) and it didn't.
+ *
+ * `googleSkipped` means Google was never asked for at all — the opposite of what's needed here, so
+ * this is deliberately `!googleSkipped`, not `googleSkipped`. Also deliberately NOT keyed on
+ * whether Google started "late" (only ever true in the when-needed path): in GOOGLE_SHOPPING=always
+ * mode Google is asked up front and never counts as having started late, so a version of this check
+ * keyed on that flag stayed permanently false in that mode — silently caching a genuine Google
+ * timeout/error for the full TTL and re-creating the exact "bad price locked in for 10 minutes" bug
+ * this whole mechanism exists to prevent, just in the other config mode.
+ */
+export function googleStillMissing(googleSkipped: boolean, google: { avg: number | null } | null): boolean {
+  return !googleSkipped && (!google || google.avg == null);
+}
+
+/**
+ * A Google Shopping listing's price (`extracted_price` or the raw `price` string) as a plain
+ * number. On google.co.uk a comma is always a thousands separator ("£1,299.99"), never a decimal
+ * one — so every comma is stripped, not swapped for a dot. Swapping only the first one for a dot
+ * turned "1,299.99" into "1.299.99", which parseFloat reads as 1.299 (it stops at the second dot):
+ * a real, expensive item's price silently landing about 1000x too low.
+ */
+export function parseListedPrice(raw: unknown): number {
+  return parseFloat(String(raw).replace(/[^0-9.,]/g, "").replace(/,/g, ""));
+}
+
 /* --------------------------------------------------
    ⭐ Helper: merge prices safely
 -------------------------------------------------- */
@@ -143,7 +170,7 @@ async function fetchGoogleShopping(query: string, wantedCount?: number | null) {
       if (!c) continue;
       if (isNotTheItem(item.title, query, capacityRatedGoods, seatingGoods)) continue;
 
-      const listed = parseFloat(String(c).replace(/[^0-9.,]/g, "").replace(",", "."));
+      const listed = parseListedPrice(c);
       // Scaled to the scanned pack size where the listing says its own; dropped if bulk.
       const p = priceForPack(item.title, listed, wantedCount, ownVolume, capacityRatedGoods);
       if (p !== null) rawPrices.push(p);
@@ -600,7 +627,7 @@ const image =
       priceInputs,
     };
 
-    evidenceCacheSet(evidenceCacheKey, evidence, googleStartedLate && (!google || google.avg == null));
+    evidenceCacheSet(evidenceCacheKey, evidence, googleStillMissing(googleSkipped, google));
     return priceEvidence(evidence, usedMode, grade, age);
   } catch (err: any) {
     console.error("Unified Market Engine Error:", err?.message || err);

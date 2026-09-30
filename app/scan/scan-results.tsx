@@ -243,6 +243,9 @@ export default function ScanResultsScreen() {
   const [calcValue, setCalcValue] = useState("");
 
   const [reportingPrice, setReportingPrice] = useState(false);
+  // A ref, not the state above: two taps landing before the next render both see the same
+  // pre-update `reportingPrice`, so the state alone can't stop a double-submit.
+  const reportingPriceRef = useRef(false);
 
   useEffect(() => {
     try {
@@ -599,7 +602,8 @@ export default function ScanResultsScreen() {
   // "Doesn't look right? Report this" — a snapshot of exactly what was on screen, so a wrong
   // price can be traced back to the real search that produced it, not just a general complaint.
   const reportThisPrice = async () => {
-    if (reportingPrice) return;
+    if (reportingPriceRef.current) return;
+    reportingPriceRef.current = true;
     setReportingPrice(true);
     try {
       await reportPrice({
@@ -613,6 +617,7 @@ export default function ScanResultsScreen() {
     } catch {
       Alert.alert("Couldn't send that", "Please check your connection and try again.");
     } finally {
+      reportingPriceRef.current = false;
       setReportingPrice(false);
     }
   };

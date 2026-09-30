@@ -222,8 +222,12 @@ export function priceAs(input: { barcode: unknown; condition: unknown; grade: un
   };
 }
 
-// The price step needs the token the identify step handed out, so it can't be used on its own as a free price service.
-router.post("/price", rateLimit(30), requireScanToken, paidLookupBudget, async (req, res) => {
+// The price step needs the token the identify step handed out, so it can't be used on its own as a
+// free price service. paidLookupBudget runs FIRST: if the server's daily lookup cap is the thing
+// that refuses the request, the customer's own token use (one of their 8, 30-minute-limited
+// rechecks) must not be spent on a request that never actually ran — found live: with the old order,
+// a couple of 503s near the cap could burn 2-3 of someone's rechecks on nothing.
+router.post("/price", rateLimit(30), paidLookupBudget, requireScanToken, async (req, res) => {
   try {
     const { title, packCount, condition, barcode, imageBase64, grade, age } = req.body ?? {};
     if (!title || typeof title !== "string") return res.json({ error: "Missing title" });
