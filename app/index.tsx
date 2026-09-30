@@ -59,7 +59,13 @@ export default function IntroScreen() {
   const goHome = () => {
     if (navigatedRef.current) return;
     navigatedRef.current = true;
-    music.pause();
+    // The native player can already be released by the time this runs — a Fast Refresh
+    // remount mid-intro reliably crashed the whole app here ("AudioPlayer.pause... cannot
+    // use shared object that was already released"). There's nothing to pause on a gone
+    // player, and nothing the user would notice either way, so this is safe to swallow.
+    try {
+      music.pause();
+    } catch {}
     router.replace("/home");
   };
 
@@ -67,11 +73,16 @@ export default function IntroScreen() {
     const sub = player.addListener("playToEnd", goHome);
     const fallback = setTimeout(goHome, FALLBACK_MS);
     // Starts alongside the (muted) video, so the two are heard as one intro.
-    music.play();
+    try {
+      music.play();
+    } catch {}
     return () => {
       sub.remove();
       clearTimeout(fallback);
-      music.pause();
+      // Same race as goHome above, hit on unmount instead of navigation.
+      try {
+        music.pause();
+      } catch {}
     };
   }, [player]);
 
