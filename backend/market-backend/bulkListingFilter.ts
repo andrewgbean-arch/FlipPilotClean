@@ -144,7 +144,30 @@ export function isSeatingGoods(query: string | null | undefined): boolean {
   return !!query && SEATING_GOODS.test(query);
 }
 const SEATING_PARTS_EXTRA =
-  /\b(headrest|head\s?rest|gas cylinder|gas lift|lumbar(?:\s+\w+){0,3}\s+(?:pad|cushion)|arm\s?pads?|armrest pads?|foam|cushion|wheel|wheels|castors?|casters?|touch[\s-]?up|spray paint)\b/gi;
+  /\b(headrest|head\s?rest|gas cylinder|gas lift|lumbar(?:\s+\w+){0,3}\s+(?:pad|cushion)|arm\s?pads?|armrest pads?|wheel|wheels|castors?|casters?|touch[\s-]?up|spray paint)\b/gi;
+
+// "foam"/"cushion" ARE a real spare-part signal for a chair (found live on the Aeron Chair: "Seat
+// Cushion for...", loose replacement foam) — but not for a sofa/settee/couch, where "reversible
+// seat cushions" and "high-density foam" are ordinary whole-item selling points, exactly the kind
+// of false positive the comment on APPLIANCE_PARTS_EXTRA above already warns this whole mechanism
+// against. Kept out of SEATING_PARTS_EXTRA and checked separately, only for non-sofa seating.
+const CHAIR_ONLY_PARTS_EXTRA = /\b(foam|cushions?)\b/gi;
+const SOFA_GOODS = /\b(sofa|settee|couch)\b/i;
+function isSofaGoods(query: string): boolean {
+  return SOFA_GOODS.test(query);
+}
+
+// Luggage shares the appliance's own "its own capacity never shows in a photo" reasoning (so it
+// stays in CAPACITY_RATED_GOODS, above, for the oversized-volume exemption) — but that's where
+// the similarity ends. A suitcase or backpack's own "handle" (a telescopic handle, a comfort carry
+// handle) is a completely ordinary, positive thing to mention on a whole real listing, not a
+// spare-part word the way it is for a washing machine's own switch/timer/handle. Found live
+// 2026-09-30: a real "Antler Clifton... with TSA Lock and Telescopic Handle" listing was being
+// excluded from its own item's comparison pool.
+const LUGGAGE_GOODS = /\b(suitcase|holdall|rucksack|backpack)\b/i;
+function isLuggageGoods(query: string): boolean {
+  return LUGGAGE_GOODS.test(query);
+}
 
 // A listing this many times the size of the scanned pack has a bulk discount
 // so deep that scaling its price down tells us nothing useful.
@@ -266,10 +289,15 @@ export function isNotTheItem(
 ): boolean {
   if (!title) return false;
   const wanted = query.toLowerCase();
+  // A capacity-rated item that's actually luggage doesn't get the appliance-only parts words (see
+  // LUGGAGE_GOODS above); seating that's actually a sofa doesn't get the chair-only ones.
+  const applianceGoods = capacityRatedGoods && !isLuggageGoods(query);
+  const chairOnly = seatingGoods && !isSofaGoods(query);
   const found = [
     ...(title.match(NOT_THE_ITEM) ?? []),
-    ...(capacityRatedGoods ? title.match(APPLIANCE_PARTS_EXTRA) ?? [] : []),
+    ...(applianceGoods ? title.match(APPLIANCE_PARTS_EXTRA) ?? [] : []),
     ...(seatingGoods ? title.match(SEATING_PARTS_EXTRA) ?? [] : []),
+    ...(chairOnly ? title.match(CHAIR_ONLY_PARTS_EXTRA) ?? [] : []),
   ];
   if (!found.length) return false;
   return found.some((word) => !wanted.includes(word.toLowerCase()));

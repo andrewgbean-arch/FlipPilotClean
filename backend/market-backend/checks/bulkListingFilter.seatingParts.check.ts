@@ -88,5 +88,38 @@ eq(
   false
 );
 
+// Found live 2026-09-30: "cushion"/"foam" are a real chair-spare-part signal (confirmed above —
+// "Seat Cushion for..." IS a spare) but ordinary whole-item marketing copy for a sofa: "reversible
+// seat cushions" and "high-density foam" are how real sofas are actually sold. A sofa search still
+// gets the rest of SEATING_PARTS_EXTRA (headrest, gas cylinder, lumbar pad, wheels, touch-up) —
+// only the chair-only cushion/foam words are excluded for it.
+const SOFA_QUERY = "3 Seater Sofa";
+eq("a sofa is still recognised as seating goods", isSeatingGoods(SOFA_QUERY), true);
+eq(
+  "a real whole sofa advertising reversible cushions is unaffected",
+  isNotTheItem("Large Grey Fabric 3 Seater Sofa with Reversible Cushions", SOFA_QUERY, false, true),
+  false
+);
+eq(
+  "a real whole sofa advertising high-density foam is unaffected",
+  isNotTheItem("Corner Sofa, High-Density Foam Seats, Grey Fabric", SOFA_QUERY, false, true),
+  false
+);
+// A chair, meanwhile, must still be caught on the exact same words — the sofa carve-out must not
+// leak into chairs, which is where the real spare-part signal was found live in the first place.
+eq(
+  "a chair's own cushion spare is still caught (unaffected by the sofa carve-out)",
+  isNotTheItem("Seat Cushion for Herman Miller Aeron Chair, Natural Latex Ergonomic Office", QUERY, false, true),
+  true
+);
+// A sofa's own genuine spare parts (not cushion/foam) must still be caught as before — no
+// "replacement"/"spare" wording here, so this isolates SEATING_PARTS_EXTRA itself, not the
+// separate general NOT_THE_ITEM list.
+eq(
+  "a sofa's own gas cylinder spare is still caught",
+  isNotTheItem("Gas Cylinder for Recliner Sofa Mechanism, Class 4", SOFA_QUERY, false, true),
+  true
+);
+
 console.log(fail === 0 ? "ALL PASS" : `${fail} FAILED`);
 process.exit(fail ? 1 : 0);

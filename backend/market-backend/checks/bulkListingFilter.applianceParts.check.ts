@@ -41,10 +41,24 @@ eq("heat exchange handle: not the item when capacity-rated", isNotTheItem("Indes
 eq("timer: not the item when capacity-rated", isNotTheItem("Hotpoint Small Vented  Tumble Dryer TS13 Timer", QUERY, true), true);
 
 // The whole point of gating this list: without capacityRatedGoods, these same generic words must
-// NOT be held against an unrelated whole item — a games console, a suitcase, a lunch box.
+// NOT be held against an unrelated whole item — a games console, a lunch box.
 eq("a games switch console is unaffected", isNotTheItem("Nintendo Switch OLED Console White", "Nintendo Switch", false), false);
-eq("a suitcase with a handle is unaffected", isNotTheItem("Large Suitcase with Telescopic Handle 90L", "Suitcase", false), false);
 eq("a lunch container is unaffected", isNotTheItem("Stainless Steel Lunch Container", "Lunch Box", false), false);
+
+// Found live 2026-09-30: luggage IS in CAPACITY_RATED_GOODS (for the oversized-volume exemption —
+// a "90L rucksack" is genuinely that size), so a real caller's isCapacityRatedGoods("Suitcase")
+// is TRUE, not false — the test above (before this fix) passed `false` for a suitcase, which never
+// reflected real production behaviour and so never caught this: a genuine "Antler Suitcase...with
+// Telescopic Handle" was being excluded as if "handle" meant a spare part, the same way it does for
+// a washing machine. capacityRatedGoods=true for a real suitcase/holdall/rucksack/backpack query
+// must NOT exclude a listing on "handle" (or the other appliance-only words) any more.
+eq("a suitcase, capacity-rated=true (the real value): handle is unaffected", isNotTheItem("Large Suitcase with Telescopic Handle 90L", "Suitcase", true), false);
+eq("a rucksack, capacity-rated=true: handle is unaffected", isNotTheItem("Osprey 65L Rucksack with Adjustable Handle Straps", "Osprey Rucksack", true), false);
+// A genuine luggage accessory (not one of APPLIANCE_PARTS_EXTRA's own words) is still caught by
+// the separate, general NOT_THE_ITEM list — this fix only narrows the appliance-only word list.
+eq("a genuine suitcase accessory is still caught by the general list", isNotTheItem("Suitcase Cover Protector, Clear PVC", "Suitcase", true), true);
+// A true appliance must still be caught on "handle" — the luggage carve-out must not leak into it.
+eq("a washing machine's own handle spare is still caught", isNotTheItem("Indesit Washing Machine Door Handle Only", "Indesit Washing Machine", true), true);
 // And the same is true even when the flag is simply left out (the default for every ordinary product).
 eq("without the flag at all, still unaffected (default)", isNotTheItem("Nintendo Switch OLED Console White", "Nintendo Switch"), false);
 
