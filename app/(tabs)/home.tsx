@@ -203,7 +203,7 @@ export default function HomeScreen() {
             ]}
             onPress={() => router.push("/settings")}
           >
-            <GearSix size={22} color={theme.muted} />
+            <GearSix size={28} color={theme.muted} />
           </Pressable>
 
           {/* Every chat, as buyer and as seller. Mirrors the settings button. */}
@@ -224,9 +224,9 @@ export default function HomeScreen() {
             onPress={() => router.push("/messages")}
           >
             {hasNewMessage ? (
-              <FlashingMessageIcon size={22} color={theme.danger} />
+              <FlashingMessageIcon size={28} color={theme.danger} />
             ) : (
-              <ChatCircle size={22} color={theme.muted} />
+              <ChatCircle size={28} color={theme.muted} />
             )}
           </Pressable>
         </View>
@@ -437,9 +437,9 @@ const styles = StyleSheet.create({
   settingsButton: {
     position: "absolute",
     right: 16,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
