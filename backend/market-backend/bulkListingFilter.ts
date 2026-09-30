@@ -274,6 +274,17 @@ const NOT_THE_ITEM =
 // only ever name a spare part (found live: several more real spare listings this narrowly missed).
 const APPLIANCE_PARTS_EXTRA = /\b(water container|drawer|pump|micro switch|switch|heat exchanger?|timer|handle|container)\b/gi;
 
+// A listing bundling the scanned item together with an entirely different, separately-sold major
+// product isn't comparable to the item on its own — the price covers both, not one. Found live on
+// a real "Edifier R1280T...Speaker" scan: genuine single-speaker-set listings clustered £80-£120,
+// but a real "with Sub-out T5 Active Subwoofer" listing and two "Turntable + Edifier R1280T"
+// listings were priced at £229.99-£399.99 and none of the checks above catch this shape of
+// problem — these are real, whole, unbroken items, just two of them sold together. Checked
+// unconditionally, not gated by category: the same self-correction as NOT_THE_ITEM above already
+// covers it — a word the search itself contains (someone actually scanning a turntable) is never
+// held against a listing, so this can't wrongly exclude a genuine match in that category.
+const BUNDLE_WORDING = /\b(turntable|subwoofer|amplifier|receiver|soundbar|projector|bundle|combo|package deal)\b/gi;
+
 /**
  * True when a listing looks like an accessory, spare part or faulty unit rather than the item
  * searched for. A word the search itself contains does not count (searching "phone charger" must
@@ -295,6 +306,7 @@ export function isNotTheItem(
   const chairOnly = seatingGoods && !isSofaGoods(query);
   const found = [
     ...(title.match(NOT_THE_ITEM) ?? []),
+    ...(title.match(BUNDLE_WORDING) ?? []),
     ...(applianceGoods ? title.match(APPLIANCE_PARTS_EXTRA) ?? [] : []),
     ...(seatingGoods ? title.match(SEATING_PARTS_EXTRA) ?? [] : []),
     ...(chairOnly ? title.match(CHAIR_ONLY_PARTS_EXTRA) ?? [] : []),
@@ -382,7 +394,7 @@ const GENERIC_WORDS = new Set(
   (
     "the a an and or for with of in on to by from new used pack set kit lot item items " +
     "black white blue red green grey gray silver gold pink purple orange yellow brown " +
-    "bluetooth wireless portable speaker speakers headphones earphones earbuds console phone mobile " +
+    "bluetooth wireless portable speaker speakers multimedia system systems headphones earphones earbuds console phone mobile " +
     "laptop tablet camera watch toy toys game games mini large small medium big original classic " +
     "edition genuine official uk free delivery fast bargain boxed unboxed sealed working tested " +
     "great good condition quality high low super mega ultra pro plus max lozenge lozenges tablets tablet " +
