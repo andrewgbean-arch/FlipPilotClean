@@ -492,11 +492,19 @@ export function sharesNumericIdentity(title: string | null | undefined, query: s
  * a product's name is as common as inflated junk. The median doesn't care which end the junk is
  * at, as long as the real listings are the majority.
  *
+ * The band is asymmetric on purpose: the shown Retail price is the DEARDEST survivor, so a loose
+ * upper cap lets one inflated listing become the price (a first median-3x version showed an iPad
+ * at £976, a 55in TV at £1,303). Tested offline on 79 real captured Google result sets, a 1.75x
+ * upper cap (real UK spreads like the Rivelia's £498-£937 sit at about 1.6x the median) left the
+ * fewest items out of range; the lower side stays at a third because cheap junk (skins, parts)
+ * is 10x-30x under, not 2x.
+ *
  * Two prices is the one case with no median worth trusting (either could be the junk), so it
  * keeps the old rule — drop the dearer if it's over 3x the cheaper — because a two-listing
  * result is overwhelmingly a grocery item, where that rule's reasoning does hold.
  */
 const OUTLIER_RATIO = 3;
+const UPPER_RATIO = 1.75;
 
 function medianOf(sorted: number[]): number {
   const mid = Math.floor(sorted.length / 2);
@@ -512,7 +520,7 @@ export function filterOutliers(prices: number[]): number[] {
     byRatio = prices.filter((p) => p <= sorted[0] * OUTLIER_RATIO);
   } else {
     const m = medianOf(sorted);
-    byRatio = prices.filter((p) => p <= m * OUTLIER_RATIO && p >= m / OUTLIER_RATIO);
+    byRatio = prices.filter((p) => p <= m * UPPER_RATIO && p >= m / OUTLIER_RATIO);
   }
 
   if (byRatio.length < 4) return byRatio;

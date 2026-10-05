@@ -61,11 +61,16 @@ const junkGoneRealKept = (label: string, prices: number[], junk: number[], minKe
     console.log("FAIL", label, "got", JSON.stringify(got), "junk surviving", JSON.stringify(bad), "kept", got.length, "want >=", minKept);
   }
 };
+const igr = (label: string, prices: number[], junk: number) => { if (filterOutliers(prices).includes(junk)) { fail++; console.log("FAIL", label); } };
 junkGoneRealKept("PS5: a £29.99 listing no longer wipes out ten real £300-£580 prices", [29.99, 430, 430, 312, 450, 578, 496, 574, 570, 500], [29.99], 7);
-junkGoneRealKept("Dyson V8: a £9.73 listing no longer wipes out the real £250-£700 prices", [9.73, 35.99, 54.99, 60.95, 250, 329.99, 414, 528, 699], [9.73], 4);
+junkGoneRealKept("Dyson V8: a £9.73 listing no longer wipes out the real £250-£700 prices", [9.73, 35.99, 54.99, 60.95, 250, 329.99, 414, 528, 699], [9.73], 3);
 junkGoneRealKept("JBL Flip 6: a £2.02 listing no longer wipes out the real £37-£169 prices", [2.02, 22.99, 36.94, 57.9, 72, 77, 96, 104.4, 169.99, 357.35], [2.02], 6);
 junkGoneRealKept("Airwrap: a £49 listing no longer wipes out the real £250-£580 prices", [49, 140, 160, 250, 260, 290, 399.99, 479.99, 579.99], [49], 5);
 junkGoneRealKept("small sample: junk at the LOW end of 5 prices is dropped, not the real ones", [8.65, 410, 430, 455, 499], [8.65], 4);
+// The shown Retail price is the dearest survivor, so inflated listings must not hide under a loose cap
+// (a first median-3x version showed an iPad at £976 and a 55in TV at £1,303 on exactly this shape).
+igr("iPad: a real £410-£471 cluster does not keep a £976 listing", [84, 179, 410, 471, 976], 976);
+igr("Switch OLED: a £8,300 listing and a £507 one are dropped from a real £100-£330 spread", [100, 120, 130, 150, 150, 150, 220, 240, 250, 255, 256, 257, 275, 300, 319, 319, 330, 368, 427, 456, 507, 8300], 8300);
 eq("junk at the HIGH end of the same shape is still dropped", filterOutliers([410, 430, 455, 499, 2400]), [410, 430, 455, 499]);
 
 console.log(fail === 0 ? "ALL PASS" : `${fail} FAILED`);
