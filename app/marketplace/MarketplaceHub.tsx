@@ -16,9 +16,11 @@ import { getDeviceId } from "@/utils/deviceId";
 import PartnerLinks from "@/components/marketplace/PartnerLinks";
 import GoldParticles from "@/components/ui/GoldParticles";
 import { markMarketplaceVisited } from "@/utils/onboarding";
+import { useTourTarget } from "@/features/tour/TourTarget";
 
 export default function MarketplaceHub() {
   const theme = useTheme();
+  const sellTour = useTourTarget("marketplace.sell");
 
   const [trending, setTrending] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,6 +86,9 @@ export default function MarketplaceHub() {
       <View style={{ paddingHorizontal: 20 }}>
         {/* Sell something */}
         <Pressable
+          ref={sellTour.ref}
+          onLayout={sellTour.onLayout}
+          collapsable={false}
           style={{
             backgroundColor: theme.accent,
             padding: 14,

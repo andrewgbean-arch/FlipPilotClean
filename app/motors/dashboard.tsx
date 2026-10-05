@@ -23,6 +23,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { useDealerNotifications } from "@/features/vehicles/context/DealerNotificationsContext";
+import { useTourTarget } from "@/features/tour/TourTarget";
 import { useTheme } from "@/styles/ThemeContext";
 import {
   motAttentionList,
@@ -127,6 +128,7 @@ function Row({
 }
 
 export default function MotorsDashboard() {
+  const motLookupTour = useTourTarget("motors.mot-lookup");
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -209,6 +211,9 @@ export default function MotorsDashboard() {
           </Pressable>
 
           <Pressable
+            ref={motLookupTour.ref}
+            onLayout={motLookupTour.onLayout}
+            collapsable={false}
             accessibilityRole="button"
             accessibilityLabel="MOT lookup"
             style={({ pressed }) => [

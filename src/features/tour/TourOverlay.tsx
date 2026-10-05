@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Dimensions, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SpeakerHigh, SpeakerSlash, X } from "phosphor-react-native";
@@ -7,13 +8,13 @@ import { nextStep, prevStep, skipTour, toggleTourMute, useTourState } from "./To
 import { TOUR_STEPS } from "./tourSteps";
 
 /**
- * The one global spotlight: dims everything EXCEPT the real button the current tour step points
- * at, draws a gold ring around it, and shows a caption bubble with narration + controls.
+ * The one global spotlight: draws a gold ring around the real button the current tour step points
+ * at, and shows a caption bubble with narration + controls.
  *
  * Deliberately NOT an SVG mask-with-a-cutout (tried first, found live to be unreliable on
  * Android — the "hole" wasn't visibly showing through, so nothing was actually highlighted).
- * Four plain dimmed rectangles around the target, leaving the target's own area completely
- * untouched, is simpler and far more predictable across devices.
+ * No dimming at all (the owner wanted the pages left fully visible): just a gold ring around the
+ * target's own rect, which is plain, predictable and the same on every device.
  *
  * v1: no animation yet (snaps straight to each target's rect) — this version exists to prove the
  * measurement pipeline works before reanimated transitions are layered on.
@@ -22,12 +23,19 @@ import { TOUR_STEPS } from "./tourSteps";
 const RING_PADDING = 8;
 const RING_RADIUS = 14;
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
-const DIM_COLOR = "rgba(0,0,0,0.78)";
+// Space kept between the highlight ring and the caption, and between the caption and the screen edge.
+const CAPTION_GAP = 14;
+const SCREEN_EDGE_GAP = 8;
+// Only used until the caption has laid out once and told us its real height.
+const CAPTION_HEIGHT_GUESS = 240;
 
 export default function TourOverlay() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { active, stepIndex, muted, targetRect, waitingForTarget } = useTourState();
+  // The caption's real height (its text wraps differently on every step), so it can be placed to
+  // genuinely clear the highlighted button instead of relying on a guess.
+  const [captionHeight, setCaptionHeight] = useState(CAPTION_HEIGHT_GUESS);
 
   if (!active) return null;
 
@@ -44,68 +52,51 @@ export default function TourOverlay() {
       }
     : null;
 
-  // Keep the caption clear of the hole: below it normally, above it if the target sits in the
-  // bottom half of the screen, so the bubble never covers the very thing it's pointing at.
-  const targetInBottomHalf = hole ? hole.y > SCREEN_HEIGHT / 2 : false;
+  // Keep the caption clear of the highlighted button: below it when it fits there, otherwise above
+  // it. (Below first: the Scan screen's torch and zoom buttons sit at the top.) If neither side has
+  // room for the whole caption (a very tall target), use the roomier side flush to the screen edge,
+  // so it covers as little as possible rather than sitting in the middle of the target.
+  const topLimit = insets.top + SCREEN_EDGE_GAP;
+  const bottomLimit = SCREEN_HEIGHT - insets.bottom - SCREEN_EDGE_GAP;
+  let captionTop = SCREEN_HEIGHT / 2 - captionHeight / 2;
+  if (hole) {
+    const roomBelow = bottomLimit - (hole.y + hole.height + CAPTION_GAP);
+    const roomAbove = hole.y - CAPTION_GAP - topLimit;
+    if (roomBelow >= captionHeight) captionTop = hole.y + hole.height + CAPTION_GAP;
+    else if (roomAbove >= captionHeight) captionTop = hole.y - CAPTION_GAP - captionHeight;
+    else captionTop = roomBelow >= roomAbove ? bottomLimit - captionHeight : topLimit;
+  }
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       <View style={StyleSheet.absoluteFill} pointerEvents="auto">
+        {/* No dimming: the page stays fully visible and the gold ring does the pointing. This whole
+            layer is transparent but still catches touches, so a stray tap can't pull someone out
+            of the tour into the app underneath. While the target is still being measured there is no
+            ring at all, rather than a stale one. */}
         {hole ? (
-          <>
-            {/* TOP strip: full width, above the hole */}
-            <View style={[styles.dim, { left: 0, right: 0, top: 0, height: Math.max(0, hole.y) }]} />
-            {/* BOTTOM strip: full width, below the hole */}
-            <View
-              style={[
-                styles.dim,
-                { left: 0, right: 0, top: hole.y + hole.height, bottom: 0 },
-              ]}
-            />
-            {/* LEFT strip: just the hole's own height, left of it */}
-            <View
-              style={[
-                styles.dim,
-                { left: 0, width: Math.max(0, hole.x), top: hole.y, height: hole.height },
-              ]}
-            />
-            {/* RIGHT strip: just the hole's own height, right of it */}
-            <View
-              style={[
-                styles.dim,
-                { left: hole.x + hole.width, right: 0, top: hole.y, height: hole.height },
-              ]}
-            />
-            {/* The ring itself — an outline, not a fill, so it never covers the real button */}
-            <View
-              pointerEvents="none"
-              style={[
-                styles.ring,
-                {
-                  left: hole.x,
-                  top: hole.y,
-                  width: hole.width,
-                  height: hole.height,
-                  borderColor: theme.gold,
-                },
-              ]}
-            />
-          </>
-        ) : (
-          // Still waiting on a measurement: dim the whole screen rather than show a stale hole.
-          <View style={[styles.dim, StyleSheet.absoluteFill]} />
-        )}
+          <View
+            pointerEvents="none"
+            style={[
+              styles.ring,
+              {
+                left: hole.x,
+                top: hole.y,
+                width: hole.width,
+                height: hole.height,
+                borderColor: theme.gold,
+                shadowColor: theme.gold,
+              },
+            ]}
+          />
+        ) : null}
 
         <View
-          style={[
-            styles.caption,
-            { backgroundColor: theme.card, borderColor: theme.gold },
-            hole
-              ? targetInBottomHalf
-                ? { top: Math.max(insets.top + 16, hole.y - 190) }
-                : { top: Math.min(SCREEN_HEIGHT - insets.bottom - 220, hole.y + hole.height + 16) }
-              : { top: SCREEN_HEIGHT / 2 - 90 },
-          ]}
+          onLayout={(e) => {
+            const h = Math.round(e.nativeEvent.layout.height);
+            if (h > 0 && Math.abs(h - captionHeight) > 1) setCaptionHeight(h);
+          }}
+          style={[styles.caption, { backgroundColor: theme.card, borderColor: theme.gold, top: captionTop }]}
         >
           <View style={styles.captionTopRow}>
             <View style={styles.dots}>
@@ -175,12 +166,15 @@ export default function TourOverlay() {
 }
 
 const styles = StyleSheet.create({
-  dim: { position: "absolute", backgroundColor: DIM_COLOR },
   ring: {
     position: "absolute",
-    borderWidth: 3,
+    borderWidth: 4,
     borderRadius: RING_RADIUS,
     backgroundColor: "transparent",
+    // A soft glow so the ring still stands out on a bright page now there's no dimming behind it.
+    shadowOpacity: 0.95,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
   },
   caption: {
     position: "absolute",

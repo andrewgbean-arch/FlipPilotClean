@@ -239,6 +239,14 @@ function finishTour() {
   stopSpeaking();
   markOnboardingSeen();
   set({ active: false, targetRect: null, waitingForTarget: false });
+  // The tour pushes screens as it goes (Marketplace on top of the tabs, then Motors), so finishing or
+  // skipping puts the person back on a clean Home rather than wherever the last step happened to be.
+  try {
+    if (router.canDismiss()) router.dismissAll();
+    router.replace("/home" as Href);
+  } catch {
+    // Navigation not ready (or nothing to dismiss): staying where they are is harmless.
+  }
 }
 
 export function skipTour() {

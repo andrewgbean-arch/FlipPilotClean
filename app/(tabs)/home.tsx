@@ -42,7 +42,7 @@ import FeedbackSheet from "@/components/sheets/FeedbackSheet";
 import FlashingMessageIcon from "@/components/FlashingMessageIcon";
 import GettingStartedCard from "@/components/GettingStartedCard";
 import { useMessageAlerts } from "@/context/MessageAlertsContext";
-import { TourTarget } from "@/features/tour/TourTarget";
+import { TourTarget, useTourTarget } from "@/features/tour/TourTarget";
 import { registerScrollContainer, unregisterScrollContainer } from "@/features/tour/TourContext";
 
 const TOOLS: { key: string; label: string; Icon: PhosphorIcon; route: string; tint: string }[] = [
@@ -100,6 +100,9 @@ export default function HomeScreen() {
   const { vehicles: flips } = useVehicleHistory();
   const theme = useTheme();
   const tourScrollRef = useRef<ScrollView>(null);
+  // The settings gear floats (position: absolute) over the logo, so it takes the tour ref directly
+  // instead of an extra wrapping View that would change its positioning.
+  const settingsTour = useTourTarget("home.settings");
 
   // So the guided tour can scroll the Tools row into view before spotlighting it — it sits below
   // Getting Started and Weather, off-screen on first load.
@@ -209,6 +212,9 @@ export default function HomeScreen() {
           </Text>
 
           <Pressable
+            ref={settingsTour.ref}
+            onLayout={settingsTour.onLayout}
+            collapsable={false}
             accessibilityRole="button"
             accessibilityLabel="Settings"
             style={({ pressed }) => [

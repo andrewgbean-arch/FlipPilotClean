@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FlipCard from "@/components/FlipCard";
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
+import { TourTarget } from "@/features/tour/TourTarget";
 import { useTheme } from "@/styles/ThemeContext";
 
 export default function FavouritesScreen() {
@@ -43,9 +44,11 @@ export default function FavouritesScreen() {
     <View
       style={[styles.container, { backgroundColor: theme.background, paddingTop: insets.top + 16 }]}
     >
-      <Text style={[styles.title, { color: theme.text }]} accessibilityRole="header">
-        Favourites
-      </Text>
+      <TourTarget id="favourites.header" style={styles.titleTarget}>
+        <Text style={[styles.title, { color: theme.text }]} accessibilityRole="header">
+          Favourites
+        </Text>
+      </TourTarget>
 
       {favourites.length === 0 ? (
         // Nothing until the saved flips have been read, so this never flashes
@@ -141,10 +144,11 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
   },
+  // Carries the title's bottom gap so the guided tour's highlight hugs the word, not the empty space under it.
+  titleTarget: { alignSelf: "flex-start", marginBottom: 12 },
   title: {
     fontSize: 28,
     fontWeight: "700",
-    marginBottom: 12,
   },
   listContent: {
     paddingBottom: 32,

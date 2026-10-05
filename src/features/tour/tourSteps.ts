@@ -17,9 +17,8 @@ export type TourStep = {
   say: string;
 };
 
-// Starting with a 3-step subset (Home -> Scan -> History) while the overlay/measurement pipeline
-// itself is being built and tested on-device — the remaining 4 steps (Favourites, Marketplace,
-// Motors/MOT, and the Home Settings gear) are added once this subset is confirmed working.
+// Home (scan tile, settings gear) -> Scan -> History -> Favourites -> Marketplace -> Motors.
+// "Flip Pilot" in every spoken line: "FlipPilot" run together reads as "flip a lot" to the phone's TTS.
 export const TOUR_STEPS: TourStep[] = [
   {
     id: "home.scan-tile",
@@ -30,6 +29,14 @@ export const TOUR_STEPS: TourStep[] = [
     // "FlipPilot" run together reads as "flip a lot" to the phone's TTS — the spoken line gets a
     // space the written title doesn't need.
     say: "Point the camera at a barcode, or take a photo of anything else, and Flip Pilot works out what it's worth.",
+  },
+  {
+    id: "home.settings",
+    screen: "/home" as Href,
+    targetId: "home.settings",
+    title: "Settings and your account",
+    body: "Your account, your data and the tour voice live in Settings. You can replay this tour from there any time.",
+    say: "Settings is the cog in the corner. Your account and preferences live there, and you can replay this tour from it any time.",
   },
   {
     id: "scan.viewfinder",
@@ -49,5 +56,29 @@ export const TOUR_STEPS: TourStep[] = [
     title: "Your History",
     body: "Everything you save from a scan lands here, so you can come back and check on it, or pick up where you left off.",
     say: "Everything you save from a scan lands here in your History, so you can always find it again.",
+  },
+  {
+    id: "favourites.header",
+    screen: "/favourites" as Href,
+    targetId: "favourites.header",
+    title: "Your Favourites",
+    body: "Tap the heart on a flip in History and it's kept here, so your best finds are always one tap away.",
+    say: "Tap the heart on a flip in your History and it's kept here, so your best finds are always one tap away.",
+  },
+  {
+    id: "marketplace.sell",
+    screen: "/marketplace" as Href,
+    targetId: "marketplace.sell",
+    title: "Buy and sell nearby",
+    body: "The Marketplace is people in your area buying and selling directly. List something in a minute, or message a seller about theirs.",
+    say: "The Marketplace is people nearby buying and selling directly with each other. Tap here to list something in a minute.",
+  },
+  {
+    id: "motors.mot-lookup",
+    screen: "/motors" as Href,
+    targetId: "motors.mot-lookup",
+    title: "Checking a car? Look up its MOT",
+    body: "Look up a registration to see its full MOT record, mileage history and advisories before you buy or sell it.",
+    say: "If you're looking at a car, look up its registration to see its full MOT history and mileage before you buy.",
   },
 ];
