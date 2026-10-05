@@ -577,6 +577,13 @@ export default function ScanResultsScreen() {
 
   const card = { backgroundColor: theme.card, borderColor: theme.hairline };
 
+  // The price-guide card holds Google's Retail/Trends rows AND the Condition, Age and "Where are you
+  // buying?" boxes. It used to appear only when Google returned a price, so whenever Google had
+  // nothing (an item it doesn't list, or the search allowance used up) the boxes vanished with it —
+  // leaving no way to change condition even though a Sell price from eBay or the AI was on screen.
+  const hasGuideRows = data.market?.googlePriceMax != null || data.market?.googlePriceMin != null;
+  const hasPickers = !saved && (!barcode || sellPrice != null);
+
   // Profit and ROI share one colour: green for a gain, red for a loss, plain for break-even.
   const signColor = (n: number | null) =>
     n == null ? theme.muted : n > 0 ? theme.success : n < 0 ? theme.danger : theme.text;
@@ -823,7 +830,7 @@ export default function ScanResultsScreen() {
         </View>
 
         {/* PRICE GUIDE: retail vs trending (Google's own high/low), and where you're buying */}
-        {priceState !== "loading" && (data.market?.googlePriceMax != null || data.market?.googlePriceMin != null) ? (
+        {priceState !== "loading" && (hasGuideRows || hasPickers) ? (
           <View style={[styles.group, styles.guideCard, card]}>
             {data.market?.googlePriceMax != null ? (
               <FactRow
@@ -842,7 +849,7 @@ export default function ScanResultsScreen() {
             {/* CONDITION + AGE: only asked for a photo scan (a barcode is always a new
                 shop product). Each box re-checks the price on its own. */}
             {!barcode && !saved ? (
-              <View style={[styles.sourceBlock, { borderTopColor: theme.hairline }]}>
+              <View style={[styles.sourceBlock, { borderTopColor: theme.hairline }, !hasGuideRows && styles.firstBlock]}>
                 <Text style={[styles.sourceLabel, { color: theme.muted }]}>Condition</Text>
                 <View style={styles.pickerRow} accessibilityRole="radiogroup">
                   {CONDITION_OPTIONS.map((o) => {
@@ -915,7 +922,7 @@ export default function ScanResultsScreen() {
             ) : null}
 
             {sellPrice != null && !saved ? (
-              <View style={[styles.sourceBlock, { borderTopColor: theme.hairline }]}>
+              <View style={[styles.sourceBlock, { borderTopColor: theme.hairline }, !hasGuideRows && barcode && styles.firstBlock]}>
                 <Text style={[styles.sourceLabel, { color: theme.muted }]}>Where are you buying?</Text>
                 <View style={styles.sourceRow} accessibilityRole="radiogroup">
                   {SOURCES.map((s) => {
@@ -1519,6 +1526,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   sourceBlock: { borderTopWidth: 1, padding: 14 },
+  // The first thing in the price-guide card when Google gave no Retail/Trends rows above it: no rule on top.
+  firstBlock: { borderTopWidth: 0 },
   sourceLabel: { fontSize: 13, fontWeight: "600", marginBottom: 10 },
   sourceRow: { flexDirection: "row", gap: 8 },
   sourceChip: {
