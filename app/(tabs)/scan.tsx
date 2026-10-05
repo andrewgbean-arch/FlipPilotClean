@@ -19,7 +19,7 @@ import type { BarcodeSettings } from "expo-camera";
 import * as Haptics from "expo-haptics";
 import { router, useFocusEffect, useIsFocused } from "expo-router";
 import ScanAllowancePill from "@/components/ScanAllowancePill";
-import { Barcode, Camera, CameraRotate, Check, Flashlight } from "phosphor-react-native";
+import { Barcode, Camera, CameraRotate, Check, Flashlight, MagnifyingGlassPlus } from "phosphor-react-native";
 
 import { useTheme } from "@/styles/ThemeContext";
 import { ApiError, describeApiError, identifyBarcode, identifyPhoto } from "@/utils/api";
@@ -29,6 +29,7 @@ import { photoForUpload } from "@/utils/photo";
 import { SCAN_AGAIN_EVENT, transformIdentity } from "@/utils/scanTransform";
 import ScanWaitingAd, { AD_REVEAL_DELAY_MS } from "@/components/ScanWaitingAd";
 import { refreshAdverts } from "@/lib/adverts";
+import { useTourTarget } from "@/features/tour/TourTarget";
 
 // Laser + AI Tips
 const LASER_COLOR = "#FF3B3B";
@@ -71,6 +72,11 @@ export default function ScanScreen() {
   const [cameraKey, setCameraKey] = useState(0);
   const [cameraFacing, setCameraFacing] = useState<"back" | "front">("back");
   const [torch, setTorch] = useState(false);
+  const scanFrameTourTarget = useTourTarget("scan.viewfinder");
+  // Cycles through a few safe steps rather than a slider — expo-camera's 0-1 range is each
+  // device's own max zoom (optical+digital combined), so there's no reliable "2x"/"3x" to show.
+  const ZOOM_STEPS = [0, 0.3, 0.6] as const;
+  const [zoomStep, setZoomStep] = useState(0);
 
   // Scan state
   const [loading, setLoading] = useState(false);
@@ -490,6 +496,7 @@ export default function ScanScreen() {
             style={StyleSheet.absoluteFill}
             facing={cameraFacing}
             enableTorch={torch}
+            zoom={ZOOM_STEPS[zoomStep]}
             barcodeScannerSettings={BARCODE_SETTINGS}
             onBarcodeScanned={handleBarcode}
             onCameraReady={() => setCameraReady(true)}
@@ -525,10 +532,28 @@ export default function ScanScreen() {
           >
             <CameraRotate size={22} color={theme.text} />
           </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Zoom${zoomStep > 0 ? `, step ${zoomStep + 1} of ${ZOOM_STEPS.length}` : ""}`}
+            style={[styles.utilityButton, { backgroundColor: zoomStep > 0 ? theme.gold : theme.card }]}
+            onPress={() => setZoomStep((s) => (s + 1) % ZOOM_STEPS.length)}
+          >
+            <MagnifyingGlassPlus
+              size={22}
+              weight={zoomStep > 0 ? "fill" : "regular"}
+              color={zoomStep > 0 ? theme.black : theme.text}
+            />
+          </Pressable>
         </View>
 
         {/* SCAN FRAME */}
-        <View style={styles.frameContainer}>
+        <View
+          style={styles.frameContainer}
+          ref={scanFrameTourTarget.ref}
+          onLayout={scanFrameTourTarget.onLayout}
+          collapsable={false}
+        >
           <Animated.View
             style={[
               styles.frame,
@@ -551,7 +576,7 @@ export default function ScanScreen() {
                   {
                     translateY: laserY.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [0, 254],
+                      outputRange: [0, 294],
                     }),
                   },
                 ],
@@ -742,8 +767,8 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: "25%",
     alignSelf: "center",
-    width: 260,
-    height: 260,
+    width: 300,
+    height: 300,
     justifyContent: "center",
     alignItems: "center",
     overflow: "hidden",
