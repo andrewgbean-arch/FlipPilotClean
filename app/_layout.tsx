@@ -25,6 +25,10 @@ import { DealerNotificationsProvider } from "@/features/vehicles/context/DealerN
 // Gold Flash Overlay
 import GoldFlashOverlay from "@/components/ui/GoldFlashOverlay";
 
+// The guided walkthrough's spotlight — mounted last so it paints above the tab bar and any
+// pushed stack screen.
+import TourOverlay from "@/features/tour/TourOverlay";
+
 // ⭐ Gold Confetti Overlay
 import GoldConfetti from "@/components/ui/GoldConfetti";
 
@@ -69,6 +73,8 @@ export default function RootLayout() {
                   <SignInWatcher />
                   <ThemedStack />
                 </MessageAlertsProvider>
+
+                <TourOverlay />
 
               </VehicleHistoryProvider>
             </DealerNotificationsProvider>
@@ -116,6 +122,7 @@ function GoldFlashOverlayWrapper() {
 // Screens declared below set their own; everything else gets a name from here.
 const SCREEN_TITLES: Record<string, string> = {
   rate: "Rate FlipPilot",
+  "voice-picker": "Tour voice",
   help: "Help",
   game: "Boot Fair Dash",
   "game/index": "Boot Fair Dash",

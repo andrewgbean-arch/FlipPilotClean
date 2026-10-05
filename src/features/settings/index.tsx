@@ -13,6 +13,7 @@ import {
   View,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
+import { startTour } from "@/features/tour/TourContext";
 import Constants from "expo-constants";
 import {
   BookOpen,
@@ -27,6 +28,7 @@ import {
   Info,
   Play,
   ShieldCheck,
+  SpeakerHigh,
   SignIn,
   SignOut,
   Star,
@@ -462,8 +464,15 @@ export default function SettingsScreen() {
           <MenuRow
             Icon={Play}
             title="Watch the welcome tour again"
-            subtitle="The short walkthrough shown when you first opened the app"
-            onPress={() => router.push("/onboarding")}
+            subtitle="A guided walkthrough of the app's main screens"
+            onPress={() => startTour()}
+            divider
+          />
+          <MenuRow
+            Icon={SpeakerHigh}
+            title="Tour voice"
+            subtitle="Listen to your phone's voices and pick one"
+            onPress={() => router.push("/voice-picker")}
           />
         </View>
 

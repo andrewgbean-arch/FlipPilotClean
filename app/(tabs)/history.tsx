@@ -23,6 +23,7 @@ import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import FlipCard, { getBuyPrice, getProfit, getSellPrice } from "@/components/FlipCard";
 import { formatMoney, formatSignedMoney } from "@/features/vehicles/utils/vehicleStats";
+import { TourTarget } from "@/features/tour/TourTarget";
 
 // Ids are uuids, so recency has to come from the timestamp.
 const savedAt = (f: FlipRecord) => Date.parse(f.timestamp) || 0;
@@ -373,6 +374,7 @@ export default function HistoryScreen() {
       ]}
     >
       {/* HEADER */}
+      <TourTarget id="history.list">
       <View style={styles.headerRow}>
         <Text style={[styles.screenTitle, { color: theme.text }]} accessibilityRole="header">
           History
@@ -417,6 +419,7 @@ export default function HistoryScreen() {
           </AnimatedPressable>
         </View>
       </View>
+      </TourTarget>
 
       {/* LIST */}
       <FlatList

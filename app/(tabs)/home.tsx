@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -42,6 +42,8 @@ import FeedbackSheet from "@/components/sheets/FeedbackSheet";
 import FlashingMessageIcon from "@/components/FlashingMessageIcon";
 import GettingStartedCard from "@/components/GettingStartedCard";
 import { useMessageAlerts } from "@/context/MessageAlertsContext";
+import { TourTarget } from "@/features/tour/TourTarget";
+import { registerScrollContainer, unregisterScrollContainer } from "@/features/tour/TourContext";
 
 const TOOLS: { key: string; label: string; Icon: PhosphorIcon; route: string; tint: string }[] = [
   { key: "scan", label: "AI Scan", Icon: Camera, route: "/scan", tint: "#FFD700" },
@@ -97,6 +99,18 @@ export default function HomeScreen() {
   const { hasNew: hasNewMessage } = useMessageAlerts();
   const { vehicles: flips } = useVehicleHistory();
   const theme = useTheme();
+  const tourScrollRef = useRef<ScrollView>(null);
+
+  // So the guided tour can scroll the Tools row into view before spotlighting it — it sits below
+  // Getting Started and Weather, off-screen on first load.
+  useEffect(() => {
+    registerScrollContainer(
+      "/home",
+      (y) => tourScrollRef.current?.scrollTo({ y, animated: true }),
+      tourScrollRef.current
+    );
+    return () => unregisterScrollContainer("/home");
+  }, []);
 
   // The logo is a square image; size it from the screen width rather than
   // flex/aspectRatio, which doesn't reliably combine on React Native Web and
@@ -177,6 +191,7 @@ export default function HomeScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView
+        ref={tourScrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
       >
@@ -349,20 +364,33 @@ export default function HomeScreen() {
           </Text>
 
           <View style={styles.toolsRow}>
-            {TOOLS.map(({ key, label, Icon, route, tint }) => (
-              <Pressable
-                key={key}
-                accessibilityRole="button"
-                accessibilityLabel={label}
-                style={({ pressed }) => [styles.toolCard, card, pressed && styles.pressed]}
-                onPress={() => router.push(route as any)}
-              >
-                <View style={[styles.iconBadge, { backgroundColor: tint + "22" }]}>
-                  <Icon size={24} color={tint} />
+            {TOOLS.map(({ key, label, Icon, route, tint }) => {
+              const tile = (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={label}
+                  style={({ pressed }) => [styles.toolCard, card, pressed && styles.pressed]}
+                  onPress={() => router.push(route as any)}
+                >
+                  <View style={[styles.iconBadge, { backgroundColor: tint + "22" }]}>
+                    <Icon size={24} color={tint} />
+                  </View>
+                  <Text style={[styles.toolLabel, { color: theme.text }]}>{label}</Text>
+                </Pressable>
+              );
+              // The tour spotlights this one tile — wrapped with TourTarget (the same, proven
+              // pattern used on Scan/History) rather than a conditional ref inside this loop,
+              // which was found live to measure the wrong element entirely.
+              return key === "scan" ? (
+                <TourTarget key={key} id="home.scan-tile" style={styles.toolCardWrapper}>
+                  {tile}
+                </TourTarget>
+              ) : (
+                <View key={key} style={styles.toolCardWrapper}>
+                  {tile}
                 </View>
-                <Text style={[styles.toolLabel, { color: theme.text }]}>{label}</Text>
-              </Pressable>
-            ))}
+              );
+            })}
           </View>
         </View>
 
@@ -510,8 +538,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     rowGap: 12,
   },
+  // The grid's 2-column sizing lives on toolCardWrapper now, not here: the "scan" tile is wrapped
+  // in an extra <TourTarget>/<View> layer (so the tour can spotlight it), which became the real
+  // flex child of toolsRow — a width on THIS style alone was being read as 48% of that wrapper
+  // instead of 48% of the row, collapsing it to a sliver and wrapping "AI Scan" one letter per line.
+  toolCardWrapper: { width: "48%" },
   toolCard: {
-    width: "48%",
     borderRadius: 16,
     borderWidth: 1,
     padding: 16,
