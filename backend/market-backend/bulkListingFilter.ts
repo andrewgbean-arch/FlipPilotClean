@@ -39,6 +39,8 @@ const BULK_WORDING = [
   /\bmega\s*packs?\b/i,
 ];
 
+const BOX_OF = /\bbox(?:es)?\s+of\s+(\d+)\b/i;
+
 const X = "[x×X]"; // listings use a plain x, a capital X and the multiplication sign
 
 // A genuine "6x"/"2 x" multiplier is followed by nothing significant, a product name (letters), or —
@@ -70,7 +72,7 @@ const NON_X_MULTIPLIER = [
 const COUNT_STEMS =
   "lozen\\w*|tablets?|capsules?|caplets?|sachets?|pouches|pastilles?|softgels?|pcs|pieces?|" +
   "count|units?|doses?|servings?|portions?|gums?|strips?|patches|tea\\s?bags?|" +
-  "nappies|diapers?|swabs?|refills?|wipes?";
+  "nappies|diapers?|swabs?|refills?|wipes?|rolls?";
 // "ct" on its own means "count" ("80ct"), but is exactly how gold purity is written ("9ct", "18ct
 // gold") — kept apart so it can be excluded specifically when it's plainly a carat mark, not merged
 // into COUNT_STEMS where every use would be trusted equally.
@@ -92,7 +94,9 @@ const GOLD_CARAT = /\b\d{1,2}\s?ct\b(?=\s*(?:yellow|white|rose)?\s*gold\b)/gi;
 const dropCaratMarks = (text: string) => text.replace(GOLD_CARAT, "");
 
 // "72 lozenges", "210 Gums", "80ct" (but not "9ct gold" — see dropCaratMarks above).
-const COUNT_WORD = new RegExp(`\\b(\\d{1,4})\\s?(?:${COUNT_STEMS_WITH_CT})\\b`, "i");
+// Never a clothing/nappy SIZE: "Pampers Size 4 Nappies 44 Pack" is a 44-pack of size-4 nappies, not
+// 4 nappies (which then multiplied by the "44 Pack" into a bogus 176).
+const COUNT_WORD = new RegExp(`(?<!\\bsizes?\\s)\\b(\\d{1,4})\\s?(?:${COUNT_STEMS_WITH_CT})\\b`, "i");
 // The trailing-s style: "Lozenges 80s" — only trusted when a real count-stem word is ALSO somewhere
 // in the text; bare "NNs" alone is just as often a style number ("Levi's 501s") or a decade ("80s").
 const COUNT_S = /\b(\d{2,3})['’]?s\b/i;
@@ -331,6 +335,14 @@ export function isBulkListing(
 ): boolean {
   if (!title) return false;
   if (BULK_WORDING.some((re) => re.test(title))) return true;
+
+  // "Dairy Milk 180g (Box of 17)": a wholesale box, not a bar. Only when the scanned pack isn't
+  // itself that size ("box of 12" doughnuts scanned as a 12-pack still match their own listings).
+  const box = title.match(BOX_OF);
+  if (box) {
+    const n = parseInt(box[1], 10);
+    if (n >= 2 && !(wantedCount && Math.abs(n - wantedCount) <= Math.max(1, wantedCount * 0.1))) return true;
+  }
 
   if (!capacityRatedGoods) {
     const volumeMatch = title.match(OVERSIZED_VOLUME);
