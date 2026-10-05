@@ -15,6 +15,8 @@ export type TourStep = {
   body: string;
   /** The shorter, spoken version of the same idea — see onboarding's own STEPS for the pattern. */
   say: string;
+  /** The step points at the live camera view, so it is skipped when camera access was refused. */
+  needsCamera?: boolean;
 };
 
 // Home (scan tile, settings gear) -> Scan -> History -> Favourites -> Marketplace -> Motors.
@@ -42,6 +44,7 @@ export const TOUR_STEPS: TourStep[] = [
     id: "scan.viewfinder",
     screen: "/scan" as Href,
     targetId: "scan.viewfinder",
+    needsCamera: true,
     title: "Line it up in the frame",
     body: "Hold a barcode inside the frame to scan it, or use the photo button for anything else. The torch and zoom buttons help with small or far-off codes.",
     say: "Hold a barcode inside the frame, or use the photo button for anything else. The torch and zoom buttons help with small or far-off codes.",

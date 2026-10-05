@@ -62,6 +62,9 @@ export default function OnboardingScreen() {
           A quick guided tour of the real screens — scanning, your flips, the Marketplace and
           checking a car. Skippable any time, and you can watch it again later from Settings.
         </Text>
+        <Text style={[styles.body, styles.cameraNote, { color: theme.muted }]}>
+          We'll ask for camera access first, so scanning is ready when we get to it.
+        </Text>
       </View>
 
       <View style={[styles.bottom, { paddingBottom: insets.bottom + 20 }]}>
@@ -111,6 +114,7 @@ const styles = StyleSheet.create({
   logoText: { fontSize: 40, fontWeight: "800" },
   title: { fontSize: 24, fontWeight: "800", textAlign: "center", marginBottom: 12 },
   body: { fontSize: 15, lineHeight: 22, textAlign: "center" },
+  cameraNote: { marginTop: 14 },
   bottom: { paddingHorizontal: 20, paddingTop: 8, alignItems: "center", gap: 16 },
   primary: { alignItems: "center", paddingVertical: 16, borderRadius: 14, width: "100%" },
   skip: { fontSize: 15, fontWeight: "700" },

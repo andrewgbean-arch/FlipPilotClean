@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { router, type Href } from "expo-router";
+import { Camera as ExpoCamera } from "expo-camera";
 
 import { markOnboardingSeen, isNarrationMuted, setNarrationMuted } from "@/utils/onboarding";
 import { speakLine, stopSpeaking } from "@/utils/voice";
@@ -198,7 +199,39 @@ async function measureCurrentTarget() {
   // rather than pointing at a stale or zero-size rect.
 }
 
-function goToStep(index: number) {
+/**
+ * Asks for camera access before the tour begins. The first ever visit to the Scan screen otherwise
+ * raises the system permission dialog in the middle of the tour: narration stops, the tour carries
+ * on behind the dialog, and the camera is not ready when the step reaches it. Does nothing (and shows
+ * nothing) when the answer is already known. Resolves true only when access is granted.
+ */
+async function ensureCameraAccess(): Promise<boolean> {
+  try {
+    const current = await ExpoCamera.getCameraPermissionsAsync();
+    if (current.granted) return true;
+    if (!current.canAskAgain) return false;
+    return (await ExpoCamera.requestCameraPermissionsAsync()).granted;
+  } catch {
+    return false;
+  }
+}
+
+async function cameraGranted(): Promise<boolean> {
+  try {
+    return (await ExpoCamera.getCameraPermissionsAsync()).granted;
+  } catch {
+    return false;
+  }
+}
+
+/** `direction` says which way to keep looking when a step has to be skipped (Next = 1, Back = -1). */
+async function goToStep(requested: number, direction: 1 | -1 = 1) {
+  // A step that points at the camera view is skipped when camera access was refused: there is no
+  // viewfinder on screen for it to highlight, only the permission screen.
+  let index = requested;
+  while (TOUR_STEPS[index]?.needsCamera && !(await cameraGranted())) index += direction;
+  if (!state.active) return;
+  if (index < 0) index = 0;
   const step = TOUR_STEPS[index];
   if (!step) {
     skipTour();
@@ -210,12 +243,13 @@ function goToStep(index: number) {
   measureCurrentTarget();
 }
 
-export function startTour() {
+export async function startTour() {
+  // Settled first, so the permission dialog never lands on top of a running tour.
+  await ensureCameraAccess();
   set({ active: true, stepIndex: 0, targetRect: null, waitingForTarget: true });
-  isNarrationMuted().then((muted) => {
-    set({ muted });
-    goToStep(0);
-  });
+  const muted = await isNarrationMuted();
+  set({ muted });
+  goToStep(0);
 }
 
 export function nextStep() {
@@ -225,13 +259,13 @@ export function nextStep() {
     finishTour();
     return;
   }
-  goToStep(next);
+  goToStep(next, 1);
 }
 
 export function prevStep() {
   if (!state.active) return;
   const prev = Math.max(0, state.stepIndex - 1);
-  goToStep(prev);
+  goToStep(prev, -1);
 }
 
 function finishTour() {
