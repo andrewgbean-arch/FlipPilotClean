@@ -16,6 +16,7 @@ const MESSAGES: Record<string, string> = {
   "wrong-phone": "Please scan the item again to get its prices.",
   expired: "That scan has run out. Scan the item again to get its prices.",
   "used-up": "You've checked this scan a lot of times. Scan the item again to check more prices.",
+  "other-item": "That scan was for a different item. Scan this item to get its prices.",
 };
 
 export function requireScanToken(req: Request, res: Response, next: NextFunction) {
@@ -34,7 +35,7 @@ export function requireScanToken(req: Request, res: Response, next: NextFunction
     return;
   }
 
-  const result = useScanToken(token, deviceId);
+  const result = useScanToken(token, deviceId, Date.now(), req.body?.title);
   if (result.ok) return next();
 
   res.json({ error: "scan-required", reason: result.reason, message: MESSAGES[result.reason] ?? MESSAGES.invalid });

@@ -12,6 +12,8 @@ import crypto from "crypto";
  *  - It runs out after 30 minutes.
  *  - It works for 8 price lookups: enough for changing Condition and Age or correcting the name on the result
  *    screen, not enough to be a price service.
+ *  - It covers one item: up to 3 different names (the scanned one plus a couple of corrections). Without this a
+ *    single scan was a licence for 8 lookups of 8 DIFFERENT items, each a real Google search and AI call.
  *
  * Signed with SCAN_TOKEN_SECRET (or TOKEN_ENCRYPTION_KEY). With neither set, a random secret is made when the
  * server starts, which works but means a scan in progress during a restart has to be repeated, and would not
@@ -20,6 +22,10 @@ import crypto from "crypto";
 
 const TTL_MS = 30 * 60_000;
 export const SCAN_TOKEN_MAX_USES = 8;
+export const SCAN_TOKEN_MAX_TITLES = 3;
+
+// "Sony  WH-1000XM5 " and "sony wh-1000xm5" are the same item.
+const normalTitle = (title: unknown) => (typeof title === "string" ? title.toLowerCase().replace(/s+/g, " ").trim() : "");
 
 const bootSecret = crypto.randomBytes(32).toString("hex");
 export const scanTokenSecretIsSet = () => Boolean((process.env.SCAN_TOKEN_SECRET ?? process.env.TOKEN_ENCRYPTION_KEY ?? "").trim());
@@ -28,7 +34,7 @@ const secret = () => (process.env.SCAN_TOKEN_SECRET ?? "").trim() || (process.en
 const sign = (payload: string) => crypto.createHmac("sha256", secret()).update(payload).digest("base64url");
 
 // How many times each token has been used. Memory only: a restart forgets it, which can only give a token a few more uses.
-const uses = new Map<string, { count: number; exp: number }>();
+const uses = new Map<string, { count: number; exp: number; titles: Set<string> }>();
 
 function prune(now: number) {
   if (uses.size < 5000) return;
@@ -64,10 +70,13 @@ export function deviceOfScanToken(token: unknown, now = Date.now()): string | nu
 
 export type ScanTokenResult =
   | { ok: true; usesLeft: number }
-  | { ok: false; reason: "missing" | "invalid" | "expired" | "wrong-phone" | "used-up" };
+  | { ok: false; reason: "missing" | "invalid" | "expired" | "wrong-phone" | "used-up" | "other-item" };
 
-/** Checks a token and, if it is good, counts one use of it. */
-export function useScanToken(token: unknown, deviceId: string, now = Date.now()): ScanTokenResult {
+/**
+ * Checks a token and, if it is good, counts one use of it. `title` is the item being priced: a token only
+ * covers SCAN_TOKEN_MAX_TITLES different names, so one scan cannot be used to price lots of different items.
+ */
+export function useScanToken(token: unknown, deviceId: string, now = Date.now(), title?: unknown): ScanTokenResult {
   if (typeof token !== "string" || !token) return { ok: false, reason: "missing" };
   const dot = token.indexOf(".");
   if (dot < 1 || token.length > 600) return { ok: false, reason: "invalid" };
@@ -88,8 +97,14 @@ export function useScanToken(token: unknown, deviceId: string, now = Date.now())
   if (claims.d !== deviceId) return { ok: false, reason: "wrong-phone" };
 
   prune(now);
-  const entry = uses.get(claims.id) ?? { count: 0, exp: claims.exp };
+  const entry = uses.get(claims.id) ?? { count: 0, exp: claims.exp, titles: new Set<string>() };
   if (entry.count >= SCAN_TOKEN_MAX_USES) return { ok: false, reason: "used-up" };
+  // A request with no title can't be told apart from the others, so it isn't counted as a new item.
+  const name = normalTitle(title);
+  if (name && !entry.titles.has(name)) {
+    if (entry.titles.size >= SCAN_TOKEN_MAX_TITLES) return { ok: false, reason: "other-item" };
+    entry.titles.add(name);
+  }
   entry.count += 1;
   uses.set(claims.id, entry);
   return { ok: true, usesLeft: SCAN_TOKEN_MAX_USES - entry.count };
