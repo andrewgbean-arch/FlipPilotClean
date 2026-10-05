@@ -483,38 +483,48 @@ export function sharesNumericIdentity(title: string | null | undefined, query: s
  * in, a size close enough to pass sharesNumericIdentity but not quite the same — and a single
  * survivor of that kind can otherwise become the shown price outright.
  *
- * Below 4 prices there isn't enough data for a proper IQR (interquartile range) check, so this
- * used to do nothing at all for a small sample — common for a grocery item, where only a
- * handful of comparable listings turn up. Found live on a real "Cadbury Double Decker 4 Pack":
- * genuine listings clustered at £1.75-£2.27, but with only 4-5 total, one titled the same way and
- * priced at £15.12 sailed straight through with zero protection, becoming the shown Retail price.
- * For a small sample, fall back to a plain ratio check against the cheapest instead: still real,
- * still simple, and doesn't need 4+ points to say something. Anchored on the cheapest, not the
- * median, because this file's own reasoning throughout is that a bulk lot, an advert or a
- * mismatched listing only ever pushes a price UP — the cheapest survivor is the one likeliest to
- * be a genuine single unit.
+ * Anchored on the MEDIAN, with a ratio cap on BOTH sides. This used to anchor on the cheapest
+ * price and cap everything at 3x it, on the reasoning that a bulk lot or a mismatched listing
+ * only ever pushes a price UP. True of groceries, badly false of everything else: a 101-item live
+ * sweep found a PS5 shown at £29.99, a 55in TV at £30, a Dyson V8 at £9.73 and a washing machine
+ * at £8.65 — each with a dozen real £430+ listings, all deleted, because ONE cheap
+ * skin/brush/part/ad slipped through and its 3x cap sat below every real price. Cheap junk under
+ * a product's name is as common as inflated junk. The median doesn't care which end the junk is
+ * at, as long as the real listings are the majority.
+ *
+ * Two prices is the one case with no median worth trusting (either could be the junk), so it
+ * keeps the old rule — drop the dearer if it's over 3x the cheaper — because a two-listing
+ * result is overwhelmingly a grocery item, where that rule's reasoning does hold.
  */
-const SMALL_SAMPLE_MAX_RATIO = 3;
+const OUTLIER_RATIO = 3;
+
+function medianOf(sorted: number[]): number {
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
 
 export function filterOutliers(prices: number[]): number[] {
   if (prices.length < 2) return prices;
 
   const sorted = [...prices].sort((a, b) => a - b);
-  const cheapest = sorted[0];
-  const byRatio = prices.filter((p) => p <= cheapest * SMALL_SAMPLE_MAX_RATIO);
+  let byRatio: number[];
+  if (sorted.length === 2) {
+    byRatio = prices.filter((p) => p <= sorted[0] * OUTLIER_RATIO);
+  } else {
+    const m = medianOf(sorted);
+    byRatio = prices.filter((p) => p <= m * OUTLIER_RATIO && p >= m / OUTLIER_RATIO);
+  }
 
-  if (sorted.length < 4) return byRatio;
+  if (byRatio.length < 4) return byRatio;
 
-  // With 4+ prices, also apply the standard IQR (interquartile range) check — but on its OWN,
-  // IQR breaks down for a small-to-medium sample where the one outlier ends up defining its own
-  // quartile boundary. Found live on the exact real Double Decker case: 3 genuine listings
-  // (£1.75-£2.27) plus one real £15.12 outlier is only 4 prices, so the outlier itself became q3
-  // — its "upper bound" was drawn around itself, and it survived untouched. Taking the
-  // intersection of both checks fixes it: a price must be unremarkable by BOTH measures to
-  // survive, and the ratio check (which needs no minimum sample size and isn't skewed by the
-  // outlier defining its own bound) catches what IQR alone misses here.
-  const q1 = sorted[Math.floor(sorted.length * 0.25)];
-  const q3 = sorted[Math.floor(sorted.length * 0.75)];
+  // With 4+ survivors, also apply the standard IQR (interquartile range) check — but never on its
+  // OWN: with a small-to-medium sample the one outlier can define its own quartile boundary (found
+  // live on a real Double Decker 4-pack: 3 genuine £1.75-£2.27 listings plus one £15.12 is only 4
+  // prices, so the outlier became q3 and its own upper bound was drawn around itself). Computed
+  // on the ratio-cleaned set so junk at either end can't widen its bounds.
+  const cleaned = [...byRatio].sort((a, b) => a - b);
+  const q1 = cleaned[Math.floor(cleaned.length * 0.25)];
+  const q3 = cleaned[Math.floor(cleaned.length * 0.75)];
   const iqr = q3 - q1;
 
   const min = q1 - iqr * 1.5;

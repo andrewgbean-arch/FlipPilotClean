@@ -50,5 +50,23 @@ eq(
   [498, 517, 600, 750, 937]
 );
 
+// REGRESSION (found 2026-10-05, a 101-item live sweep): the cheapest-anchored 3x cap deleted every
+// real price whenever ONE cheap junk listing (a skin, brush, part, advert) slipped through. These
+// are the real price lists seen live; the junk is at the LOW end and the real listings must survive.
+const junkGoneRealKept = (label: string, prices: number[], junk: number[], minKept: number) => {
+  const got = filterOutliers(prices);
+  const bad = junk.filter((j) => got.includes(j));
+  if (bad.length || got.length < minKept) {
+    fail++;
+    console.log("FAIL", label, "got", JSON.stringify(got), "junk surviving", JSON.stringify(bad), "kept", got.length, "want >=", minKept);
+  }
+};
+junkGoneRealKept("PS5: a £29.99 listing no longer wipes out ten real £300-£580 prices", [29.99, 430, 430, 312, 450, 578, 496, 574, 570, 500], [29.99], 7);
+junkGoneRealKept("Dyson V8: a £9.73 listing no longer wipes out the real £250-£700 prices", [9.73, 35.99, 54.99, 60.95, 250, 329.99, 414, 528, 699], [9.73], 4);
+junkGoneRealKept("JBL Flip 6: a £2.02 listing no longer wipes out the real £37-£169 prices", [2.02, 22.99, 36.94, 57.9, 72, 77, 96, 104.4, 169.99, 357.35], [2.02], 6);
+junkGoneRealKept("Airwrap: a £49 listing no longer wipes out the real £250-£580 prices", [49, 140, 160, 250, 260, 290, 399.99, 479.99, 579.99], [49], 5);
+junkGoneRealKept("small sample: junk at the LOW end of 5 prices is dropped, not the real ones", [8.65, 410, 430, 455, 499], [8.65], 4);
+eq("junk at the HIGH end of the same shape is still dropped", filterOutliers([410, 430, 455, 499, 2400]), [410, 430, 455, 499]);
+
 console.log(fail === 0 ? "ALL PASS" : `${fail} FAILED`);
 process.exit(fail ? 1 : 0);
