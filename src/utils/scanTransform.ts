@@ -16,6 +16,11 @@ export const pickMarket = (market: any) => ({
   demandScore: market?.demandScore ?? null,
   googlePriceMin: market?.googlePriceMin ?? null,
   googlePriceMax: market?.googlePriceMax ?? null,
+  // How many shop listings stand behind those two figures after filtering; null on a reply (or a
+  // saved result) that predates it. See evidenceDepth.ts.
+  googleCount: market?.googleCount ?? null,
+  // False when Google was deliberately not searched (eBay alone was enough); null if not reported.
+  googleSearched: market?.googleSearched ?? null,
   smartPrice: market?.smartPrice ?? null,
   // What one new unit costs in the shops: the reference the sell and buy prices are worked from.
   retailPrice: market?.retailPrice ?? null,

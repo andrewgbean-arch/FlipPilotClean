@@ -51,5 +51,12 @@ eq("no packCount: ai.packCount is null", identityNoPack.ai.packCount, null);
 const priced = applyPrices(identity, { pricing: { recommendedBuyPrice: 4, recommendedSellPrice: 8 }, market: {} });
 eq("packCount survives applyPrices", priced.ai.packCount, 80);
 
+// The count of shop listings behind Google's figures is forwarded (evidenceDepth.ts needs it).
+eq("googleCount is forwarded", pickMarket({ googleCount: 2 }).googleCount, 2);
+eq("googleCount absent: null, not undefined", pickMarket({}).googleCount, null);
+
+eq("googleSearched false is forwarded as false", pickMarket({ googleSearched: false }).googleSearched, false);
+eq("googleSearched absent: null", pickMarket({}).googleSearched, null);
+
 console.log(fail === 0 ? "ALL PASS" : `${fail} FAILED`);
 process.exit(fail ? 1 : 0);

@@ -37,6 +37,7 @@ import { fetchPrices, reportPrice, type ItemAge, type ItemGrade } from "@/utils/
 import SellerDescriptionCard from "@/components/scan/SellerDescriptionCard";
 import { dropPending, getPending } from "@/utils/pendingScan";
 import { applyPrices, SCAN_AGAIN_EVENT } from "@/utils/scanTransform";
+import { evidenceDepth, limitConfidence } from "@/utils/evidenceDepth";
 import { keepPhoto } from "@/utils/keptPhotos";
 import { markHasScanned } from "@/utils/onboarding";
 
@@ -605,6 +606,8 @@ export default function ScanResultsScreen() {
       ? { low: data.aiPriceMin, high: data.aiPriceMax }
       : null;
   const priceConfidence = typeof data.aiPriceConfidence === "number" ? data.aiPriceConfidence : null;
+  // How many real listings the price rests on: very few means a rough guide, said plainly.
+  const depth = evidenceDepth(data.market?.googleCount, data.market?.soldCount);
 
   // "Doesn't look right? Report this" — a snapshot of exactly what was on screen, so a wrong
   // price can be traced back to the real search that produced it, not just a general complaint.
@@ -818,8 +821,18 @@ export default function ScanResultsScreen() {
           {priceRange ? <PriceRangeBar low={priceRange.low} high={priceRange.high} mid={fairPrice ?? null} /> : null}
           {priceConfidence != null ? (
             <View style={{ marginTop: priceRange ? 0 : 12 }}>
-              <ConfidenceChip confidence={priceConfidence} />
+              <ConfidenceChip confidence={limitConfidence(priceConfidence, depth)} />
             </View>
+          ) : null}
+          {priceState === "ready" && data.market?.googleSearched === true && data.market?.googleCount === 0 && (depth.level === "thin" || depth.level === "ok") ? (
+            <Text style={[styles.heroHint, { color: theme.muted, marginTop: 8 }]}>
+              No shop prices found for this one, so the figures lean on eBay and the AI.
+            </Text>
+          ) : null}
+          {priceState === "ready" && depth.note ? (
+            <Text style={[styles.heroHint, { color: theme.warning, marginTop: 8 }]} accessibilityLiveRegion="polite">
+              {depth.note}
+            </Text>
           ) : null}
         </View>
 
