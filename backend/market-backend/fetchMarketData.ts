@@ -1,6 +1,7 @@
 import axios from "axios";
 import type { EbayMarketResult } from "./ebayMarket";
 import fetchEbayBrowseMarket from "./ebayBrowseApi";
+import { noteSerpApiFailure, noteSerpApiSuccess } from "../utils/serpApiBalance";
 import { extractPackCount, extractVolume, filterOutliers, isCapacityRatedGoods, isNotTheItem, isSeatingGoods, matchesQuery, priceForPack, sharesNumericIdentity } from "./bulkListingFilter";
 import { decidePrices, type AgeBand, type Grade } from "./priceModel";
 import { SourceCache } from "../utils/sourceCache";
@@ -25,6 +26,10 @@ export interface UnifiedMarketResult {
   // Google-style range
   googlePriceMin: number | null;
   googlePriceMax: number | null;
+  /** How many listings stand behind Google's figures once everything has been filtered (not asked at all = 0; undefined = unknown). */
+  googleCount?: number;
+  /** Whether Google was actually searched. False when eBay alone was judged enough (a deliberate saving). */
+  googleSearched?: boolean;
 
   // Aggregated stats
   lowest: number | null;
@@ -124,6 +129,7 @@ async function fetchGoogleShopping(query: string, wantedCount?: number | null) {
     try {
       res = await axios.get(url, { timeout: 7000 });
       answered = true;
+      noteSerpApiSuccess();
     } finally {
       // A search that timed out may still be charged, so it is counted as a call either way.
       recordCost("serpapi", "google-shopping", { failed: !answered });
@@ -163,17 +169,19 @@ async function fetchGoogleShopping(query: string, wantedCount?: number | null) {
     const prices = filterOutliers(rawPrices);
 
     if (!prices.length) {
-      return { min: null, max: null, avg: null, items };
+      return { min: null, max: null, avg: null, count: 0, items };
     }
 
     return {
       min: Math.min(...prices),
       max: Math.max(...prices),
       avg: dearerQuartile(prices),
+      count: prices.length,
       items,
     };
   } catch (err: any) {
     console.log("GOOGLE ERROR:", err?.message || err);
+    noteSerpApiFailure(err);
     return null;
   }
 }
@@ -595,6 +603,8 @@ const image =
       retailPrice,
       googlePriceMin,
       googlePriceMax,
+      googleCount: google?.count ?? 0,
+      googleSearched: !googleSkipped,
       lowest,
       highest,
       soldCount,

@@ -3,6 +3,7 @@ import { rateLimit } from "../middleware/rateLimit";
 import { adminOk } from "../utils/adminAuth";
 import { costReport, flushCosts } from "../utils/costLog";
 import { marketCacheStats } from "../market-backend/fetchMarketData";
+import { serpApiBalance, serpApiRefusal } from "../utils/serpApiBalance";
 
 /**
  * GET /admin/costs?days=7   what the paid services have cost, per day and per scan   (ADMIN_TOKEN)
@@ -12,7 +13,7 @@ import { marketCacheStats } from "../market-backend/fetchMarketData";
  * prices in the environment if they are off. Nothing here says who scanned or what was scanned.
  */
 export default function registerCostsRoute(app: Express) {
-  app.get("/admin/costs", rateLimit(30), (req: Request, res: Response) => {
+  app.get("/admin/costs", rateLimit(30), async (req: Request, res: Response) => {
     if (!adminOk(req, res)) return;
     flushCosts();
     const days = Number(req.query.days);
@@ -21,6 +22,9 @@ export default function registerCostsRoute(app: Express) {
       ...costReport(Number.isFinite(days) && days >= 1 ? Math.floor(days) : 7),
       // How often a paid lookup was answered from memory instead (since the server last started).
       savedAnswers: marketCacheStats(),
+      // Google Shopping's search allowance: how many are left, and whether a real search was refused
+      // for being out (the thing that silently happened on 2026-10-05).
+      serpApi: { balance: await serpApiBalance(), ...serpApiRefusal() },
     });
   });
 }

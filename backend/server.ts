@@ -30,6 +30,7 @@ import { DATA_DIR } from "./config/dataDir";
 import { accountGuard } from "./middleware/accountGuard";
 import { runRetention } from "./utils/retentionJob";
 import { logLaunchChecks } from "./utils/launchCheck";
+import { watchSerpApiBalance } from "./utils/serpApiBalance";
 import registerAIDescriptionRoute from "./routes/aiDescription";
 import registerListingDescriptionRoute from "./routes/listingDescription";
 import registerEbayExportRoute from "./routes/ebayExport";
@@ -352,6 +353,7 @@ app.listen(PORT, "0.0.0.0", () => {
 });
 
 logLaunchChecks();
+if (process.env.NODE_ENV === "production") watchSerpApiBalance();
 
 if (!process.env.MARKETPLACE_PROMO_ENDS_AT || Number.isNaN(new Date(process.env.MARKETPLACE_PROMO_ENDS_AT).getTime())) {
   console.warn("⚠️  MARKETPLACE_PROMO_ENDS_AT is not set (or not a date): the free-listing launch offer has no end date and will run until you set one.");
