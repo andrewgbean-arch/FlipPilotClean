@@ -1,14 +1,26 @@
 import type { NextFunction, Request, Response } from "express";
 import { planStatus } from "../subscriptions/revenueCat";
 import { TRADER_MONTHLY_SCANS, returnTraderScan, takeTraderScan } from "../utils/traderAllowance";
-import { freeScanCapEnabled, freeScanStatus, returnFreeScan, takeFreeScan } from "./freeScanLimit";
+import {
+  WEEKLY_FREE_LIMIT,
+  freeScanCapEnabled,
+  freeScanStatus,
+  freeScanSubject,
+  returnAddressScan,
+  returnFreeScan,
+  takeAddressScan,
+  takeFreeScan,
+} from "./freeScanLimit";
 import { getBalance, refund, spend } from "../utils/creditStore";
 import { allowedDeviceIds } from "./sellingGate";
 
 /**
  * What a lookup (barcode, photo or search) costs the person, in this order:
  *
- *   1. one of their 5 free scans this week (counted per phone, no account needed);
+ *   1. one of their free scans this week: 5 for a signed-in account (counted per account, whatever
+ *      phone id the request names), only 2 for a phone that is not signed in (counted per phone). See
+ *      freeScanLimit.ts for why: a phone id is not proof of anything, so unlimited anonymous scans
+ *      could be had with made-up ones;
  *   2. otherwise, on the Trader plan, one of its TRADER_MONTHLY_SCANS scans this billing period;
  *   3. otherwise one scan credit from their account (they must be signed in);
  *   4. otherwise the lookup is refused, and the reply says which of "sign in" or "buy credits" fits.
@@ -48,7 +60,15 @@ function payBackOnFailure(res: Response, undo: () => void) {
   }) as typeof res.json;
 
   res.on("finish", () => {
-    if (failed || res.statusCode >= 400) undo();
+    if (!(failed || res.statusCode >= 400)) return;
+    // This runs in an event handler, where nothing catches an error: one thrown by a full disk or a
+    // locked counter file would have been an uncaught exception, which takes the whole server down.
+    // Worst case now is that one failed scan is not given back, and it is logged.
+    try {
+      undo();
+    } catch (err: any) {
+      console.log("SCAN METER: could not pay a failed scan back:", err?.message || err);
+    }
   });
 }
 
@@ -79,10 +99,29 @@ export async function scanMeter(req: Request, res: Response, next: NextFunction)
   // keeps the deliberate "never guess" behaviour of the stores while stopping it from being able to
   // take the server down.
   try {
-    if (takeFreeScan(deviceId)) {
-      payBackOnFailure(res, () => returnFreeScan(deviceId));
+    // Whose free scans these are: the signed-in account's, otherwise the phone's own.
+    const freeFor = freeScanSubject(deviceId, req.account);
+    // Not signed in: the scan must also fit under the allowance for the whole network address, the one
+    // limit a script cannot dodge by sending a made-up device id each time (see freeScanLimit.ts).
+    const address = req.account ? null : req.ip;
+    const addressOk = req.account ? true : takeAddressScan(address);
+    let tookFree = false;
+    try {
+      tookFree = addressOk && takeFreeScan(freeFor.key, freeFor.limit);
+    } catch (err) {
+      // The counter file could not be written, so no scan happened: the address's scan is not spent either.
+      if (addressOk) returnAddressScan(address);
+      throw err;
+    }
+    if (tookFree) {
+      payBackOnFailure(res, () => {
+        returnFreeScan(freeFor.key);
+        returnAddressScan(address);
+      });
       return next();
     }
+    // The phone had none left, so the address's scan taken above was not used after all.
+    if (addressOk) returnAddressScan(address);
 
     // Only worth the extra round trip once the free scans are gone.
     const plan = await planStatus(deviceId);
@@ -94,7 +133,7 @@ export async function scanMeter(req: Request, res: Response, next: NextFunction)
       }
     }
 
-    const free = freeScanStatus(deviceId);
+    const free = freeScanStatus(freeFor.key, freeFor.limit);
     // A Trader who has used this month's scans is told when they come back, not just about the free ones.
     const traderLine =
       plan.active && plan.renewsOn
@@ -121,7 +160,10 @@ export async function scanMeter(req: Request, res: Response, next: NextFunction)
 
     res.json({
       error: "free-scan-limit",
-      message: `You've used your ${free.limit} free scans this week. Sign in to use scan credits, or your free scans come back on ${free.resetsOn}.${traderLine}`,
+      // Not signed in: the way to more is an account (free), which gets WEEKLY_FREE_LIMIT a week and can hold credits.
+      message: addressOk
+        ? `You've used your ${free.limit} free scans without an account. Sign in (it's free) to get ${WEEKLY_FREE_LIMIT} free scans a week and to use scan credits, or your ${free.limit} come back on ${free.resetsOn}.${traderLine}`
+        : `A lot of free scans have been used on this network this week. Sign in (it's free) to keep scanning: you get ${WEEKLY_FREE_LIMIT} free scans a week of your own and can use scan credits.${traderLine}`,
       resetsOn: free.resetsOn,
       signedIn: false,
       credits: 0,

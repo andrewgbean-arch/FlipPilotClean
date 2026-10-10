@@ -39,7 +39,23 @@ export function writeJsonAtomic(file: string, data: unknown): void {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
-  fs.renameSync(tmp, file);
+  renameWithRetry(tmp, file);
+}
+
+// On Windows a rename over a file that something else has open at that instant (a virus scanner, the
+// search indexer, another reader) fails with EPERM/EBUSY/EACCES, and works a few milliseconds later. Linux
+// hosts never hit this; for a development machine a short retry avoids spurious "could not save" errors.
+const TRANSIENT_RENAME_ERRORS = new Set(["EPERM", "EBUSY", "EACCES"]);
+function renameWithRetry(from: string, to: string): void {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      fs.renameSync(from, to);
+      return;
+    } catch (err: any) {
+      if (attempt >= 6 || !TRANSIENT_RENAME_ERRORS.has(err?.code)) throw err;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10 * (attempt + 1));
+    }
+  }
 }
 
 /** A file inside the data folder. */

@@ -13,7 +13,7 @@ import express from "express";
 import type { AddressInfo } from "net";
 import fs from "fs";
 import { dataPath } from "../config/dataDir";
-import { takeFreeScan } from "../middleware/freeScanLimit";
+import { accountFreeKey, takeFreeScan } from "../middleware/freeScanLimit";
 import { scanMeter } from "../middleware/scanMeter";
 
 // Found live 2026-09-30: scanMeter had no try/catch around any of this, and creditStore.ts's
@@ -53,9 +53,10 @@ describe("scanMeter", () => {
     const deviceId = "scanmeter-crash-test-device";
     const accountId = "scanmeter-crash-test-account";
 
-    // Use up this device's free scans so the request actually reaches the credit-store branch
-    // rather than being satisfied by a free scan first.
-    for (let i = 0; i < 5; i++) takeFreeScan(deviceId);
+    // Use up this ACCOUNT's free scans (a signed-in account's free scans are counted per account,
+    // not per phone) so the request actually reaches the credit-store branch rather than being
+    // satisfied by a free scan first.
+    for (let i = 0; i < 5; i++) takeFreeScan(accountFreeKey(accountId));
 
     // The exact scenario creditStore.ts's load() refuses to paper over.
     fs.writeFileSync(dataPath("credits.json"), "{ not valid json");

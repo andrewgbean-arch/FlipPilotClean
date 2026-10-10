@@ -4,9 +4,11 @@ import assert from "node:assert/strict";
 import http from "http";
 import express from "express";
 import type { AddressInfo } from "net";
+import { ANONYMOUS_FREE_LIMIT } from "../middleware/freeScanLimit";
 
-// The Trader plan: after the free weekly scans, a subscriber gets a monthly allowance (3 here, 300
-// for real), then scan credits. RevenueCat is played by a small local server, so nothing real is asked.
+// The Trader plan: after the free weekly scans (a phone that is not signed in has ANONYMOUS_FREE_LIMIT of
+// them; a subscriber is known by the phone, so they need no account), a subscriber gets a monthly allowance
+// (3 here, 300 for real), then scan credits. RevenueCat is played by a small local server, so nothing real is asked.
 
 process.env.FREE_SCAN_CAP = "on";
 process.env.TRADER_MONTHLY_SCANS = "3";
@@ -81,7 +83,7 @@ const settle = () => new Promise((ok) => setTimeout(ok, 30));
 
 describe("the Trader plan's monthly scans", () => {
   test("free scans are used first, then the plan's, then it stops and says when they come back", async () => {
-    for (let i = 0; i < 5; i++) assert.equal((await scan("trader-phone")).ok, true, `free scan ${i + 1}`);
+    for (let i = 0; i < ANONYMOUS_FREE_LIMIT; i++) assert.equal((await scan("trader-phone")).ok, true, `free scan ${i + 1}`);
     assert.equal(mod.traderScanRecordFor("trader-phone"), null, "the free ones don't touch the plan's count");
     for (let i = 0; i < 3; i++) assert.equal((await scan("trader-phone")).ok, true, `Trader scan ${i + 1}`);
     assert.deepEqual(mod.traderScanRecordFor("trader-phone"), { period: "2026-09-01T10:00:00Z", used: 3 });
@@ -91,7 +93,7 @@ describe("the Trader plan's monthly scans", () => {
   });
 
   test("a lookup that finds nothing gives the scan back", async () => {
-    for (let i = 0; i < 5; i++) await scan("old-pro-phone");
+    for (let i = 0; i < ANONYMOUS_FREE_LIMIT; i++) await scan("old-pro-phone");
     assert.equal((await scan("old-pro-phone", true)).error, "Nothing found");
     await settle();
     assert.equal(mod.traderScanRecordFor("old-pro-phone")?.used ?? 0, 0);
@@ -104,7 +106,7 @@ describe("the Trader plan's monthly scans", () => {
   });
 
   test("a renewal starts a fresh month", async () => {
-    for (let i = 0; i < 5; i++) await scan("renewing-phone");
+    for (let i = 0; i < ANONYMOUS_FREE_LIMIT; i++) await scan("renewing-phone");
     for (let i = 0; i < 3; i++) await scan("renewing-phone");
     assert.equal((await scan("renewing-phone")).error, "free-scan-limit");
     traderPaidOn = "2026-10-01T10:00:00Z";
@@ -115,7 +117,7 @@ describe("the Trader plan's monthly scans", () => {
 
   test("a lapsed plan, or no plan, gives nothing beyond the free scans", async () => {
     for (const id of ["lapsed-phone", "stranger-phone"]) {
-      for (let i = 0; i < 5; i++) await scan(id);
+      for (let i = 0; i < ANONYMOUS_FREE_LIMIT; i++) await scan(id);
       const r = await scan(id);
       assert.equal(r.error, "free-scan-limit", id);
       assert.doesNotMatch(r.message, /Trader/);

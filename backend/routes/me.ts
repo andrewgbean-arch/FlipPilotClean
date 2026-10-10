@@ -7,6 +7,7 @@ import { loadListings, saveListings } from "./publishedListings";
 import { loadFairs, saveFairs } from "./fairs";
 import { deleteUploads } from "../utils/uploadStore";
 import { deleteUserData, exportUserData } from "../utils/userData";
+import { accountFreeKey, freeScanRecordFor } from "../middleware/freeScanLimit";
 import { adminOk } from "../utils/adminAuth";
 import { runRetention } from "../utils/retentionJob";
 import { creditsFor } from "../utils/creditStore";
@@ -62,7 +63,9 @@ export default function registerMeRoute(app: Express) {
     if (!deviceId) return res.status(401).json({ ok: false, error: "Missing device id" });
     res.json({
       ok: true,
-      data: { ...exportUserData(deviceId), ...(req.account ? { scanCredits: creditsFor(req.account.id), nightglass: nightglassFor(req.account.id) } : {}) },
+      data: { ...exportUserData(deviceId), ...(req.account
+          ? { scanCredits: creditsFor(req.account.id), nightglass: nightglassFor(req.account.id), freeScanCounterAccount: freeScanRecordFor(accountFreeKey(req.account.id)) }
+          : {}) },
     });
   });
 

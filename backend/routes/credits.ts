@@ -3,7 +3,7 @@ import { rateLimit } from "../middleware/rateLimit";
 import { adminOk } from "../utils/adminAuth";
 import { accountByEmail } from "../utils/accountStore";
 import { creditsFor, getBalance, grant, isRefunded, MAX_GRANT } from "../utils/creditStore";
-import { freeScanCapEnabled, freeScanStatus } from "../middleware/freeScanLimit";
+import { WEEKLY_FREE_LIMIT, addressScansLeft, freeScanCapEnabled, freeScanStatus, freeScanSubject } from "../middleware/freeScanLimit";
 import { CREDIT_PACKS, creditPackList } from "../utils/creditPacks";
 import { fetchOneTimePurchases, revenueCatConfigured } from "../subscriptions/revenueCat";
 
@@ -29,7 +29,11 @@ const deviceOf = (req: Request): string | null => {
 export default function registerCreditsRoutes(app: Express) {
   app.get("/credits", rateLimit(60), (req: Request, res: Response) => {
     const deviceId = deviceOf(req);
-    const free = deviceId ? freeScanStatus(deviceId) : null;
+    // A signed-in account's free scans, otherwise this phone's (fewer): the same rule the meter applies.
+    const subject = req.account ? freeScanSubject(deviceId ?? "", req.account) : deviceId ? freeScanSubject(deviceId, null) : null;
+    const base = subject ? freeScanStatus(subject.key, subject.limit) : null;
+    // Not signed in: the network address's allowance can be the smaller of the two, and the count shown must be true.
+    const free = base && !req.account ? { ...base, left: Math.min(base.left, addressScansLeft(req.ip)) } : base;
     res.json({
       ok: true,
       // When this is false the limits are not being applied (development), so the app shouldn't nag.
@@ -37,6 +41,8 @@ export default function registerCreditsRoutes(app: Express) {
       signedIn: !!req.account,
       credits: req.account ? getBalance(req.account.id) : 0,
       free: free ? { limit: free.limit, left: free.left, resetsOn: free.resetsOn } : null,
+      // What signing in gets, so a phone that is not signed in can say so ("Sign in for 5 free scans a week").
+      signedInFreeLimit: WEEKLY_FREE_LIMIT,
       packs: creditPackList(),
     });
   });
