@@ -8,7 +8,7 @@ import type { AgeBand, Grade } from "../market-backend/priceModel";
 import { paidLookupBudget } from "../middleware/dailyBudget";
 // What a lookup costs (5 free a week, then scan credits): on in production, off in development (see scanMeter).
 import { callerDevice, scanMeter } from "../middleware/scanMeter";
-import { requireScanToken } from "../middleware/requireScanToken";
+import { requireScanToken, spendScanToken } from "../middleware/requireScanToken";
 import { issueScanToken } from "../utils/scanToken";
 import { rateLimit } from "../middleware/rateLimit";
 import { askVision, DESCRIBE_PROMPT, IDENTIFY_PROMPT } from "./searchImage";
@@ -223,11 +223,15 @@ export function priceAs(input: { barcode: unknown; condition: unknown; grade: un
 }
 
 // The price step needs the token the identify step handed out, so it can't be used on its own as a
-// free price service. paidLookupBudget runs FIRST: if the server's daily lookup cap is the thing
-// that refuses the request, the customer's own token use (one of their 8, 30-minute-limited
-// rechecks) must not be spent on a request that never actually ran — found live: with the old order,
-// a couple of 503s near the cap could burn 2-3 of someone's rechecks on nothing.
-router.post("/price", rateLimit(30), paidLookupBudget, requireScanToken, async (req, res) => {
+// free price service. The token is LOOKED AT first (requireScanToken, which counts nothing), then the
+// server's daily lookup budget, then the token use is COUNTED (spendScanToken). That order matters both ways:
+//   - a request with no valid token is refused before it can touch the day's budget (found by review
+//     2026-10-09: refused requests, 30 a minute from one address, were using the whole 3000 up and
+//     turning every paid route into "busy" until midnight);
+//   - if the budget is what refuses a request, the customer's own token use (one of their 8,
+//     30-minute-limited rechecks) is not spent on a request that never ran (found live earlier: 503s
+//     near the cap burned 2-3 of someone's rechecks on nothing).
+router.post("/price", rateLimit(30), requireScanToken, paidLookupBudget, spendScanToken, async (req, res) => {
   try {
     const { title, packCount, condition, barcode, imageBase64, grade, age } = req.body ?? {};
     if (!title || typeof title !== "string") return res.json({ error: "Missing title" });

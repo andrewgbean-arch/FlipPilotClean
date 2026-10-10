@@ -25,7 +25,7 @@ export const SCAN_TOKEN_MAX_USES = 8;
 export const SCAN_TOKEN_MAX_TITLES = 3;
 
 // "Sony  WH-1000XM5 " and "sony wh-1000xm5" are the same item.
-const normalTitle = (title: unknown) => (typeof title === "string" ? title.toLowerCase().replace(/s+/g, " ").trim() : "");
+const normalTitle = (title: unknown) => (typeof title === "string" ? title.toLowerCase().replace(/\s+/g, " ").trim() : "");
 
 const bootSecret = crypto.randomBytes(32).toString("hex");
 export const scanTokenSecretIsSet = () => Boolean((process.env.SCAN_TOKEN_SECRET ?? process.env.TOKEN_ENCRYPTION_KEY ?? "").trim());
@@ -72,11 +72,12 @@ export type ScanTokenResult =
   | { ok: true; usesLeft: number }
   | { ok: false; reason: "missing" | "invalid" | "expired" | "wrong-phone" | "used-up" | "other-item" };
 
-/**
- * Checks a token and, if it is good, counts one use of it. `title` is the item being priced: a token only
- * covers SCAN_TOKEN_MAX_TITLES different names, so one scan cannot be used to price lots of different items.
- */
-export function useScanToken(token: unknown, deviceId: string, now = Date.now(), title?: unknown): ScanTokenResult {
+type Examined =
+  | { ok: false; reason: Extract<ScanTokenResult, { ok: false }>["reason"] }
+  | { ok: true; id: string; exp: number; entry: { count: number; exp: number; titles: Set<string> }; name: string; isNewName: boolean };
+
+/** Every check a token has to pass, without counting anything: the part shared by looking and spending. */
+function examine(token: unknown, deviceId: string, now: number, title: unknown): Examined {
   if (typeof token !== "string" || !token) return { ok: false, reason: "missing" };
   const dot = token.indexOf(".");
   if (dot < 1 || token.length > 600) return { ok: false, reason: "invalid" };
@@ -101,11 +102,30 @@ export function useScanToken(token: unknown, deviceId: string, now = Date.now(),
   if (entry.count >= SCAN_TOKEN_MAX_USES) return { ok: false, reason: "used-up" };
   // A request with no title can't be told apart from the others, so it isn't counted as a new item.
   const name = normalTitle(title);
-  if (name && !entry.titles.has(name)) {
-    if (entry.titles.size >= SCAN_TOKEN_MAX_TITLES) return { ok: false, reason: "other-item" };
-    entry.titles.add(name);
-  }
-  entry.count += 1;
-  uses.set(claims.id, entry);
-  return { ok: true, usesLeft: SCAN_TOKEN_MAX_USES - entry.count };
+  const isNewName = Boolean(name) && !entry.titles.has(name);
+  if (isNewName && entry.titles.size >= SCAN_TOKEN_MAX_TITLES) return { ok: false, reason: "other-item" };
+  return { ok: true, id: claims.id, exp: claims.exp, entry, name, isNewName };
+}
+
+/**
+ * Whether a token would be accepted for this request, counting nothing. Used BEFORE the server-wide daily
+ * lookup budget is touched, so a request with no valid token is refused without using any of that budget
+ * (found by review 2026-10-09: refused requests, 30 a minute from one address, were using it all up).
+ */
+export function checkScanToken(token: unknown, deviceId: string, now = Date.now(), title?: unknown): ScanTokenResult {
+  const e = examine(token, deviceId, now, title);
+  return e.ok ? { ok: true, usesLeft: SCAN_TOKEN_MAX_USES - e.entry.count } : e;
+}
+
+/**
+ * Checks a token and, if it is good, counts one use of it. `title` is the item being priced: a token only
+ * covers SCAN_TOKEN_MAX_TITLES different names, so one scan cannot be used to price lots of different items.
+ */
+export function useScanToken(token: unknown, deviceId: string, now = Date.now(), title?: unknown): ScanTokenResult {
+  const e = examine(token, deviceId, now, title);
+  if (!e.ok) return e;
+  if (e.isNewName) e.entry.titles.add(e.name);
+  e.entry.count += 1;
+  uses.set(e.id, e.entry);
+  return { ok: true, usesLeft: SCAN_TOKEN_MAX_USES - e.entry.count };
 }
