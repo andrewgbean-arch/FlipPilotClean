@@ -28,7 +28,6 @@ import {
   Info,
   Play,
   ShieldCheck,
-  SpeakerHigh,
   SignIn,
   SignOut,
   Star,
@@ -466,13 +465,6 @@ export default function SettingsScreen() {
             title="Watch the welcome tour again"
             subtitle="A guided walkthrough of the app's main screens"
             onPress={() => startTour()}
-            divider
-          />
-          <MenuRow
-            Icon={SpeakerHigh}
-            title="Tour voice"
-            subtitle="Listen to your phone's voices and pick one"
-            onPress={() => router.push("/voice-picker")}
           />
         </View>
 

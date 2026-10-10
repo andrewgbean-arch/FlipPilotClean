@@ -131,7 +131,9 @@ export default function CreditsScreen() {
           accessibilityRole="button"
           style={[styles.signIn, { borderColor: theme.gold }]}
         >
-          <Text style={[styles.signInText, { color: theme.gold }]}>Sign in to buy or use scan credits</Text>
+          <Text style={[styles.signInText, { color: theme.gold }]}>
+            Sign in for {allowance?.signedInFreeLimit ?? 5} free scans a week, and to buy or use scan credits
+          </Text>
         </Pressable>
       ) : null}
 

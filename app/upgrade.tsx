@@ -33,11 +33,11 @@ const TIERS: Tier[] = [
   {
     id: "free",
     name: "Free",
-    tagline: "5 scans every week",
+    tagline: "5 scans every week with a free account",
     price: "£0",
     period: "forever",
     included: [
-      "5 scans every week, back each Monday",
+      "5 scans every week, back each Monday (2 a week until you sign in)",
       "Buy and sell on the Marketplace (free during our launch)",
       "Boot fairs, MOT checks, guides and games",
     ],
@@ -214,7 +214,7 @@ export default function UpgradeScreen() {
           More scans
         </Text>
         <Text style={[styles.subtitle, { color: theme.muted }]}>
-          5 free every week. Need more? Pay as you go, or go Trader.
+          5 free every week with a free account. Need more? Pay as you go, or go Trader.
         </Text>
 
         {/* OPTIONS */}

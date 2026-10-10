@@ -15,6 +15,8 @@ import { fetchScanAllowance, type ScanAllowance } from "@/lib/credits";
 export function scanAllowanceWords(a: ScanAllowance): string {
   if (a.freeLeft > 0) return `${a.freeLeft} free scan${a.freeLeft === 1 ? "" : "s"} left`;
   if (a.signedIn && a.credits > 0) return `${a.credits} credit${a.credits === 1 ? "" : "s"} left`;
+  // Signing in is the way to more (a free account has more free scans a week, and can hold credits).
+  if (!a.signedIn) return "Sign in for more scans";
   return "No scans left";
 }
 

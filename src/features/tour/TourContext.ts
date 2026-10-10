@@ -125,6 +125,8 @@ function sameRect(a: Rect, b: Rect): boolean {
 // the new utterance can silently no-op, firing onDone almost instantly with nothing actually
 // spoken, which then auto-advances on schedule regardless. A short gap avoids the race.
 const SPEECH_RESTART_GAP_MS = 150;
+// About how long a line takes to read at an easy pace (~170 words a minute), with a floor for short ones.
+const readingTimeMs = (text: string) => Math.max(4000, text.trim().split(/\s+/).length * 350);
 // A below-the-fold target scrolled to sit right under this much top padding, clear of any fixed
 // header/status bar chrome rather than flush against the very top edge.
 const SCROLL_TOP_PADDING = 140;
@@ -178,12 +180,17 @@ async function measureCurrentTarget() {
           if (myToken !== measureToken) return;
           const currentStep = TOUR_STEPS[state.stepIndex];
           if (!currentStep || state.muted) return;
+          const startedAt = Date.now();
+          const readMs = readingTimeMs(currentStep.say);
           speakLine(currentStep.say, () => {
             if (myToken === measureToken && state.active && !state.muted) {
-              // A short pause reads as a natural beat, not a jump-cut, before moving on.
+              // A short pause reads as a natural beat, not a jump-cut, before moving on. And never before
+              // the caption could have been READ: a phone with no speech engine "finishes" a line at once,
+              // which used to run the whole tour past at about a step a second.
+              const wait = Math.max(0, readMs - (Date.now() - startedAt)) + 600;
               setTimeout(() => {
                 if (myToken === measureToken && state.active && !state.muted) nextStep();
-              }, 600);
+              }, wait);
             }
           });
         }, SPEECH_RESTART_GAP_MS);
@@ -243,13 +250,27 @@ async function goToStep(requested: number, direction: 1 | -1 = 1) {
   measureCurrentTarget();
 }
 
+/** Whether the guided tour is running right now (for screens that must not react to what the tour does to them). */
+export const isTourActive = () => state.active;
+
+let starting = false;
+
 export async function startTour() {
-  // Settled first, so the permission dialog never lands on top of a running tour.
-  await ensureCameraAccess();
-  set({ active: true, stepIndex: 0, targetRect: null, waitingForTarget: true });
-  const muted = await isNarrationMuted();
-  set({ muted });
-  goToStep(0);
+  // A second tap while the camera question is still open, or while a tour is already running, must not
+  // start another one on top (two tours would navigate and narrate over each other).
+  if (starting || state.active) return;
+  starting = true;
+  try {
+    // Settled first, so the permission dialog never lands on top of a running tour.
+    await ensureCameraAccess();
+    if (state.active) return;
+    set({ active: true, stepIndex: 0, targetRect: null, waitingForTarget: true });
+    const muted = await isNarrationMuted();
+    set({ muted });
+    goToStep(0);
+  } finally {
+    starting = false;
+  }
 }
 
 export function nextStep() {

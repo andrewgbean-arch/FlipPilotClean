@@ -17,6 +17,7 @@ import PartnerLinks from "@/components/marketplace/PartnerLinks";
 import GoldParticles from "@/components/ui/GoldParticles";
 import { markMarketplaceVisited } from "@/utils/onboarding";
 import { useTourTarget } from "@/features/tour/TourTarget";
+import { isTourActive } from "@/features/tour/TourContext";
 
 export default function MarketplaceHub() {
   const theme = useTheme();
@@ -30,7 +31,9 @@ export default function MarketplaceHub() {
 
   // A real fact for Home's "Getting started" card, not something the user has to tell it.
   useEffect(() => {
-    markMarketplaceVisited();
+    // The guided tour opens this screen for everyone; that is not "having a look at the Marketplace",
+    // which the Getting Started card should only tick for something the person actually did.
+    if (!isTourActive()) markMarketplaceVisited();
   }, []);
 
   useEffect(() => {

@@ -9,6 +9,8 @@ export type ScanAllowance = {
   credits: number;
   freeLeft: number;
   freeLimit: number;
+  /** What signing in gets a week (a phone that is not signed in gets fewer). */
+  signedInFreeLimit: number;
   resetsOn: string;
   /** The packs on sale: the store product id and how many credits it gives. */
   packs: { productId: string; credits: number }[];
@@ -26,6 +28,7 @@ export async function fetchScanAllowance(): Promise<ScanAllowance | null> {
       credits: Number(json.credits) || 0,
       freeLeft: Number(json.free.left) || 0,
       freeLimit: Number(json.free.limit) || 5,
+      signedInFreeLimit: Number(json.signedInFreeLimit) || 5,
       resetsOn: String(json.free.resetsOn ?? ""),
       packs: Array.isArray(json.packs) ? json.packs.filter((p: any) => typeof p?.productId === "string" && Number(p.credits) > 0) : [],
     };

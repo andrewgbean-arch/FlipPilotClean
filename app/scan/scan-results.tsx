@@ -33,7 +33,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { useTheme } from "@/styles/ThemeContext";
-import { fetchPrices, reportPrice, type ItemAge, type ItemGrade } from "@/utils/api";
+import { ApiError, fetchPrices, reportPrice, type ItemAge, type ItemGrade } from "@/utils/api";
 import SellerDescriptionCard from "@/components/scan/SellerDescriptionCard";
 import { dropPending, getPending } from "@/utils/pendingScan";
 import { applyPrices, SCAN_AGAIN_EVENT } from "@/utils/scanTransform";
@@ -220,6 +220,8 @@ export default function ScanResultsScreen() {
   const [savedId, setSavedId] = useState<string | null>(null);
   // A scan opens this screen after step 1 (what is it?); step 2 (what is it worth?) runs here.
   const [priceState, setPriceState] = useState<"ready" | "loading" | "failed">("ready");
+  // Why the last price check failed, in words, when the server or the phone said (shown in place of the generic line).
+  const [priceNotice, setPriceNotice] = useState<string | null>(null);
   // The first, automatic price lookup runs from a saved request that is deleted once it has finished. Anything after
   // that (changing Condition or Age, correcting the name, "Try again") is a hand-made re-check that runs by itself.
   const firstLookupDone = useRef(false);
@@ -302,6 +304,7 @@ export default function ScanResultsScreen() {
         if (controller.signal.aborted) return;
         console.log("Price lookup failed:", err);
         firstLookupDone.current = true;
+        setPriceNotice(err instanceof ApiError ? err.message : null);
         setPriceState("failed");
       });
 
@@ -322,6 +325,9 @@ export default function ScanResultsScreen() {
     const nextTitle = overrides.title ?? title;
     const nextGrade = overrides.grade ?? grade;
     const nextAge = overrides.age ?? age;
+    // What is on screen now, so it can be put back if the server refuses this check (below).
+    const before = { data, title, grade, age, buy: buyPrice, sell: sellPrice, hadPrices: priceState === "ready" };
+    setPriceNotice(null);
     // The Condition box also relabels the "AI analysis" condition fact, so the two
     // never disagree with each other.
     const nextConditionLabel = overrides.grade
@@ -364,6 +370,23 @@ export default function ScanResultsScreen() {
     } catch (err) {
       if (controller.signal.aborted) return;
       console.log("Price re-check failed:", err);
+
+      // The server will not price this one (the scan ran out, was used up, or was for a different item
+      // than the three names it covers). Asking again with the same name would be refused forever, so
+      // put back exactly what was on screen before, and say why in words.
+      if (err instanceof ApiError && err.kind === "scan-required") {
+        setData(before.data);
+        setGrade(before.grade);
+        setAge(before.age);
+        setBuyPrice(before.buy);
+        setSellPrice(before.sell);
+        setPriceState(before.hadPrices ? "ready" : "failed");
+        setPriceNotice(before.hadPrices ? null : err.message);
+        Alert.alert("Can't check that one", err.message);
+        return;
+      }
+
+      setPriceNotice(err instanceof ApiError ? err.message : null);
       setPriceState("failed");
     }
   };
@@ -790,7 +813,7 @@ export default function ScanResultsScreen() {
           ) : priceState === "failed" ? (
             <View accessibilityLiveRegion="polite">
               <Text style={[styles.heroHint, { color: theme.warning }]}>
-                Couldn't check prices. Try again, or set your own.
+                {priceNotice ?? "Couldn't check prices. Try again, or set your own."}
               </Text>
               <Pressable
                 accessibilityRole="button"

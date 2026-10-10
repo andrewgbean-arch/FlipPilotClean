@@ -30,6 +30,7 @@ import { SCAN_AGAIN_EVENT, transformIdentity } from "@/utils/scanTransform";
 import ScanWaitingAd, { AD_REVEAL_DELAY_MS } from "@/components/ScanWaitingAd";
 import { refreshAdverts } from "@/lib/adverts";
 import { useTourTarget } from "@/features/tour/TourTarget";
+import { isTourActive } from "@/features/tour/TourContext";
 
 // Laser + AI Tips
 const LASER_COLOR = "#FF3B3B";
@@ -349,6 +350,9 @@ export default function ScanScreen() {
 
   const handleBarcode = async ({ data }: { data: string }) => {
     if (busyRef.current || !barcodeArmed) return;
+    // The guided tour shows this screen with the camera live. A barcode that happens to be in view must
+    // not start a real scan (which uses up a free scan or a credit and opens a result under the tour).
+    if (isTourActive()) return;
 
     setBarcodeArmed(false);
     const controller = beginScan();

@@ -36,7 +36,9 @@ export type ApiErrorKind =
   | "quota"
   | "too-large"
   | "server"
-  | "lookup";
+  | "lookup"
+  /** The server will not price this: the scan it belongs to has run out, was for another item, or is not valid. */
+  | "scan-required";
 
 export class ApiError extends Error {
   readonly kind: ApiErrorKind;
@@ -148,6 +150,16 @@ async function request(path: string, options: RequestOptions = {}): Promise<any>
           ? payload.message
           : "You've used your free scans this week.",
         { status: res.status, needsSignIn: payload.signedIn === false, needsCredits: payload.error === "out-of-credits" }
+      );
+    }
+
+    // The price step refuses a request whose scan has run out, was used up, or was for a different item.
+    // The reason is in words in `message`; the result screen shows it and puts back what was on screen.
+    if (payload.error === "scan-required") {
+      throw new ApiError(
+        "scan-required",
+        typeof payload.message === "string" && payload.message ? payload.message : "Please scan the item again to get its prices.",
+        { status: res.status }
       );
     }
 

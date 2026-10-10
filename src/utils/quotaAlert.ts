@@ -19,5 +19,6 @@ export function showQuotaAlert(err: ApiError, router: ReturnType<typeof useRoute
         { text: "Get credits", onPress: () => router.push("/credits") },
       ]
     : [{ text: "OK", style: "cancel" as const }];
-  Alert.alert("You're out of free scans", err.message, buttons);
+  // Not signed in: out of the few scans a phone gets without an account, and an account is free.
+  Alert.alert(err.needsSignIn ? "Sign in for more free scans" : "You're out of free scans", err.message, buttons);
 }

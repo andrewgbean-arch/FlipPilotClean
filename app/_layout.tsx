@@ -122,7 +122,6 @@ function GoldFlashOverlayWrapper() {
 // Screens declared below set their own; everything else gets a name from here.
 const SCREEN_TITLES: Record<string, string> = {
   rate: "Rate FlipPilot",
-  "voice-picker": "Tour voice",
   help: "Help",
   game: "Boot Fair Dash",
   "game/index": "Boot Fair Dash",
