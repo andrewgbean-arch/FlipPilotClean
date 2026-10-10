@@ -35,5 +35,28 @@ eq("a 36-roll £19.29 listing scales to 9 rolls", priceForPack("Andrex Complete 
 eq("a 45-roll listing scales to 9 rolls", priceForPack("Andrex Classic Clean Toilet Roll Tissue Paper - 45 Rolls White", 38.41, 9), 7.68);
 eq("a same-size 9 Rolls listing is left alone", priceForPack("Andrex Family Soft Toilet Tissue, 2-ply, 9 Rolls", 4.99, 9), 4.99);
 
+// ---- Found by review 2026-10-09: the three fixes above each had a side effect. ----
+
+// 1b. A scan that is itself "Box of 12" must keep its own listings (the exemption needs the scanned
+//     title's "Box of 12" to be read as a pack size of 12, which it was not).
+eq("a 'Box of 12' title is a pack size of 12", extractPackCount("Krispy Kreme Original Glazed Box of 12"), 12);
+eq("...so a listing sharing that Box of 12 is kept when rechecked from the title alone", priceForPack("Krispy Kreme Original Glazed Box of 12", 15, extractPackCount("Krispy Kreme Original Glazed Box of 12")), 15);
+eq("a Box of 24 is still bulk next to a scan of 12", isBulkListing("Krispy Kreme Original Glazed Box of 24", 12), true);
+eq("with no pack size known, 'Box of 17' is still bulk", isBulkListing("Cadbury Dairy Milk Chocolate Bar 180g (Box of 17)", null), true);
+
+// 2b. "Size N" is only a clothing/nappy size before nappies; a real count after "size" still counts.
+eq("'Family Size 90 Tablets' is 90 tablets", extractPackCount("Berocca Family Size 90 Tablets"), 90);
+eq("...so a 90-tablet listing scales to a 30-tablet scan", priceForPack("Berocca Family Size 90 Tablets", 30, 30), 10);
+eq("'Value Size 1000 Tablets' is bulk next to a 30-tablet scan", isBulkListing("Berocca Value Size 1000 Tablets", 30), true);
+eq("'Size 5+ Nappies, 30 Pack' reads the 30", extractPackCount("Huggies Size 5+ Nappies, 30 Pack"), 30);
+
+// 3b. "Rolls" is a pack size only when it is plainly a count of rolls.
+eq("a model car scale is not a roll count", extractPackCount("Corgi 1:36 Rolls Royce Silver Ghost"), null);
+eq("'Rolls Royce' is not a roll count", extractPackCount("Rolls Royce Silver Ghost Model 24"), null);
+eq("'Roll Neck 80s' is a jumper, not 80 rolls", extractPackCount("Vintage Roll Neck Jumper 80s"), null);
+eq("'Rock n Roll 50s' is a dress, not 50 rolls", extractPackCount("Rock n Roll 50s Dress"), null);
+eq("a plain '12 Rolls' still counts", extractPackCount("Cushelle Toilet Tissue 12 Rolls"), 12);
+eq("a singular '9 Roll' pack still counts", extractPackCount("Andrex Family Soft Toilet Tissue 9 Roll"), 9);
+
 console.log(fail === 0 ? "ALL PASS" : `${fail} FAILED`);
 process.exit(fail ? 1 : 0);

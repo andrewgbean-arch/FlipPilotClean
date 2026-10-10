@@ -65,6 +65,7 @@ const NON_X_MULTIPLIER = [
   /\bpack of\s*(\d+)/i,
   /\(\s*(\d+)\s*p(?:c|cs|iece|ieces)?\s*\)/i, // "(2Pcs)"
   /\b(\d+)\s*(?:packs?|pk)\b/i, //               "3 pack", "4pk"
+  /\bbox(?:es)?\s+of\s+(\d+)/i, //                "Box of 12" (see BOX_OF in isBulkListing)
 ];
 
 // Words for the thing being counted. Only words that clearly mean "one of the
@@ -72,11 +73,17 @@ const NON_X_MULTIPLIER = [
 const COUNT_STEMS =
   "lozen\\w*|tablets?|capsules?|caplets?|sachets?|pouches|pastilles?|softgels?|pcs|pieces?|" +
   "count|units?|doses?|servings?|portions?|gums?|strips?|patches|tea\\s?bags?|" +
-  "nappies|diapers?|swabs?|refills?|wipes?|rolls?";
+  "nappies|diapers?|swabs?|refills?|wipes?";
 // "ct" on its own means "count" ("80ct"), but is exactly how gold purity is written ("9ct", "18ct
 // gold") — kept apart so it can be excluded specifically when it's plainly a carat mark, not merged
 // into COUNT_STEMS where every use would be trusted equally.
 const COUNT_STEMS_WITH_CT = `${COUNT_STEMS}|ct`;
+// "Rolls" counts as a pack size ("Andrex 9 Rolls", "4 x 9 Rolls") but is deliberately kept OUT of
+// COUNT_STEMS: that list also decides when a bare "NNs" is a count rather than a decade or a style
+// number, and "Roll Neck Jumper 80s" is not 80 rolls. "Rolls Royce" is a car, not a count.
+const ROLLS = "rolls?(?!\\s+royce\\b)";
+// Every word that can follow a number to make it a count.
+const COUNT_UNITS = `${COUNT_STEMS_WITH_CT}|${ROLLS}`;
 // "pack"/"packs" belongs ONLY to the dimension guard below, never to COUNT_STEMS itself: it once
 // lived there (to stop "6 X3 Packs" reading as a dimension like "34x32"), but COUNT_STEMS also
 // feeds COUNT_WORD ("N <stem>" = a stated total count) — with "pack" in it, COUNT_WORD started
@@ -84,7 +91,7 @@ const COUNT_STEMS_WITH_CT = `${COUNT_STEMS}|ct`;
 // x6 multiplier elsewhere, squaring a real 6-pack into 36 (found live: a genuine Sainsbury's Old
 // Spice 6-pack priced as if it were a 36-pack). "Pack" is a container word, not a unit-of-the-thing
 // word like "lozenge" or "tablet", so it must never reach COUNT_WORD.
-const DIMENSION_GUARD_STEMS = `${COUNT_STEMS_WITH_CT}|packs?`;
+const DIMENSION_GUARD_STEMS = `${COUNT_STEMS_WITH_CT}|${ROLLS}|packs?`;
 const HAS_COUNT_STEM = new RegExp(`\\b(?:${COUNT_STEMS})\\b`, "i");
 
 // "9ct gold", "18ct white gold": a carat mark. Stripped before any count/multiplier check runs, so
@@ -93,17 +100,23 @@ const HAS_COUNT_STEM = new RegExp(`\\b(?:${COUNT_STEMS})\\b`, "i");
 const GOLD_CARAT = /\b\d{1,2}\s?ct\b(?=\s*(?:yellow|white|rose)?\s*gold\b)/gi;
 const dropCaratMarks = (text: string) => text.replace(GOLD_CARAT, "");
 
+// "Pampers Size 4 Nappies 44 Pack" is a 44-pack of size-4 nappies, not "4 nappies" (which then
+// multiplied by the 44 into a bogus 176). Only a SMALL number directly before nappies/diapers/pants is a
+// size: "Berocca Family Size 90 Tablets" really is 90 tablets, so it is left alone.
+const SIZE_MARK = /\bsizes?\s+\d{1,2}\+?(?=\s*(?:nappies|diapers?|pants)\b)/gi;
+const dropSizeMarks = (text: string) => text.replace(SIZE_MARK, "");
+
 // "72 lozenges", "210 Gums", "80ct" (but not "9ct gold" — see dropCaratMarks above).
-// Never a clothing/nappy SIZE: "Pampers Size 4 Nappies 44 Pack" is a 44-pack of size-4 nappies, not
-// 4 nappies (which then multiplied by the "44 Pack" into a bogus 176).
-const COUNT_WORD = new RegExp(`(?<!\\bsizes?\\s)\\b(\\d{1,4})\\s?(?:${COUNT_STEMS_WITH_CT})\\b`, "i");
+// Not a scale ratio either: the 36 in "Corgi 1:36 Rolls Royce" is a model scale. (A clothing/nappy SIZE
+// is dropped before any of this runs, see dropSizeMarks.)
+const COUNT_WORD = new RegExp(`(?<![:/])\\b(\\d{1,4})\\s?(?:${COUNT_UNITS})\\b`, "i");
 // The trailing-s style: "Lozenges 80s" — only trusted when a real count-stem word is ALSO somewhere
 // in the text; bare "NNs" alone is just as often a style number ("Levi's 501s") or a decade ("80s").
 const COUNT_S = /\b(\d{2,3})['’]?s\b/i;
 // "40 x Nicotine Lozenges": the number in front of the x is the count.
-const NX_COUNT = new RegExp(`\\b(\\d{1,4})\\s*${X}\\s*(?:[a-z0-9%.-]+\\s+){0,3}(?:${COUNT_STEMS_WITH_CT})\\b`, "i");
+const NX_COUNT = new RegExp(`\\b(\\d{1,4})\\s*${X}\\s*(?:[a-z0-9%.-]+\\s+){0,3}(?:${COUNT_UNITS})\\b`, "i");
 // "2x80 Lozenges", "4 x 20 Tablets": the two numbers multiply.
-const AXB_COUNT = new RegExp(`(\\d+)\\s*${X}\\s*(\\d+)\\s*(?:${COUNT_STEMS_WITH_CT})\\b`, "i");
+const AXB_COUNT = new RegExp(`(\\d+)\\s*${X}\\s*(\\d+)\\s*(?:${COUNT_UNITS})\\b`, "i");
 // "(4 x 40 Packs)": says how the count in front of it is made up, so it is not a further multiple.
 const PACK_MAKEUP = new RegExp(`(\\d+)\\s*${X}\\s*(\\d+)`, "g");
 // "Total 480 Lozenges"
@@ -214,7 +227,7 @@ function multiplierOf(title: string): number | null {
  * "6x ... 80s" → 480, "Total 480 Lozenges" → 480), or null when it doesn't say.
  */
 function unitsOf(rawText: string): number | null {
-  const text = dropCaratMarks(rawText);
+  const text = dropSizeMarks(dropCaratMarks(rawText));
   const total = text.match(TOTAL);
   if (total) return parseInt(total[1], 10);
 
@@ -243,7 +256,7 @@ function unitsOf(rawText: string): number | null {
 /** The pack size a piece of text states ("72 lozenges" → 72, "pack of 4" → 4), or null. */
 export function extractPackCount(text: string | null | undefined): number | null {
   if (!text) return null;
-  return unitsOf(text) ?? multiplierOf(dropCaratMarks(text));
+  return unitsOf(text) ?? multiplierOf(dropSizeMarks(dropCaratMarks(text)));
 }
 
 /** The total number of units a listing sells, or null when it doesn't say
@@ -518,6 +531,21 @@ export function sharesNumericIdentity(title: string | null | undefined, query: s
 const OUTLIER_RATIO = 3;
 const UPPER_RATIO = 1.75;
 
+// Between neighbouring prices, a jump of more than this starts a new group (see filterOutliers).
+const GAP_RATIO = 2.5;
+
+/** The biggest run of prices with no jump of more than GAP_RATIO between neighbours. `sorted` is ascending. */
+function largestCluster(sorted: number[]): number[] {
+  let best: number[] = [];
+  let current: number[] = [];
+  for (const p of sorted) {
+    if (current.length && p > current[current.length - 1] * GAP_RATIO) current = [];
+    current.push(p);
+    if (current.length > best.length) best = current;
+  }
+  return best;
+}
+
 function medianOf(sorted: number[]): number {
   const mid = Math.floor(sorted.length / 2);
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
@@ -532,7 +560,20 @@ export function filterOutliers(prices: number[]): number[] {
     byRatio = prices.filter((p) => p <= sorted[0] * OUTLIER_RATIO);
   } else {
     const m = medianOf(sorted);
-    byRatio = prices.filter((p) => p <= m * UPPER_RATIO && p >= m / OUTLIER_RATIO);
+    const nearMedian = prices.filter((p) => p <= m * UPPER_RATIO && p >= m / OUTLIER_RATIO);
+    if (nearMedian.length >= 2 && nearMedian.length * 4 >= prices.length) {
+      byRatio = nearMedian;
+    } else {
+      // The median only means something when a fair share of the listings sit near it. When the sample
+      // splits into groups, it can land in the gap between them and the band around it holds little or
+      // nothing (found by review 2026-10-09: [1.75, 2.0, 15.12, 15.5] came back empty, so Google lost
+      // its prices altogether and every Condition/Age change bought another search). So: split the
+      // prices wherever they jump by more than GAP_RATIO, and trust the biggest group if it holds a
+      // clear majority (real listings of one product are dense; accessories and adverts sit far off).
+      // With no majority at all nothing is thrown away: neither group can be told from the junk.
+      const main = largestCluster(sorted);
+      byRatio = main.length * 2 > prices.length ? main : prices;
+    }
   }
 
   if (byRatio.length < 4) return byRatio;
