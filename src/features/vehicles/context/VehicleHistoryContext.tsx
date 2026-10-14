@@ -12,6 +12,7 @@ import {
 
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
 import { calcFlipScore } from "@/features/vehicles/utils/calcFlipScore";
+import { profitSummary } from "@/features/vehicles/utils/boughtStatus";
 import { BASE_URL } from "@/utils/api";
 import { useDealerNotifications } from "./DealerNotificationsContext";
 import { useUserSettings } from "@/features/settings/UserSettingsContext";
@@ -264,9 +265,9 @@ export const VehicleHistoryProvider = ({ children }: { children: ReactNode }) =>
   /* -------------------------------------------------------
      ⭐ CALCULATE TOTAL PROFIT + FIRE MILESTONES
   ------------------------------------------------------- */
-  const totalProfit = useMemo(() => {
-    return vehicles.reduce((sum, v) => sum + (v.profit ?? 0), 0);
-  }, [vehicles]);
+  // Only what was actually BOUGHT counts (see boughtStatus.ts): a scan that was saved but never bought has an
+  // estimated profit, not a real one, and used to be added in as though it had been.
+  const totalProfit = useMemo(() => profitSummary(vehicles).total, [vehicles]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -291,7 +292,7 @@ export const VehicleHistoryProvider = ({ children }: { children: ReactNode }) =>
       addNotification({
         type: "SYSTEM",
         title: "Profit Milestone",
-        message: `Profit across your saved flips has reached £${m.toLocaleString()}.`,
+        message: `Profit across the flips you've bought has reached £${m.toLocaleString()}.`,
       });
     });
   }, [totalProfit, loaded]);

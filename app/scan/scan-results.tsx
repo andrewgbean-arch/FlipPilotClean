@@ -1,5 +1,7 @@
 import * as FileSystem from "expo-file-system/legacy";
 import GoldFoil from "@/components/ui/GoldFoil";
+import BoughtSheet from "@/components/BoughtSheet";
+import { boughtPatch, notBoughtPatch } from "@/features/vehicles/utils/boughtStatus";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import {
@@ -222,6 +224,8 @@ export default function ScanResultsScreen() {
   const [priceState, setPriceState] = useState<"ready" | "loading" | "failed">("ready");
   // Why the last price check failed, in words, when the server or the phone said (shown in place of the generic line).
   const [priceNotice, setPriceNotice] = useState<string | null>(null);
+  // The "Did you buy it?" question, open while Save is waiting on the answer.
+  const [boughtAsk, setBoughtAsk] = useState(false);
   // The first, automatic price lookup runs from a saved request that is deleted once it has finished. Anything after
   // that (changing Condition or Age, correcting the name, "Try again") is a hand-made re-check that runs by itself.
   const firstLookupDone = useRef(false);
@@ -496,7 +500,23 @@ export default function ScanResultsScreen() {
     await saveToHistory({ favourite: true });
   };
 
-  const saveToHistory = async (options?: { favourite?: boolean }) => {
+  // The Save button asks first: saving a scan only records what it is WORTH, and profit totals count only
+  // what was bought, for what was actually paid. (The heart skips the question: it is a quick bookmark,
+  // and the question comes up later from History.)
+  const askBeforeSaving = () => {
+    if (!data || saved) return;
+    if (loadError) {
+      Alert.alert("Can't save this flip", loadError);
+      return;
+    }
+    setBoughtAsk(true);
+  };
+
+  const saveToHistory = async (options?: {
+    favourite?: boolean;
+    /** Their answer to "Did you buy it?"; none when saved with the heart. */
+    answer?: { bought: true; paid: number } | { bought: false };
+  }) => {
     if (!data || saved) return;
 
     // Saving is switched off when the stored History couldn't be read; say so rather than show "Saved".
@@ -511,6 +531,9 @@ export default function ScanResultsScreen() {
 
     const image = data.image ? await keepPhoto(data.image) : null;
 
+    const answer = options?.answer;
+    const answered = answer ? (answer.bought ? boughtPatch(answer.paid) : notBoughtPatch()) : {};
+
     const record = addVehicle({
       title: data.title ?? data.product?.title ?? "Unknown Item",
       barcode: data.barcode ?? data.product?.barcode ?? null,
@@ -518,6 +541,8 @@ export default function ScanResultsScreen() {
       favourite: options?.favourite ?? false,
       buyPrice,
       sellPrice,
+      // After the prices: when they said they bought it, what they PAID replaces the planned buy price.
+      ...answered,
       flipScore: typeof data.ai?.flip_score === "number" ? data.ai.flip_score : undefined,
       category: data.ai?.category ?? null,
       pricing: {
@@ -1176,7 +1201,7 @@ export default function ScanResultsScreen() {
                 : { backgroundColor: theme.gold, overflow: "hidden" },
               pressed && styles.pressed,
             ]}
-            onPress={() => saveToHistory()}
+            onPress={askBeforeSaving}
             disabled={saved || priceState === "loading"}
           >
             {!saved ? <GoldFoil /> : null}
@@ -1191,6 +1216,24 @@ export default function ScanResultsScreen() {
           </Pressable>
         </View>
       </View>
+
+      {/* DID YOU BUY IT? (asked as the flip is saved) */}
+      <BoughtSheet
+        visible={boughtAsk}
+        context="save"
+        itemTitle={title}
+        suggestedPrice={buyPrice}
+        onBought={(paid) => {
+          setBoughtAsk(false);
+          setBuyPrice(paid); // the screen shows what they paid from here on
+          void saveToHistory({ answer: { bought: true, paid } });
+        }}
+        onNotBought={() => {
+          setBoughtAsk(false);
+          void saveToHistory({ answer: { bought: false } });
+        }}
+        onClose={() => setBoughtAsk(false)}
+      />
 
       {/* CALCULATOR */}
       <Modal

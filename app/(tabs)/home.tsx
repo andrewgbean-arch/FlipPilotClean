@@ -36,6 +36,7 @@ import { useTheme } from "@/styles/useTheme";
 
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { getProfit, hasProfit } from "@/components/FlipCard";
+import { isBought, profitSummary } from "@/features/vehicles/utils/boughtStatus";
 import { formatMoney, formatSignedMoney } from "@/features/vehicles/utils/vehicleStats";
 import WeatherCard from "@/components/WeatherCard";
 import FeedbackSheet from "@/components/sheets/FeedbackSheet";
@@ -173,19 +174,24 @@ export default function HomeScreen() {
   // agree after a flip's prices are edited.
   const stats = useMemo(() => {
     const total = flips.length;
-    const totalProfit = flips.reduce((sum, f) => sum + getProfit(f), 0);
+    // Only what the person actually BOUGHT counts towards profit. Saving a scan records what it is worth,
+    // not that they bought it, and this used to add up every saved scan as if they had.
+    const profit = profitSummary(flips);
+    const totalProfit = profit.total;
 
     const avgScoreRaw = flips.reduce((sum, f) => sum + (f.flipScore ?? 0), 0);
     const scoreCount = flips.filter((f) => f.flipScore != null).length;
     const avgScore =
       scoreCount > 0 ? Math.round(avgScoreRaw / scoreCount) : null;
 
-    return { total, totalProfit, avgScore };
+    return { total, totalProfit, avgScore, bought: profit.bought, unconfirmed: profit.unconfirmed };
   }, [flips]);
 
   const latestFlip = flips[0] ?? null;
   const latestProfit = latestFlip ? getProfit(latestFlip) : 0;
   const latestProfitKnown = latestFlip ? hasProfit(latestFlip) : false;
+  // An estimate until they say they bought it (and so not in the total above).
+  const latestCounts = latestFlip ? isBought(latestFlip) : false;
   const profitColor =
     stats.totalProfit > 0 ? theme.success : stats.totalProfit < 0 ? theme.danger : theme.text;
 
@@ -294,6 +300,25 @@ export default function HomeScreen() {
               suffix="/100"
             />
           </View>
+
+          {/* The total counts only items the person has said they bought. Say so, and say what is left out. */}
+          {stats.unconfirmed > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${stats.unconfirmed} saved ${stats.unconfirmed === 1 ? "item is" : "items are"} not counted in your profit yet. Open History to say what you bought`}
+              onPress={() => router.push("/history")}
+              style={({ pressed }) => [styles.confirmNote, { borderTopColor: theme.hairline }, pressed && styles.pressed]}
+            >
+              <Text style={[styles.confirmNoteText, { color: theme.gold }]}>
+                {stats.unconfirmed} saved {stats.unconfirmed === 1 ? "item isn't" : "items aren't"} counted yet. Tap to say what you bought
+              </Text>
+              <CaretRight size={16} color={theme.gold} />
+            </Pressable>
+          ) : stats.bought > 0 ? (
+            <Text style={[styles.profitNote, { color: theme.muted }]}>
+              Profit from the {stats.bought} {stats.bought === 1 ? "item" : "items"} you bought
+            </Text>
+          ) : null}
         </View>
 
         {/* LATEST FLIP */}
@@ -308,7 +333,7 @@ export default function HomeScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={
                   latestProfitKnown
-                    ? `${latestFlip.title}, ${latestProfit >= 0 ? "profit" : "loss"} of ${formatMoney(Math.abs(latestProfit))}. Open details`
+                    ? `${latestFlip.title}, ${latestCounts ? "" : "estimated "}${latestProfit >= 0 ? "profit" : "loss"} of ${formatMoney(Math.abs(latestProfit))}. Open details`
                     : `${latestFlip.title}. Open details`
                 }
                 style={({ pressed }) => [styles.latestMain, pressed && styles.pressed]}
@@ -322,7 +347,7 @@ export default function HomeScreen() {
                     style={[
                       styles.latestProfit,
                       {
-                        color: !latestProfitKnown
+                        color: !latestProfitKnown || !latestCounts
                           ? theme.muted
                           : latestProfit >= 0
                           ? theme.success
@@ -330,7 +355,11 @@ export default function HomeScreen() {
                       },
                     ]}
                   >
-                    {latestProfitKnown ? formatSignedMoney(latestProfit) : "-"}
+                    {latestProfitKnown
+                      ? latestCounts
+                        ? formatSignedMoney(latestProfit)
+                        : `Est. ${formatSignedMoney(latestProfit)}`
+                      : "-"}
                   </Text>
                   <Text style={[styles.latestMeta, { color: theme.muted }]}>
                     Score {latestFlip.flipScore ?? "-"}/100
@@ -517,6 +546,16 @@ const styles = StyleSheet.create({
   latestText: { flex: 1, gap: 2 },
   latestTitle: { fontSize: 16, fontWeight: "600" },
   latestProfit: { fontSize: 22, fontWeight: "700", fontVariant: ["tabular-nums"] },
+  confirmNote: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+  },
+  confirmNoteText: { flex: 1, fontSize: 13, fontWeight: "600", lineHeight: 18 },
+  profitNote: { marginTop: 12, fontSize: 12, textAlign: "center" },
   latestMeta: { fontSize: 13 },
   historyRow: {
     minHeight: 48,

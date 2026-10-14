@@ -15,13 +15,14 @@ import {
   Text,
   TouchableOpacity,
 } from "react-native";
-import { Broom, Export, Heart, Trophy } from "phosphor-react-native";
+import { Broom, Export, Heart, ShoppingBag, Trophy } from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/styles/ThemeContext";
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import FlipCard, { getBuyPrice, getProfit, getSellPrice } from "@/components/FlipCard";
+import { bestBoughtFlip, boughtState, profitSummary } from "@/features/vehicles/utils/boughtStatus";
 import { formatMoney, formatSignedMoney } from "@/features/vehicles/utils/vehicleStats";
 import { TourTarget } from "@/features/tour/TourTarget";
 
@@ -136,10 +137,8 @@ export default function HistoryScreen() {
     loadError,
   } = useVehicleHistory();
 
-  const bestFlip = useMemo<FlipRecord | null>(() => {
-    if (flips.length === 0) return null;
-    return [...flips].sort((a, b) => getProfit(b) - getProfit(a))[0];
-  }, [flips]);
+  // The best flip is the best of what was actually BOUGHT: an estimate on something never bought isn't a flip.
+  const bestFlip = useMemo<FlipRecord | null>(() => bestBoughtFlip(flips), [flips]);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -153,6 +152,8 @@ export default function HistoryScreen() {
 
   const [search, setSearch] = useState("");
   const [showFavesOnly, setShowFavesOnly] = useState(false);
+  // Show only the saved items that haven't been answered with "Did you buy it?" yet.
+  const [toConfirmOnly, setToConfirmOnly] = useState(false);
 
   const showOverlayMessage = (text: string) => {
     setOverlayText(text);
@@ -201,9 +202,12 @@ export default function HistoryScreen() {
     showOverlayMessage(isFav ? "Added to favourites" : "Removed from favourites");
   };
 
-  const totalProfit = flips.reduce((sum, item) => sum + getProfit(item), 0);
+  // Only what was actually bought counts towards profit (see boughtStatus.ts); the rest is still an estimate.
+  const summary = useMemo(() => profitSummary(flips), [flips]);
+  const totalProfit = summary.total;
   const totalItems = flips.length;
-  const avgProfit = totalItems > 0 ? totalProfit / totalItems : 0;
+  const avgProfit = summary.bought > 0 ? totalProfit / summary.bought : 0;
+  const toConfirmActive = toConfirmOnly && summary.unconfirmed > 0;
 
   const filteredAndSortedFlips = useMemo(() => {
     let list = [...flips];
@@ -214,6 +218,7 @@ export default function HistoryScreen() {
     }
 
     if (showFavesOnly) list = list.filter((f) => f.favourite);
+    if (toConfirmActive) list = list.filter((f) => boughtState(f) === "unconfirmed");
 
     switch (sortMode) {
       case "profit":
@@ -282,7 +287,7 @@ export default function HistoryScreen() {
     }
 
     return list;
-  }, [flips, search, showFavesOnly, sortMode]);
+  }, [flips, search, showFavesOnly, sortMode, toConfirmActive]);
 
   // Saved flips open by id. The scan-results screen only understands a fresh
   // scan payload, and it would offer to save this flip a second time.
@@ -297,7 +302,7 @@ export default function HistoryScreen() {
     }
 
     const header =
-      "Title,Buy,Sell,Profit,ROI,Confidence,AI Price Min,AI Price Max,AI Price Confidence,FlipScore,Rarity,SellSpeed,Google Min,Google Max,SmartPrice,DemandScore,Condition,ConditionScore,Description,FullDescription\n";
+      "Title,Buy,Sell,Profit,ROI,Confidence,AI Price Min,AI Price Max,AI Price Confidence,FlipScore,Rarity,SellSpeed,Google Min,Google Max,SmartPrice,DemandScore,Condition,ConditionScore,Description,FullDescription,Bought\n";
 
     const rows = flips
       .map((f) => {
@@ -331,6 +336,9 @@ export default function HistoryScreen() {
           Number(f.ai?.conditionScore ?? 0),
           `"${(f.ai?.description || "").replace(/"/g, '""')}"`,
           `"${(f.ai?.fullDescription || "").replace(/"/g, '""')}"`,
+
+          // Whether the Buy/Profit figures above are real (bought) or only the scan's estimate.
+          { bought: "yes", "not-bought": "no", unconfirmed: "not answered" }[boughtState(f)],
         ].join(",");
       })
       .join("\n");
@@ -545,6 +553,36 @@ export default function HistoryScreen() {
           </Text>
         </View>
       </View>
+
+      {/* ITEMS NOT YET ANSWERED: they are not in the profit total until the person says they bought them */}
+      {summary.unconfirmed > 0 ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            toConfirmActive
+              ? "Showing only items still to confirm. Show all flips"
+              : `${summary.unconfirmed} saved ${summary.unconfirmed === 1 ? "item is" : "items are"} not counted in your profit yet. Show them`
+          }
+          onPress={() => setToConfirmOnly((on) => !on)}
+          style={({ pressed }) => [
+            styles.confirmBanner,
+            { backgroundColor: theme.card, borderColor: theme.gold },
+            pressed && { opacity: 0.8 },
+          ]}
+        >
+          <ShoppingBag size={22} weight="fill" color={theme.gold} />
+          <View style={{ flex: 1 }}>
+            <Text style={[textVariants.body, { color: theme.text, fontWeight: "700" }]}>
+              {summary.unconfirmed} saved {summary.unconfirmed === 1 ? "item isn't" : "items aren't"} counted in your profit yet
+            </Text>
+            <Text style={[textVariants.small, { color: theme.muted, marginTop: 2 }]}>
+              {toConfirmActive
+                ? "Showing only those. Tap to show everything."
+                : "Say which you bought, and what you paid, so your profit is right. Tap to see them."}
+            </Text>
+          </View>
+        </Pressable>
+      ) : null}
 
       {/* BEST FLIP */}
       {bestFlip && (
@@ -868,6 +906,15 @@ const styles = StyleSheet.create({
   },
 
   /* BEST FLIP */
+  confirmBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 4,
+  },
   bestCard: {
     marginVertical: 10,
     padding: 12,

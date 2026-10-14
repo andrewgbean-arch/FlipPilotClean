@@ -9,9 +9,11 @@ import {
   MapPin,
   Package,
   ShareNetwork,
+  ShoppingBag,
   Sparkle,
   WarningCircle,
   X,
+  XCircle,
 } from "phosphor-react-native";
 import type { Icon as PhosphorIcon } from "phosphor-react-native";
 import React, { useEffect, useRef, useState } from "react";
@@ -28,8 +30,10 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import BoughtSheet from "@/components/BoughtSheet";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import type { FlipRecord } from "@/features/vehicles/models/FlipRecord";
+import { boughtPatch, boughtState, notBoughtPatch } from "@/features/vehicles/utils/boughtStatus";
 import { useTheme } from "@/styles/ThemeContext";
 import { shareFlip } from "@/utils/share/shareFlip";
 
@@ -177,7 +181,7 @@ function RangeBar({ position }: { position: number | null }) {
 export default function FlipDetails() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { vehicles: flips, toggleFavourite, loaded, loadError } = useVehicleHistory();
+  const { vehicles: flips, toggleFavourite, updateVehicle, loaded, loadError } = useVehicleHistory();
 
   const params = useLocalSearchParams();
   const { id } = params as { id?: string };
@@ -189,6 +193,8 @@ export default function FlipDetails() {
   const [savedVisible, setSavedVisible] = useState(false);
 
   const [imageModalVisible, setImageModalVisible] = useState(false);
+  // "Did you buy it?", asked from the profit summary.
+  const [askingBought, setAskingBought] = useState(false);
 
   const heroFade = useRef(new Animated.Value(0)).current;
 
@@ -332,10 +338,18 @@ export default function FlipDetails() {
   const profitValue = toNumber(profit);
   const profitColor =
     profitValue == null ? theme.muted : profitValue >= 0 ? theme.success : theme.danger;
+  // Until they say they bought it, the profit is only the scan's estimate (and is in no total).
+  const bought = boughtState(flip);
   const profitLabel =
     profitValue == null
       ? "Profit not available"
-      : `${profitValue >= 0 ? "Profit" : "Loss"} of £${Math.abs(profitValue).toFixed(2)}`;
+      : `${bought === "bought" ? "" : "Estimated "}${profitValue >= 0 ? "profit" : "loss"} of £${Math.abs(profitValue).toFixed(2)}`;
+  const boughtStatus =
+    bought === "bought"
+      ? { Icon: CheckCircle, label: buyPrice != null ? `Bought for ${formatMoney(buyPrice)}` : "Bought", color: theme.success }
+      : bought === "not-bought"
+      ? { Icon: XCircle, label: "Not bought", color: theme.muted }
+      : { Icon: ShoppingBag, label: "Did you buy it?", color: theme.gold };
 
   const roiText =
     effectiveRoi == null ? "-" : `${effectiveRoi > 0 ? "+" : ""}${effectiveRoi}%`;
@@ -522,7 +536,9 @@ export default function FlipDetails() {
         <View style={[styles.summaryCard, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
           <View style={styles.summaryTop}>
             <View accessible accessibilityLabel={profitLabel} style={styles.summaryMain}>
-              <Text style={[styles.smallLabel, { color: theme.muted }]}>Profit</Text>
+              <Text style={[styles.smallLabel, { color: theme.muted }]}>
+                {bought === "bought" ? "Profit" : "Estimated profit"}
+              </Text>
               <Text
                 style={[styles.profitFigure, { color: profitColor }]}
                 numberOfLines={1}
@@ -546,9 +562,40 @@ export default function FlipDetails() {
             </View>
           </View>
 
+          {/* Whether it was bought, and for what: the answer decides if it counts towards the profit totals. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${boughtStatus.label}. Tap to change`}
+            onPress={() => setAskingBought(true)}
+            style={({ pressed }) => [styles.boughtRow, { borderTopColor: theme.hairline }, pressed && styles.pressed]}
+          >
+            <boughtStatus.Icon size={20} weight={bought === "unconfirmed" ? "bold" : "fill"} color={boughtStatus.color} />
+            <Text style={[styles.boughtText, { color: boughtStatus.color }]}>{boughtStatus.label}</Text>
+            <Text style={[styles.boughtChange, { color: theme.muted }]}>{bought === "unconfirmed" ? "Answer" : "Change"}</Text>
+          </Pressable>
+
           <DataRow label="Buy" value={formatMoney(buyPrice)} divider />
           <DataRow label="Sell" value={formatMoney(sellPrice)} divider />
         </View>
+
+        {askingBought ? (
+          <BoughtSheet
+            visible
+            context="saved"
+            itemTitle={flip.title}
+            suggestedPrice={buyPrice}
+            currentlyPaid={bought === "bought" ? buyPrice : null}
+            onBought={(paid) => {
+              updateVehicle(flip.id, boughtPatch(paid));
+              setAskingBought(false);
+            }}
+            onNotBought={() => {
+              updateVehicle(flip.id, notBoughtPatch());
+              setAskingBought(false);
+            }}
+            onClose={() => setAskingBought(false)}
+          />
+        ) : null}
 
         {/* FLIP SCORE */}
         {showScore ? (
@@ -947,6 +994,16 @@ const styles = StyleSheet.create({
   },
 
   /* PROFIT SUMMARY */
+  boughtRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+  },
+  boughtText: { flex: 1, fontSize: 14, fontWeight: "700" },
+  boughtChange: { fontSize: 13, fontWeight: "600" },
   summaryCard: {
     marginTop: 12,
     borderRadius: 16,

@@ -11,6 +11,16 @@ export interface FlipRecord {
   buyPrice: number | null;
   sellPrice: number | null;
 
+  /**
+   * Did the person actually buy it? Saving a scan only records what it was WORTH, not that they bought
+   * it, and the profit totals used to count every saved scan as if they had.
+   *   true       they bought it, and `buyPrice` is what they PAID (confirmed by them).
+   *   false      they looked and decided not to.
+   *   null/unset they have not said (every scan saved before this existed): not counted in totals until
+   *              they do. See features/vehicles/utils/boughtStatus.ts for the rules.
+   */
+  bought?: boolean | null;
+
   // Dealer analytics fields (NEW)
   mileage?: number | null;
   buyDate?: string | null;
@@ -165,6 +175,7 @@ export const FlipRecordDefaults: FlipRecord = {
   title: "",
   buyPrice: null,
   sellPrice: null,
+  bought: null,
 
   mileage: null,
   buyDate: null,

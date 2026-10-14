@@ -1,46 +1,45 @@
 import {
+  CheckCircle,
   Diamond,
   Fire,
   Heart,
   Lightning,
   Package,
   ShareNetwork,
+  ShoppingBag,
   Storefront,
   Tag,
   Trash,
   TrendUp,
+  XCircle,
 } from "phosphor-react-native";
 import type { Icon as PhosphorIcon } from "phosphor-react-native";
 import { router } from "expo-router";
+import { useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
+import BoughtSheet from "@/components/BoughtSheet";
+import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
+import { boughtPatch, boughtState, notBoughtPatch } from "@/features/vehicles/utils/boughtStatus";
+
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
+import {
+  getBuyPrice,
+  getProfit,
+  getSellPrice,
+  hasBuyPrice,
+  hasProfit,
+  hasSellPrice,
+} from "@/features/vehicles/utils/flipMoney";
 import { formatMoney, formatSignedMoney } from "@/features/vehicles/utils/vehicleStats";
 import { useTheme } from "@/styles/ThemeContext";
 import { shareFlip } from "@/utils/share/shareFlip";
 
 const HAIRLINE = "rgba(255, 255, 255, 0.08)";
 
-// Buy/sell/profit live at the top level of a record, and that is where edits
-// write them (a cleared price is stored as null). `pricing` only holds the
-// original scan estimate, so it is used only for a record with no top-level
-// prices at all.
-const hasOwnPrices = (f: FlipRecord) =>
-  f.buyPrice != null || f.sellPrice != null || f.profit != null;
-const rawBuy = (f: FlipRecord) => (hasOwnPrices(f) ? f.buyPrice : f.pricing?.recommendedBuyPrice);
-const rawSell = (f: FlipRecord) =>
-  hasOwnPrices(f) ? f.sellPrice : f.pricing?.recommendedSellPrice;
-const rawProfit = (f: FlipRecord) => (hasOwnPrices(f) ? f.profit : f.pricing?.predictedProfit);
-
-export const getBuyPrice = (f: FlipRecord) => Number(rawBuy(f) ?? 0);
-export const getSellPrice = (f: FlipRecord) => Number(rawSell(f) ?? 0);
-export const getProfit = (f: FlipRecord) => Number(rawProfit(f) ?? 0);
-
-// getProfit counts a missing figure as 0 so totals still add up. These say
-// whether there was a real figure, so a card can show "-" instead of £0.00.
-export const hasBuyPrice = (f: FlipRecord) => rawBuy(f) != null;
-export const hasSellPrice = (f: FlipRecord) => rawSell(f) != null;
-export const hasProfit = (f: FlipRecord) => rawProfit(f) != null;
+// The buy/sell/profit readers now live in flipMoney.ts (so they can be checked and shared with the
+// totals); they are re-exported here because other screens import them from this file.
+export { getBuyPrice, getSellPrice, getProfit, hasBuyPrice, hasSellPrice, hasProfit };
 
 // Small icon + text pill used for the facts on a flip card.
 const MetaChip = ({
@@ -84,6 +83,11 @@ type Props = {
 // tappable area; the actions sit beside it so each is its own button.
 export default function FlipCard({ item, onOpen, onToggleFavourite, onDelete }: Props) {
   const theme = useTheme();
+  const { updateVehicle } = useVehicleHistory();
+  // "Did you buy it?" is asked from the card itself; the sheet is only mounted while it is open so a long
+  // History list does not carry a pop-up per card.
+  const [asking, setAsking] = useState(false);
+  const bought = boughtState(item);
 
   const buy = getBuyPrice(item);
   const sell = getSellPrice(item);
@@ -98,8 +102,17 @@ export default function FlipCard({ item, onOpen, onToggleFavourite, onDelete }: 
       ? item.images[0]
       : null;
 
-  const profitColor = !profitKnown ? theme.muted : profit >= 0 ? theme.success : theme.danger;
-  const profitText = profitKnown ? formatSignedMoney(profit) : "-";
+  // Until the person says they bought it, the profit is only an estimate (and is not in any total).
+  const counts = bought === "bought";
+  const profitColor = !profitKnown || !counts ? theme.muted : profit >= 0 ? theme.success : theme.danger;
+  const profitText = profitKnown ? (counts ? formatSignedMoney(profit) : `Est. ${formatSignedMoney(profit)}`) : "-";
+
+  const status =
+    bought === "bought"
+      ? { Icon: CheckCircle, label: hasBuyPrice(item) ? `Bought for ${formatMoney(buy)}` : "Bought", color: theme.success, border: theme.hairline }
+      : bought === "not-bought"
+      ? { Icon: XCircle, label: "Not bought", color: theme.muted, border: theme.hairline }
+      : { Icon: ShoppingBag, label: "Did you buy it?", color: theme.gold, border: theme.gold };
 
   const share = () =>
     shareFlip({
@@ -125,7 +138,7 @@ export default function FlipCard({ item, onOpen, onToggleFavourite, onDelete }: 
         accessibilityRole="button"
         accessibilityLabel={
           profitKnown
-            ? `${item.title}, ${profit >= 0 ? "profit" : "loss"} of ${formatMoney(Math.abs(profit))}. Open details`
+            ? `${item.title}, ${counts ? "" : "estimated "}${profit >= 0 ? "profit" : "loss"} of ${formatMoney(Math.abs(profit))}. Open details`
             : `${item.title}. Open details`
         }
         style={({ pressed }) => pressed && styles.pressed}
@@ -171,6 +184,20 @@ export default function FlipCard({ item, onOpen, onToggleFavourite, onDelete }: 
       </Pressable>
 
       <View style={styles.actions}>
+        {/* Whether it was bought, and for what: the answer decides if it counts towards the profit totals. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${status.label}. Tap to change`}
+          style={({ pressed }) => [styles.statusPill, { borderColor: status.border }, pressed && styles.pressed]}
+          onPress={() => setAsking(true)}
+        >
+          <status.Icon size={16} weight={bought === "unconfirmed" ? "bold" : "fill"} color={status.color} />
+          <Text style={[styles.statusText, { color: status.color }]} numberOfLines={1}>
+            {status.label}
+          </Text>
+        </Pressable>
+        <View style={styles.actionsSpacer} />
+
         {/* Straight to a listing, carrying this flip's photo and everything
             the scan already worked out. */}
         <Pressable
@@ -215,6 +242,25 @@ export default function FlipCard({ item, onOpen, onToggleFavourite, onDelete }: 
           <Trash size={22} color={theme.danger} />
         </Pressable>
       </View>
+
+      {asking ? (
+        <BoughtSheet
+          visible
+          context="saved"
+          itemTitle={item.title}
+          suggestedPrice={hasBuyPrice(item) ? buy : null}
+          currentlyPaid={bought === "bought" && hasBuyPrice(item) ? buy : null}
+          onBought={(paid) => {
+            updateVehicle(item.id, boughtPatch(paid));
+            setAsking(false);
+          }}
+          onNotBought={() => {
+            updateVehicle(item.id, notBoughtPatch());
+            setAsking(false);
+          }}
+          onClose={() => setAsking(false)}
+        />
+      ) : null}
     </View>
   );
 }
@@ -276,10 +322,22 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: "row",
-    justifyContent: "flex-end",
+    alignItems: "center",
     gap: 4,
     marginTop: 8,
   },
+  actionsSpacer: { flex: 1 },
+  statusPill: {
+    flexShrink: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minHeight: 36,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  statusText: { fontSize: 13, fontWeight: "700", flexShrink: 1 },
   actionBtn: {
     width: 44,
     height: 44,
