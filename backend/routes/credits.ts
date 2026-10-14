@@ -6,6 +6,7 @@ import { creditsFor, getBalance, grant, isRefunded, MAX_GRANT } from "../utils/c
 import { WEEKLY_FREE_LIMIT, addressScansLeft, freeScanCapEnabled, freeScanStatus, freeScanSubject } from "../middleware/freeScanLimit";
 import { CREDIT_PACKS, creditPackList } from "../utils/creditPacks";
 import { fetchOneTimePurchases, revenueCatConfigured } from "../subscriptions/revenueCat";
+import { networkOf } from "../utils/clientAddress";
 
 /**
  * Scan credits.
@@ -33,7 +34,7 @@ export default function registerCreditsRoutes(app: Express) {
     const subject = req.account ? freeScanSubject(deviceId ?? "", req.account) : deviceId ? freeScanSubject(deviceId, null) : null;
     const base = subject ? freeScanStatus(subject.key, subject.limit) : null;
     // Not signed in: the network address's allowance can be the smaller of the two, and the count shown must be true.
-    const free = base && !req.account ? { ...base, left: Math.min(base.left, addressScansLeft(req.ip)) } : base;
+    const free = base && !req.account ? { ...base, left: Math.min(base.left, addressScansLeft(networkOf(req.ip))) } : base;
     res.json({
       ok: true,
       // When this is false the limits are not being applied (development), so the app shouldn't nag.

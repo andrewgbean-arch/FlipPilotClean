@@ -13,6 +13,7 @@ import {
 } from "./freeScanLimit";
 import { getBalance, refund, spend } from "../utils/creditStore";
 import { allowedDeviceIds } from "./sellingGate";
+import { networkOf } from "../utils/clientAddress";
 
 /**
  * What a lookup (barcode, photo or search) costs the person, in this order:
@@ -103,7 +104,7 @@ export async function scanMeter(req: Request, res: Response, next: NextFunction)
     const freeFor = freeScanSubject(deviceId, req.account);
     // Not signed in: the scan must also fit under the allowance for the whole network address, the one
     // limit a script cannot dodge by sending a made-up device id each time (see freeScanLimit.ts).
-    const address = req.account ? null : req.ip;
+    const address = req.account ? null : networkOf(req.ip);
     const addressOk = req.account ? true : takeAddressScan(address);
     let tookFree = false;
     try {

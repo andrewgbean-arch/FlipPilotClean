@@ -1,6 +1,7 @@
 import { Express, Request, Response } from "express";
 import { rateLimit } from "../middleware/rateLimit";
 import {
+  accountByEmail,
   cancelIssuedCode,
   checkCode,
   createSession,
@@ -12,6 +13,8 @@ import {
 } from "../utils/accountStore";
 import { sendLoginCode } from "../utils/mailer";
 import { deleteUserData } from "../utils/userData";
+import { networkOf } from "../utils/clientAddress";
+import { returnSignupAllowance, signupAllowanceLeft, takeSignupAllowance } from "../utils/signupLimit";
 
 /**
  * Sign in with an email address and a one-time code. No passwords.
@@ -42,8 +45,20 @@ export default function registerAuthRoutes(app: Express) {
     const email = normaliseEmail(req.body?.email);
     if (!email) return res.status(400).json({ ok: false, error: "bad-email", message: "Enter a valid email address." });
 
+    // Each email costs us something and every new address is a fresh start for a script, so one network
+    // may only ask for so many codes a day (see utils/signupLimit.ts).
+    const network = networkOf(req.ip);
+    if (!takeSignupAllowance("codes", network)) {
+      return res.status(429).json({
+        ok: false,
+        error: "network-limit",
+        message: "Too many sign-in codes have been asked for from this connection today. Please try again tomorrow, or from a different connection.",
+      });
+    }
+
     const issued = issueCode(email);
     if ("error" in issued) {
+      returnSignupAllowance("codes", network); // nothing was sent
       return res.status(429).json({
         ok: false,
         error: issued.error === "wait" ? "wait" : "too-many",
@@ -59,6 +74,7 @@ export default function registerAuthRoutes(app: Express) {
     } catch (err: any) {
       console.error("sending a sign-in code failed:", err?.message ?? err);
       cancelIssuedCode(email);
+      returnSignupAllowance("codes", network); // nothing was sent
       return res.status(503).json({ ok: false, error: "email-unavailable", message: "We couldn't send the code just now. Please try again in a few minutes." });
     }
     res.json({ ok: true, ...(devEcho() ? { devCode: issued.code } : {}) });
@@ -67,6 +83,17 @@ export default function registerAuthRoutes(app: Express) {
   app.post("/auth/verify", rateLimit(10), (req: Request, res: Response) => {
     const email = normaliseEmail(req.body?.email);
     if (!email) return res.status(400).json({ ok: false, error: "bad-email", message: "Enter a valid email address." });
+
+    // A brand-new account is a fresh set of free scans, so one network may only make so many a day. Checked
+    // BEFORE the code, so a person turned away here has not used up their code and can use it elsewhere.
+    const network = networkOf(req.ip);
+    if (!accountByEmail(email) && signupAllowanceLeft("accounts", network) <= 0) {
+      return res.status(429).json({
+        ok: false,
+        error: "network-limit",
+        message: "Too many new accounts have been made from this connection today. Please try again tomorrow, or from a different connection.",
+      });
+    }
 
     const result = checkCode(email, req.body?.code);
     if (!result.ok) {
@@ -84,6 +111,7 @@ export default function registerAuthRoutes(app: Express) {
     }
 
     const { account, isNew } = findOrCreateAccount(email, req.body?.deviceId);
+    if (isNew) takeSignupAllowance("accounts", network);
     const token = createSession(account.id);
     res.json({
       ok: true,

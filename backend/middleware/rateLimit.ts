@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import { networkOf } from "../utils/clientAddress";
 
 type Bucket = {
   count: number;
@@ -21,7 +22,9 @@ setInterval(() => {
 
 export function rateLimit(maxPerMinute: number) {
   return (req: Request, res: Response, next: NextFunction) => {
-    const ip = req.ip || "unknown";
+    // The caller's NETWORK, not its exact address: on IPv6 a connection owns a whole /64, and counting
+    // each address separately would let a script start a fresh bucket on every request.
+    const ip = networkOf(req.ip) || "unknown";
     // The route pattern, not the URL: /uploads, /Uploads/ and /adverts/<random>/event are each ONE
     // route, so spelling variants can't dodge the limit and unique URLs can't grow the table.
     const route = `${req.method}:${req.baseUrl}${req.route?.path ?? req.path.toLowerCase().replace(/\/+$/, "")}`;

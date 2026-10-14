@@ -11,6 +11,7 @@ import fs from "fs";
 import { dataPath } from "../config/dataDir";
 import { ANONYMOUS_FREE_LIMIT, ANONYMOUS_FREE_PER_ADDRESS, WEEKLY_FREE_LIMIT, addressScansLeft } from "../middleware/freeScanLimit";
 import { scanMeter } from "../middleware/scanMeter";
+import { networkOf } from "../utils/clientAddress";
 
 // A device id is a string the client makes up, so a limit per device alone cannot stop a script: send a
 // new id with every request and every request is somebody's first. The one thing a script cannot make up
@@ -38,7 +39,7 @@ before(async () => {
   });
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   // The address the server sees for this test client, spelled the way the server spells it.
-  myAddress = ((await (await fetch(`${base}/my-address`)).json()) as any).ip;
+  myAddress = networkOf(((await (await fetch(`${base}/my-address`)).json()) as any).ip) ?? "";
 });
 
 after(() => {
