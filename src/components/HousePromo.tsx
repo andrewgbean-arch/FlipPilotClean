@@ -26,7 +26,7 @@ function Art({ kind, big }: { kind: "dealers" | "advertise"; big?: boolean }) {
   if (kind === "dealers") {
     return (
       <View style={[styles.art, big && styles.artBig, { backgroundColor: theme.black }]}>
-        <Image source={require("@/assets/images/logopulse.png")} style={styles.logo} resizeMode="contain" />
+        <Image source={require("@/assets/images/logopulse.png")} style={big ? styles.logoBig : styles.logo} resizeMode="contain" />
         <View style={styles.artBadge}>
           <Car size={big ? 20 : 16} weight="fill" color={theme.goldDeep} />
         </View>
@@ -129,10 +129,14 @@ const styles = StyleSheet.create({
   body: { flex: 1, paddingVertical: 10, paddingHorizontal: 12, justifyContent: "space-between" },
   art: { width: 104, alignSelf: "stretch", minHeight: 112, alignItems: "center", justifyContent: "center" },
   artBig: { width: "100%", flex: 1.3 },
-  // Pinned inside the box rather than sized as a percentage of it: the box is as tall as the card, and the card
-  // is as tall as its contents, so "90% height" fell back to the picture's own size and stretched the whole
-  // card to about three times a listing's height (seen on the test phone, 2026-10-15).
-  logo: { position: "absolute", top: 8, bottom: 8, left: 8, right: 8 },
+  // A fixed size in the compact card. As "90% height" it fell back to the picture's own size (the box is as tall as
+  // the card and the card as tall as its contents), which stretched the card to about three times a listing's
+  // height. Pinning it with top/left/right/bottom did not work either: a picture loaded with require() brings its
+  // own width and height, and those win over the insets, so the logo was drawn huge and spilled across the card.
+  // Both seen on the test phone, 2026-10-15.
+  logo: { width: 92, height: 92 },
+  // The big panel (the scan wait) has a definite height, so percentages are fine there.
+  logoBig: { width: "90%", height: "90%" },
   artBadge: { position: "absolute", right: 6, bottom: 6 },
   dashed: {
     alignItems: "center",
