@@ -87,7 +87,10 @@ export default function IntroScreen() {
   }, [player]);
 
   // The background is exactly the app's own, so the screen flows straight
-  // on from the native splash and into Home with no colour change.
+  // on from the native splash and into Home with no colour change. That
+  // includes the video: startup.mp4's background is baked in as #0A1128
+  // (theme.background), made by scripts/recolour-startup-video.py, and
+  // src/utils/checks/startupVideo.check.ts fails if the theme drifts from it.
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <VideoView
