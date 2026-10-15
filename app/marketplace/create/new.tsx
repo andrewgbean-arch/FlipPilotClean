@@ -70,6 +70,9 @@ export default function CreateNewListing() {
   const [filledFromPhoto, setFilledFromPhoto] = useState(false);
   const [suggested, setSuggested] = useState<MarketplaceCategory | null>(null);
   const [publishing, setPublishing] = useState(false);
+  // The Category box turns red only once they have tried to post without one; a fresh form should not open looking
+  // like an error (it was red from the first moment, and none of the other required boxes are).
+  const [triedToPost, setTriedToPost] = useState(false);
   // photo address on this phone -> where the server saved it
   const uploadedRef = useRef<Record<string, string>>({});
   // The launch offer and the limits, from the server.
@@ -182,6 +185,7 @@ export default function CreateNewListing() {
 
   const handleSubmit = async () => {
     if (incomplete) {
+      setTriedToPost(true);
       return Alert.alert("Almost there", `Still needed: ${stillNeeded.join(", ")}.`);
     }
 
@@ -489,7 +493,7 @@ export default function CreateNewListing() {
             padding: 14,
             borderRadius: 12,
             borderWidth: 1,
-            borderColor: chosen ? theme.goldDeep : theme.danger,
+            borderColor: chosen || !triedToPost ? theme.goldDeep : theme.danger,
           }}
         >
           <Text style={{ color: chosen ? theme.white : theme.muted, fontSize: 15 }}>

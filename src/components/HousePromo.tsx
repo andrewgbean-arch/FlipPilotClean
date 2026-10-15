@@ -129,7 +129,10 @@ const styles = StyleSheet.create({
   body: { flex: 1, paddingVertical: 10, paddingHorizontal: 12, justifyContent: "space-between" },
   art: { width: 104, alignSelf: "stretch", minHeight: 112, alignItems: "center", justifyContent: "center" },
   artBig: { width: "100%", flex: 1.3 },
-  logo: { width: "90%", height: "90%" },
+  // Pinned inside the box rather than sized as a percentage of it: the box is as tall as the card, and the card
+  // is as tall as its contents, so "90% height" fell back to the picture's own size and stretched the whole
+  // card to about three times a listing's height (seen on the test phone, 2026-10-15).
+  logo: { position: "absolute", top: 8, bottom: 8, left: 8, right: 8 },
   artBadge: { position: "absolute", right: 6, bottom: 6 },
   dashed: {
     alignItems: "center",

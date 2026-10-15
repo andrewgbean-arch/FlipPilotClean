@@ -71,7 +71,7 @@ export default function MarketplaceHub() {
   }, [reloadKey]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.black }}>
+    <View style={{ flex: 1, backgroundColor: theme.background }}>
       <GoldParticles theme={{ goldDeep: theme.goldDeep }} />
 
       <ScrollView

@@ -286,7 +286,7 @@ export default function Listings() {
 
   return (
     <FlatList
-      style={{ flex: 1, backgroundColor: theme.black }}
+      style={{ flex: 1, backgroundColor: theme.background }}
       contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
       data={loading ? [] : rows}
       renderItem={renderItem}

@@ -380,6 +380,9 @@ export default function SettingsScreen() {
             subtitle={
               isPro
                 ? "300 scans a month on top of your free ones, and eBay export"
+                : allowance?.metering && !allowance.signedIn
+                ? // Signed out, the allowance is smaller: say so, the same as the Scans row below does.
+                  `${allowance.freeLimit} free scans every week, ${allowance.signedInFreeLimit} once you sign in. Buy credit packs or go Trader for more`
                 : "5 free scans every week. Buy credit packs or go Trader for more"
             }
           />
