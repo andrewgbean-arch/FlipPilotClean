@@ -15,7 +15,7 @@ import {
   Text,
   TouchableOpacity,
 } from "react-native";
-import { Broom, Export, Heart, ShoppingBag, Trophy } from "phosphor-react-native";
+import { Broom, Export, ShoppingBag, Trophy } from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/styles/ThemeContext";
@@ -208,6 +208,7 @@ export default function HistoryScreen() {
   const totalItems = flips.length;
   const avgProfit = summary.bought > 0 ? totalProfit / summary.bought : 0;
   const toConfirmActive = toConfirmOnly && summary.unconfirmed > 0;
+  const favouriteCount = useMemo(() => flips.filter((f) => f.favourite).length, [flips]);
 
   const filteredAndSortedFlips = useMemo(() => {
     let list = [...flips];
@@ -363,15 +364,23 @@ export default function HistoryScreen() {
   );
 
   const hasFlips = flips.length > 0;
+  // On the Favourites tab with nothing hearted yet: say how to add one, rather than "no matching flips".
+  const noFavouritesYet = showFavesOnly && favouriteCount === 0 && !loadError;
   const emptyTitle = loadError
     ? "Couldn't load your flips"
+    : noFavouritesYet
+    ? "No favourites yet"
     : hasFlips
     ? "No matching flips"
     : "No flips yet";
   const emptyBody =
     loadError ??
-    (hasFlips
-      ? "Try a different search, or turn off the favourites filter."
+    (noFavouritesYet
+      ? "Tap the heart on a flip and it will show up here."
+      : hasFlips
+      ? showFavesOnly
+        ? "Try a different search, or look under All flips."
+        : "Try a different search."
       : "Scan an item and save it, and it will show up here.");
 
   return (
@@ -389,23 +398,6 @@ export default function HistoryScreen() {
         </Text>
 
         <View style={styles.headerButtonsRow}>
-          {/* FAV FILTER */}
-          <AnimatedPressable
-            accessibilityRole="button"
-            accessibilityLabel={showFavesOnly ? "Show all flips" : "Show favourites only"}
-            style={[
-              styles.headerIconBtn,
-              showFavesOnly && { backgroundColor: theme.card },
-            ]}
-            onPress={() => setShowFavesOnly((v) => !v)}
-          >
-            <Heart
-              size={22}
-              weight={showFavesOnly ? "fill" : "regular"}
-              color={showFavesOnly ? theme.gold : theme.text}
-            />
-          </AnimatedPressable>
-
           {/* CLEAR ALL */}
           <AnimatedPressable
             accessibilityRole="button"
@@ -428,6 +420,46 @@ export default function HistoryScreen() {
         </View>
       </View>
       </TourTarget>
+
+      {/* TABS: every flip, or just the favourites (this used to be a tab of its own in the bottom bar) */}
+      <View
+        accessibilityRole="tablist"
+        style={[styles.tabs, { backgroundColor: theme.card, borderColor: HAIRLINE }]}
+      >
+        <Pressable
+          accessibilityRole="tab"
+          accessibilityState={{ selected: !showFavesOnly }}
+          accessibilityLabel="All flips"
+          onPress={() => setShowFavesOnly(false)}
+          style={({ pressed }) => [
+            styles.tab,
+            !showFavesOnly && { backgroundColor: theme.goldTint, borderColor: theme.gold },
+            pressed && { opacity: 0.8 },
+          ]}
+        >
+          <Text style={[styles.tabText, { color: !showFavesOnly ? theme.gold : theme.text }]}>
+            All flips
+          </Text>
+        </Pressable>
+
+        <TourTarget id="history.favourites-tab" style={styles.tabTarget}>
+          <Pressable
+            accessibilityRole="tab"
+            accessibilityState={{ selected: showFavesOnly }}
+            accessibilityLabel={`Favourites, ${favouriteCount}`}
+            onPress={() => setShowFavesOnly(true)}
+            style={({ pressed }) => [
+              styles.tab,
+              showFavesOnly && { backgroundColor: theme.goldTint, borderColor: theme.gold },
+              pressed && { opacity: 0.8 },
+            ]}
+          >
+            <Text style={[styles.tabText, { color: showFavesOnly ? theme.gold : theme.text }]}>
+              Favourites{favouriteCount > 0 ? ` (${favouriteCount})` : ""}
+            </Text>
+          </Pressable>
+        </TourTarget>
+      </View>
 
       {/* LIST */}
       <FlatList
@@ -461,7 +493,8 @@ export default function HistoryScreen() {
       {/* SPACER */}
       <View style={{ height: 12 }} />
 
-      {/* STATS */}
+      {/* STATS (about every flip, so left off the Favourites tab where they would read as the favourites' own) */}
+      {!showFavesOnly ? (
       <View style={styles.statsRow}>
         <View
           style={[
@@ -553,6 +586,7 @@ export default function HistoryScreen() {
           </Text>
         </View>
       </View>
+      ) : null}
 
       {/* ITEMS NOT YET ANSWERED: they are not in the profit total until the person says they bought them */}
       {summary.unconfirmed > 0 ? (
@@ -585,7 +619,7 @@ export default function HistoryScreen() {
       ) : null}
 
       {/* BEST FLIP */}
-      {bestFlip && (
+      {bestFlip && !showFavesOnly && (
         <AnimatedPressable
           style={[
             styles.bestCard,
@@ -937,6 +971,28 @@ const styles = StyleSheet.create({
   },
 
   /* SEARCH */
+  /* TABS: All flips | Favourites */
+  tabs: {
+    flexDirection: "row",
+    gap: 4,
+    marginTop: 12,
+    padding: 3,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  tab: {
+    flex: 1,
+    minHeight: 40,
+    paddingHorizontal: 8,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: "transparent",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabTarget: { flex: 1 },
+  tabText: { fontSize: 14, fontWeight: "700" },
+
   searchRow: {
     marginVertical: 12,
   },

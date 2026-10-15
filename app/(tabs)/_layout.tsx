@@ -6,9 +6,9 @@ import {
   Car,
   ClockCounterClockwise,
   Compass,
-  Heart,
   House,
   Scan as ScanIcon,
+  Storefront,
 } from "phosphor-react-native";
 import type { Icon as PhosphorIcon } from "phosphor-react-native";
 
@@ -136,9 +136,17 @@ export default function TabsLayout() {
         }}
       />
 
+      {/* Favourites now lives in History, as a tab at the top. This bar button is only a LINK to the
+          Marketplace (a screen outside the tabs): tapping it opens that and never switches tab. */}
       <Tabs.Screen
-        name="favourites"
-        options={{ tabBarLabel: "Favourites", tabBarIcon: tabIcon(Heart) }}
+        name="market"
+        options={{ tabBarLabel: "Market", tabBarIcon: tabIcon(Storefront) }}
+        listeners={{
+          tabPress: (e) => {
+            e.preventDefault();
+            router.push("/marketplace");
+          },
+        }}
       />
 
       <Tabs.Screen

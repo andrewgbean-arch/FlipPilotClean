@@ -56,9 +56,9 @@ const SECTIONS: Section[] = [
     Icon: FloppyDisk,
     title: "Save and track your flips",
     steps: [
-      "Tap Save Flip on the results screen to save it to your Flip History.",
-      "History shows your total flips, profit and average flip score.",
-      "Press Add to Favourites on your best flips, so you can find them again quickly.",
+      "Tap Save on the results screen, then say whether you bought it and what you paid. Only things you've bought count towards your profit.",
+      "History shows your total profit (from what you bought), your flips and your average profit.",
+      "Tap the heart on your best flips, then open the Favourites tab at the top of History to find them again quickly.",
     ],
   },
   {

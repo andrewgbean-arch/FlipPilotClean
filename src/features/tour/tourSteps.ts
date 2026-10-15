@@ -19,7 +19,7 @@ export type TourStep = {
   needsCamera?: boolean;
 };
 
-// Home (scan tile, settings gear) -> Scan -> History -> Favourites -> Marketplace -> Motors.
+// Home (scan tile, settings gear) -> Scan -> History -> its Favourites tab -> Marketplace -> Motors.
 // "Flip Pilot" in every spoken line: "FlipPilot" run together reads as "flip a lot" to the phone's TTS.
 export const TOUR_STEPS: TourStep[] = [
   {
@@ -61,20 +61,21 @@ export const TOUR_STEPS: TourStep[] = [
     say: "Everything you save from a scan lands here in your History, so you can always find it again.",
   },
   {
-    id: "favourites.header",
-    screen: "/favourites" as Href,
-    targetId: "favourites.header",
+    // Favourites used to be a tab of the bottom bar; it is now a tab at the top of History.
+    id: "history.favourites-tab",
+    screen: "/history" as Href,
+    targetId: "history.favourites-tab",
     title: "Your Favourites",
-    body: "Tap the heart on a flip in History and it's kept here, so your best finds are always one tap away.",
-    say: "Tap the heart on a flip in your History and it's kept here, so your best finds are always one tap away.",
+    body: "Tap the heart on a flip and it's kept under the Favourites tab here in History, so your best finds are always one tap away.",
+    say: "Tap the heart on a flip and it's kept under the Favourites tab here in your History, so your best finds are always one tap away.",
   },
   {
     id: "marketplace.sell",
     screen: "/marketplace" as Href,
     targetId: "marketplace.sell",
     title: "Buy and sell nearby",
-    body: "The Marketplace is people in your area buying and selling directly. List something in a minute, or message a seller about theirs.",
-    say: "The Marketplace is people nearby buying and selling directly with each other. Tap here to list something in a minute.",
+    body: "The Marketplace is people in your area buying and selling directly, and it has its own button in the bottom bar. List something in a minute, or message a seller about theirs.",
+    say: "The Marketplace is people nearby buying and selling directly with each other, and it has its own button in the bottom bar. Tap here to list something in a minute.",
   },
   {
     id: "motors.mot-lookup",
