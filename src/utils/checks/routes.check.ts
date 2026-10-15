@@ -6,6 +6,9 @@
 //      (Or a tab declared in the layout with no file behind it.)
 //   3. The guided tour pointing at a screen that no longer exists (it pointed at /favourites after that tab
 //      was moved into History).
+/// <reference types="node" />
+// (This file runs under Node, not on a phone: the reference is what gives it Node's file functions without
+// adding them to the whole app's type-check.)
 import fs from "fs";
 import path from "path";
 
