@@ -10,10 +10,12 @@ import {
   Pressable,
   ScrollView,
   Share,
+  StyleProp,
   StyleSheet,
   TextInput,
   Text,
   TouchableOpacity,
+  ViewStyle,
 } from "react-native";
 import { Broom, Export, ShoppingBag, Trophy } from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -77,15 +79,23 @@ const textVariants = StyleSheet.create({
 const HAIRLINE = "rgba(255, 255, 255, 0.08)";
 
 // Animated pressable
+//
+// The press animation needs a wrapper around the Pressable, so this is TWO boxes: the wrapper takes the
+// button's place in its parent's layout, and the Pressable fills the wrapper. `style` is the look (padding,
+// border, colour) and must never carry `flex`: a flexed Pressable inside the wrapper is squashed down to its
+// own padding and the label inside it is not drawn at all — that is what left the delete and clear-all
+// buttons as two blank pills. Where the button sits in its row (e.g. half the width) goes in `wrapperStyle`.
 const AnimatedPressable = ({
   children,
   style,
+  wrapperStyle,
   onPress,
   accessibilityLabel,
   accessibilityRole,
 }: {
   children: React.ReactNode;
   style?: any;
+  wrapperStyle?: StyleProp<ViewStyle>;
   onPress?: () => void;
   accessibilityLabel?: string;
   accessibilityRole?: "button" | "link";
@@ -109,7 +119,7 @@ const AnimatedPressable = ({
   };
 
   return (
-    <Animated.View style={{ transform: [{ scale }] }}>
+    <Animated.View style={[wrapperStyle, { transform: [{ scale }] }]}>
       <Pressable
         onPressIn={pressIn}
         onPressOut={pressOut}
@@ -790,16 +800,22 @@ export default function HistoryScreen() {
 
             <View style={styles.modalButtonsRow}>
               <AnimatedPressable
+                wrapperStyle={styles.modalButtonWrap}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
                 style={[
                   styles.modalCancel,
                   { borderColor: theme.muted, borderWidth: 2 },
                 ]}
                 onPress={() => setConfirmDelete(null)}
               >
-                <Text style={{ color: theme.text }}>Cancel</Text>
+                <Text style={[styles.modalButtonLabel, { color: theme.text }]}>Cancel</Text>
               </AnimatedPressable>
 
               <AnimatedPressable
+                wrapperStyle={styles.modalButtonWrap}
+                accessibilityRole="button"
+                accessibilityLabel="Delete flip"
                 style={[
                   styles.modalDelete,
                   {
@@ -810,11 +826,7 @@ export default function HistoryScreen() {
                 ]}
                 onPress={() => deleteFlipHard(confirmDelete)}
               >
-                <Text
-                  style={{ color: theme.white, fontWeight: "700" }}
-                >
-                  Delete
-                </Text>
+                <Text style={[styles.modalButtonLabel, { color: theme.white }]}>Delete</Text>
               </AnimatedPressable>
             </View>
           </View>
@@ -863,16 +875,22 @@ export default function HistoryScreen() {
 
             <View style={styles.modalButtonsRow}>
               <AnimatedPressable
+                wrapperStyle={styles.modalButtonWrap}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
                 style={[
                   styles.modalCancel,
                   { borderColor: theme.muted, borderWidth: 2 },
                 ]}
                 onPress={() => setConfirmClearAll(false)}
               >
-                <Text style={{ color: theme.text }}>Cancel</Text>
+                <Text style={[styles.modalButtonLabel, { color: theme.text }]}>Cancel</Text>
               </AnimatedPressable>
 
               <AnimatedPressable
+                wrapperStyle={styles.modalButtonWrap}
+                accessibilityRole="button"
+                accessibilityLabel="Clear all history"
                 style={[
                   styles.modalDelete,
                   {
@@ -883,11 +901,7 @@ export default function HistoryScreen() {
                 ]}
                 onPress={clearAllFlips}
               >
-                <Text
-                  style={{ color: theme.white, fontWeight: "700" }}
-                >
-                  Clear
-                </Text>
+                <Text style={[styles.modalButtonLabel, { color: theme.white }]}>Clear</Text>
               </AnimatedPressable>
             </View>
           </View>
@@ -1054,18 +1068,24 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 16,
   },
-  modalCancel: {
+  // Each button's wrapper takes half the row (see AnimatedPressable). The button itself must NOT set flex.
+  modalButtonWrap: {
     flex: 1,
-    paddingVertical: 10,
+  },
+  modalCancel: {
+    paddingVertical: 12,
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
   },
   modalDelete: {
-    flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 12,
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
+  },
+  modalButtonLabel: {
+    fontSize: 16,
+    fontWeight: "700",
   },
 });
