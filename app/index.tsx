@@ -91,6 +91,9 @@ export default function IntroScreen() {
   // includes the video: startup.mp4's background is baked in as #0A1128
   // (theme.background), made by scripts/recolour-startup-video.py, and
   // src/utils/checks/startupVideo.check.ts fails if the theme drifts from it.
+  // The video is tagged sRGB so phones that colour-manage video do not
+  // brighten it. Leave VideoView on its default surface: a TextureView
+  // lifts the colours on the Samsung (measured 2026-10-15).
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <VideoView

@@ -16,16 +16,28 @@ HOW (per frame)
   3. work out how much of each pixel is gold (warm light on top of the blue) and leave that part alone;
   4. move the rest by (target - estimated background), so the background becomes the target colour exactly.
      Pixels darker than the background (soft shadows) move proportionally less, so they do not turn black.
-  Then it is encoded as H.264 High (the same profile and level as before) and tagged BT.709 limited range, so
-  every player reads the colours the same way. Video stores colour as whole-number YUV and cannot return every
-  colour exactly, so the colour fed to the encoder is calibrated: it is the nearest input that comes back as the
-  target after encode + decode. For #0A1128 the nearest are #0B1228 and #0B1229, which come back as 10, 17, 39
-  and 10, 17, 41 (one level off in blue, the colour the eye is least sensitive to). The shipped video uses #0B1229.
+  Then it is encoded as H.264 High (the same profile and level as before). Video stores colour as whole-number
+  YUV and cannot return every colour exactly, so the colour fed to the encoder is calibrated: it is the nearest
+  input that comes back as the target after encode + decode. For #0A1128 the nearest are #0B1228 and #0B1229,
+  which come back as 10, 17, 39 and 10, 17, 41 (one level off in blue, the colour the eye is least sensitive to).
+  The shipped video uses #0B1229.
+
+THE COLOUR TAGS MATTER (found 2026-10-15 by showing every version on a real phone and on the emulator):
+  Android treats a video with no colour tags, or tagged BT.709, as "BT.709 transfer", and on phones that colour-
+  manage video (the Android emulator does; a Pixel-style compositor does) it converts that into sRGB before
+  showing it. That lifts dark colours a lot: a video value of 10, 17, 41 was shown as 28, 32, 58, nothing like
+  Home. Tagging the stream as sRGB transfer (H.264 VUI transfer_characteristics = 13, ffmpeg's
+  iec61966-2-1) says "no conversion needed", which is true because the background was chosen in sRGB. The
+  Samsung S22 does not convert either way, so the tag costs it nothing: it showed 12, 17, 39 for Home's 11, 17, 38.
+  Two things that do NOT work: drawing the video as a TextureView (it LIFTS the colours on the Samsung), and
+  darkening the video to pre-compensate (it depends on the phone and is wrong on the Samsung).
+  Matrix BT.709, primaries BT.709 and limited range are tagged too, so every player decodes the YUV the same way.
 
 USAGE (from the repo root). Always start from the UNTOUCHED original, never from an already-recoloured video:
   git show 1f5ed86^:src/assets/videos/startup.mp4 > startup_original.mp4
   python scripts/recolour-startup-video.py startup_original.mp4 src/assets/videos/startup.mp4 --target "#0A1128" --input-colour "#0B1229"
   (that exact command reproduces the shipped file byte for byte; leave --input-colour off to calibrate for a new --target)
+  src/utils/checks/startupVideo.check.ts also reads the shipped video's colour tags (sRGB transfer, BT.709, limited).
   python scripts/recolour-startup-video.py --check src/assets/videos/startup.mp4 --target "#0A1128"
 
   --check VIDEO        report how close VIDEO's background is to --target (exit 1 if it is off by more than 2)
@@ -53,7 +65,7 @@ LUMA = np.array([0.2126, 0.7152, 0.0722])  # how much each of R, G, B matters to
 DECODE_VF = "scale=in_color_matrix=bt709:in_range=tv:out_range=full,format=rgb24"
 ENCODE_VF = "scale=in_range=full:out_range=tv:out_color_matrix=bt709,format=yuv420p"
 ENCODE_ARGS = ["-c:v", "libx264", "-preset", "slow", "-crf", "18", "-maxrate", "14M", "-bufsize", "28M",
-               "-profile:v", "high", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709",
+               "-profile:v", "high", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "iec61966-2-1",
                "-color_range", "tv", "-movflags", "+faststart", "-an"]
 SCALE = 4  # the background is smooth, so it is estimated at 1/4 size (16x cheaper)
 
