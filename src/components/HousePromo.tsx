@@ -35,7 +35,7 @@ function Art({ kind, big }: { kind: "dealers" | "advertise"; big?: boolean }) {
   }
   return (
     <View style={[styles.art, big && styles.artBig, { backgroundColor: theme.black }]}>
-      <View style={[styles.dashed, { borderColor: theme.goldDeep }]}>
+      <View style={[styles.dashed, big ? styles.dashedBigHeight : styles.dashedHeight, { borderColor: theme.goldDeep }]}>
         <Megaphone size={big ? 44 : 30} weight="fill" color={theme.goldDeep} />
         <Text style={[styles.dashedText, { color: theme.goldDeep }]}>YOUR AD{"\n"}HERE</Text>
       </View>
@@ -146,8 +146,12 @@ const styles = StyleSheet.create({
     borderStyle: "dashed",
     borderRadius: 12,
     width: "82%",
-    height: "78%",
   },
+  // A fixed height in the compact card. As "78%" it stretched the card to about twice a listing's height in the
+  // Browse Listings feed (the percentage was resolved against all the room the list offered, not the card's own
+  // height), though not on the Messages screen. The big panel has a definite height, so a percentage is fine there.
+  dashedHeight: { height: 88 },
+  dashedBigHeight: { height: "78%" },
   dashedText: { fontSize: 11, fontWeight: "900", letterSpacing: 1, textAlign: "center" },
   pill: { alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, marginBottom: 4 },
   pillText: { fontSize: 10, fontWeight: "800", letterSpacing: 0.4 },
