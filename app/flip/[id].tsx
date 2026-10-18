@@ -10,7 +10,6 @@ import {
   Package,
   ShareNetwork,
   ShoppingBag,
-  Sparkle,
   WarningCircle,
   X,
   XCircle,
@@ -306,7 +305,6 @@ export default function FlipDetails() {
   const profit = (ownPrices ? flip.profit : pricing?.predictedProfit) ?? null;
 
   const roi = profit && buyPrice ? Math.round((profit / buyPrice) * 100) : null;
-  const confidence = ai?.conditionScore ?? null;
 
   /* MARKET */
   const market = flip.market ?? null;
@@ -435,7 +433,7 @@ export default function FlipDetails() {
       sellPrice: sellPrice ?? 0,
       roi: shownRoi,
       profit: profit ?? 0,
-      confidence,
+      confidence: aiPriceConfidence,
       origin,
       description: description ?? "",
       image: images?.[0] ?? null,
@@ -524,12 +522,9 @@ export default function FlipDetails() {
               </Pressable>
             </View>
 
-            {origin || confidence != null ? (
+            {origin ? (
               <View style={styles.chips}>
-                {origin ? <Chip Icon={MapPin} label={`Origin: ${origin}`} /> : null}
-                {confidence != null ? (
-                  <Chip Icon={Sparkle} label={`Confidence: ${confidence.toFixed(0)}%`} />
-                ) : null}
+                <Chip Icon={MapPin} label={`Origin: ${origin}`} />
               </View>
             ) : null}
           </View>
@@ -743,7 +738,7 @@ export default function FlipDetails() {
         <Group>
           <TextBlock text={condition || "No condition recorded"} muted={!condition} />
           {conditionScore != null ? (
-            <DataRow label="Condition score" value={`${conditionScore}%`} divider />
+            <DataRow label="Condition score" value={`${conditionScore}/10`} divider />
           ) : null}
         </Group>
 

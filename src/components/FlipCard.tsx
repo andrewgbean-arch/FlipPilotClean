@@ -124,9 +124,9 @@ export default function FlipCard({ item, onOpen, onToggleFavourite, onDelete }: 
       // No buy price means no meaningful ROI; leave it as "-".
       roi: buy > 0 ? Math.round(roi) : null,
       profit,
-      // Scanned flips store the AI's confidence as conditionScore.
+      // The AI's confidence in its price (0-100). Not conditionScore: that is a 1-10 score for the item's state.
       // Confidence and origin are left out of the text when unknown.
-      confidence: item.ai?.conditionScore ?? item.aiPriceConfidence ?? null,
+      confidence: item.aiPriceConfidence ?? null,
       origin: item.ai?.origin ?? null,
       description: item.ai?.description || "",
       image: item.images?.[0],
