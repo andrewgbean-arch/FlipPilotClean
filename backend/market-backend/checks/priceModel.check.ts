@@ -272,5 +272,46 @@ eq("a case for the speaker", isNotTheItem("JBL Charge 4 Travel Case", "JBL Charg
   eq("a price already on a clean step is left alone", d.sell, 40);
 }
 
+/* --------------------------------------------------
+   A SOLID PILE OF REAL USED LISTINGS KEEPS THE PRICE HONEST (see LISTINGS_CEILING)
+-------------------------------------------------- */
+{
+  // A Galaxy S21 priced with no Google shelf price (found 18 Oct 2026): 48 real used listings average 138.58, but the
+  // AI's stale idea of a new one (700) fed BOTH the new-price rule of thumb and its own used range, so two opinions
+  // that are really one outvoted the listings and the sell price came out at 298.
+  const d = decidePrices({ ...none, used: true, ebay: 138.58, ebayListings: 48, aiNew: 699.99, aiUsedMin: 350, aiUsedMax: 500 });
+  between("48 real listings keep an S21 near them, not near the AI's stale guess", d.sell, 138.58, 208);
+  eq("buy is still half the (capped) sell", d.buy, (d.sell as number) / 2);
+}
+{
+  // The same evidence with fewer listings than the rule needs is left exactly as before.
+  const d = decidePrices({ ...none, used: true, ebay: 138.58, ebayListings: 9, aiNew: 699.99, aiUsedMin: 350, aiUsedMax: 500 });
+  eq("9 listings are not enough to override the other opinions", d.sell, 298);
+  const unknown = decidePrices({ ...none, used: true, ebay: 138.58, aiNew: 699.99, aiUsedMin: 350, aiUsedMax: 500 });
+  eq("no listing count is the same as before", unknown.sell, 298);
+}
+{
+  // Exactly 10 listings is enough.
+  const d = decidePrices({ ...none, used: true, ebay: 138.58, ebayListings: 10, aiNew: 699.99, aiUsedMin: 350, aiUsedMax: 500 });
+  eq("10 listings is enough", d.sell, 208);
+}
+{
+  // A DVD box set: 31 listings average 9.72, Google's shelf price is for a new Blu-ray collection (87.30), the AI says
+  // 49.99 new and 20-35 used. It came out at 27.50.
+  const d = decidePrices({ ...none, used: true, ebay: 9.72, ebayListings: 31, googleNew: 87.3, aiNew: 49.99, aiUsedMin: 20, aiUsedMax: 35 });
+  eq("a DVD box set stays near its listings", d.sell, 15);
+}
+{
+  // The ceiling never RAISES a price: a vinyl record whose other opinions are LOWER than a big pile of listings is left alone.
+  const withListings = decidePrices({ ...none, used: true, ebay: 52.96, ebayListings: 20, googleNew: 35, aiNew: 25, aiUsedMin: 10, aiUsedMax: 20 });
+  const without = decidePrices({ ...none, used: true, ebay: 52.96, googleNew: 35, aiNew: 25, aiUsedMin: 10, aiUsedMax: 20 });
+  eq("the ceiling does not lift a price", withListings.sell, without.sell);
+}
+{
+  // A broken item is priced for spares or repair; the listings (working ones) are not its ceiling.
+  const d = decidePrices({ ...none, used: true, grade: "not-working", ebay: 20, ebayListings: 40, aiNew: 400 });
+  eq("a not-working item ignores the ceiling", d.sell, 48);
+}
+
 console.log(fail === 0 ? "ALL PASS" : `${fail} FAILED`);
 process.exit(fail ? 1 : 0);

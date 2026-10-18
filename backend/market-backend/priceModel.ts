@@ -10,7 +10,8 @@
    SELL   what it should resell for. Used items: worked out from the NEW price
           (a used one sells for a share of it, by CONDITION and AGE — see below),
           and checked against what similar used ones ask on eBay and the AI's used
-          range: the middle of those opinions wins. A "Not working" item skips that
+          range: the middle of those opinions wins (but never far above a solid pile
+          of real used listings, see LISTINGS_CEILING). A "Not working" item skips that
           check (it is priced for spares/repair, not a working sale) and a broken
           item found on eBay would only mislead it. Sealed/new items: at or a
           little under the shelf price. Never more than it costs new.
@@ -58,6 +59,24 @@ export const NOT_WORKING_SHARE = CONDITION_SHARE["not-working"];
 export const USED_PRICE_UPLIFT_ALLOWED = 1.2;
 
 /**
+ * With at least this many real used listings behind the eBay figure, that figure is solid evidence of what a
+ * used one sells for, and the used price may not go more than LISTINGS_CEILING times above it.
+ *
+ * Why: the "middle of three opinions" below treats the listings, the new-price rule of thumb and the AI's own
+ * used range as independent. They are not: the AI's idea of the new price feeds the rule of thumb (all of it when
+ * Google found no shelf price), and the AI's used range runs high for older gadgets, clothes, furniture and
+ * media. Two opinions that are really one then outvote a big, agreeing pile of real listings. Found 18 Oct 2026
+ * in a 100-item test of everyday second-hand items: a Galaxy S21 priced at 298 against 48 listings averaging
+ * 139, a Harris Tweed jacket at 130 against 36 averaging 36, a Game of Thrones DVD box set at 27.50 against 31
+ * averaging 9.72. The ceiling only ever LOWERS a price: it never lifts one, because a listing set can be
+ * polluted the other way (a pair of bedside tables averaging 310) and the other opinions are right to pull down.
+ * The eBay figure is already a filtered middle asking price less 10%, so 1.5x it is well above what such an item
+ * typically sells for, and there is room for a Perfect, like-new one.
+ */
+export const LISTINGS_THAT_ANCHOR = 10;
+export const LISTINGS_CEILING = 1.5;
+
+/**
  * Extra discount for age, on top of condition — multiplied together. A recently
  * bought item holds more of its value even in the same physical condition.
  */
@@ -79,6 +98,8 @@ export interface PriceEvidence {
   ebayNew?: number | null;
   /** Middle asking price of matching eBay listings, already scaled to the pack size. */
   ebay: number | null;
+  /** How many used listings that figure was worked out from (after the filtering). */
+  ebayListings?: number | null;
   /** Google Shopping's shelf price for the item. */
   googleNew: number | null;
   /** The AI's idea of the price of one new unit. */
@@ -221,6 +242,11 @@ export function decidePrices(e: PriceEvidence): PriceDecision {
         sell = agree(a, b) ? (valid(e.ebay) ? e.ebay : (a + b) / 2) : valid(fromNew) ? fromNew : Math.min(a, b);
       } else if (opinions.length === 1) {
         sell = opinions[0];
+      }
+
+      // See LISTINGS_THAT_ANCHOR: plenty of real used listings stop the other two opinions running far above them.
+      if (sell !== null && valid(e.ebay) && (e.ebayListings ?? 0) >= LISTINGS_THAT_ANCHOR) {
+        sell = Math.min(sell, e.ebay * LISTINGS_CEILING);
       }
     }
     // A ceiling that scales with the condition (and age) actually chosen, not one flat number for

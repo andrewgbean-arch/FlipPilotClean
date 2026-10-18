@@ -295,6 +295,7 @@ export type MarketEvidence = Omit<UnifiedMarketResult, "average" | "smartPrice">
   priceInputs: {
     ebayNew: number | null;
     ebay: number | null;
+    ebayListings?: number | null;
     googleNew: number | null;
     aiNew: number | null;
     aiUsedMin: number | null;
@@ -552,6 +553,7 @@ export default async function fetchMarketData(
       // new listings, and their average is 90% of the middle asking price, so it is put back to that.
       ebayNew: safeNumber(ebayNew?.average ?? (googleSkipped && !usedMode && ebay?.average ? ebay.average / 0.9 : null)),
       ebay: usedPrice,
+      ebayListings: ebay?.soldCount ?? null,
       googleNew: safeNumber(google?.avg),
       aiNew: safeNumber(aiEstimate?.newPrice),
       aiUsedMin: aiPriceMin,
