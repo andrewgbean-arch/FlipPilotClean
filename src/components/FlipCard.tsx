@@ -93,7 +93,9 @@ export default function FlipCard({ item, onOpen, onToggleFavourite, onDelete }: 
   const sell = getSellPrice(item);
   const profit = getProfit(item);
   const profitKnown = hasProfit(item);
-  const roiKnown = profitKnown && buy > 0;
+  // A return is only real for something they bought. Until then the buy price is the scan's own suggestion (a
+  // fixed share of the sell price), whose ROI would be a formula, the same on every scan, so it shows "-".
+  const roiKnown = profitKnown && buy > 0 && bought === "bought";
   const roi = roiKnown ? (profit / buy) * 100 : 0;
   const roiColor = roi > 50 ? theme.success : roi > 0 ? theme.gold : theme.danger;
 
