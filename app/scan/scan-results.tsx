@@ -40,6 +40,7 @@ import SellerDescriptionCard from "@/components/scan/SellerDescriptionCard";
 import { dropPending, getPending } from "@/utils/pendingScan";
 import { applyPrices, SCAN_AGAIN_EVENT } from "@/utils/scanTransform";
 import { evidenceDepth, limitConfidence } from "@/utils/evidenceDepth";
+import { pickPriceRange } from "@/utils/priceRange";
 import { keepPhoto } from "@/utils/keptPhotos";
 import { markHasScanned } from "@/utils/onboarding";
 
@@ -641,18 +642,16 @@ export default function ScanResultsScreen() {
   const fairPrice = data.ai?.fair_price;
 
   // Real asking-price spread when there's enough of it to trust; the AI's own guessed
-  // range otherwise. Either way this is what the single "Fair market price" number
-  // above was actually drawn from, not a second, competing estimate.
-  const marketLow = data.market?.lowest;
-  const marketHigh = data.market?.highest;
-  const priceRange =
-    typeof marketLow === "number" && typeof marketHigh === "number" && marketHigh > marketLow
-      ? { low: marketLow, high: marketHigh }
-      : typeof data.aiPriceMin === "number" &&
-        typeof data.aiPriceMax === "number" &&
-        data.aiPriceMax > data.aiPriceMin
-      ? { low: data.aiPriceMin, high: data.aiPriceMax }
-      : null;
+  // range otherwise. The track must hold the "Fair market price" it sits under: when eBay's search
+  // caught parts and extras (brake sets and tyres beside a £510 e-bike) it does not, and no track is
+  // drawn rather than a misleading one (see utils/priceRange.ts).
+  const priceRange = pickPriceRange({
+    low: data.market?.lowest,
+    high: data.market?.highest,
+    aiLow: data.aiPriceMin,
+    aiHigh: data.aiPriceMax,
+    fair: fairPrice,
+  });
   const priceConfidence = typeof data.aiPriceConfidence === "number" ? data.aiPriceConfidence : null;
   // How many real listings the price rests on: very few means a rough guide, said plainly.
   const depth = evidenceDepth(data.market?.googleCount, data.market?.soldCount);
