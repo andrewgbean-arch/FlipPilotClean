@@ -94,13 +94,20 @@ export async function askVision(
 export const IDENTIFY_PROMPT = `
 You are a professional product recognition system.
 
+If the photo is too dark, too blurry, blank, or does not clearly show one item
+that you can actually see, do not guess and do not invent an item: return
+"title": null and "confidence": 0. A title must describe something visible in
+THIS photo.
+
 The "title" you return is used verbatim to search eBay/Amazon/Google for
 pricing comparables, so an over-confident brand/model guess directly causes
 wrong pricing (e.g. guessing "JBL" on an unbranded speaker will price it
 like a real JBL). Only name a specific brand or model in the title if it is
 clearly visible (logo, printed name) in the image. If the brand/model is
-not clearly visible, use a generic descriptive title instead (e.g.
-"Portable Bluetooth Speaker", "Wireless Over-Ear Headphones").
+not clearly visible, use a generic descriptive title for what you can
+actually see instead (an unbranded speaker would be
+"Portable Bluetooth Speaker", unbranded headphones "Wireless Over-Ear Headphones";
+only use a title like that when the item really is in the photo).
 
 If a size, volume, or weight is clearly printed on the item/packaging
 (e.g. "500ml", "1L", "750g", "72g"), include it at the end of the title.
@@ -136,6 +143,30 @@ You are an expert reseller describing an item from a photo. Return ONLY this JSO
 `;
 
 /* --------------------------------------------------
+   A photo the AI could not make out
+
+   Found 2026-10-18: shown a black, white, blurred or noisy photo, the AI invented "Portable Bluetooth
+   Speaker" (the example in its own instructions) at 70-80% confidence, and the app then priced that
+   non-existent item. The prompt now lets it say it cannot tell (title null), and anything that reaches the
+   routes as no title, or as a title that is really "I don't know", is turned away in words the person can
+   act on. An { error } reply hands the free scan back (see scanMeter's payBackOnFailure).
+-------------------------------------------------- */
+export const NOT_RECOGNISED = {
+  error: "not-recognised",
+  message: "We couldn't make out what that is. Try again in better light, a little closer, with just the one item in the picture.",
+} as const;
+
+// A whole title that is just "I don't know" (not a real title that happens to start with the word:
+// "Unknown Pleasures" is an album).
+const PLACEHOLDER_TITLE = /^(unknown|unidentified|unrecognised|unrecognized|n\/a|none|null|undefined)( (item|object|product|thing))?\.?$/i;
+
+/** The title to price, or null when the photo could not be made out. */
+export function identifiedTitle(identified: any): string | null {
+  const title = typeof identified?.title === "string" ? identified.title.trim() : "";
+  return title && !PLACEHOLDER_TITLE.test(title) ? title : null;
+}
+
+/* --------------------------------------------------
    MAIN ROUTE — UPGRADED
 -------------------------------------------------- */
 router.post("/search-image", rateLimit(2), scanMeter, paidLookupBudget, async (req, res) => {
@@ -153,13 +184,14 @@ router.post("/search-image", rateLimit(2), scanMeter, paidLookupBudget, async (r
     const identified = await askVision(IDENTIFY_PROMPT, imageBase64, { maxTokens: 120, timeoutMs: 12000 });
     const visionMs = Date.now() - startedAt;
 
-    if (!identified || !identified.title) {
-      return res.json({ error: "AI failed to analyse image" });
+    const photoTitle = identifiedTitle(identified);
+    if (!identified || !photoTitle) {
+      return res.json({ ...NOT_RECOGNISED });
     }
 
     // Prices only need the title and pack size, so they start now.
     const packCount = Number(identified.packCount);
-    const marketPromise = fetchMarketData(String(identified.title), {
+    const marketPromise = fetchMarketData(photoTitle, {
       packCount: Number.isFinite(packCount) && packCount >= 1 ? Math.round(packCount) : null,
       // Sealed/new items are priced against new listings; anything else against used ones.
       condition: /^new$/i.test(String(identified.condition ?? "").trim()) ? "new" : "used",

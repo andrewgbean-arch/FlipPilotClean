@@ -11,7 +11,7 @@ import { callerDevice, scanMeter } from "../middleware/scanMeter";
 import { requireScanToken, spendScanToken } from "../middleware/requireScanToken";
 import { issueScanToken } from "../utils/scanToken";
 import { rateLimit } from "../middleware/rateLimit";
-import { askVision, DESCRIBE_PROMPT, IDENTIFY_PROMPT } from "./searchImage";
+import { askVision, DESCRIBE_PROMPT, IDENTIFY_PROMPT, identifiedTitle, NOT_RECOGNISED } from "./searchImage";
 import { buildAiBlock, fetchOpenFoodFacts } from "./search";
 import { recordCost, recordScan } from "../utils/costLog";
 
@@ -156,8 +156,9 @@ router.post("/identify-image", rateLimit(6), scanMeter, paidLookupBudget, async 
 
     const startedAt = Date.now();
     const identified = await askVision(IDENTIFY_PROMPT, imageBase64, { maxTokens: 120, timeoutMs: 12000, purpose: "photo-identify" });
-    if (!identified || !identified.title) {
-      return res.json({ error: "AI failed to analyse image" });
+    const photoTitle = identifiedTitle(identified);
+    if (!identified || !photoTitle) {
+      return res.json({ ...NOT_RECOGNISED });
     }
     console.log(`identify-image: photo ${Math.round(imageBase64.length / 1024)}KB, ${Date.now() - startedAt}ms`);
 
@@ -166,7 +167,7 @@ router.post("/identify-image", rateLimit(6), scanMeter, paidLookupBudget, async 
     return res.json({
       ok: true,
       scanToken: issueScanToken(callerDevice(req) ?? ""),
-      title: String(identified.title),
+      title: photoTitle,
       packCount: Number.isFinite(packCount) && packCount >= 1 ? Math.round(packCount) : null,
       condition: identified.condition ?? null,
       category: identified.category ?? null,
