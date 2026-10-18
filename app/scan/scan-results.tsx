@@ -41,6 +41,7 @@ import { dropPending, getPending } from "@/utils/pendingScan";
 import { applyPrices, SCAN_AGAIN_EVENT } from "@/utils/scanTransform";
 import { evidenceDepth, limitConfidence } from "@/utils/evidenceDepth";
 import { pickPriceRange } from "@/utils/priceRange";
+import { profitFraming } from "@/utils/profitFraming";
 import { keepPhoto } from "@/utils/keptPhotos";
 import { markHasScanned } from "@/utils/onboarding";
 
@@ -245,6 +246,9 @@ export default function ScanResultsScreen() {
 
   const [buyPrice, setBuyPrice] = useState<number | null>(null);
   const [sellPrice, setSellPrice] = useState<number | null>(null);
+  // True once the buy price is one the person typed in or paid; false while it is the app's own suggestion
+  // (a share of the sell price). Decides how the profit is worded and whether an ROI is shown (utils/profitFraming.ts).
+  const [buyIsTheirs, setBuyIsTheirs] = useState(false);
 
   const [calcVisible, setCalcVisible] = useState(false);
   const [calcMode, setCalcMode] = useState<"buy" | "sell" | null>(null);
@@ -262,6 +266,7 @@ export default function ScanResultsScreen() {
         setData(parsed);
 
         setBuyPrice(parsed.ai?.suggested_buy ?? null);
+        setBuyIsTheirs(false);
         setSellPrice(parsed.ai?.suggested_sell ?? null);
         setGrade(gradeFromCondition(parsed.ai?.condition));
         setAge(ageFromCondition(parsed.ai?.condition));
@@ -331,7 +336,7 @@ export default function ScanResultsScreen() {
     const nextGrade = overrides.grade ?? grade;
     const nextAge = overrides.age ?? age;
     // What is on screen now, so it can be put back if the server refuses this check (below).
-    const before = { data, title, grade, age, buy: buyPrice, sell: sellPrice, hadPrices: priceState === "ready" };
+    const before = { data, title, grade, age, buy: buyPrice, theirs: buyIsTheirs, sell: sellPrice, hadPrices: priceState === "ready" };
     setPriceNotice(null);
     // The Condition box also relabels the "AI analysis" condition fact, so the two
     // never disagree with each other.
@@ -341,6 +346,7 @@ export default function ScanResultsScreen() {
 
     setPriceState("loading");
     setBuyPrice(null);
+    setBuyIsTheirs(false); // a re-check replaces the prices with fresh suggestions
     setSellPrice(null);
     // Show the change straight away, so "Checking prices…" doesn't look like it
     // was thrown away.
@@ -384,6 +390,7 @@ export default function ScanResultsScreen() {
         setGrade(before.grade);
         setAge(before.age);
         setBuyPrice(before.buy);
+        setBuyIsTheirs(before.theirs);
         setSellPrice(before.sell);
         setPriceState(before.hadPrices ? "ready" : "failed");
         setPriceNotice(before.hadPrices ? null : err.message);
@@ -438,6 +445,17 @@ export default function ScanResultsScreen() {
     return +(((sellPrice - buyPrice) / buyPrice) * 100).toFixed(1);
   }, [buyPrice, sellPrice]);
 
+  // The buy price starts as the app's own suggestion (a share of the sell price), so the profit is worded
+  // as a scenario and no ROI is shown until the person sets the buy price themselves.
+  const sourceChoice = SOURCES.find((s) => s.key === source);
+  const framing = profitFraming({
+    buy: buyPrice,
+    sell: sellPrice,
+    buyIsTheirs,
+    sourceLabel: sourceChoice?.label ?? null,
+    sourceShare: sourceChoice?.share ?? null,
+  });
+
   const flipScore = useMemo(() => {
     return data?.ai?.flip_score ?? 0;
   }, [data]);
@@ -473,7 +491,10 @@ export default function ScanResultsScreen() {
   const confirmCalc = () => {
     // An emptied keypad clears the price (it shows "Tap to set"); it does not mean £0.
     const num = calcValue === "" ? NaN : parseFloat(calcValue);
-    if (calcMode === "buy") setBuyPrice(isNaN(num) ? null : num);
+    if (calcMode === "buy") {
+      setBuyPrice(isNaN(num) ? null : num);
+      setBuyIsTheirs(!isNaN(num)); // a typed-in price is theirs; an emptied keypad goes back to "Tap to set"
+    }
     if (calcMode === "sell") setSellPrice(isNaN(num) ? null : num);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     closeCalculator();
@@ -486,7 +507,10 @@ export default function ScanResultsScreen() {
     Haptics.selectionAsync().catch(() => {});
     setSource(key);
     const share = SOURCES.find((s) => s.key === key)?.share ?? 0.5;
-    if (!saved && sellPrice != null) setBuyPrice(+(sellPrice * share).toFixed(2));
+    if (!saved && sellPrice != null) {
+      setBuyPrice(+(sellPrice * share).toFixed(2));
+      setBuyIsTheirs(false); // a share of the sell price is the app's assumption, not a price they set
+    }
   };
 
   // The heart saves the flip to History first if it isn't there yet, then favourites it.
@@ -799,32 +823,32 @@ export default function ScanResultsScreen() {
 
         {/* PROFIT + ROI */}
         <View style={[styles.hero, card]}>
-          <Text style={[styles.heroLabel, { color: theme.muted }]}>Estimated profit</Text>
+          <Text style={[styles.heroLabel, { color: theme.muted }]}>{framing.heading}</Text>
 
           <View style={styles.heroRow}>
             <Text
               style={[styles.profit, { color: profitColor }]}
               numberOfLines={1}
               adjustsFontSizeToFit
-              accessibilityLabel={
-                profit != null
-                  ? `Estimated ${profit < 0 ? "loss" : "profit"} of £${Math.abs(profit).toFixed(2)}`
-                  : "Estimated profit not available yet"
-              }
+              accessibilityLabel={framing.spoken}
             >
               {profit != null ? signedMoney(profit) : "—"}
             </Text>
 
-            <View style={[styles.roiPill, { backgroundColor: theme.background }]}>
-              <Text
-                style={[styles.roiText, { color: signColor(roi) }]}
-                accessibilityLabel={
-                  roi != null ? `Return on investment ${signedPercent(roi)}` : "Return on investment not available"
-                }
-              >
-                ROI {roi != null ? signedPercent(roi) : "—"}
-              </Text>
-            </View>
+            {/* Only for a buy price the person set themselves: the suggestion is a fixed share of the sell
+                price, so its ROI would be the same on every scan. */}
+            {framing.showRoi ? (
+              <View style={[styles.roiPill, { backgroundColor: theme.background }]}>
+                <Text
+                  style={[styles.roiText, { color: signColor(roi) }]}
+                  accessibilityLabel={
+                    roi != null ? `Return on investment ${signedPercent(roi)}` : "Return on investment not available"
+                  }
+                >
+                  ROI {roi != null ? signedPercent(roi) : "—"}
+                </Text>
+              </View>
+            ) : null}
           </View>
 
           {priceState === "loading" ? (
@@ -856,6 +880,9 @@ export default function ScanResultsScreen() {
             <Text style={[styles.heroHint, { color: theme.warning }]}>
               Under £{WORTH_SELLING_MIN} to resell: usually not worth the trip.
             </Text>
+          ) : null}
+          {priceState === "ready" && framing.note ? (
+            <Text style={[styles.heroHint, { color: theme.muted, marginTop: 6 }]}>{framing.note}</Text>
           ) : null}
 
           <View style={[styles.fairRow, { borderTopColor: theme.hairline }]}>
@@ -1225,6 +1252,7 @@ export default function ScanResultsScreen() {
         onBought={(paid) => {
           setBoughtAsk(false);
           setBuyPrice(paid); // the screen shows what they paid from here on
+          setBuyIsTheirs(true);
           void saveToHistory({ answer: { bought: true, paid } });
         }}
         onNotBought={() => {

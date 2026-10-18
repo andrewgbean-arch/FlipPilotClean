@@ -351,14 +351,17 @@ export default function FlipDetails() {
       ? { Icon: XCircle, label: "Not bought", color: theme.muted }
       : { Icon: ShoppingBag, label: "Did you buy it?", color: theme.gold };
 
+  // Only a flip they bought has a real return. Until then the buy price is the scan's own suggestion (half
+  // the sell price), which gives the same +100% on every scan, so no ROI is shown or shared for it.
+  const shownRoi = bought === "bought" ? effectiveRoi : null;
   const roiText =
-    effectiveRoi == null ? "-" : `${effectiveRoi > 0 ? "+" : ""}${effectiveRoi}%`;
+    shownRoi == null ? "-" : `${shownRoi > 0 ? "+" : ""}${shownRoi}%`;
   const roiColor =
-    effectiveRoi == null
+    shownRoi == null
       ? theme.muted
-      : effectiveRoi < 0
+      : shownRoi < 0
       ? theme.danger
-      : effectiveRoi >= 30
+      : shownRoi >= 30
       ? theme.success
       : theme.text;
 
@@ -430,7 +433,7 @@ export default function FlipDetails() {
       title,
       buyPrice: buyPrice ?? 0,
       sellPrice: sellPrice ?? 0,
-      roi: effectiveRoi,
+      roi: shownRoi,
       profit: profit ?? 0,
       confidence,
       origin,
@@ -551,8 +554,8 @@ export default function FlipDetails() {
             <View
               accessible
               accessibilityLabel={
-                effectiveRoi != null
-                  ? `Return on investment ${effectiveRoi} percent`
+                shownRoi != null
+                  ? `Return on investment ${shownRoi} percent`
                   : "Return on investment not available"
               }
               style={styles.summaryRoi}
