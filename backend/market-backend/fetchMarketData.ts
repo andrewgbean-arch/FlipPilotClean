@@ -194,10 +194,18 @@ async function fetchGoogleShopping(query: string, wantedCount?: number | null) {
    full of multipacks and for models are full of neighbouring models, and this
    is the cross-check that keeps a wildly wrong search from becoming the price.
 -------------------------------------------------- */
-async function fetchAiPriceEstimate(title: string, packCount?: number | null) {
-  if (!process.env.OPENAI_API_KEY || !title) return null;
-
-  const prompt = `
+/**
+ * The question put to the AI for its price estimate. Exported so a check can pin down what it asks.
+ *
+ * The "how the UK second-hand market really behaves" paragraph was added 20 Oct 2026. Asked only for "what it realistically
+ * sells for second-hand", gpt-4o-mini answered with used prices about 1.5-1.7x what 10+ real eBay listings showed (median ratio
+ * 1.69 on 90 everyday items, 1.54 on 62 from an earlier sweep; a Galaxy S21 at 350-500 when they average 139). Measured on
+ * 200 titles against the real listing figures, this wording lifted the share of used-range answers within 0.6-1.6x of the
+ * listings from 44% to 58% and from 48% to 60%, and cut the answers above 1.6x by about a third, on the same model at
+ * almost the same cost. gpt-4o was tried and was no better on this question (and sometimes left out the new price).
+ */
+export function aiPricePrompt(title: string, packCount?: number | null): string {
+  return `
 You are pricing an item for a UK reseller.
 
 Item: "${title}"${packCount ? `\nPack size: ${packCount} in the pack` : ""}
@@ -211,14 +219,26 @@ do know of the brand and line it belongs to. Never substitute a cheaper, better-
 from the same brand just because you are less sure about this exact one — say what you
 genuinely think this specific thing costs, and lower "confidence" instead of lowering the price.
 
+Think about the UK SECOND-HAND market as it is today, not launch prices. Things lose value fast:
+- Phones, consoles, headphones, cameras, laptops and other gadgets that are 2+ years old usually sell used for about 15-40% of their original price, and older models have fallen a long way since launch.
+- Clothes, shoes, bags, furniture, books, DVDs, CDs, toys and household items usually sell used for about 5-30% of the new price (flat-pack furniture and high-street fashion at the low end; premium or collectable makers hold more).
+- If this model is old or no longer sold new, "newPrice" is what a new or boxed one last typically cost in UK shops, not its launch price, and the used range must reflect that.
+"usedMin" and "usedMax" are the low and high end of what a normal, working, used one in ordinary condition actually SELLS for on eBay, Facebook Marketplace or Vinted (sold prices, not hopeful asking prices).
+
 Return ONLY valid JSON (prices in pounds sterling):
 {
   "newPrice": typical price of ONE brand-new unit${packCount ? " (this pack size)" : ""} in a UK shop today,
-  "usedMin": low end of what it realistically sells for second-hand on eBay or Facebook Marketplace,
+  "usedMin": low end of what a used one realistically sells for,
   "usedMax": high end of the same range,
   "confidence": 0-100 how sure you are
 }
   `.trim();
+}
+
+async function fetchAiPriceEstimate(title: string, packCount?: number | null) {
+  if (!process.env.OPENAI_API_KEY || !title) return null;
+
+  const prompt = aiPricePrompt(title, packCount);
 
   try {
     const res = await axios.post(
