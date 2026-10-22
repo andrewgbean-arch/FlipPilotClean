@@ -144,6 +144,7 @@ const SCREEN_TITLES: Record<string, string> = {
   "marketplace/[id]": "Listing",
   "marketplace/PublishFlip": "Publish flip",
   "marketplace/my-listings": "My listings",
+  "marketplace/trade-seller": "Sell as a dealer",
   "marketplace/create/new": "Create listing",
   "motors/hub": "Motors",
   "motors/dashboard": "Dashboard",

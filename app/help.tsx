@@ -68,6 +68,7 @@ const SECTIONS: Section[] = [
       "Anyone can browse the Marketplace for free.",
       "Listing things for sale is free for everyone during our launch. Cars are one at a time, and cost 25 scan credits once the launch offer ends.",
       "Buyers message you straight from your listing to arrange a sale.",
+      "A dealer? Tap Sell as a dealer in Settings to list up to 15 cars at once, free while we launch. Buyers see you as a trade seller.",
     ],
   },
   {

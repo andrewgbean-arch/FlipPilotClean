@@ -22,6 +22,7 @@ import {
 } from "@/constants/marketplaceCategories";
 import { matchesSearch } from "@/utils/listingSearch";
 import StatusBadge from "@/components/marketplace/StatusBadge";
+import TradeBadge from "@/components/marketplace/TradeBadge";
 import SponsoredCard from "@/components/marketplace/SponsoredCard";
 import { reportAdvertEvent, useAdverts, type FeedAdverts } from "@/lib/adverts";
 import { markShown, useRotated } from "@/lib/adRotation";
@@ -83,6 +84,7 @@ const ListingCard = React.memo(function ListingCard({ item, theme }: { item: any
 
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
           <View style={{ flexDirection: "row", gap: 6, flexShrink: 1 }}>
+            {item.tradeSeller === true && <TradeBadge />}
             {item.promoted === true && (
               <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, backgroundColor: theme.goldDeep }}>
                 <Text style={{ color: theme.black, fontSize: 10, fontWeight: "700" }}>Promoted</Text>

@@ -48,6 +48,8 @@ import { deleteMyData, exportMyData } from "@/utils/myData";
 import { deleteAccount, signOut, useAccount } from "@/lib/account";
 import { fetchScanAllowance, type ScanAllowance } from "@/lib/credits";
 import { PRO_PRICE, needsSignUp, planSubtitle, scanAllowanceSummary } from "@/lib/scanAllowance";
+import { fetchTradeSeller, type TradeSellerStatus } from "@/lib/tradeSeller";
+import { tradeSettingsRow } from "@/lib/tradeSellerRules";
 import { openPartnerLink } from "@/utils/partnerLinks";
 
 /* SMALL LOCAL COMPONENTS */
@@ -215,6 +217,18 @@ export default function SettingsScreen() {
         live = false;
       };
     }, [account.email])
+  );
+
+  // Whether this phone sells as a dealer (a trade seller), refreshed each time this screen is shown (so also after signing in).
+  const [trade, setTrade] = useState<TradeSellerStatus | null>(null);
+  useFocusEffect(
+    React.useCallback(() => {
+      let live = true;
+      fetchTradeSeller().then((t) => live && setTrade(t));
+      return () => {
+        live = false;
+      };
+    }, [])
   );
 
   const confirmSignOut = () => {
@@ -414,6 +428,14 @@ export default function SettingsScreen() {
               setNameDraft(sellerName ?? "");
               setEditingName(true);
             }}
+          />
+
+          <MenuRow
+            Icon={Storefront}
+            title={tradeSettingsRow(trade).title}
+            subtitle={tradeSettingsRow(trade).subtitle}
+            onPress={() => router.push("/marketplace/trade-seller")}
+            divider
           />
 
           <MenuRow

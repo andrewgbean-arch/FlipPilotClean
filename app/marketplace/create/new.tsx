@@ -25,6 +25,8 @@ import { uploadPhotos } from "../../../src/utils/uploadPhotos";
 import { getDeviceId } from "../../../src/utils/deviceId";
 import { deviceRegionHints } from "../../../src/utils/deviceRegion";
 import { getSellerName } from "../../../src/utils/sellerName";
+import { fetchTradeSeller, type TradeSellerStatus } from "../../../src/lib/tradeSeller";
+import { tradeSellScreenLine } from "../../../src/lib/tradeSellerRules";
 import { listingFromFlip } from "../../../src/utils/listingFromFlip";
 import { useVehicleHistory } from "../../../src/features/vehicles/context/VehicleHistoryContext";
 import { SELLER_SAFETY_TIPS } from "../../../src/utils/scamSafety";
@@ -83,6 +85,13 @@ export default function CreateNewListing() {
     freeActiveItemsAfterPromo: number;
     listingDays?: number;
   } | null>(null);
+
+  // Whether this phone sells as a dealer (a trade seller): they may have several cars up at once.
+  const [trade, setTrade] = useState<TradeSellerStatus | null>(null);
+  const isTradeSeller = !!trade?.tradeSeller;
+  useEffect(() => {
+    fetchTradeSeller().then(setTrade);
+  }, []);
 
   useEffect(() => {
     fetch(`${BASE_URL}/marketplace/policy`)
@@ -257,6 +266,12 @@ export default function CreateNewListing() {
             { text: "Not now", style: "cancel" },
             { text: "Get credits", onPress: () => router.push("/credits") },
           ]);
+        } else if (data?.error === "car-limit" && data?.tradeAvailable) {
+          // A private seller has one car up at a time; a dealer can say so and have more.
+          Alert.alert("One car at a time", data.message, [
+            { text: "Not now", style: "cancel" },
+            { text: "Sell as a dealer", onPress: () => router.push("/marketplace/trade-seller") },
+          ]);
         } else {
           Alert.alert("Couldn't publish", data?.message ?? "Please try again.");
         }
@@ -407,9 +422,18 @@ export default function CreateNewListing() {
             </Text>
             <Text style={{ color: theme.muted, fontSize: 13, lineHeight: 19 }}>
               {policy.promoActive
-                ? `Everyday items are free to list, no limit. The only exception is vehicles: one for sale at a time, and after the launch offer a vehicle costs ${policy.carCreditCost} credits. Listings stay up for ${policy.listingDays ?? 30} days, then you can relist.`
-                : `Everyday items are free to list (${policy.freeActiveItemsAfterPromo} for sale at once). The only exception is vehicles: one for sale at a time, costing ${policy.carCreditCost} credits. Listings stay up for ${policy.listingDays ?? 30} days, then you can relist.`}
+                ? `Everyday items are free to list, no limit.${isTradeSeller ? "" : ` The only exception is vehicles: one for sale at a time, and after the launch offer a vehicle costs ${policy.carCreditCost} credits.`} Listings stay up for ${policy.listingDays ?? 30} days, then you can relist.`
+                : `Everyday items are free to list (${policy.freeActiveItemsAfterPromo} for sale at once).${isTradeSeller ? "" : ` The only exception is vehicles: one for sale at a time, costing ${policy.carCreditCost} credits.`} Listings stay up for ${policy.listingDays ?? 30} days, then you can relist.`}
             </Text>
+            {category === "motors" && tradeSellScreenLine(trade) ? (
+              <TouchableOpacity
+                onPress={() => router.push("/marketplace/trade-seller")}
+                accessibilityRole="button"
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={{ color: theme.goldDeep, fontWeight: "700", fontSize: 13, marginTop: 8 }}>{tradeSellScreenLine(trade)}</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         ) : null}
 

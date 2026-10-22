@@ -16,6 +16,7 @@ import GlowPulseCard from "@/components/ui/GlowPulseCard";
 import SellerPanel from "@/components/marketplace/SellerPanel";
 import ListingActions from "@/components/marketplace/ListingActions";
 import StatusBadge from "@/components/marketplace/StatusBadge";
+import TradeBadge from "@/components/marketplace/TradeBadge";
 
 import { BASE_URL } from "@/utils/api";
 import { categoryLabel, fieldsFor } from "@/constants/marketplaceCategories";
@@ -166,8 +167,9 @@ export default function ListingDetails() {
             {listing.location ? ` • ${listing.location}` : ""}
           </Text>
 
-          <View style={{ marginTop: 10 }}>
+          <View style={{ marginTop: 10, gap: 8 }}>
             <StatusBadge status={listing.status} long />
+            {listing.tradeSeller === true && <TradeBadge long />}
           </View>
 
           {/* ⭐ What the seller told us about it */}

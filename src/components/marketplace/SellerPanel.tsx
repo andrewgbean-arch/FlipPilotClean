@@ -17,6 +17,9 @@ type Review = {
 type SellerProfile = {
   id: string;
   displayName: string | null;
+  /** A dealer listing here without Dealer OS, and the business name they gave (not checked). */
+  trade?: boolean;
+  tradeName?: string | null;
   joinedAt: string;
   itemsSold: number;
   itemsForSale: number;
@@ -111,13 +114,20 @@ export default function SellerPanel({
   return (
     <View style={card}>
       <Text style={{ color: theme.goldDeep, fontWeight: "800", fontSize: 16 }}>
-        {profile.displayName ?? "Seller"}
+        {profile.trade ? profile.tradeName ?? profile.displayName ?? "Trade seller" : profile.displayName ?? "Seller"}
       </Text>
-      {profile.displayName != null && (
-        // Said plainly, because a name is only a name — nothing checks it.
-        <Text style={{ color: theme.muted, fontSize: 12, marginTop: 2 }}>
-          Name chosen by the seller
+      {profile.trade ? (
+        // A business, and it says so: buyers have different rights buying from one. The name is still only what they told us.
+        <Text style={{ color: theme.goldDeep, fontSize: 12, fontWeight: "700", marginTop: 2 }}>
+          Trade seller · business name given by the seller
         </Text>
+      ) : (
+        profile.displayName != null && (
+          // Said plainly, because a name is only a name — nothing checks it.
+          <Text style={{ color: theme.muted, fontSize: 12, marginTop: 2 }}>
+            Name chosen by the seller
+          </Text>
+        )
       )}
 
       <View style={{ height: 10 }} />
