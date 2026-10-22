@@ -12,6 +12,7 @@ import { evaluatePolicy } from "../middleware/listingPolicy";
 import { payForCar } from "../utils/carListing";
 import { POLICY } from "../config/marketplacePolicy";
 import { dataPath, writeJsonAtomic } from "../config/dataDir";
+import type { TradeSeller } from "../utils/tradeSeller";
 
 /**
  * Seller reputation: when they joined, what they have sold, and what buyers
@@ -44,6 +45,11 @@ export type Seller = {
    * honest without keeping the old listings themselves.
    */
   soldArchived?: number;
+  /**
+   * A dealer listing cars here without Dealer OS: the business name they gave and when. Said by them and not checked,
+   * like a name, but it labels them "Trade seller" to every buyer (see utils/tradeSeller.ts).
+   */
+  tradeSeller?: TradeSeller;
 };
 
 export type Review = {
@@ -147,6 +153,7 @@ export default function registerSellersRoute(app: Express) {
       seller: {
         id: seller.id,
         displayName: seller.displayName ?? null,
+        ...(seller.tradeSeller ? { trade: true, tradeName: seller.tradeSeller.businessName } : {}),
         joinedAt: seller.joinedAt,
         // Counted from the listings themselves, so there is no tally to drift.
         itemsSold: theirListings.filter((l: any) => l.soldAt).length + (seller.soldArchived ?? 0),

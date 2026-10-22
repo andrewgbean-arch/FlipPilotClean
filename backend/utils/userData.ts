@@ -88,6 +88,7 @@ export function exportUserData(deviceId: string) {
     sellerProfile: seller
       ? {
           displayName: seller.displayName ?? null,
+          tradeSeller: seller.tradeSeller ?? null,
           joinedAt: seller.joinedAt,
           reviewsAboutYou: sellers.reviews
             .filter((r) => r.sellerId === seller.id)

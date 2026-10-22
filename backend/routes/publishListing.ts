@@ -4,7 +4,8 @@ import { rateLimit } from "../middleware/rateLimit";
 import { requireAccount } from "../middleware/accountGuard";
 import { adminOk } from "../utils/adminAuth";
 import { evaluatePolicy, listingPolicy } from "../middleware/listingPolicy";
-import { POLICY, promoActive, promoEndsAt } from "../config/marketplacePolicy";
+import { POLICY, promoActive, promoEndsAt, tradeCarLimit, tradeListingsFree } from "../config/marketplacePolicy";
+import { tradeSellerFor } from "../utils/tradeSeller";
 import { payForCar, refundCar, verifyCar, type StoredVehicle } from "../utils/carListing";
 import { RETENTION } from "../config/retention";
 import { readSellerOrigin, toPublicListing } from "../utils/sellerOrigin";
@@ -83,6 +84,9 @@ export default function registerPublishListingRoute(app: Express) {
       boostCreditCost: POLICY.boostCreditCost,
       boostDays: POLICY.boostDays,
       listingDays: RETENTION.listingDays,
+      // Dealers listing in the app without Dealer OS (see utils/tradeSeller.ts).
+      tradeCarLimit: tradeCarLimit(),
+      tradeFree: tradeListingsFree(),
     });
   });
 
@@ -126,6 +130,8 @@ export default function registerPublishListingRoute(app: Express) {
       // Private: the checked registration, and what was paid.
       dvlaCheck: car.vehicle ?? undefined,
       creditsPaid: car.paid.charged,
+      // A dealer's car says so on its card (the seller's own record is what decides, never anything the phone sends).
+      ...(tradeSellerFor(deviceId) ? { tradeSeller: true } : {}),
     };
 
     listings.push(listing);
@@ -211,6 +217,8 @@ export default function registerPublishListingRoute(app: Express) {
       messages: [],
       // Private: the checked registration, and what was paid (cars only).
       ...(car && car.ok ? { dvlaCheck: car.vehicle ?? undefined, creditsPaid: car.paid.charged } : {}),
+      // A dealer's listing says so on its card (the seller's own record is what decides, never anything the phone sends).
+      ...(tradeSellerFor(deviceId) ? { tradeSeller: true } : {}),
     };
 
     listings.push(listing);

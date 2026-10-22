@@ -1,4 +1,5 @@
-import { POLICY, promoActive } from "../config/marketplacePolicy";
+import { POLICY, promoActive, tradeListingsFree } from "../config/marketplacePolicy";
+import { tradeSellerFor } from "./tradeSeller";
 import { allowedDeviceIds } from "../middleware/sellingGate";
 import { loadListings } from "../routes/publishedListings";
 import { listingStatus } from "./listingStatus";
@@ -36,9 +37,10 @@ export function carCheckRequired(): boolean {
   return process.env.NODE_ENV === "production";
 }
 
-/** Credits a car listing costs this phone right now: nothing during the launch offer or on a named test phone. */
+/** Credits a car listing costs this phone right now: nothing during the launch offer, for a trade seller while we launch, or on a named test phone. */
 export function carFee(deviceId: string): number {
   if (promoActive() || allowedDeviceIds().includes(deviceId)) return 0;
+  if (tradeListingsFree() && tradeSellerFor(deviceId)) return 0;
   return POLICY.carCreditCost;
 }
 

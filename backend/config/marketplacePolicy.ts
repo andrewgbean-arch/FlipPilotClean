@@ -29,6 +29,24 @@ export const POLICY = {
   carCategory: "motors",
 } as const;
 
+/**
+ * Trade sellers (22 Oct 2026): dealers who list their cars in the app without the Dealer OS web app. They say so (a business
+ * name, shown to buyers as "Trade seller") and may have TRADE_MAX_CARS cars for sale at once (15 unless the server says
+ * otherwise), where a private seller may have one.
+ */
+export function tradeCarLimit(): number {
+  const n = Math.floor(Number(process.env.TRADE_MAX_CARS));
+  return Number.isFinite(n) && n >= 1 ? n : 15;
+}
+
+/**
+ * A trade seller's cars cost nothing while we launch. TRADE_LISTINGS_FREE=off ends that: they then pay credits like anyone
+ * (the monthly bundles meant to replace it are not built yet).
+ */
+export function tradeListingsFree(): boolean {
+  return (process.env.TRADE_LISTINGS_FREE ?? "").trim().toLowerCase() !== "off";
+}
+
 export function promoEndsAt(): Date | null {
   const raw = process.env.MARKETPLACE_PROMO_ENDS_AT?.trim();
   if (!raw) return null;

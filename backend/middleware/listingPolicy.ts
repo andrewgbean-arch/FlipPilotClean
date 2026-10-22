@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 
-import { POLICY, promoActive } from "../config/marketplacePolicy";
+import { POLICY, promoActive, tradeCarLimit, tradeListingsFree } from "../config/marketplacePolicy";
+import { tradeSellerFor } from "../utils/tradeSeller";
 import { loadListings } from "../routes/publishedListings";
 import { listingStatus } from "../utils/listingStatus";
 import { allowedDeviceIds } from "./sellingGate";
@@ -23,7 +24,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type PolicyRefusal = {
   status: number;
-  body: { ok: false; error: string; message: string; credits?: number; needed?: number };
+  body: { ok: false; error: string; message: string; credits?: number; needed?: number; tradeAvailable?: boolean };
 };
 
 /**
@@ -68,19 +69,31 @@ export function evaluatePolicy(
   });
   const liveCars = live.filter((l: any) => String(l.category ?? "").toLowerCase() === POLICY.carCategory || l.type === "flip");
 
-  if (isCar && liveCars.length >= POLICY.maxActiveCarsPerSeller) {
+  // A dealer who has said so (see utils/tradeSeller.ts) may have several cars up at once; a private seller has one.
+  const trade = tradeSellerFor(deviceId) !== null;
+  const carLimit = trade ? tradeCarLimit() : POLICY.maxActiveCarsPerSeller;
+  if (isCar && liveCars.length >= carLimit) {
     return {
       status: 409,
-      body: {
-        ok: false,
-        error: "car-limit",
-        message: "You already have a car for sale. Mark it as sold or delete it before listing another.",
-      },
+      body: trade
+        ? {
+            ok: false,
+            error: "car-limit",
+            message: `You already have ${carLimit} cars for sale, the most a trade seller can have at once. Mark one as sold or delete one to add another.`,
+          }
+        : {
+            ok: false,
+            error: "car-limit",
+            message: `You already have a car for sale. Mark it as sold or delete it before listing another. Are you a dealer? You can sell up to ${tradeCarLimit()} cars at once as a trade seller.`,
+            tradeAvailable: true,
+          },
     };
   }
 
   if (!promoActive()) {
     if (isCar) {
+      // A trade seller's cars are free while we launch (tradeListingsFree).
+      if (trade && tradeListingsFree()) return null;
       if (!accountId) {
         return {
           status: 401,
