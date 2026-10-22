@@ -1,7 +1,8 @@
 import { Router } from "express";
 import axios from "axios";
 import { paidLookupBudget } from "../middleware/dailyBudget";
-import { scanMeter } from "../middleware/scanMeter";
+import { callerDevice, scanMeter } from "../middleware/scanMeter";
+import { googleAccessFor } from "../utils/googleAccess";
 import { rateLimit } from "../middleware/rateLimit";
 import fetchMarketData from "../market-backend/fetchMarketData";
 import { buildFlipMeta } from "../market-backend/buildFlipMeta";
@@ -193,6 +194,7 @@ router.post("/search-image", rateLimit(2), scanMeter, paidLookupBudget, async (r
     const packCount = Number(identified.packCount);
     const marketPromise = fetchMarketData(photoTitle, {
       packCount: Number.isFinite(packCount) && packCount >= 1 ? Math.round(packCount) : null,
+      googleAllowed: () => googleAccessFor(callerDevice(req)),
       // Sealed/new items are priced against new listings; anything else against used ones.
       condition: /^new$/i.test(String(identified.condition ?? "").trim()) ? "new" : "used",
       // How good it is decides what share of the new price a used one sells for.

@@ -14,4 +14,7 @@ export const CREDIT_PACKS: Record<string, number> = {
   flippilot_credits_200: 200,
 };
 
-export const creditPackList = () => Object.entries(CREDIT_PACKS).map(([productId, credits]) => ({ productId, credits }));
+// Retired 22 Oct 2026: FlipPilot is free to use with one Pro plan, so the packs are no longer offered (the list the app is sent is
+// empty). The table above stays so anyone who already bought one can still claim it. CREDIT_PACKS_ON_SALE=1 offers them again.
+const packsOnSale = () => /^(1|on|true|yes)$/i.test((process.env.CREDIT_PACKS_ON_SALE ?? "").trim());
+export const creditPackList = () => (packsOnSale() ? Object.entries(CREDIT_PACKS).map(([productId, credits]) => ({ productId, credits })) : []);

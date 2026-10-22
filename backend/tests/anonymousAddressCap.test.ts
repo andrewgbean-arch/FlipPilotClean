@@ -1,5 +1,8 @@
 import "./setupEnv";
 process.env.FREE_SCAN_CAP = "on";
+// These tests are about the allowance anonymous scans share per network, so anonymous scans are switched on (they are off by default).
+process.env.ANONYMOUS_SCANS = "on";
+process.env.FREE_SCANS_PER_MONTH = "5";
 delete process.env.REVENUECAT_SECRET_KEY;
 
 import { test, describe, before, after } from "node:test";
@@ -9,7 +12,7 @@ import express from "express";
 import type { AddressInfo } from "net";
 import fs from "fs";
 import { dataPath } from "../config/dataDir";
-import { ANONYMOUS_FREE_LIMIT, ANONYMOUS_FREE_PER_ADDRESS, WEEKLY_FREE_LIMIT, addressScansLeft } from "../middleware/freeScanLimit";
+import { ANONYMOUS_FREE_LIMIT, ANONYMOUS_FREE_PER_ADDRESS, MONTHLY_FREE_LIMIT, addressScansLeft } from "../middleware/freeScanLimit";
 import { scanMeter } from "../middleware/scanMeter";
 import { networkOf } from "../utils/clientAddress";
 
@@ -71,7 +74,7 @@ const scan = async (device: string, account?: string, path = "/lookup") => {
 describe("anonymous scans share one allowance per network address", () => {
   test("it is generous enough for a household or a stall's wifi, and bigger than one phone's", () => {
     assert.ok(ANONYMOUS_FREE_PER_ADDRESS >= 20);
-    assert.ok(ANONYMOUS_FREE_PER_ADDRESS > ANONYMOUS_FREE_LIMIT * 5);
+    assert.ok(ANONYMOUS_FREE_PER_ADDRESS > ANONYMOUS_FREE_LIMIT * 2);
   });
 
   test("a scan that could not even be counted (counter file unwritable) does not use the address's allowance", async () => {
@@ -95,9 +98,9 @@ describe("anonymous scans share one allowance per network address", () => {
     await settle(() => addressScansLeft(myAddress) === ANONYMOUS_FREE_PER_ADDRESS);
     assert.equal(addressScansLeft(myAddress), ANONYMOUS_FREE_PER_ADDRESS);
 
-    // One phone asking ten times uses two of the address's scans, not ten.
+    // One phone asking again and again uses only its own allowance of the address's scans, however often it asks.
     let passed = 0;
-    for (let i = 0; i < 10; i++) if ((await scan("addr-one-phone")).ok) passed++;
+    for (let i = 0; i < ANONYMOUS_FREE_LIMIT + 8; i++) if ((await scan("addr-one-phone")).ok) passed++;
     assert.equal(passed, ANONYMOUS_FREE_LIMIT);
     await settle(() => addressScansLeft(myAddress) === ANONYMOUS_FREE_PER_ADDRESS - ANONYMOUS_FREE_LIMIT);
     assert.equal(addressScansLeft(myAddress), ANONYMOUS_FREE_PER_ADDRESS - ANONYMOUS_FREE_LIMIT);
@@ -121,7 +124,7 @@ describe("anonymous scans share one allowance per network address", () => {
   });
 
   test("signing in gets past it: an account is not limited by the address", async () => {
-    for (let i = 0; i < WEEKLY_FREE_LIMIT; i++) {
+    for (let i = 0; i < MONTHLY_FREE_LIMIT; i++) {
       const r = await scan(`addr-signed-in-phone-${i}`, "addr-account-1");
       assert.equal(r.ok, true, `signed-in scan ${i + 1}`);
     }

@@ -1,7 +1,7 @@
 import axios from "axios";
 
 /* --------------------------------------------------
-   Is this device a real, paying subscriber to the Trader plan?
+   Is this device a real, paying subscriber to the Pro plan?
 
    The app configures RevenueCat with our own device id as its app user id
    (see src/context/SubscriptionContext.tsx), so the same id sent with every
@@ -21,10 +21,11 @@ const REVENUECAT_SECRET_KEY = process.env.REVENUECAT_SECRET_KEY;
 const API_BASE = (process.env.REVENUECAT_API_BASE || "https://api.revenuecat.com").replace(/\/+$/, "");
 
 /**
- * The entitlements that mean "on the paid plan". The plan is called Trader (300 scans a month and
- * eBay export); before 2026-09-27 it was called Pro, and a subscriber under that name still counts.
+ * The entitlements that mean "on the paid plan". The plan is called Pro (4.99 pounds a month: unlimited scans with a
+ * fair-use ceiling a day, Google shop-price checks on pricier items, and eBay export). It was planned as Trader (300 scans
+ * a month) until 2026-10-22; a subscriber under that name still counts.
  */
-const PLAN_ENTITLEMENTS = ["trader", "pro"];
+const PLAN_ENTITLEMENTS = ["pro", "trader"];
 
 export type PlanStatus = {
   active: boolean;
@@ -83,7 +84,7 @@ export async function planStatus(deviceId: string): Promise<PlanStatus> {
   return status;
 }
 
-/** On the paid plan (Trader, or Pro under its old name)? Used where the plan unlocks a feature, such as eBay export. */
+/** On the paid plan (Pro, or Trader under its old name)? Used where the plan unlocks a feature, such as eBay export. */
 export async function isProSubscriber(deviceId: string): Promise<boolean> {
   return (await planStatus(deviceId)).active;
 }

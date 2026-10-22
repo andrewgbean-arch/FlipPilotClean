@@ -6,7 +6,7 @@ import { extractPackCount } from "../market-backend/bulkListingFilter";
 import { getEbayAccessToken } from "../market-backend/ebayBrowseApi";
 import type { AgeBand, Grade } from "../market-backend/priceModel";
 import { paidLookupBudget } from "../middleware/dailyBudget";
-// What a lookup costs (5 free a week, then scan credits): on in production, off in development (see scanMeter).
+// What a lookup costs (100 free a month with an account, then Pro): on in production, off in development (see scanMeter).
 import { callerDevice, scanMeter } from "../middleware/scanMeter";
 import { requireScanToken, spendScanToken } from "../middleware/requireScanToken";
 import { issueScanToken } from "../utils/scanToken";
@@ -14,6 +14,7 @@ import { rateLimit } from "../middleware/rateLimit";
 import { askVision, DESCRIBE_PROMPT, IDENTIFY_PROMPT, identifiedTitle, NOT_RECOGNISED } from "./searchImage";
 import { buildAiBlock, fetchOpenFoodFacts } from "./search";
 import { recordCost, recordScan } from "../utils/costLog";
+import { googleAccessFor } from "../utils/googleAccess";
 
 /* --------------------------------------------------
    The scan in two steps, so the phone has something to show quickly.
@@ -256,6 +257,7 @@ router.post("/price", rateLimit(30), requireScanToken, paidLookupBudget, spendSc
         condition: isNew ? "new" : "used",
         grade: chosenGrade,
         age: chosenAge ?? "within-6-months",
+        googleAllowed: () => googleAccessFor(callerDevice(req)),
       }),
     ]);
 

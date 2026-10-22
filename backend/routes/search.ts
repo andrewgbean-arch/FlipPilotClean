@@ -3,7 +3,8 @@ import { Router } from "express";
 import fetchMarketData from "../market-backend/fetchMarketData";
 import { buildFlipMeta } from "../market-backend/buildFlipMeta";
 import { paidLookupBudget } from "../middleware/dailyBudget";
-import { scanMeter } from "../middleware/scanMeter";
+import { callerDevice, scanMeter } from "../middleware/scanMeter";
+import { googleAccessFor } from "../utils/googleAccess";
 import { openAiUsage, recordCost } from "../utils/costLog";
 import { rateLimit } from "../middleware/rateLimit";
 import { extractPackCount } from "../market-backend/bulkListingFilter";
@@ -120,7 +121,7 @@ router.get("/search", rateLimit(10), scanMeter, paidLookupBudget, async (req, re
     // The description does not need the prices, so write it while they are
     // being looked up instead of after (this used to run one after the other).
     const [market, ai] = await Promise.all([
-      fetchMarketData(searchQuery, { packCount }),
+      fetchMarketData(searchQuery, { packCount, googleAllowed: () => googleAccessFor(callerDevice(req)) }),
       buildAiBlock(off, null),
     ]);
 

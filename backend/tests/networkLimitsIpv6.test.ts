@@ -1,5 +1,7 @@
 import "./setupEnv";
 process.env.FREE_SCAN_CAP = "on";
+// These tests are about the allowance anonymous scans share per network, so anonymous scans are switched on (they are off by default).
+process.env.ANONYMOUS_SCANS = "on";
 delete process.env.REVENUECAT_SECRET_KEY;
 
 import { test, describe, before, after } from "node:test";

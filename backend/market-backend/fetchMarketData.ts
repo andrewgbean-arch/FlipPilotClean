@@ -391,7 +391,12 @@ export const marketCacheStats = () => ({
 
 /**
  * Google Shopping is the dearest source (a paid search on every scan).
- *   GOOGLE_SHOPPING=when-needed  (default) search only when eBay did not give enough to price the item from
+ *   GOOGLE_SHOPPING=pro          (default since 22 Oct 2026) only a paying Pro subscriber gets a Google search, and only for an item
+ *                                where it earns its keep: pricey (over GOOGLE_PRICEY_FROM pounds, where a wrong price costs real money
+ *                                and a brand-new launch is something the AI has not heard of) or thin (eBay found under GOOGLE_THIN_BELOW
+ *                                matching listings). Everyone else is priced from eBay and the AI, which tested as good on average (38 new
+ *                                products: 33 in range with Google, 33 without).
+ *   GOOGLE_SHOPPING=when-needed  search only when eBay did not give enough to price the item from, for everybody (the old default)
  *   GOOGLE_SHOPPING=always       search on every scan, as before 2026-09-27
  *   GOOGLE_SHOPPING=off          never search Google at all: eBay and the AI price everything (added 22 Oct 2026; the Google
  *                                search is about 95% of what a scan costs). The result screen then hides its "Retail price" and
@@ -400,10 +405,26 @@ export const marketCacheStats = () => ({
  * Google search is most of what a scan costs (about 1.1-1.9p of ~2.2p), and when eBay already has
  * plenty of matching listings it adds little. Set "always" to go back; GET /admin/costs shows the effect.
  */
-export type GoogleShoppingMode = "when-needed" | "always" | "off";
+export type GoogleShoppingMode = "pro" | "when-needed" | "always" | "off";
 export function googleShoppingMode(): GoogleShoppingMode {
   const v = (process.env.GOOGLE_SHOPPING ?? "").trim().toLowerCase();
-  return v === "always" ? "always" : v === "off" ? "off" : "when-needed";
+  return v === "always" ? "always" : v === "off" ? "off" : v === "when-needed" ? "when-needed" : "pro";
+}
+
+/** An item dearer than this (in pounds) is worth a paid Google search for a Pro subscriber. */
+export const GOOGLE_PRICEY_FROM = 150;
+/** eBay finding fewer matching listings than this makes the item worth one too. */
+export const GOOGLE_THIN_BELOW = 5;
+
+/**
+ * Is this item worth a paid Google search (for a subscriber who is allowed one)? Pricey ones, because a wrong price costs
+ * real money and brand-new launches are where the AI's knowledge runs out (test, 22 Oct 2026: the AI alone said 500 for a
+ * PS5 Pro that costs about 700, and 250 for a Switch 2 that costs about 400); thin ones, because eBay alone has too little.
+ */
+export function googleWorthIt(input: { ebayAverage: number | null; ebayNewAverage?: number | null; ebayListings: number; aiNew: number | null }): boolean {
+  const pricey = Math.max(input.aiNew ?? 0, input.ebayAverage ?? 0, input.ebayNewAverage ?? 0) > GOOGLE_PRICEY_FROM;
+  const thin = input.ebayListings < GOOGLE_THIN_BELOW;
+  return pricey || thin;
 }
 const googleWhenNeeded = () => googleShoppingMode() !== "always";
 
@@ -464,6 +485,8 @@ export default async function fetchMarketData(
     condition?: "new" | "used" | null;
     grade?: Grade | null;
     age?: AgeBand | null;
+    /** In "pro" mode: may this caller have a Google search (are they a subscriber)? Only asked when the item is worth one. */
+    googleAllowed?: () => Promise<boolean> | boolean;
   } = {}
 ): Promise<UnifiedMarketResult> {
   const wantedCount = options.packCount ?? extractPackCount(query);
@@ -537,6 +560,8 @@ export default async function fetchMarketData(
     const ebay = await ebayPromise;
     let ebayNew: Awaited<typeof ebayNewPromise> = null;
     let googleStartedLate = false;
+    // Pro mode: Google was left out of this answer only because the caller is not a subscriber, on an item that was worth a search.
+    let googleWithheldFromPlan = false;
     if (!googlePromise) {
       // Already running since aiEstimatePromise started alongside ebayPromise above — awaiting it
       // here to judge eBay's strength costs no extra time, and it's awaited again (instantly, from
@@ -545,6 +570,29 @@ export default async function fetchMarketData(
       ebayNew = resolvedEbayNew;
       if (googleShoppingMode() === "off") {
         // Switched off on purpose (GOOGLE_SHOPPING=off): never searched, so it counts as "skipped", not "missing" (see googleStillMissing).
+      } else if (googleShoppingMode() === "pro") {
+        // Google is a paid search: only a subscriber gets one, and only when the item is worth it (see googleWorthIt).
+        // Whether the caller subscribes is asked LAST, so most scans never cost a RevenueCat call.
+        const worth = googleWorthIt({
+          ebayAverage: ebay?.average ?? null,
+          ebayNewAverage: ebayNew?.average ?? null,
+          ebayListings: ebay?.soldCount ?? 0,
+          aiNew: safeNumber(aiEstimate?.newPrice),
+        });
+        let allowed = false;
+        if (worth && options.googleAllowed) {
+          try {
+            allowed = await options.googleAllowed();
+          } catch {
+            allowed = false;
+          }
+        }
+        if (allowed) {
+          googlePromise = searchGoogle();
+          googleStartedLate = true;
+        } else if (worth) {
+          googleWithheldFromPlan = true;
+        }
       } else if (ebayIsStrong(ebay, ebayNew, usedMode, safeNumber(aiEstimate?.newPrice))) {
         console.log(`market: Google skipped for "${query.slice(0, 40)}" (eBay had ${ebay?.items?.length} listings)`);
       } else {
@@ -657,7 +705,9 @@ const image =
       priceInputs,
     };
 
-    evidenceCacheSet(evidenceCacheKey, evidence, googleStillMissing(googleSkipped, google));
+    // An answer priced without Google only because this caller is not a subscriber is not kept in the 10-minute memory: a subscriber
+    // scanning the same item a minute later is owed their Google check. (The eBay and AI lookups are kept on their own, so asking again is cheap.)
+    evidenceCacheSet(evidenceCacheKey, evidence, googleStillMissing(googleSkipped, google) || googleWithheldFromPlan);
     return priceEvidence(evidence, usedMode, grade, age);
   } catch (err: any) {
     console.error("Unified Market Engine Error:", err?.message || err);

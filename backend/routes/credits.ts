@@ -3,15 +3,16 @@ import { rateLimit } from "../middleware/rateLimit";
 import { adminOk } from "../utils/adminAuth";
 import { accountByEmail } from "../utils/accountStore";
 import { creditsFor, getBalance, grant, isRefunded, MAX_GRANT } from "../utils/creditStore";
-import { WEEKLY_FREE_LIMIT, addressScansLeft, freeScanCapEnabled, freeScanStatus, freeScanSubject } from "../middleware/freeScanLimit";
+import { MONTHLY_FREE_LIMIT, addressScansLeft, anonymousScansAllowed, freeScanCapEnabled, freeScanStatus, freeScanSubject } from "../middleware/freeScanLimit";
+import { PRO_DAILY_SCANS } from "../utils/proAllowance";
 import { CREDIT_PACKS, creditPackList } from "../utils/creditPacks";
-import { fetchOneTimePurchases, revenueCatConfigured } from "../subscriptions/revenueCat";
+import { fetchOneTimePurchases, planStatus, revenueCatConfigured } from "../subscriptions/revenueCat";
 import { networkOf } from "../utils/clientAddress";
 
 /**
  * Scan credits.
  *
- *   GET  /credits                 this person's free scans left this week, their credit balance, and the packs on sale
+ *   GET  /credits                 this person's free scans left this month, whether they are on Pro, and any credits they hold
  *   POST /credits/claim           turn the account's paid-for packs into credits (safe to call as often as you like)
  *   GET  /admin/credits?email=    an account's balance and history          (ADMIN_TOKEN)
  *   POST /admin/credits/grant     give credits, for support or a gift       (ADMIN_TOKEN)
@@ -28,22 +29,31 @@ const deviceOf = (req: Request): string | null => {
 };
 
 export default function registerCreditsRoutes(app: Express) {
-  app.get("/credits", rateLimit(60), (req: Request, res: Response) => {
+  app.get("/credits", rateLimit(60), async (req: Request, res: Response) => {
     const deviceId = deviceOf(req);
     // A signed-in account's free scans, otherwise this phone's (fewer): the same rule the meter applies.
     const subject = req.account ? freeScanSubject(deviceId ?? "", req.account) : deviceId ? freeScanSubject(deviceId, null) : null;
     const base = subject ? freeScanStatus(subject.key, subject.limit) : null;
     // Not signed in: the network address's allowance can be the smaller of the two, and the count shown must be true.
     const free = base && !req.account ? { ...base, left: Math.min(base.left, addressScansLeft(networkOf(req.ip))) } : base;
+    // The Pro plan, asked of RevenueCat itself (cached for a few minutes, and never throws).
+    const plan = deviceId ? await planStatus(deviceId) : null;
     res.json({
       ok: true,
       // When this is false the limits are not being applied (development), so the app shouldn't nag.
       metering: freeScanCapEnabled(),
       signedIn: !!req.account,
+      // Signing up is how you scan: a phone that is not signed in has no free scans (unless the server allows a few).
+      accountRequired: !anonymousScansAllowed(),
       credits: req.account ? getBalance(req.account.id) : 0,
       free: free ? { limit: free.limit, left: free.left, resetsOn: free.resetsOn } : null,
-      // What signing in gets, so a phone that is not signed in can say so ("Sign in for 5 free scans a week").
-      signedInFreeLimit: WEEKLY_FREE_LIMIT,
+      // What signing in gets, so a phone that is not signed in can say so ("Sign in for 100 free scans a month").
+      signedInFreeLimit: MONTHLY_FREE_LIMIT,
+      period: "month",
+      // On Pro: unlimited scans up to a fair-use ceiling a day, shop-price checks on pricier items, eBay export.
+      plan: plan && plan.active ? { active: true, renewsOn: plan.renewsOn } : { active: false, renewsOn: null },
+      proDailyLimit: PRO_DAILY_SCANS,
+      // Credit packs are retired (an empty list); anyone holding credits keeps them.
       packs: creditPackList(),
     });
   });

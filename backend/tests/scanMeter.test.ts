@@ -2,6 +2,8 @@ import "./setupEnv";
 // The free-scan/credit meter is skipped entirely unless this is explicitly turned on (see
 // freeScanCapEnabled in middleware/freeScanLimit.ts) — off by default in a test/dev environment.
 process.env.FREE_SCAN_CAP = "on";
+process.env.FREE_SCANS_PER_MONTH = "5";
+delete process.env.ANONYMOUS_SCANS;
 // No real RevenueCat call: planStatus() returns synchronously with "not on a plan" when this is
 // unset, which is what puts a signed-in test account on the credit-store path this test needs.
 delete process.env.REVENUECAT_SECRET_KEY;
@@ -13,7 +15,7 @@ import express from "express";
 import type { AddressInfo } from "net";
 import fs from "fs";
 import { dataPath } from "../config/dataDir";
-import { accountFreeKey, takeFreeScan } from "../middleware/freeScanLimit";
+import { MONTHLY_FREE_LIMIT, accountFreeKey, takeFreeScan } from "../middleware/freeScanLimit";
 import { scanMeter } from "../middleware/scanMeter";
 
 // Found live 2026-09-30: scanMeter had no try/catch around any of this, and creditStore.ts's
@@ -56,7 +58,7 @@ describe("scanMeter", () => {
     // Use up this ACCOUNT's free scans (a signed-in account's free scans are counted per account,
     // not per phone) so the request actually reaches the credit-store branch rather than being
     // satisfied by a free scan first.
-    for (let i = 0; i < 5; i++) takeFreeScan(accountFreeKey(accountId));
+    for (let i = 0; i < MONTHLY_FREE_LIMIT; i++) takeFreeScan(accountFreeKey(accountId), MONTHLY_FREE_LIMIT);
 
     // The exact scenario creditStore.ts's load() refuses to paper over.
     fs.writeFileSync(dataPath("credits.json"), "{ not valid json");
@@ -72,12 +74,25 @@ describe("scanMeter", () => {
     fs.writeFileSync(dataPath("credits.json"), "{}");
   });
 
-  test("a device with free scans left is let straight through, unaffected", async () => {
+  test("an account with free scans left is let straight through, unaffected", async () => {
     const res = await fetch(`${base}/lookup`, {
-      headers: { "x-device-id": "scanmeter-ordinary-device" },
+      headers: { "x-device-id": "scanmeter-ordinary-device", "x-test-account": "scanmeter-ordinary-account" },
     });
     assert.equal(res.status, 200);
     const body = (await res.json()) as any;
     assert.equal(body.ok, true);
+  });
+
+  test("a phone that is not signed in is asked to sign up, not let through", async () => {
+    const res = await fetch(`${base}/lookup`, { headers: { "x-device-id": "scanmeter-not-signed-in" } });
+    const body = (await res.json()) as any;
+    assert.equal(body.error, "free-scan-limit");
+    assert.equal(body.signInRequired, true);
+  });
+
+  test("a request with no device id at all is refused, signed in or not", async () => {
+    const res = await fetch(`${base}/lookup`, { headers: { "x-test-account": "scanmeter-no-device" } });
+    assert.equal(res.status, 400);
+    assert.equal(((await res.json()) as any).error, "missing-device");
   });
 });

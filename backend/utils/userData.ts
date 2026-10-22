@@ -12,7 +12,7 @@ import {
 import { deleteUploads, uploadsBy } from "./uploadStore";
 import { removeReadsFor } from "./readState";
 import { freeScanRecordFor } from "../middleware/freeScanLimit";
-import { traderScanRecordFor } from "./traderAllowance";
+import { proScanRecordFor } from "./proAllowance";
 import { advertReportsBy, anonymiseAdvertReportsBy } from "./advertStore";
 import { deleteFeedbackBy, feedbackBy } from "./feedbackStore";
 import { deletePriceReportsBy, priceReportsBy } from "./priceReportStore";
@@ -115,7 +115,7 @@ export function exportUserData(deviceId: string) {
     })),
     peopleYouHaveBlocked: blockCountFor(deviceId),
     freeScanCounter: freeScanRecordFor(deviceId),
-    traderScanCounter: traderScanRecordFor(deviceId),
+    proScanCounter: proScanRecordFor(deviceId),
     advertReports: advertReportsBy(deviceId),
     feedbackYouSent: feedbackBy(deviceId),
     priceReportsYouSent: priceReportsBy(deviceId),

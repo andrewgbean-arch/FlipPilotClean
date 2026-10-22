@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { isProSubscriber } from "../subscriptions/revenueCat";
 
 /* --------------------------------------------------
-   Exporting a listing to eBay comes with the Trader plan (see app/upgrade.tsx).
+   Exporting a listing to eBay comes with the Pro plan (see app/upgrade.tsx).
    Listing on the FlipPilot Marketplace itself does not: that is decided by
    config/marketplacePolicy.ts (free during the launch offer, cars cost credits).
    Only a subscription RevenueCat itself confirms counts, never a flag from the phone.
@@ -49,6 +49,6 @@ export async function sellingGate(req: Request, res: Response, next: NextFunctio
   res.status(403).json({
     ok: false,
     error: "selling-locked",
-    message: "Exporting listings to eBay comes with the Trader plan. Selling on the FlipPilot Marketplace itself doesn't need it.",
+    message: "Exporting listings to eBay comes with the Pro plan. Selling on the FlipPilot Marketplace itself doesn't need it.",
   });
 }

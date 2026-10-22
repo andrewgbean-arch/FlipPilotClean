@@ -71,10 +71,15 @@ if (anon.status === 401 && anon.json?.error === "sign-in-required") pass("sellin
 else fail("selling does NOT need an account", `got status ${anon.status}. Check NODE_ENV=production (or REQUIRE_ACCOUNT=on).`);
 
 const credits = await call("GET", "/credits?deviceId=smoke-test-not-a-real-phone");
-if (credits.status === 200 && credits.json?.metering === true) pass("the free-scan limit and credits are ON");
+if (credits.status === 200 && credits.json?.metering === true) pass("the free-scan limit is ON");
 else fail("the free-scan limit is OFF", "Check NODE_ENV=production (or FREE_SCAN_CAP=on). Without it everyone scans for free.");
-if (Array.isArray(credits.json?.packs) && credits.json.packs.length === 4) pass("the four credit packs are listed");
-else fail("the credit packs are not listed");
+// Since 22 Oct 2026: free to use, sign up to scan (100 free a month), one Pro plan, no credit packs.
+if (credits.json?.accountRequired === true && credits.json?.free?.limit === 0) pass("scanning needs a sign-up (a phone that is not signed in has no free scans)");
+else warn("scanning does not need a sign-up", "ANONYMOUS_SCANS is on, or this is an older server. Sign-up is how people scan now; unset ANONYMOUS_SCANS on Render.");
+if (credits.json?.period === "month" && credits.json?.signedInFreeLimit >= 1) pass(`signed-in accounts get ${credits.json.signedInFreeLimit} free scans a month`);
+else fail("the allowance is not monthly", 'Expected period "month" from GET /credits.');
+if (Array.isArray(credits.json?.packs) && credits.json.packs.length === 0) pass("no credit packs are on sale (the Pro plan replaces them)");
+else warn("credit packs are still on sale", "CREDIT_PACKS_ON_SALE is set, or this is an older server.");
 
 // A barcode too short to be one: a server that wrongly lets it through answers "bad barcode" without any paid lookup.
 const scan = await call("GET", "/identify-barcode?q=12");

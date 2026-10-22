@@ -21,7 +21,7 @@ export const RETENTION = {
   fairDaysAfterDate: 60,
   /** A report is kept for this long, for safety and legal claims. */
   reportMonths: 24,
-  /** A free-scan counter is deleted this long after its week ended. */
+  /** A free-scan counter is deleted this long after its period (a month; weeks before 22 Oct 2026) ended. */
   freeScanDaysAfterWeek: 30,
   /** A seller with no listings and no activity is deleted after this long. */
   inactiveSellerMonths: 24,
