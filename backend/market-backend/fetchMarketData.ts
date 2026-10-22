@@ -393,11 +393,19 @@ export const marketCacheStats = () => ({
  * Google Shopping is the dearest source (a paid search on every scan).
  *   GOOGLE_SHOPPING=when-needed  (default) search only when eBay did not give enough to price the item from
  *   GOOGLE_SHOPPING=always       search on every scan, as before 2026-09-27
+ *   GOOGLE_SHOPPING=off          never search Google at all: eBay and the AI price everything (added 22 Oct 2026; the Google
+ *                                search is about 95% of what a scan costs). The result screen then hides its "Retail price" and
+ *                                "Trends around" rows, which only Google ever fills.
  * "when-needed" is the default since the owner chose it on 2026-09-27 (Trader plan pricing): the
  * Google search is most of what a scan costs (about 1.1-1.9p of ~2.2p), and when eBay already has
  * plenty of matching listings it adds little. Set "always" to go back; GET /admin/costs shows the effect.
  */
-const googleWhenNeeded = () => (process.env.GOOGLE_SHOPPING ?? "").trim().toLowerCase() !== "always";
+export type GoogleShoppingMode = "when-needed" | "always" | "off";
+export function googleShoppingMode(): GoogleShoppingMode {
+  const v = (process.env.GOOGLE_SHOPPING ?? "").trim().toLowerCase();
+  return v === "always" ? "always" : v === "off" ? "off" : "when-needed";
+}
+const googleWhenNeeded = () => googleShoppingMode() !== "always";
 
 /**
  * eBay alone is enough when it found a good number of matching listings (and, for a used item, of
@@ -535,7 +543,9 @@ export default async function fetchMarketData(
       // the same settled promise) further down where its full value feeds the final price.
       const [resolvedEbayNew, aiEstimate] = await Promise.all([ebayNewPromise, aiEstimatePromise]);
       ebayNew = resolvedEbayNew;
-      if (ebayIsStrong(ebay, ebayNew, usedMode, safeNumber(aiEstimate?.newPrice))) {
+      if (googleShoppingMode() === "off") {
+        // Switched off on purpose (GOOGLE_SHOPPING=off): never searched, so it counts as "skipped", not "missing" (see googleStillMissing).
+      } else if (ebayIsStrong(ebay, ebayNew, usedMode, safeNumber(aiEstimate?.newPrice))) {
         console.log(`market: Google skipped for "${query.slice(0, 40)}" (eBay had ${ebay?.items?.length} listings)`);
       } else {
         googlePromise = searchGoogle();
@@ -586,11 +596,15 @@ export default async function fetchMarketData(
     const retailPrice = decidePrices({ used: usedMode, grade, age, ...priceInputs }).newPrice;
 
     // 6️⃣ Range + stats
-    const googlePriceMin = safeNumber(google?.min ?? aiPriceMin ?? usedPrice ?? null);
-    const googlePriceMax = safeNumber(google?.max ?? aiPriceMax ?? retailPrice ?? null);
+    // Only Google's own figures belong in these two: the app shows them as "Trends around" and "Retail price". When Google was
+    // skipped or found nothing they used to be filled with the AI's USED range (a used Galaxy S21 showed "Retail price £500"), and
+    // that also gave the confidence score its 20 points for a Google range nobody had. They are left empty now and the screen hides
+    // the rows. The range below (lowest / highest) still falls back to the AI, as before.
+    const googlePriceMin = safeNumber(google?.min ?? null);
+    const googlePriceMax = safeNumber(google?.max ?? null);
 
-    const lowest = safeNumber(ebay?.lowest ?? googlePriceMin ?? aiPriceMin ?? null);
-    const highest = safeNumber(ebay?.highest ?? googlePriceMax ?? aiPriceMax ?? null);
+    const lowest = safeNumber(ebay?.lowest ?? googlePriceMin ?? aiPriceMin ?? usedPrice ?? null);
+    const highest = safeNumber(ebay?.highest ?? googlePriceMax ?? aiPriceMax ?? retailPrice ?? null);
 
     // 7️⃣ Demand + confidence
     const soldCount = ebay?.soldCount ?? ebay?.items?.length ?? 0;
