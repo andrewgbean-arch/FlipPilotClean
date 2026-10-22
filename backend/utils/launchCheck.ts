@@ -1,4 +1,4 @@
-import { freeScanCapEnabled } from "../middleware/freeScanLimit";
+import { anonymousScansAllowed, freeScanCapEnabled } from "../middleware/freeScanLimit";
 import { accountRequired } from "../middleware/accountGuard";
 import { carCheckRequired } from "./carListing";
 import { DATA_DIR, DATA_DIR_IS_CONFIGURED } from "../config/dataDir";
@@ -59,7 +59,10 @@ export function launchIssues(env: Env = process.env): LaunchIssue[] {
     add("must", "OPENAI_API_KEY", "Scans, descriptions and the advert AI check need it. The AI check falls back to 'unchecked' without it.");
   }
   if (!freeScanCapEnabled()) {
-    add("must", "FREE_SCAN_CAP", "The 5-scans-a-week free limit is OFF. It is on by default in production; remove FREE_SCAN_CAP=off.");
+    add("must", "FREE_SCAN_CAP", "The free-scan limit is OFF, so everyone scans without limit. It is on by default in production; remove FREE_SCAN_CAP=off.");
+  }
+  if (anonymousScansAllowed()) {
+    add("must", "ANONYMOUS_SCANS (remove it)", "A phone with no account can scan for free (a few scans each). Signing up is how people scan; this setting is for testing only.");
   }
   if (!has(env, "RESEND_API_KEY") || !has(env, "EMAIL_FROM")) {
     add("must", "RESEND_API_KEY and EMAIL_FROM", "Sign-in codes are sent by email through Resend. Without both, nobody can sign in, so nobody can sell or message.");
@@ -71,7 +74,7 @@ export function launchIssues(env: Env = process.env): LaunchIssue[] {
     add("should", "SCAN_TOKEN_SECRET", "Price lookups need proof of a scan, signed with this secret. Without it a random one is made at every start, so a scan in progress during a restart or a deploy has to be repeated.");
   }
   if (!has(env, "REVENUECAT_WEBHOOK_SECRET")) {
-    add("should", "REVENUECAT_WEBHOOK_SECRET", "RevenueCat tells the server when a store refunds a credit pack. Without this the server can't listen, and a refunded pack keeps its credits.");
+    add("should", "REVENUECAT_WEBHOOK_SECRET", "RevenueCat tells the server when a store refunds a purchase. Without this the server can't listen, and a refunded credit pack keeps its credits.");
   }
   if (!accountRequired()) {
     add("must", "REQUIRE_ACCOUNT", "Selling and messaging are open to anyone without signing in. It is on by default in production; remove REQUIRE_ACCOUNT=off.");
