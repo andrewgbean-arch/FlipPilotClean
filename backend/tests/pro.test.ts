@@ -35,6 +35,7 @@ let mod: {
   planStatus: typeof import("../subscriptions/revenueCat").planStatus;
   proScanRecordFor: typeof import("../utils/proAllowance").proScanRecordFor;
   takeProScan: typeof import("../utils/proAllowance").takeProScan;
+  purgeProScanRecords: typeof import("../utils/proAllowance").purgeProScanRecords;
   returnProScan: typeof import("../utils/proAllowance").returnProScan;
   utcDay: typeof import("../utils/proAllowance").utcDay;
   googleAccessFor: typeof import("../utils/googleAccess").googleAccessFor;
@@ -151,6 +152,15 @@ describe("the Pro plan's unlimited scans (with a fair-use ceiling a day)", () =>
     assert.equal(mod.takeProScan("edge-phone", "day-A"), true);
     assert.equal(mod.takeProScan("edge-phone", "day-A"), false, "the fourth scan of the day is over the ceiling of 3");
     assert.equal(mod.takeProScan("edge-phone", "day-B"), true, "a new day starts at zero");
+  });
+
+  test("counters from days that are over are tidied away by the retention job; today's stay", () => {
+    mod.takeProScan("tidy-old-phone", "2026-01-01");
+    mod.takeProScan("tidy-today-phone");
+    assert.ok(mod.purgeProScanRecords() >= 1, "the old day's counter went");
+    assert.equal(mod.proScanRecordFor("tidy-old-phone"), null);
+    assert.deepEqual(mod.proScanRecordFor("tidy-today-phone"), { day: mod.utcDay(), used: 1 });
+    assert.equal(mod.purgeProScanRecords(), 0, "nothing left to tidy");
   });
 });
 

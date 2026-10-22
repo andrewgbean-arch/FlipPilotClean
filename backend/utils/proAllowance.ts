@@ -12,7 +12,8 @@ import { dataPath } from "../config/dataDir";
  *
  * Counted per phone (the id RevenueCat knows the subscriber by) and per UTC day, so the count starts again by itself
  * each day. Only the phone id, the day and a number are kept, nothing about what was scanned. Like the free
- * monthly counter it is not wiped by "delete my data": that would hand out a fresh day of scans.
+ * monthly counter it is not wiped by "delete my data": that would hand out a fresh day of scans. A row only matters on its own
+ * day, so the retention job (utils/retentionJob.ts) removes the ones from days that are over.
  *
  * Replaces utils/traderAllowance.ts (the old Trader plan's 300 scans a month, 22 Oct 2026).
  */
@@ -77,4 +78,19 @@ export function returnProScan(deviceId: string, day: string = utcDay()): void {
 /** This phone's counter, for a data export. */
 export function proScanRecordFor(deviceId: string): Row | null {
   return load()[deviceId] ?? null;
+}
+
+/** Removes the counters of days that are over (they say nothing any more). Returns how many. */
+export function purgeProScanRecords(now = new Date()): number {
+  const today = utcDay(now);
+  const store = load();
+  let removed = 0;
+  for (const [deviceId, row] of Object.entries(store)) {
+    if (!row || typeof row.day !== "string" || row.day < today) {
+      delete store[deviceId];
+      removed++;
+    }
+  }
+  if (removed) save(store);
+  return removed;
 }
