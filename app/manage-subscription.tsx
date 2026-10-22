@@ -28,10 +28,10 @@ export default function ManageSubscription() {
         </View>
 
         <Text style={[styles.title, { color: theme.text }]} accessibilityRole="header">
-          Your Trader plan
+          Your Pro plan
         </Text>
         <Text style={[styles.note, { color: theme.muted, marginTop: 8, textAlign: "center" }]}>
-          {"Trader is billed by Google Play or the App Store. Change or cancel it there: you keep your scans until the end of the month you've paid for."}
+          {"Pro is billed by Google Play or the App Store. Change or cancel it there: you keep Pro until the end of the period you've paid for."}
         </Text>
       </View>
 

@@ -99,7 +99,7 @@ const SECTIONS: Section[] = [
       { title: "Sell an item", desc: "List something on the Marketplace", Icon: Tag, action: { href: "/marketplace/create/new" }, keywords: "listing list sell" },
       { title: "My listings", desc: "Edit, reprice or mark as sold", Icon: ListBullets, action: { href: "/marketplace/my-listings" }, keywords: "sold selling" },
       { title: "Messages", desc: "Chat with buyers and sellers", Icon: ChatCircleDots, action: { href: "/messages" }, keywords: "chat inbox" },
-      { title: "Scan credits", desc: "See your balance or top up", Icon: Coins, action: { href: "/credits" }, keywords: "buy pay scans" },
+      { title: "Your scans", desc: "Free scans left, and Pro", Icon: Coins, action: { href: "/credits" }, keywords: "buy pay scans credits pro plan" },
       { title: "Boot fair weather", desc: "Conditions near you before you go", Icon: CloudSun, action: { href: "/weather" }, keywords: "rain forecast" },
     ],
   },

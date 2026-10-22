@@ -8,9 +8,10 @@ import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useSubscription } from "../src/context/SubscriptionContext";
+import { FREE_SCANS_A_MONTH, PRO_DAILY_SCANS, PRO_PRICE } from "@/lib/scanAllowance";
 import { useTheme } from "@/styles/ThemeContext";
 
-type TierId = "free" | "credits" | "trader";
+type TierId = "free" | "pro";
 
 // A plain string is a checked benefit; { heading } is a small section label with no checkmark.
 type IncludedItem = string | { heading: string };
@@ -25,45 +26,31 @@ type Tier = {
   included: IncludedItem[];
 };
 
-// How FlipPilot is paid for (owner's choice, 2026-09-27): free scans every week, then either
-// pay-as-you-go credit packs or the Trader plan. The prices here are written out; a real purchase
-// always uses the matching store product (credit packs on the Scan credits screen, Trader below).
-const TRADER_SCANS = 300;
+// How FlipPilot is paid for (owner's choice, 2026-10-22): free to use with an account (100 scans a month), and one Pro plan.
+// The prices here are written out for the list; the button shows the store's own price once it has loaded, and a real purchase
+// always uses the matching store product.
 const TIERS: Tier[] = [
   {
     id: "free",
     name: "Free",
-    tagline: "5 scans every week with a free account",
+    tagline: `${FREE_SCANS_A_MONTH} scans a month with a free account`,
     price: "£0",
     period: "forever",
     included: [
-      "5 scans every week, back each Monday (2 a week until you sign in)",
+      `${FREE_SCANS_A_MONTH} scans a month, back on the 1st (you sign up with your email: no password)`,
       "Buy and sell on the Marketplace (free during our launch)",
       "Boot fairs, MOT checks, guides and games",
     ],
   },
   {
-    id: "credits",
-    name: "Scan credit packs",
-    tagline: "Pay as you go · never expire",
-    price: "from £0.99",
-    period: "one-off",
-    included: [
-      "25, 50, 100 or 200 scans, from £0.99",
-      "Used only after your free scans run out",
-      "Never expire, no subscription",
-      "Also pay for a car listing after our launch offer",
-    ],
-  },
-  {
-    id: "trader",
-    name: "Trader",
+    id: "pro",
+    name: "Pro",
     tagline: "For regular buying and selling",
-    price: "£9.99",
+    price: PRO_PRICE,
     period: "month",
-    badge: "Best value",
     included: [
-      `${TRADER_SCANS} scans every month, on top of your 5 free a week`,
+      `Unlimited scans (fair use: up to ${PRO_DAILY_SCANS} a day)`,
+      "A UK shop-price check on pricier and hard-to-find items",
       "Export your listings straight to eBay",
       "Everything in Free",
       "Cancel any time in your phone's settings",
@@ -71,11 +58,12 @@ const TIERS: Tier[] = [
   },
 ];
 
-// Feature, Free, Credits, Trader — kept short so four columns fit a phone width.
-const COMPARISON: [string, string, string, string][] = [
-  ["Scans", "5 a week", "Buy as needed", `${TRADER_SCANS} a month + 5 a week`],
-  ["Cost", "£0", "From £0.99", "£9.99 a month"],
-  ["Export to eBay", "—", "—", "Included"],
+// Feature, Free, Pro — kept short so three columns fit a phone width.
+const COMPARISON: [string, string, string][] = [
+  ["Scans", `${FREE_SCANS_A_MONTH} a month`, "Unlimited"],
+  ["Shop-price check", "—", "Included"],
+  ["Export to eBay", "—", "Included"],
+  ["Cost", "£0", `${PRO_PRICE} a month`],
 ];
 
 type TierOptionProps = {
@@ -150,12 +138,14 @@ export default function UpgradeScreen() {
     isPro: boolean;
   };
 
-  const [selected, setSelected] = useState<TierId>("trader");
+  const [selected, setSelected] = useState<TierId>("pro");
 
-  // The Trader plan's store product (flippilot_trader_monthly), found by name rather than assumed,
-  // so the button never pretends a purchase happened when the store hasn't offered it yet.
+  // The Pro plan's store product (flippilot_pro_monthly), found by name rather than assumed, so the button never pretends a
+  // purchase happened when the store hasn't offered it yet. (A product still named for Trader, the plan's earlier name, counts.)
   const packages = offerings?.current?.availablePackages ?? [];
-  const traderPackage =
+  const proPackage =
+    packages.find((p) => p.product.identifier === "flippilot_pro_monthly") ??
+    packages.find((p) => p.identifier.toLowerCase().includes("pro")) ??
     packages.find((p) => p.product.identifier === "flippilot_trader_monthly") ??
     packages.find((p) => p.identifier.toLowerCase().includes("trader")) ??
     offerings?.current?.monthly ??
@@ -163,44 +153,31 @@ export default function UpgradeScreen() {
 
   const tier = TIERS.find((t) => t.id === selected)!;
   const card = { backgroundColor: theme.card, borderColor: theme.hairline };
-  const notReadyToBuy = selected === "trader" && !traderPackage && !isPro;
+  const notReadyToBuy = selected === "pro" && !proPackage && !isPro;
 
   const handleCta = () => {
     if (selected === "free") {
       router.back();
       return;
     }
-    if (selected === "credits") {
-      router.push("/credits");
-      return;
-    }
     if (isPro) {
       router.push("/manage-subscription");
       return;
     }
-    if (!traderPackage) {
-      Alert.alert("Trader isn't ready yet", "The Trader plan will be here shortly. Credit packs work in the meantime.");
+    if (!proPackage) {
+      Alert.alert("Pro isn't ready yet", "Pro will be here shortly. You can keep scanning with your free scans in the meantime.");
       return;
     }
-    purchase(traderPackage);
+    purchase(proPackage);
   };
 
-  const ctaLabel =
-    selected === "free"
-      ? "Carry on with Free"
-      : selected === "credits"
-        ? "See credit packs"
-        : isPro
-          ? "Manage your Trader plan"
-          : "Get Trader";
+  const ctaLabel = selected === "free" ? "Carry on with Free" : isPro ? "Manage your Pro plan" : "Go Pro";
   const ctaSub =
     selected === "free"
       ? "No card needed"
-      : selected === "credits"
-        ? "Pay once · credits never expire"
-        : isPro
-          ? "You're on Trader"
-          : `${traderPackage ? traderPackage.product.priceString : "£9.99"} a month · Cancel any time`;
+      : isPro
+        ? "You're on Pro"
+        : `${proPackage ? proPackage.product.priceString : PRO_PRICE} a month · Cancel any time`;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -211,10 +188,10 @@ export default function UpgradeScreen() {
       >
         {/* HEADLINE */}
         <Text style={[styles.title, { color: theme.text }]} accessibilityRole="header">
-          More scans
+          Go Pro
         </Text>
         <Text style={[styles.subtitle, { color: theme.muted }]}>
-          5 free every week with a free account. Need more? Pay as you go, or go Trader.
+          FlipPilot is free: {FREE_SCANS_A_MONTH} scans a month with a free account. Scan a lot? Pro is unlimited.
         </Text>
 
         {/* OPTIONS */}
@@ -226,7 +203,7 @@ export default function UpgradeScreen() {
 
         {/* WHAT'S INCLUDED */}
         <Text style={[styles.sectionTitle, { color: theme.text }]} accessibilityRole="header">
-          {tier.id === "credits" ? "How credit packs work" : `What's in ${tier.name}`}
+          {`What's in ${tier.name}`}
         </Text>
         <View style={[styles.group, styles.benefits, card]}>
           {tier.included.map((item, i) =>
@@ -260,26 +237,22 @@ export default function UpgradeScreen() {
           >
             <View style={styles.compareLabel} />
             <Text style={[styles.compareHeadText, { color: theme.muted }]}>Free</Text>
-            <Text style={[styles.compareHeadText, { color: theme.muted }]}>Credits</Text>
-            <Text style={[styles.compareHeadText, { color: theme.text }]}>Trader</Text>
+            <Text style={[styles.compareHeadText, { color: theme.text }]}>Pro</Text>
           </View>
 
-          {COMPARISON.map(([label, free, credits, trader]) => (
+          {COMPARISON.map(([label, free, pro]) => (
             <View
               key={label}
               accessible
-              accessibilityLabel={`${label}. Free: ${free === "—" ? "not included" : free}. Credit packs: ${
-                credits === "—" ? "not included" : credits
-              }. Trader: ${trader === "—" ? "not included" : trader}.`}
+              accessibilityLabel={`${label}. Free: ${free === "—" ? "not included" : free}. Pro: ${pro === "—" ? "not included" : pro}.`}
               style={[styles.compareRow, { borderTopWidth: 1, borderTopColor: theme.hairline }]}
             >
               <Text style={[styles.compareLabel, styles.compareLabelText, { color: theme.text }]}>
                 {label}
               </Text>
               <Text style={[styles.compareValue, { color: theme.muted }]}>{free}</Text>
-              <Text style={[styles.compareValue, { color: theme.muted }]}>{credits}</Text>
               <Text style={[styles.compareValue, styles.compareValuePro, { color: theme.text }]}>
-                {trader}
+                {pro}
               </Text>
             </View>
           ))}
@@ -321,7 +294,7 @@ export default function UpgradeScreen() {
           <Text style={[styles.ctaSub, { color: theme.black }]}>{ctaSub}</Text>
         </Pressable>
 
-        {selected === "trader" ? (
+        {selected === "pro" ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Restore purchases"
@@ -333,7 +306,7 @@ export default function UpgradeScreen() {
         ) : null}
 
         <Text style={[styles.legal, { color: theme.muted }]}>
-          {"Trader renews monthly until cancelled; manage or cancel it in your phone's subscription settings. Credit packs are one-off purchases and never expire."}
+          {`Pro renews monthly until cancelled; manage or cancel it in your phone's subscription settings. Scans are unlimited within fair use (up to ${PRO_DAILY_SCANS} a day).`}
         </Text>
       </View>
     </View>

@@ -3,6 +3,7 @@
 // message is safe to show to the user.
 
 import { getDeviceId } from "./deviceId";
+import { quotaReasonOf, type QuotaReason } from "../lib/scanAllowance";
 
 const LOCAL_LAN_IP = "192.168.0.47"; // the owner's dev PC, used only in development builds
 const PORT = 3001;
@@ -48,11 +49,13 @@ export class ApiError extends Error {
   readonly needsSignIn?: boolean;
   /** ...or, if they are signed in, that buying more credits is what would help. */
   readonly needsCredits?: boolean;
+  /** For a scan that was refused: which of "sign in", "out of this month's scans" or "today's limit" it was (see quotaReasonOf). */
+  readonly quotaReason?: QuotaReason;
 
   constructor(
     kind: ApiErrorKind,
     message: string,
-    extra: { status?: number; retryAfter?: number; needsSignIn?: boolean; needsCredits?: boolean } = {}
+    extra: { status?: number; retryAfter?: number; needsSignIn?: boolean; needsCredits?: boolean; quotaReason?: QuotaReason } = {}
   ) {
     super(message);
     this.name = "ApiError";
@@ -61,6 +64,7 @@ export class ApiError extends Error {
     this.retryAfter = extra.retryAfter;
     this.needsSignIn = extra.needsSignIn;
     this.needsCredits = extra.needsCredits;
+    this.quotaReason = extra.quotaReason;
   }
 }
 
@@ -140,16 +144,17 @@ async function request(path: string, options: RequestOptions = {}): Promise<any>
       });
     }
 
-    // The free-scan weekly cap answers with 200 and this specific error too, but
-    // gets its own kind so the screen can offer an Upgrade button instead of a
-    // plain toast (see freeScanLimit in the backend).
-    if (payload.error === "free-scan-limit" || payload.error === "out-of-credits") {
+    // A scan refused for running out (not signed in, out of the month's free scans, or Pro's daily ceiling) answers with 200 and
+    // one of these errors. It gets its own kind so the screen can offer Sign in or Go Pro instead of a plain toast (see
+    // scanMeter in the backend, and quotaReasonOf).
+    const quotaReason = quotaReasonOf(payload);
+    if (quotaReason) {
       throw new ApiError(
         "quota",
         typeof payload.message === "string" && payload.message
           ? payload.message
-          : "You've used your free scans this week.",
-        { status: res.status, needsSignIn: payload.signedIn === false, needsCredits: payload.error === "out-of-credits" }
+          : "You've used your free scans for now.",
+        { status: res.status, needsSignIn: payload.signedIn === false, needsCredits: payload.error === "out-of-credits", quotaReason }
       );
     }
 

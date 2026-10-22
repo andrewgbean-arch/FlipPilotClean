@@ -54,9 +54,9 @@ export default function MyListings() {
           { text: "Go to Settings", onPress: () => router.push("/settings") },
         ]);
       } else if (result.error === "selling-locked") {
-        Alert.alert("eBay export comes with Trader", result.message ?? "Exporting listings to eBay comes with the Trader plan.", [
+        Alert.alert("eBay export comes with Pro", result.message ?? "Exporting listings to eBay comes with the Pro plan.", [
           { text: "Not now", style: "cancel" },
-          { text: "See Trader", onPress: () => router.push("/upgrade") },
+          { text: "See Pro", onPress: () => router.push("/upgrade") },
         ]);
       } else {
         Alert.alert("Couldn't export to eBay", result.message ?? "Please try again.");

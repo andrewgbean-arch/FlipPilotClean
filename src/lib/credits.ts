@@ -1,37 +1,15 @@
 import { BASE_URL } from "@/utils/api";
 import { getDeviceId } from "@/utils/deviceId";
+import { parseScanAllowance, type ScanAllowance } from "./scanAllowance";
 
-/** What this person has for scanning: the free scans left this week and their credit balance. */
-export type ScanAllowance = {
-  /** False when the server isn't applying limits (development), so there is nothing to show. */
-  metering: boolean;
-  signedIn: boolean;
-  credits: number;
-  freeLeft: number;
-  freeLimit: number;
-  /** What signing in gets a week (a phone that is not signed in gets fewer). */
-  signedInFreeLimit: number;
-  resetsOn: string;
-  /** The packs on sale: the store product id and how many credits it gives. */
-  packs: { productId: string; credits: number }[];
-};
+// What the person has for scanning (free scans this month, Pro, any credits held) and the words for it live in ./scanAllowance.
+export type { ScanAllowance };
 
 export async function fetchScanAllowance(): Promise<ScanAllowance | null> {
   try {
     const deviceId = await getDeviceId();
     const res = await fetch(`${BASE_URL}/credits?deviceId=${encodeURIComponent(deviceId)}`);
-    const json = await res.json();
-    if (!json?.ok || !json.free) return null;
-    return {
-      metering: !!json.metering,
-      signedIn: !!json.signedIn,
-      credits: Number(json.credits) || 0,
-      freeLeft: Number(json.free.left) || 0,
-      freeLimit: Number(json.free.limit) || 5,
-      signedInFreeLimit: Number(json.signedInFreeLimit) || 5,
-      resetsOn: String(json.free.resetsOn ?? ""),
-      packs: Array.isArray(json.packs) ? json.packs.filter((p: any) => typeof p?.productId === "string" && Number(p.credits) > 0) : [],
-    };
+    return parseScanAllowance(await res.json());
   } catch {
     return null;
   }

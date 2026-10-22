@@ -47,6 +47,7 @@ import { LEGAL } from "@/constants/legal";
 import { deleteMyData, exportMyData } from "@/utils/myData";
 import { deleteAccount, signOut, useAccount } from "@/lib/account";
 import { fetchScanAllowance, type ScanAllowance } from "@/lib/credits";
+import { PRO_PRICE, needsSignUp, planSubtitle, scanAllowanceSummary } from "@/lib/scanAllowance";
 import { openPartnerLink } from "@/utils/partnerLinks";
 
 /* SMALL LOCAL COMPONENTS */
@@ -376,15 +377,8 @@ export default function SettingsScreen() {
           <InfoRow
             Icon={Crown}
             tint={isPro ? theme.gold : undefined}
-            title={isPro ? "Trader plan" : "Free plan"}
-            subtitle={
-              isPro
-                ? "300 scans a month on top of your free ones, and eBay export"
-                : allowance?.metering && !allowance.signedIn
-                ? // Signed out, the allowance is smaller: say so, the same as the Scans row below does.
-                  `${allowance.freeLimit} free scans every week, ${allowance.signedInFreeLimit} once you sign in. Buy credit packs or go Trader for more`
-                : "5 free scans every week. Buy credit packs or go Trader for more"
-            }
+            title={isPro ? "Pro plan" : "Free plan"}
+            subtitle={planSubtitle(allowance, isPro)}
           />
           {isPro ? (
             <MenuRow
@@ -397,8 +391,8 @@ export default function SettingsScreen() {
           ) : (
             <MenuRow
               Icon={Crown}
-              title="More scans"
-              subtitle="Credit packs from £0.99, or Trader at £9.99 a month"
+              title="Go Pro"
+              subtitle={`Unlimited scans for ${PRO_PRICE} a month`}
               onPress={() => router.push("/upgrade")}
               divider
             />
@@ -514,11 +508,8 @@ export default function SettingsScreen() {
             <MenuRow
               Icon={Coins}
               title="Scans"
-              onPress={() => router.push("/credits")}
-              subtitle={
-                `${allowance.freeLeft} of ${allowance.freeLimit} free scans left this week` +
-                (allowance.signedIn ? `, and ${allowance.credits} scan credit${allowance.credits === 1 ? "" : "s"}` : "")
-              }
+              onPress={() => router.push(needsSignUp(allowance) ? "/sign-in" : "/credits")}
+              subtitle={scanAllowanceSummary(allowance)}
             />
           ) : null}
           {account.email ? (

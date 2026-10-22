@@ -1,9 +1,10 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// A stable, self-generated id for this install — there's no login in the app,
-// so this is the only thing the free-scan weekly cap can count against. It is
-// not a security credential (clearing app storage gets a fresh one), just a
-// soft bucket key; see backend/middleware/freeScanLimit.ts.
+// A stable, self-generated id for this install. Before someone signs in it is
+// all that names them; once they sign in the account's own id replaces it (see
+// adoptDeviceId below), and the free scans, which are counted per account, follow
+// the account. It is not a security credential (clearing app storage gets a
+// fresh one); see backend/middleware/freeScanLimit.ts.
 const STORAGE_KEY = "flippilot.deviceId";
 
 let cached: string | null = null;

@@ -54,9 +54,10 @@ const REVENUECAT_KEY =
     }) ?? process.env.EXPO_PUBLIC_REVENUECAT_KEY
   )?.trim() || undefined;
 
-// The paid plan is called Trader (300 scans a month and eBay export). It was called Pro before
-// 2026-09-27, and a subscriber under that name still counts. `isPro` below means "on the plan".
-const isProActive = (info: CustomerInfo) => !!(info.entitlements.active["trader"] ?? info.entitlements.active["pro"]);
+// The paid plan is called Pro (4.99 pounds a month: unlimited scans with a fair-use ceiling a day, shop-price checks on pricier
+// items, and eBay export). It was planned as Trader until 2026-10-22, and a subscriber under that name still counts.
+// `isPro` below means "on the plan".
+const isProActive = (info: CustomerInfo) => !!(info.entitlements.active["pro"] ?? info.entitlements.active["trader"]);
 
 const notifyUnavailable = () =>
   Alert.alert(
@@ -154,8 +155,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         router.push("/pro-success");
       } else {
         Alert.alert(
-          "Trader isn't showing yet",
-          "Your purchase went through, but the Trader plan hasn't switched on yet. Try Restore Purchases in a moment."
+          "Pro isn't showing yet",
+          "Your purchase went through, but Pro hasn't switched on yet. Try Restore Purchases in a moment."
         );
       }
     } catch (err: any) {
@@ -220,8 +221,8 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
       Alert.alert(
         active ? "Purchases restored" : "Nothing to restore",
         active
-          ? "Your Trader plan is on for this device."
-          : "We couldn't find an active Trader plan for this account."
+          ? "Your Pro plan is on for this device."
+          : "We couldn't find an active Pro plan for this account."
       );
     } catch (err) {
       console.log("Restore error:", err);

@@ -78,7 +78,7 @@ export default function SignInScreen() {
       </Text>
       <Text style={[styles.lead, { color: theme.muted }]}>
         {step === "email"
-          ? "You need an account to sell, message other people and report anything. Browsing and scanning need no account. There's no password: we email you a code."
+          ? "You need an account to scan, sell, message other people and report anything. It's free, and you get 100 free scans a month. There's no password: we email you a code. Browsing the Marketplace needs no account."
           : note}
       </Text>
 
