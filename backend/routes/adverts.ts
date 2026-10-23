@@ -35,7 +35,7 @@ import { reviewAdvert } from "../utils/advertReview";
 import { cleanPostcode, geocodePostcode, looksLikeUkPoint } from "../utils/geocode";
 import { imageSize } from "../utils/imageSize";
 import { mediaForAdvert } from "../utils/media";
-import { deleteUploads, saveUpload, sniffImage } from "../utils/uploadStore";
+import { deleteUploads, sniffImage, trySaveUpload } from "../utils/uploadStore";
 import { callerDeviceId } from "./messages";
 import { REPORT_REASONS } from "./safety";
 import { accountById } from "../utils/accountStore";
@@ -115,7 +115,7 @@ export function storeImage(raw: unknown): { path: string } | { error: string } {
   if (buffer.length > MAX_IMAGE_BYTES) return { error: "That picture is too large" };
   const type = sniffImage(buffer);
   if (!type) return { error: "Only JPEG, PNG or WebP pictures are allowed" };
-  return { path: saveUpload(IMAGE_OWNER, buffer, type) };
+  return trySaveUpload(IMAGE_OWNER, buffer, type);
 }
 
 // A designed full page is shown whole, so it can be portrait (about 9:16, like 1080 x 1920, which
@@ -146,7 +146,7 @@ export function storeArtwork(raw: unknown): { path: string } | { error: string }
   if (ratio < MIN_ARTWORK_RATIO || ratio > MAX_ARTWORK_RATIO) {
     return { error: `That design is ${size.width} x ${size.height}. It must be portrait (about 9:16, like 1080 x 1920), square, or landscape (about 16:9, like 1920 x 1080), and not wider than 2:1 or taller than about 9:21` };
   }
-  return { path: saveUpload(IMAGE_OWNER, buffer, type) };
+  return trySaveUpload(IMAGE_OWNER, buffer, type);
 }
 
 /** Saves up to MAX_IMAGES pictures; if any is bad, none are kept. */

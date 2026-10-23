@@ -4,7 +4,11 @@ import assert from "node:assert/strict";
 import http from "http";
 import express from "express";
 import type { AddressInfo } from "net";
+import fs from "fs";
+import path from "path";
 import registerBridgeRoutes from "../routes/bridge";
+import { UPLOADS_DIR } from "../utils/uploadStore";
+import { SECRET_WORDS, exifSeg, grayJpeg, has, tinyPng } from "./imageFixtures";
 import registerMessagesRoute from "../routes/messages";
 import registerPublishListingRoute from "../routes/publishListing";
 import registerPublishedListingsRoute from "../routes/publishedListings";
@@ -66,8 +70,8 @@ async function call(method: string, path: string, opts: { key?: string | null; b
 const put = (source: string, body: Record<string, unknown>, key?: string | null) =>
   call("PUT", `/bridge/dealers/${DEALER}/listings/${source}`, { key, body: { title: "Ford Focus 1.6 Zetec", price: 4500, dealerName: "Seaside Cars Ltd", ...body } });
 
-// A tiny file that starts like a PNG: the store only looks at the first bytes.
-const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(200, 7)]).toString("base64");
+// A tiny real PNG. The store reads a photo all the way through (to take its hidden details out), so it has to be a whole one.
+const png = tinyPng({ width: 8, height: 8 }).toString("base64");
 
 describe("the key", () => {
   test("with no key set on the server the link does not exist", async () => {
@@ -221,6 +225,26 @@ describe("photos", () => {
     const text = Buffer.from("this is not an image at all, it is only text, repeated. ".repeat(10)).toString("base64");
     assert.equal((await call("POST", `/bridge/dealers/${DEALER}/photos`, { body: { imageBase64: text } })).status, 400);
     assert.equal((await call("POST", `/bridge/dealers/${DEALER}/photos`, { body: { imageBase64: "x" } })).status, 400);
+  });
+
+  test("what a camera hides in a photo (where it was taken, which camera) is taken out before it is kept", async () => {
+    const dirty = grayJpeg([exifSeg({ orientation: 6, gps: true })]);
+    const up = await call("POST", `/bridge/dealers/${DEALER}/photos`, { body: { imageBase64: dirty.toString("base64") } });
+    assert.equal(up.status, 200);
+    const kept = fs.readFileSync(path.join(UPLOADS_DIR, path.basename(up.json.path)));
+    for (const word of SECRET_WORDS) assert.ok(!has(kept, word), `"${word}" must not be kept`);
+    assert.ok(kept.length < dirty.length, "what is kept is smaller than what was sent");
+    assert.deepEqual([...kept.subarray(0, 2)], [0xff, 0xd8], "and is still a JPEG");
+  });
+
+  test("a photo that cannot be read is refused with a message, and nothing is kept", async () => {
+    const filesNow = () => (fs.existsSync(UPLOADS_DIR) ? fs.readdirSync(UPLOADS_DIR).length : 0);
+    const files = filesNow();
+    const damaged = grayJpeg([exifSeg({ gps: true })]).subarray(0, 120);
+    const up = await call("POST", `/bridge/dealers/${DEALER}/photos`, { body: { imageBase64: damaged.toString("base64") } });
+    assert.equal(up.status, 400);
+    assert.match(up.json.error, /couldn't be read/);
+    assert.equal(filesNow(), files, "nothing written");
   });
 
   test("one dealership cannot use another's photo", async () => {

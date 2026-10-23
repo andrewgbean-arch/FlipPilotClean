@@ -358,6 +358,31 @@ describe("what the pages say matches the product", () => {
     }
   });
 
+  test("the photo promise is backed by the code: the policy says it, and only the cleaning step writes into the uploads folder", async () => {
+    says(await pageText("/privacy"), "When you upload a photo we remove the hidden details your phone saves inside it", "/privacy");
+
+    const skip = new Set(["node_modules", "dist", "tests", "public", "data", "scripts"]);
+    const files: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (skip.has(e.name)) continue;
+        const full = path.join(dir, e.name);
+        if (e.isDirectory()) walk(full);
+        else if (e.name.endsWith(".ts")) files.push(full);
+      }
+    };
+    walk(BACKEND);
+    const store = path.join(BACKEND, "utils", "uploadStore.ts");
+    const writers = files.filter((f) => f !== store && /(writeFileSync|copyFileSync|renameSync|createWriteStream|writeFile)\([^)]*(UPLOADS_DIR|uploads)/.test(fs.readFileSync(f, "utf8")));
+    assert.deepEqual(writers.map((f) => path.relative(BACKEND, f)), [], "something other than uploadStore writes photos, so they may skip the cleaning");
+
+    const src = fs.readFileSync(store, "utf8");
+    const cleaned = src.indexOf("stripImageMetadata(buffer, ext)");
+    const written = src.indexOf("fs.writeFileSync(path.join(UPLOADS_DIR, name), clean)");
+    assert.ok(cleaned > 0, "saveUpload no longer cleans a photo");
+    assert.ok(written > cleaned, "saveUpload must write the cleaned photo, after cleaning it, never the bytes as they came");
+  });
+
   test("the advertiser terms name who runs FlipPilot and link to the Privacy Policy", async () => {
     const r = await get("/advertise/terms");
     assert.equal(r.status, 200);

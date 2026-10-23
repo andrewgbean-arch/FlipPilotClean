@@ -2,6 +2,7 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { dataPath, writeJsonAtomic } from "../config/dataDir";
+import { UnreadableImageError, stripImageMetadata } from "./imageMetadata";
 
 /**
  * Photos people attach to listings and boot fairs.
@@ -9,7 +10,9 @@ import { dataPath, writeJsonAtomic } from "../config/dataDir";
  * Stored on disk under backend/data/uploads with a random name, and recorded
  * with the device that uploaded them, so a listing can only use a photo its own
  * device uploaded and every photo can be deleted with the thing it belongs to.
- * A photo is public to anyone with its address once it is on a listing.
+ * A photo is public to anyone with its address once it is on a listing, so what
+ * a phone hides inside a photo (where it was taken, which phone) is taken out
+ * before anything is written (imageMetadata.ts).
  */
 
 export const UPLOADS_DIR = dataPath("uploads");
@@ -62,16 +65,42 @@ export function sniffImage(buffer: Buffer): "jpg" | "png" | "webp" | null {
   return null;
 }
 
+/**
+ * Keeps a photo and returns its public path. What is written is the photo with its hidden details
+ * taken out, never the bytes as they came. A photo that cannot be read closely enough to do that
+ * throws UnreadableImageError and nothing is written.
+ */
 export function saveUpload(deviceId: string, buffer: Buffer, ext: "jpg" | "png" | "webp"): string {
+  const clean = stripImageMetadata(buffer, ext);
+
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
   const name = `${crypto.randomBytes(16).toString("hex")}.${ext}`;
-  fs.writeFileSync(path.join(UPLOADS_DIR, name), buffer);
+  fs.writeFileSync(path.join(UPLOADS_DIR, name), clean);
 
   const registry = loadRegistry();
   registry[name] = { deviceId, createdAt: new Date().toISOString() };
   saveRegistry(registry);
 
   return `/uploads/${name}`;
+}
+
+/** saveUpload for the routes: a photo that can't be read comes back as a message to show, not an exception. */
+export function trySaveUpload(
+  deviceId: string,
+  buffer: Buffer,
+  ext: "jpg" | "png" | "webp"
+): { path: string } | { error: string } {
+  try {
+    return { path: saveUpload(deviceId, buffer, ext) };
+  } catch (err) {
+    if (err instanceof UnreadableImageError) {
+      // Logged so a phone that makes files we can't read can be spotted. The reason is always one of our own
+      // fixed phrases (see imageMetadata.ts), never anything out of the photo.
+      console.log("photo refused:", err.reason);
+      return { error: err.message };
+    }
+    throw err;
+  }
 }
 
 /** Keeps only photo references this device really uploaded. Anything else is dropped. */

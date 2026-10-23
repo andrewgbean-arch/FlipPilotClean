@@ -4,7 +4,7 @@ import { loadListings, saveListings } from "./publishedListings";
 import { cleanDetails } from "./publishListing";
 import { ensureTradeSeller } from "./sellers";
 import { dealerOwnerId } from "../utils/dealerOwner";
-import { deleteUploads, ownedUploads, saveUpload, sniffImage, uploadsBy } from "../utils/uploadStore";
+import { deleteUploads, ownedUploads, sniffImage, trySaveUpload, uploadsBy } from "../utils/uploadStore";
 import { isBlockedEitherWay } from "../utils/safetyStore";
 import { mediaForListing } from "../utils/media";
 import { toPublicListing } from "../utils/sellerOrigin";
@@ -57,7 +57,9 @@ export default function registerBridgeRoutes(app: Express) {
     if (uploadsBy(ownerId).length >= MAX_PHOTOS_PER_DEALERSHIP) {
       return res.status(429).json({ ok: false, error: "Too many photos uploaded" });
     }
-    res.json({ ok: true, path: saveUpload(ownerId, buffer, type) });
+    const saved = trySaveUpload(ownerId, buffer, type);
+    if ("error" in saved) return res.status(400).json({ ok: false, error: saved.error });
+    res.json({ ok: true, path: saved.path });
   });
 
   /* List a car, or bring its listing up to date. Safe to repeat: one listing per car.

@@ -2,15 +2,18 @@ import express, { Express, NextFunction, Request, Response } from "express";
 import { rateLimit } from "../middleware/rateLimit";
 import { requireAccount } from "../middleware/accountGuard";
 import { callerDeviceId } from "./messages";
-import { UPLOADS_DIR, saveUpload, sniffImage, uploadsBy } from "../utils/uploadStore";
+import { UPLOADS_DIR, sniffImage, trySaveUpload, uploadsBy } from "../utils/uploadStore";
 
 /**
  * Photo upload for listings and boot fairs.
  *
  * The app sends one photo at a time as base64 in JSON (already shrunk on the
  * phone). What arrives is judged by its own first bytes, never by what the
- * client says it is, and is served back with headers that stop a browser from
- * treating it as anything but a picture.
+ * client says it is. What is kept is the picture alone: whatever else the file
+ * carries (where it was taken, which phone) is taken out here, whatever the
+ * phone sent, and a file that can't be read that closely is refused. It is
+ * served back with headers that stop a browser from treating it as anything
+ * but a picture.
  */
 
 const MAX_BYTES = 3 * 1024 * 1024;
@@ -45,7 +48,9 @@ export default function registerUploadsRoute(app: Express) {
       return res.status(429).json({ ok: false, error: "Too many photos uploaded" });
     }
 
-    res.json({ ok: true, path: saveUpload(deviceId, buffer, type) });
+    const saved = trySaveUpload(deviceId, buffer, type);
+    if ("error" in saved) return res.status(400).json({ ok: false, error: saved.error });
+    res.json({ ok: true, path: saved.path });
   });
 
   app.use(

@@ -1,5 +1,4 @@
 import { Image } from "react-native";
-import * as FileSystem from "expo-file-system/legacy";
 
 import { BASE_URL } from "@/utils/api";
 import { getDeviceId } from "@/utils/deviceId";
@@ -20,7 +19,14 @@ function sizeOf(uri: string): Promise<{ width: number; height: number } | null> 
   );
 }
 
-/** A phone photo shrunk to something worth uploading, as base64 JPEG. */
+/**
+ * A phone photo shrunk to something worth uploading, as base64 JPEG.
+ *
+ * Shrinking is also what takes out what a phone hides inside a photo (where it was taken, which
+ * phone): the picture is drawn again and saved fresh. So if it fails, the original is not sent in
+ * its place. It would carry all of that, and is usually over the server's size limit anyway. (The
+ * server takes those details out too, but they should not have to leave the phone.)
+ */
 async function prepare(uri: string): Promise<string> {
   try {
     const { manipulateAsync, SaveFormat } = await import("expo-image-manipulator");
@@ -38,9 +44,9 @@ async function prepare(uri: string): Promise<string> {
     });
     if (result.base64) return result.base64;
   } catch (err) {
-    console.log("Photo shrink failed, sending the original:", err);
+    console.log("Photo shrink failed:", err);
   }
-  return FileSystem.readAsStringAsync(uri, { encoding: "base64" });
+  throw new Error("We couldn't prepare one of your photos. Please take it again or choose a different one.");
 }
 
 /**
