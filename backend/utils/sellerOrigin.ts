@@ -118,10 +118,13 @@ export function toPublicListing(listing: any): any {
   // soldToDeviceId is who the seller said bought it: what lets that one person
   // review, so like deviceId it never goes out.
   // dvlaCheck holds the car's registration, which is private: buyers only see that it was checked, and
-  // what the DVLA itself says about the car. creditsPaid is between the seller and us.
-  const { sellerOrigin, deviceId, messages, soldToDeviceId, soldToThreadId, dvlaCheck, creditsPaid, ...rest } = listing;
+  // what the DVLA itself says about the car. creditsPaid is between the seller and us. dealershipId and
+  // sourceId say which Dealer OS dealership and record a trade listing came from: private too.
+  const { sellerOrigin, deviceId, messages, soldToDeviceId, soldToThreadId, dvlaCheck, creditsPaid, dealershipId, sourceId, ...rest } = listing;
   return {
     ...rest,
+    // A dealership's car (listed through Dealer OS) says "Trade" on its card, like a dealer's own listing from the app does.
+    ...(listing.trade === true ? { tradeSeller: true } : {}),
     ...(dvlaCheck?.dvla ? { vehicleCheck: { verified: true, checkedAt: dvlaCheck.checkedAt, ...dvlaCheck.dvla } } : {}),
     // The car's MOT record (test dates, mileage at each, latest result): the government's own public data.
     ...(dvlaCheck?.mot ? { motHistory: dvlaCheck.mot } : {}),

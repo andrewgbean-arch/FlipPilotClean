@@ -19,6 +19,12 @@ export function listedAtMs(listing: any): number {
 export function listingStatus(listing: any, now = new Date()): ListingStatus {
   if (listing?.soldAt) return "sold";
 
+  // A dealership's cars live and die with its stock in Dealer OS, not on a 30-day clock,
+  // and a reservation it has recorded stays until it changes it.
+  if (listing?.trade) {
+    return typeof listing.reservedAt === "string" ? "reserved" : "available";
+  }
+
   const listed = listedAtMs(listing);
   if (Number.isFinite(listed) && now.getTime() > listed + RETENTION.listingDays * DAY_MS) {
     return "expired";

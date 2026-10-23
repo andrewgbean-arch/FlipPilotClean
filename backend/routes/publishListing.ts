@@ -18,7 +18,7 @@ import { ownedUploads } from "../utils/uploadStore";
  * Anything else a client sends — nested objects, huge blobs, hundreds of keys —
  * is dropped rather than stored.
  */
-function cleanDetails(raw: unknown): Record<string, string> {
+export function cleanDetails(raw: unknown): Record<string, string> {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
 
   const out: Record<string, string> = {};

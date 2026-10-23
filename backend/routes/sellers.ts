@@ -50,6 +50,11 @@ export type Seller = {
    * like a name, but it labels them "Trade seller" to every buyer (see utils/tradeSeller.ts).
    */
   tradeSeller?: TradeSeller;
+  /**
+   * A dealership listing through FlipPilot Dealer OS (the web app that runs a dealership). Set only by the bridge
+   * (routes/bridge.ts), never by a phone. Not the same as tradeSeller above: that is a dealer who signed up in this app.
+   */
+  trade?: boolean;
 };
 
 export type Review = {
@@ -98,6 +103,22 @@ function cleanDisplayName(raw: unknown): string | null {
  * takes effect — but it never wipes an existing name just because a listing
  * arrived without one.
  */
+/** The seller record for a dealership, named as the dealership is named in Dealer OS. */
+export function ensureTradeSeller(ownerId: string, dealerName: unknown): Seller {
+  const store = loadSellerStore();
+  const name = cleanDisplayName(dealerName);
+  let seller = store.sellers.find((s) => s.deviceId === ownerId);
+  if (!seller) {
+    seller = { id: crypto.randomUUID(), deviceId: ownerId, joinedAt: new Date().toISOString(), displayName: name, trade: true };
+    store.sellers.push(seller);
+  } else {
+    seller.trade = true;
+    if (name) seller.displayName = name;
+  }
+  saveSellerStore(store);
+  return seller;
+}
+
 export function ensureSeller(
   deviceId: string | null | undefined,
   displayName?: unknown
@@ -153,7 +174,13 @@ export default function registerSellersRoute(app: Express) {
       seller: {
         id: seller.id,
         displayName: seller.displayName ?? null,
-        ...(seller.tradeSeller ? { trade: true, tradeName: seller.tradeSeller.businessName } : {}),
+        // A business, and buyers are told so. A dealership listing through Dealer OS says so (it approves each dealership);
+        // a dealer who signed up in the app gives a business name, which nothing checks.
+        ...(seller.trade
+          ? { trade: true, tradeVia: "dealer-os" }
+          : seller.tradeSeller
+          ? { trade: true, tradeVia: "app", tradeName: seller.tradeSeller.businessName }
+          : {}),
         joinedAt: seller.joinedAt,
         // Counted from the listings themselves, so there is no tally to drift.
         itemsSold: theirListings.filter((l: any) => l.soldAt).length + (seller.soldArchived ?? 0),

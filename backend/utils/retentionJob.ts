@@ -54,7 +54,7 @@ export function runRetention(now = new Date()) {
     const listed = listedAtMs(l);
     const expired = Number.isFinite(soldAt)
       ? soldAt < soldCutoff
-      : Number.isFinite(listed) && listed + unsoldLifeMs < now.getTime();
+      : !l.trade && Number.isFinite(listed) && listed + unsoldLifeMs < now.getTime();
 
     if (expired) {
       summary.listings++;

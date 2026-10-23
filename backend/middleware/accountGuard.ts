@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { Account, accountForToken, accountOwningDevice } from "../utils/accountStore";
+import { isDealerOwner } from "../utils/dealerOwner";
 
 /**
  * Who is asking, and whether they may act as the id they name.
@@ -55,6 +56,9 @@ export function accountRequired(): boolean {
 export function accountGuard(req: Request, res: Response, next: NextFunction) {
   req.account = accountForToken(bearer(req));
 
+  // The Dealer OS bridge proves itself with its own key (middleware/bridgeAuth.ts).
+  if (req.path.toLowerCase().startsWith("/bridge/")) return next();
+
   // Signing in is how a session is got in the first place, so it must never need one.
   if (req.path.toLowerCase().startsWith("/auth/")) return next();
 
@@ -62,6 +66,11 @@ export function accountGuard(req: Request, res: Response, next: NextFunction) {
   const path = req.path.toLowerCase();
   const publicRead = req.method === "GET" && PUBLIC_READS.some((p) => path === p || path.startsWith(p + "/")) && !path.endsWith("/review-status");
   if (publicRead) return next();
+
+  // A dealership id is the Dealer OS server's to use, through the bridge key. No phone may name one.
+  if (namedIds(req).some(isDealerOwner)) {
+    return res.status(403).json({ ok: false, error: "identity-mismatch", message: "That id is not a phone." });
+  }
 
   for (const id of namedIds(req)) {
     const owner = accountOwningDevice(id);

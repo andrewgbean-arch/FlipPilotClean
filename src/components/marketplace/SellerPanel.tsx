@@ -17,8 +17,12 @@ type Review = {
 type SellerProfile = {
   id: string;
   displayName: string | null;
-  /** A dealer listing here without Dealer OS, and the business name they gave (not checked). */
+  /**
+   * A business. "dealer-os": a dealership listing through FlipPilot Dealer OS, which approves each dealership before it can
+   * list. "app": a dealer who signed up here and gave a business name (not checked).
+   */
   trade?: boolean;
+  tradeVia?: "dealer-os" | "app";
   tradeName?: string | null;
   joinedAt: string;
   itemsSold: number;
@@ -117,9 +121,9 @@ export default function SellerPanel({
         {profile.trade ? profile.tradeName ?? profile.displayName ?? "Trade seller" : profile.displayName ?? "Seller"}
       </Text>
       {profile.trade ? (
-        // A business, and it says so: buyers have different rights buying from one. The name is still only what they told us.
+        // A business, and it says so: buyers have different rights buying from one. Said in words that only claim what is true.
         <Text style={{ color: theme.goldDeep, fontSize: 12, fontWeight: "700", marginTop: 2 }}>
-          Trade seller · business name given by the seller
+          {profile.tradeVia === "dealer-os" ? "Trade seller · lists through FlipPilot Dealer OS" : "Trade seller · business name given by the seller"}
         </Text>
       ) : (
         profile.displayName != null && (

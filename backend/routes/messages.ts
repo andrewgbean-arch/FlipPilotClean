@@ -5,6 +5,7 @@ import { rateLimit } from "../middleware/rateLimit";
 import { requireAccount } from "../middleware/accountGuard";
 import { hasBlocked, isBlockedEitherWay } from "../utils/safetyStore";
 import { chatKey, markChatRead } from "../utils/readState";
+import { isDealerOwner } from "../utils/dealerOwner";
 
 /**
  * Messages are private conversations, one per buyer per listing.
@@ -24,7 +25,7 @@ export function callerDeviceId(req: Request): string | null {
   const fromBody = typeof req.body?.deviceId === "string" ? req.body.deviceId : undefined;
   const id = (fromHeader ?? fromBody ?? "").trim();
   // Ids starting "system:" belong to the server itself (advert pictures) and are never a phone.
-  return id && id.length <= 200 && !id.startsWith("system:") ? id : null;
+  return id && id.length <= 200 && !id.startsWith("system:") && !isDealerOwner(id) ? id : null;
 }
 
 export function threadIdFor(listingId: string | number, buyerDeviceId: string): string {
