@@ -5,7 +5,6 @@ import {
   cancelIssuedCode,
   checkCode,
   createSession,
-  deleteAccount,
   findOrCreateAccount,
   issueCode,
   normaliseEmail,
@@ -13,7 +12,7 @@ import {
 } from "../utils/accountStore";
 import { sendLoginCode } from "../utils/mailer";
 import { checkReviewCode, isReviewEmail } from "../utils/reviewAccount";
-import { deleteUserData } from "../utils/userData";
+import { eraseAccount, erasureBlock } from "../utils/accountErasure";
 import { networkOf } from "../utils/clientAddress";
 import { returnSignupAllowance, signupAllowanceLeft, takeSignupAllowance } from "../utils/signupLimit";
 
@@ -145,14 +144,14 @@ export default function registerAuthRoutes(app: Express) {
     res.json({ ok: true });
   });
 
-  // Erases everything: the account, its sessions, and the person's listings, messages and photos.
+  // Erases everything: the account, its sessions, and the person's listings, messages, photos, advertiser profile and adverts.
   app.post("/auth/delete-account", rateLimit(5), (req: Request, res: Response) => {
     if (!req.account) return res.status(401).json({ ok: false, error: "sign-in-required" });
     if (req.body?.confirm !== "DELETE") {
       return res.status(400).json({ ok: false, error: 'Send { "confirm": "DELETE" } to confirm' });
     }
-    const removed = deleteUserData(req.account.canonicalDeviceId);
-    deleteAccount(req.account.id);
-    res.json({ ok: true, removed });
+    const block = erasureBlock(req.account);
+    if (block) return res.status(409).json({ ok: false, error: "advert-running", message: block });
+    res.json({ ok: true, removed: eraseAccount(req.account) });
   });
 }

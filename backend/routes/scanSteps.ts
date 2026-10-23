@@ -262,7 +262,8 @@ router.post("/price", rateLimit(30), requireScanToken, paidLookupBudget, spendSc
     ]);
 
     const flipMeta = buildFlipMeta(market);
-    console.log(`price: ${Date.now() - startedAt}ms for "${title.slice(0, 40)}"`);
+    // Timing only: what was being priced stays out of the host's log (the Privacy Policy says so).
+    console.log(`price: ${Date.now() - startedAt}ms`);
 
     const ai: any = { ...(details ?? {}) };
     if (details) {

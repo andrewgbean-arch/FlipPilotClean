@@ -594,7 +594,7 @@ export default async function fetchMarketData(
           googleWithheldFromPlan = true;
         }
       } else if (ebayIsStrong(ebay, ebayNew, usedMode, safeNumber(aiEstimate?.newPrice))) {
-        console.log(`market: Google skipped for "${query.slice(0, 40)}" (eBay had ${ebay?.items?.length} listings)`);
+        console.log(`market: Google skipped (eBay had ${ebay?.items?.length} listings)`);
       } else {
         googlePromise = searchGoogle();
         googleStartedLate = true;

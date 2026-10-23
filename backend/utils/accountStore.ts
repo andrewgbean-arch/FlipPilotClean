@@ -4,7 +4,7 @@ import path from "path";
 import { deleteAccountCredits } from "./creditStore";
 import { accountFreeKey, deleteFreeScanRecord } from "../middleware/freeScanLimit";
 import { deleteAccountNightglass } from "./nightglassStore";
-import { DATA_DIR } from "../config/dataDir";
+import { DATA_DIR, writeJsonAtomic as writeFileAtomically } from "../config/dataDir";
 
 /**
  * Accounts: an email address proved by a one-time code, and a durable identity
@@ -43,6 +43,12 @@ export type Account = {
   canonicalDeviceId: string;
   createdAt: string;
   lastLoginAt: string;
+  /**
+   * The last day the account was used while signed in. A session slides forward each time it is used, so
+   * someone can use the app for years without ever entering a code again: `lastLoginAt` alone would make
+   * them look like they left on the day they first signed in. Moves at most once a day.
+   */
+  lastActiveAt?: string;
 };
 type LoginCode = {
   email: string;
@@ -58,12 +64,9 @@ type Session = { tokenHash: string; accountId: string; createdAt: string; lastUs
 
 /* ------------------------------ storage ------------------------------ */
 
-/** Write to a temporary file and rename it over the real one, so a crash can't leave half a file. */
+/** Write to a temporary file and rename it over the real one, so a crash can't leave half a file (the shared helper also rides out a momentary file lock on Windows). */
 function writeJsonAtomic(file: string, data: unknown) {
-  fs.mkdirSync(DIR, { recursive: true });
-  const tmp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
-  fs.renameSync(tmp, file);
+  writeFileAtomically(file, data);
 }
 
 function readJson<T>(file: string, fallback: T): T {
@@ -288,8 +291,20 @@ export function accountForToken(token: string | null | undefined, now = Date.now
     session.lastUsedAt = new Date(now).toISOString();
     session.expiresAt = now + SESSION_DAYS * 24 * 60 * 60_000;
     saveSessions(sessions);
+    noteActivity(session.accountId, now);
   }
   return accountById(session.accountId);
+}
+
+const lastUsedMs = (a: Account) => Math.max(Date.parse(a.lastLoginAt) || 0, Date.parse(a.lastActiveAt ?? "") || 0);
+
+/** Remembers that an account was used, at most once a day (it rewrites the accounts file). */
+function noteActivity(accountId: string, now: number) {
+  const { accounts } = loadAccounts();
+  const account = accounts.find((a) => a.id === accountId);
+  if (!account || now - lastUsedMs(account) < 24 * 60 * 60_000) return;
+  account.lastActiveAt = new Date(now).toISOString();
+  saveAccounts(accounts);
 }
 
 export function revokeSession(token: string): void {
@@ -312,8 +327,8 @@ export function deleteAccount(id: string): boolean {
   return true;
 }
 
-/** Clean-up for the retention job: expired codes and sessions, and accounts nobody has signed in to for a long time. */
-export function purgeAuth(inactiveMonths: number, now = new Date()): { codes: number; sessions: number; accounts: number } {
+/** Clean-up for the retention job: expired sign-in codes and sessions. */
+export function purgeAuth(now = new Date()): { codes: number; sessions: number } {
   const t = now.getTime();
   const codes = loadCodes();
   const keptCodes = codes.filter((c) => c.expiresAt > t - 60 * 60_000);
@@ -323,27 +338,18 @@ export function purgeAuth(inactiveMonths: number, now = new Date()): { codes: nu
   const keptSessions = sessions.filter((s) => s.expiresAt > t);
   if (keptSessions.length !== sessions.length) saveSessions(keptSessions);
 
+  return { codes: codes.length - keptCodes.length, sessions: sessions.length - keptSessions.length };
+}
+
+/**
+ * Accounts nobody has used for `inactiveMonths`: no session still alive, and neither a sign-in nor any use
+ * of the app while signed in within that time. The retention job erases each one the same way as an account
+ * whose owner deleted it (utils/accountErasure.ts), so nothing of theirs is left behind.
+ */
+export function inactiveAccounts(inactiveMonths: number, now = new Date()): Account[] {
+  const t = now.getTime();
   const cutoff = new Date(now);
   cutoff.setMonth(cutoff.getMonth() - inactiveMonths);
-  const { accounts } = loadAccounts();
-  const activeIds = new Set(keptSessions.map((s) => s.accountId));
-  const keptAccounts = accounts.filter((a) => activeIds.has(a.id) || Date.parse(a.lastLoginAt) >= cutoff.getTime());
-  if (keptAccounts.length !== accounts.length) {
-    saveAccounts(keptAccounts);
-    // Credits held by an account that is deleted for being unused are forfeited with it.
-    const kept = new Set(keptAccounts.map((a) => a.id));
-    for (const a of accounts) {
-      if (kept.has(a.id)) continue;
-      retireDeviceId(a.canonicalDeviceId);
-      deleteAccountCredits(a.id);
-      deleteAccountNightglass(a.id);
-      deleteFreeScanRecord(accountFreeKey(a.id));
-    }
-  }
-
-  return {
-    codes: codes.length - keptCodes.length,
-    sessions: sessions.length - keptSessions.length,
-    accounts: accounts.length - keptAccounts.length,
-  };
+  const live = new Set(loadSessions().filter((s) => s.expiresAt > t).map((s) => s.accountId));
+  return loadAccounts().accounts.filter((a) => !live.has(a.id) && lastUsedMs(a) < cutoff.getTime());
 }

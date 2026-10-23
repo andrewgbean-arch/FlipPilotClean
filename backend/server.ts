@@ -19,6 +19,7 @@ import registerAdvertsRoute from "./routes/adverts";
 import registerAdvertiserPortalRoutes from "./routes/advertiserPortal";
 import registerStripeWebhook from "./routes/stripeWebhook";
 import registerAdvertisePages from "./routes/advertisePages";
+import registerSitePages from "./routes/sitePages";
 import registerGamesRoute from "./routes/games";
 import registerAuthRoutes from "./routes/auth";
 import { defectsOfKind, fetchMotHistory, motTestList, odometerMiles } from "./utils/dvsaMot";
@@ -118,6 +119,9 @@ registerMeRoute(app);
 registerAdvertsRoute(app);
 registerAdvertiserPortalRoutes(app);
 registerAdvertisePages(app);
+// The public website: home page, Privacy Policy, Terms, account deletion. It goes before the health
+// check further down, which stays the answer for anything that isn't a browser asking for a page.
+registerSitePages(app);
 registerGamesRoute(app);
 registerAIDescriptionRoute(app);
 registerListingDescriptionRoute(app);

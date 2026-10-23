@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { dataPath } from "../config/dataDir";
+import { dataPath, writeJsonAtomic } from "../config/dataDir";
 
 /**
  * What the paid services cost us, worked out from what we really call.
@@ -71,10 +71,7 @@ export function flushCosts() {
   try {
     const cutoff = new Date(Date.now() - KEEP_DAYS * 86_400_000).toISOString().slice(0, 10);
     for (const day of Object.keys(store.days)) if (day < cutoff) delete store.days[day];
-    fs.mkdirSync(path.dirname(FILE), { recursive: true });
-    const tmp = `${FILE}.${process.pid}.tmp`;
-    fs.writeFileSync(tmp, JSON.stringify(store, null, 2));
-    fs.renameSync(tmp, FILE);
+    writeJsonAtomic(FILE, store);
     dirty = false;
   } catch (err: any) {
     console.log("cost log could not be saved:", err?.message);

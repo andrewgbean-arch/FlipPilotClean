@@ -6,12 +6,11 @@ import { markInboxSeen } from "../utils/readState";
 import { loadListings, saveListings } from "./publishedListings";
 import { loadFairs, saveFairs } from "./fairs";
 import { deleteUploads } from "../utils/uploadStore";
-import { deleteUserData, exportUserData } from "../utils/userData";
-import { accountFreeKey, freeScanRecordFor } from "../middleware/freeScanLimit";
+import { deleteUserData, exportAccountExtras, exportUserData } from "../utils/userData";
+import { accountByEmail } from "../utils/accountStore";
+import { eraseAccount, erasureBlock } from "../utils/accountErasure";
 import { adminOk } from "../utils/adminAuth";
 import { runRetention } from "../utils/retentionJob";
-import { creditsFor } from "../utils/creditStore";
-import { nightglassFor } from "../utils/nightglassStore";
 
 /**
  * "My data": export it, delete it, and delete one listing or fair of your own.
@@ -61,12 +60,7 @@ export default function registerMeRoute(app: Express) {
   app.get("/me/export", rateLimit(10), (req: Request, res: Response) => {
     const deviceId = callerDeviceId(req);
     if (!deviceId) return res.status(401).json({ ok: false, error: "Missing device id" });
-    res.json({
-      ok: true,
-      data: { ...exportUserData(deviceId), ...(req.account
-          ? { scanCredits: creditsFor(req.account.id), nightglass: nightglassFor(req.account.id), freeScanCounterAccount: freeScanRecordFor(accountFreeKey(req.account.id)) }
-          : {}) },
-    });
+    res.json({ ok: true, data: { ...exportUserData(deviceId), ...(req.account ? exportAccountExtras(req.account) : {}) } });
   });
 
   // Needs an explicit confirm so a stray request cannot wipe someone.
@@ -131,6 +125,32 @@ export default function registerMeRoute(app: Express) {
     saveFairs(fairs.filter((f) => f !== fair));
     deleteUploads(photosOf(fair));
     res.json({ ok: true });
+  });
+
+  /**
+   * For someone who can't use the app (lost phone, uninstalled) and asks by email: the same two things the
+   * app's "Download my data" and "Delete my account" do, found by the email address on the account. The
+   * address is only ever sent in the query/body, never logged (the server's log leaves the query out).
+   */
+  app.get("/admin/account-export", (req: Request, res: Response) => {
+    if (!adminOk(req, res)) return;
+    const account = accountByEmail(String(req.query.email ?? ""));
+    if (!account) return res.status(404).json({ ok: false, error: "No account has that email address" });
+    res.json({ ok: true, data: { ...exportUserData(account.canonicalDeviceId), ...exportAccountExtras(account) } });
+  });
+
+  app.post("/admin/delete-account", (req: Request, res: Response) => {
+    if (!adminOk(req, res)) return;
+    if (req.body?.confirm !== "DELETE") {
+      return res.status(400).json({ ok: false, error: 'Send { "email": "...", "confirm": "DELETE" } to confirm' });
+    }
+    const account = accountByEmail(String(req.body?.email ?? ""));
+    if (!account) return res.status(404).json({ ok: false, error: "No account has that email address" });
+    const block = erasureBlock(account);
+    if (block) return res.status(409).json({ ok: false, error: "advert-running", message: block });
+    const removed = eraseAccount(account);
+    console.log("[admin] deleted an account at its owner's request");
+    res.json({ ok: true, removed });
   });
 
   /** Runs the retention clean-up now instead of waiting for the schedule. */

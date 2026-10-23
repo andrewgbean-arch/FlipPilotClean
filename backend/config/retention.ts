@@ -29,6 +29,8 @@ export const RETENTION = {
   inactiveAccountMonths: 24,
   /** An uploaded photo not attached to any listing or fair is deleted after this. */
   orphanUploadHours: 24,
+  /** What we were paid for an advert is a business record the law has us keep, even after the business deletes its account. */
+  paymentRecordYears: 6,
 } as const;
 
 export function monthsAgo(months: number, from = new Date()): Date {

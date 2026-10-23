@@ -1,7 +1,7 @@
 /**
- * Where the legal pages live and who to contact. Read from the build's
- * environment so they can be set when the policy and terms are published,
- * without a code change:
+ * Where the legal pages live and who to contact. The pages are served by our own
+ * server (backend/routes/sitePages.ts) at flippilot.co.uk. A build can point
+ * somewhere else through its environment without a code change:
  *
  *   EXPO_PUBLIC_PRIVACY_POLICY_URL   the hosted privacy policy
  *   EXPO_PUBLIC_TERMS_URL            the hosted terms of use
@@ -9,15 +9,15 @@
  *   EXPO_PUBLIC_BUSINESS_NAME        the legal name of the business, for the About screen
  *
  * Both app stores need the policy link to work before an app can be published.
- * Anything unset shows an honest "not set up in this build" message rather
- * than a dead link, so a build missing them is obvious when testing.
+ * Set one of them to an empty string and the app shows an honest "not set up in
+ * this build" message rather than a dead link.
  */
 export const LEGAL = {
-  privacyPolicyUrl: process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL?.trim() ?? "",
-  termsUrl: process.env.EXPO_PUBLIC_TERMS_URL?.trim() ?? "",
+  privacyPolicyUrl: (process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL ?? "https://flippilot.co.uk/privacy").trim(),
+  termsUrl: (process.env.EXPO_PUBLIC_TERMS_URL ?? "https://flippilot.co.uk/terms").trim(),
   // The public contact address. A build can override it with the variable above; otherwise this is used,
   // so "For dealers" and "Advertise your business" open an email to us from day one.
-  supportEmail: process.env.EXPO_PUBLIC_SUPPORT_EMAIL?.trim() || "flippilot@hotmail.com",
+  supportEmail: process.env.EXPO_PUBLIC_SUPPORT_EMAIL?.trim() || "support@flippilot.co.uk",
   businessName: process.env.EXPO_PUBLIC_BUSINESS_NAME?.trim() ?? "",
   // Where "For dealers" and "Advertise your business" go. Until a page exists
   // they open an email enquiry to the support address instead (partnerLinks.ts).

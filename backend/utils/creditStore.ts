@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { dataPath } from "../config/dataDir";
+import { dataPath, writeJsonAtomic } from "../config/dataDir";
 
 /**
  * Scan credits. One balance per ACCOUNT (not per phone), so credits follow a person to a new phone
@@ -39,10 +39,7 @@ function load(): Store {
 }
 
 function save(store: Store) {
-  fs.mkdirSync(path.dirname(FILE), { recursive: true });
-  const tmp = `${FILE}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(store, null, 2));
-  fs.renameSync(tmp, FILE);
+  writeJsonAtomic(FILE, store);
 }
 
 function rowOf(store: Store, accountId: string): Row {
@@ -79,10 +76,7 @@ function loadClaims(): Set<string> {
 }
 
 function saveClaims(claims: Set<string>) {
-  fs.mkdirSync(path.dirname(CLAIMS_FILE), { recursive: true });
-  const tmp = `${CLAIMS_FILE}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify({ paid: [...claims] }));
-  fs.renameSync(tmp, CLAIMS_FILE);
+  writeJsonAtomic(CLAIMS_FILE, { paid: [...claims] });
 }
 
 export function getBalance(accountId: string): number {
@@ -172,10 +166,7 @@ function saveRefunds(refunds: Refunds) {
     keys.sort((a, b) => Date.parse(refunds[a].at) - Date.parse(refunds[b].at));
     for (const k of keys.slice(0, keys.length - MAX_REFUNDS_KEPT)) delete refunds[k];
   }
-  fs.mkdirSync(path.dirname(REFUNDS_FILE), { recursive: true });
-  const tmp = `${REFUNDS_FILE}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(refunds, null, 2));
-  fs.renameSync(tmp, REFUNDS_FILE);
+  writeJsonAtomic(REFUNDS_FILE, refunds);
 }
 
 export function isRefunded(txn: string | undefined): boolean {
@@ -219,8 +210,21 @@ export function creditsFor(accountId: string): Row | null {
   return load()[accountId] ?? null;
 }
 
-/** Deleting an account forfeits any credits left; the record goes with it. */
+/**
+ * Deleting an account forfeits any credits left; the record goes with it. The list of refunded purchases keeps
+ * each store transaction id (so it can never be claimed afterwards) but stops saying whose it was.
+ */
 export function deleteAccountCredits(accountId: string): boolean {
+  const refunds = loadRefunds();
+  let scrubbed = false;
+  for (const r of Object.values(refunds)) {
+    if (r.accountId === accountId) {
+      r.accountId = null;
+      scrubbed = true;
+    }
+  }
+  if (scrubbed) saveRefunds(refunds);
+
   const store = load();
   if (!(accountId in store)) return false;
   delete store[accountId];

@@ -360,7 +360,7 @@ async function screenBuilder(editId) {
           </div>
           <p class="error" id="areaErr" role="alert"></p>
           <label class="field" style="max-width:260px"><span>Start date</span><input id="start" type="date" min="${todayISO()}" value="${esc(b.startsAt)}"><span class="hint">It runs monthly from here until you cancel.</span></label>
-          <p class="small muted">Want the whole country? <a href="mailto:flippilot@hotmail.com?subject=Nationwide%20advert">Ask us for a nationwide price</a>.</p>
+          <p class="small muted">Want the whole country? <a href="mailto:support@flippilot.co.uk?subject=Nationwide%20advert">Ask us for a nationwide price</a>.</p>
         </section>
 
         <section class="card stack">
@@ -734,7 +734,7 @@ async function render() {
     else await screenWelcome();
   } catch (err) {
     console.error(err);
-    app.innerHTML = `<div class="card stack"><h2>Something went wrong</h2><p class="muted">Please reload the page. If it keeps happening, email flippilot@hotmail.com.</p></div>`;
+    app.innerHTML = `<div class="card stack"><h2>Something went wrong</h2><p class="muted">Please reload the page. If it keeps happening, email support@flippilot.co.uk.</p></div>`;
   }
   drawNav();
   app.focus({ preventScroll: true });

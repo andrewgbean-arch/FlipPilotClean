@@ -11,7 +11,9 @@ import { purgeProScanRecords } from "./proAllowance";
 import { allPictures, loadAdverts, purgeAdvertReportsBefore } from "./advertStore";
 import { purgeFeedbackBefore } from "./feedbackStore";
 import { purgePriceReportsBefore } from "./priceReportStore";
-import { purgeAuth } from "./accountStore";
+import { inactiveAccounts, purgeAuth } from "./accountStore";
+import { eraseAccount, erasureBlock } from "./accountErasure";
+import { purgePaymentRecords } from "./advertErasure";
 
 /**
  * Deletes what has outlived its retention period (config/retention.ts).
@@ -36,6 +38,7 @@ export function runRetention(now = new Date()) {
     reviews: 0,
     photos: 0,
     accounts: 0,
+    paymentRecords: 0,
   };
 
   const doomedPhotos: string[] = [];
@@ -126,8 +129,16 @@ export function runRetention(now = new Date()) {
   /* ---- what each device has read: no use once the chats are gone ---- */
   pruneReads(monthsAgo(RETENTION.messagesMonthsAfterLastMessage, now));
 
-  /* ---- sign-in codes, sessions, and accounts nobody uses ---- */
-  summary.accounts = purgeAuth(RETENTION.inactiveAccountMonths, now).accounts;
+  /* ---- sign-in codes and sessions, then accounts nobody has used for a long time ---- */
+  purgeAuth(now);
+  for (const account of inactiveAccounts(RETENTION.inactiveAccountMonths, now)) {
+    // A business with a paid advert that is still renewing keeps its account until that is cancelled.
+    if (erasureBlock(account)) continue;
+    // The same erasure as the person pressing Delete my account: nothing of theirs is left behind.
+    summary.photos += eraseAccount(account).photosRemoved;
+    summary.accounts++;
+  }
+  summary.paymentRecords = purgePaymentRecords(now);
 
   /* ---- reports and counters ---- */
   summary.reports = purgeReportsBefore(monthsAgo(RETENTION.reportMonths, now)) + purgeAdvertReportsBefore(monthsAgo(RETENTION.reportMonths, now)) + purgeFeedbackBefore(monthsAgo(RETENTION.reportMonths, now)) + purgePriceReportsBefore(monthsAgo(RETENTION.reportMonths, now));

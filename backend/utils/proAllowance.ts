@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { dataPath } from "../config/dataDir";
+import { dataPath, writeJsonAtomic } from "../config/dataDir";
 
 /**
  * The Pro plan's fair-use ceiling (see middleware/scanMeter.ts).
@@ -39,10 +39,7 @@ function load(): Store {
 }
 
 function save(store: Store) {
-  fs.mkdirSync(path.dirname(FILE), { recursive: true });
-  const tmp = `${FILE}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(store));
-  fs.renameSync(tmp, FILE);
+  writeJsonAtomic(FILE, store);
 }
 
 /** How many of this day's scans are used. A new day starts at zero. */

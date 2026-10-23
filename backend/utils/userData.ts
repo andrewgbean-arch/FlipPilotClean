@@ -10,10 +10,14 @@ import {
   reportsBy,
 } from "./safetyStore";
 import { deleteUploads, uploadsBy } from "./uploadStore";
-import { removeReadsFor } from "./readState";
-import { freeScanRecordFor } from "../middleware/freeScanLimit";
+import { readEntry, removeReadsFor } from "./readState";
+import { accountFreeKey, freeScanRecordFor } from "../middleware/freeScanLimit";
+import type { Account } from "./accountStore";
+import { creditsFor } from "./creditStore";
+import { nightglassFor } from "./nightglassStore";
 import { proScanRecordFor } from "./proAllowance";
 import { advertReportsBy, anonymiseAdvertReportsBy } from "./advertStore";
+import { exportAdvertiserData } from "./advertErasure";
 import { deleteFeedbackBy, feedbackBy } from "./feedbackStore";
 import { deletePriceReportsBy, priceReportsBy } from "./priceReportStore";
 import { disconnect as disconnectEbay, isConnected as ebayConnected } from "../ebay/ebaySellAuth";
@@ -21,11 +25,12 @@ import { disconnect as disconnectEbay, isConnected as ebayConnected } from "../e
 /**
  * A person's data rights, for a service where the only identity is a device id.
  *
- * Export gives back everything we hold that is theirs. Delete removes it. Two
- * things are kept on purpose and the policy says so: a report someone made
- * stays, with their identity taken off, because it may matter to a safety
- * decision or a legal claim about the person they reported; and their
- * free-scan counter stays, because deleting it would reset the free allowance.
+ * Export gives back everything we hold that is theirs. Delete removes it. What
+ * is kept on purpose, the policy says so: a report someone made stays, with
+ * their identity taken off, because it may matter to a safety decision or a
+ * legal claim about the person they reported (as do reports others made about
+ * them); and what an advertiser paid is kept as a business record (see
+ * utils/advertErasure.ts).
  */
 
 function iso(value: unknown): string | null {
@@ -42,6 +47,8 @@ export function exportUserData(deviceId: string) {
     // Held privately with the listing and never shown to buyers, but it is theirs, so it is in their copy.
     ...(l.dvlaCheck?.registration ? { registration: l.dvlaCheck.registration } : {}),
     ...(l.creditsPaid ? { creditsPaid: l.creditsPaid } : {}),
+    // Kept privately with every listing, to help a person judge one that looks out of place: a country code, the phone's region and time zone, and why it was or was not flagged.
+    ...(l.sellerOrigin ? { sellerOrigin: l.sellerOrigin } : {}),
     conversations: Object.values(
       (Array.isArray(l.messages) ? l.messages : [])
         .filter((m: any) => m?.threadId)
@@ -122,6 +129,27 @@ export function exportUserData(deviceId: string) {
     priceReportsYouSent: priceReportsBy(deviceId),
     ebayAccountConnected: ebayConnected(deviceId),
     uploadedPhotos: uploadsBy(deviceId),
+    // Which chats this phone has opened, so the app can tell what is new.
+    chatReadMarkers: readEntry(deviceId),
+    // Listings a seller marked as sold to this person (the only thing recorded about it is that, and when).
+    listingsSoldToYou: listings
+      .filter((l: any) => l.soldToDeviceId === deviceId)
+      .map((l: any) => ({ listingId: l.id, listingTitle: l.title ?? null, soldAt: iso(l.soldAt) })),
+  };
+}
+
+/**
+ * What is held under a signed-in account itself, beside what is held under its device id: the account
+ * (the email address and its dates), its credits, its story progress and its free-scan count. Both
+ * "Download my data" in the app and a request by email to the person who runs FlipPilot use this.
+ */
+export function exportAccountExtras(account: Account) {
+  return {
+    account: { email: account.email, createdAt: account.createdAt, lastLoginAt: account.lastLoginAt, lastActiveAt: account.lastActiveAt ?? null },
+    advertiser: exportAdvertiserData(account.id),
+    scanCredits: creditsFor(account.id),
+    nightglass: nightglassFor(account.id),
+    freeScanCounterAccount: freeScanRecordFor(accountFreeKey(account.id)),
   };
 }
 
@@ -137,6 +165,7 @@ export function deleteUserData(deviceId: string) {
   // Their listings go, and their conversations with them. On everyone else's
   // listings only their own messages are taken out, and the other person's stay.
   let messagesRemoved = 0;
+  let salesUnlinked = 0;
   const keptListings = listings.filter((l: any) => {
     if (l.deviceId === deviceId) {
       collect(l.photos);
@@ -151,6 +180,12 @@ export function deleteUserData(deviceId: string) {
         (m: any) => m?.deviceId !== deviceId && m?.threadId !== ownThread
       );
       messagesRemoved += before - l.messages.length;
+    }
+    // A seller who marked it sold to them recorded who the buyer was, so that one person could review it. That goes too.
+    if (l.soldToDeviceId === deviceId) {
+      delete l.soldToDeviceId;
+      delete l.soldToThreadId;
+      salesUnlinked++;
     }
     return true;
   });
@@ -193,6 +228,7 @@ export function deleteUserData(deviceId: string) {
     listingsRemoved: listings.length - keptListings.length,
     fairsRemoved: fairs.length - keptFairs.length,
     messagesRemoved,
+    salesUnlinked,
     sellerProfileRemoved: Boolean(seller),
     reviewsRemoved: reviewsBefore - store.reviews.length,
     blocksRemoved,
