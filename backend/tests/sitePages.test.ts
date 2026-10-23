@@ -226,13 +226,14 @@ describe("links", () => {
     }
   });
 
-  test("the only outside websites linked are the regulator's, and only as ordinary links", async () => {
+  test("the only other websites linked are the regulator's and our own main site, and only as ordinary links", async () => {
     const outside = new Set<string>();
     for (const p of PAGES) {
       const html = (await get(p.path)).body;
       for (const m of html.matchAll(/<a\b[^>]*?\shref="(https:\/\/[^"]+)"/g)) outside.add(new URL(m[1]).hostname);
     }
-    assert.deepEqual([...outside].sort(), ["ico.org.uk"]);
+    // flippilot.co.uk is our own main website (Dealer OS and the app), not another company's.
+    assert.deepEqual([...outside].sort(), ["flippilot.co.uk", "ico.org.uk"]);
   });
 
   test("the only email address on the pages is support@flippilot.co.uk, and no home address is published", async () => {
