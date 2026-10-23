@@ -3,6 +3,7 @@ import { accountRequired } from "../middleware/accountGuard";
 import { carCheckRequired } from "./carListing";
 import { DATA_DIR, DATA_DIR_IS_CONFIGURED } from "../config/dataDir";
 import { scanTokenSecretIsSet } from "./scanToken";
+import { reviewAccount, reviewAccountProblem } from "./reviewAccount";
 
 /**
  * A list of what is still not set up for real customers, worked out from the
@@ -83,6 +84,12 @@ export function launchIssues(env: Env = process.env): LaunchIssue[] {
     add("must", "DVLA_API_KEY", "Every car listing is checked against the DVLA. Without the key nobody can list a car (the check can't be made, so listings are refused).");
   } else if (!has(env, "DVLA_API_KEY")) {
     add("should", "DVLA_API_KEY", "Vehicle number-plate lookups need it.");
+  }
+  const reviewProblem = reviewAccountProblem(env);
+  if (reviewProblem) {
+    add("should", "REVIEW_ACCOUNT_EMAIL and REVIEW_ACCOUNT_CODE", reviewProblem);
+  } else if (!reviewAccount(env)) {
+    add("should", "REVIEW_ACCOUNT_EMAIL and REVIEW_ACCOUNT_CODE", "Google Play's reviewers have to sign in to test the app and cannot read an emailed code. These two give them a login that needs no email. Set them before submitting the app to Google Play.");
   }
   if (has(env, "ADVERT_AI_REVIEW")) {
     add("should", "ADVERT_AI_REVIEW (remove it)", "It switches the advert AI check off or fakes it, which is only for testing.");

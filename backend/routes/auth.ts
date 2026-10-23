@@ -12,6 +12,7 @@ import {
   revokeSession,
 } from "../utils/accountStore";
 import { sendLoginCode } from "../utils/mailer";
+import { checkReviewCode, isReviewEmail } from "../utils/reviewAccount";
 import { deleteUserData } from "../utils/userData";
 import { networkOf } from "../utils/clientAddress";
 import { returnSignupAllowance, signupAllowanceLeft, takeSignupAllowance } from "../utils/signupLimit";
@@ -44,6 +45,10 @@ export default function registerAuthRoutes(app: Express) {
   app.post("/auth/request-code", rateLimit(10), async (req: Request, res: Response) => {
     const email = normaliseEmail(req.body?.email);
     if (!email) return res.status(400).json({ ok: false, error: "bad-email", message: "Enter a valid email address." });
+
+    // Google Play's reviewers sign in with a fixed code (see utils/reviewAccount.ts): nothing is emailed, so there
+    // is nothing to send and nothing to count against the network.
+    if (isReviewEmail(email)) return res.json({ ok: true });
 
     // Each email costs us something and every new address is a fresh start for a script, so one network
     // may only ask for so many codes a day (see utils/signupLimit.ts).
@@ -84,10 +89,14 @@ export default function registerAuthRoutes(app: Express) {
     const email = normaliseEmail(req.body?.email);
     if (!email) return res.status(400).json({ ok: false, error: "bad-email", message: "Enter a valid email address." });
 
+    // The reviewers' account is made once and is not one of the network's sign-ups, so it neither uses up the
+    // daily allowance of new accounts nor is turned away by it.
+    const review = isReviewEmail(email);
+
     // A brand-new account is a fresh set of free scans, so one network may only make so many a day. Checked
     // BEFORE the code, so a person turned away here has not used up their code and can use it elsewhere.
     const network = networkOf(req.ip);
-    if (!accountByEmail(email) && signupAllowanceLeft("accounts", network) <= 0) {
+    if (!review && !accountByEmail(email) && signupAllowanceLeft("accounts", network) <= 0) {
       return res.status(429).json({
         ok: false,
         error: "network-limit",
@@ -95,12 +104,14 @@ export default function registerAuthRoutes(app: Express) {
       });
     }
 
-    const result = checkCode(email, req.body?.code);
+    const result = review ? checkReviewCode(req.body?.code) : checkCode(email, req.body?.code);
+    if (review) console.log(result.ok ? "[review] the review account signed in" : `[review] a wrong code was tried on the review account (${result.reason})`);
     if (!result.ok) {
       const messages = {
         wrong: "That code isn't right.",
         expired: "That code has run out. Ask for a new one.",
-        locked: "Too many wrong tries. Ask for a new code.",
+        // A new code would not help the reviewers: their code is fixed, and it is the wait that opens it again.
+        locked: review ? "Too many wrong tries. Please wait half an hour and try again." : "Too many wrong tries. Ask for a new code.",
       } as const;
       return res.status(400).json({
         ok: false,
@@ -111,7 +122,7 @@ export default function registerAuthRoutes(app: Express) {
     }
 
     const { account, isNew } = findOrCreateAccount(email, req.body?.deviceId);
-    if (isNew) takeSignupAllowance("accounts", network);
+    if (isNew && !review) takeSignupAllowance("accounts", network);
     const token = createSession(account.id);
     res.json({
       ok: true,
