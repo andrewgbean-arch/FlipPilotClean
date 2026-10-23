@@ -13,7 +13,7 @@ export function erasureBlock(account: Account): string | null {
   if (!runningAdvertFor(account.id)) return null;
   return (
     "Your business has a paid advert that is still renewing each month. Please cancel it first, in the advertiser " +
-    "portal at flippilot.co.uk/advertise (Cancel stops it at the end of the month you have paid for), or email " +
+    "portal at api.flippilot.co.uk/advertise (Cancel stops it at the end of the month you have paid for), or email " +
     "support@flippilot.co.uk, and then delete your account. Deleting it now would leave the monthly payment running."
   );
 }
