@@ -66,7 +66,7 @@ const SECTIONS: Section[] = [
     title: "Sell on the Marketplace",
     steps: [
       "Anyone can browse the Marketplace for free.",
-      "Listing things for sale is free for everyone during our launch. Cars are one at a time, and cost 25 scan credits once the launch offer ends.",
+      "Listing things for sale is free for everyone during our launch. Cars are one at a time, and a car advert costs credits once the launch offer ends (the sell screen shows the price first).",
       "Buyers message you straight from your listing to arrange a sale.",
       "A dealer? Tap Sell as a dealer in Settings to list up to 15 cars at once, free while we launch. Buyers see you as a trade seller.",
     ],
@@ -77,7 +77,7 @@ const SECTIONS: Section[] = [
     steps: [
       "In the Vehicles Hub, look up any UK vehicle by registration for its MOT and DVLA details.",
       "Track your own vehicles and their MOT dates, free.",
-      "To sell a car, list it on the Marketplace: one at a time, free during our launch, then 25 scan credits.",
+      "To sell a car, list it on the Marketplace: one at a time, free during our launch, then a small fee (shown before you list).",
     ],
   },
   {

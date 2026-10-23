@@ -19,12 +19,16 @@ export const POLICY = {
   freeActiveItemsAfterPromo: 5,
   /** A flood guard, not a limit anyone should meet: 30 new listings in 24 hours. */
   maxNewListingsPerDay: Number(process.env.MAX_NEW_LISTINGS_PER_DAY) || 30,
-  /** What a car listing will cost in credits once the offer is over. */
-  carCreditCost: 25,
+  /**
+   * What a car listing will cost in credits once the offer is over: 100, which is one 4.99-pound credit pack (the packs are
+   * 25, 50, 100 and 200 credits, see utils/creditPacks.ts), so a car advert is about 5 pounds. Decided 23 Oct 2026; the app reads
+   * it from GET /marketplace/policy, so changing it needs no app update.
+   */
+  carCreditCost: 100,
   /** A boost puts one of your listings at the top of the feed, labelled Promoted, for this many days... */
   boostDays: 7,
-  /** ...for this many credits. */
-  boostCreditCost: 10,
+  /** ...for this many credits (40: about 2 pounds at the 100-credit pack's rate). */
+  boostCreditCost: 40,
   /** Category id used for cars (see src/constants/marketplaceCategories.ts). */
   carCategory: "motors",
 } as const;

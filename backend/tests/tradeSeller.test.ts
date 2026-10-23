@@ -13,6 +13,7 @@ import { cleanBusinessName, tradeSellerFor } from "../utils/tradeSeller";
 import { deleteUserData, exportUserData } from "../utils/userData";
 import { createSession, findOrCreateAccount } from "../utils/accountStore";
 import { loadListings, saveListings } from "../routes/publishedListings";
+import { POLICY } from "../config/marketplacePolicy";
 
 // Trade sellers (22 Oct 2026): a dealer lists cars in the app without Dealer OS. They say so (a business name, shown to buyers as
 // "Trade seller"), may have several cars up at once where a private seller has one, and list free while we launch.
@@ -250,13 +251,13 @@ describe("after the launch offer", () => {
   test("what a car costs: nothing for a trade seller while we launch, credits for everyone else", async () => {
     await becomeTrade("fee-trade");
     assert.equal(carFee("fee-trade"), 0);
-    assert.equal(carFee("fee-private"), 25);
+    assert.equal(carFee("fee-private"), POLICY.carCreditCost);
   });
 
   test("when the free period ends, a trade seller pays credits like anyone (and still has the higher limit)", async () => {
     await becomeTrade("paying-trade");
     process.env.TRADE_LISTINGS_FREE = "off";
-    assert.equal(carFee("paying-trade"), 25);
+    assert.equal(carFee("paying-trade"), POLICY.carCreditCost);
     const r = await car("paying-trade");
     assert.equal(r.status, 402);
     assert.equal(r.json.error, "credits-required");

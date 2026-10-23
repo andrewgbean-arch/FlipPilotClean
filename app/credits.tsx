@@ -185,7 +185,7 @@ export default function CreditsScreen() {
               {credits} scan credit{credits === 1 ? "" : "s"}
             </Text>
             <Text style={[styles.small, { color: theme.muted }]}>
-              Used after your free scans. They also pay for boosts and Operation Nightglass chapters, and never expire.
+              Used after your free scans. They also pay for car adverts, boosts and Operation Nightglass chapters, and never expire.
             </Text>
           </View>
         </View>

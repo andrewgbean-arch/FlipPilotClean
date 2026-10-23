@@ -48,7 +48,7 @@ else warn("it is not https", "Phones and the app stores need https. Use your hos
 /* ---------------- the marketplace rules ---------------- */
 console.log("\nThe marketplace rules");
 const policy = await call("GET", "/marketplace/policy");
-if (policy.status === 200 && policy.json?.carCreditCost === 25 && policy.json?.boostCreditCost > 0) pass("the rules page is there (car 25 credits, boost price set)");
+if (policy.status === 200 && policy.json?.carCreditCost > 0 && policy.json?.boostCreditCost > 0) pass(`the rules page is there (car ${policy.json.carCreditCost} credits, boost ${policy.json.boostCreditCost})`);
 else fail("the rules page is missing or old", "Is this the latest version of the backend?");
 if (policy.json?.promoActive === true && !policy.json?.promoEndsAt) warn("the launch offer has no end date", "Set MARKETPLACE_PROMO_ENDS_AT, or listing stays free for ever.");
 else if (policy.json?.promoEndsAt) pass(`the launch offer ends ${policy.json.promoEndsAt.slice(0, 10)}`);
