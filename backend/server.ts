@@ -364,7 +364,7 @@ logLaunchChecks();
 if (process.env.NODE_ENV === "production") watchSerpApiBalance();
 
 if (!process.env.MARKETPLACE_PROMO_ENDS_AT || Number.isNaN(new Date(process.env.MARKETPLACE_PROMO_ENDS_AT).getTime())) {
-  console.warn("⚠️  MARKETPLACE_PROMO_ENDS_AT is not set (or not a date): the free-listing launch offer has no end date and will run until you set one.");
+  console.log("ℹ️  MARKETPLACE_PROMO_ENDS_AT is not set (or not a date): the free-listing launch offer has no end date and runs until you set one. Intended until credit packs are on sale.");
 }
 
 // Delete data that has outlived its retention period (config/retention.ts): once

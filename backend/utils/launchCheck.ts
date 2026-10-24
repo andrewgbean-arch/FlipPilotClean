@@ -39,7 +39,9 @@ export function launchIssues(env: Env = process.env): LaunchIssue[] {
     add("must", "PUBLIC_BASE_URL", "Photos and advert pictures are given full web addresses from this. Behind a proxy without it they can point at the wrong place.");
   }
   if (!has(env, "MARKETPLACE_PROMO_ENDS_AT") || Number.isNaN(new Date(env.MARKETPLACE_PROMO_ENDS_AT!).getTime())) {
-    add("must", "MARKETPLACE_PROMO_ENDS_AT", "The free-listing launch offer has no end date, so it never ends.");
+    // Decided 23 Oct 2026: leave it unset until the credit packs are on sale. Once the offer ends a car advert costs credits,
+    // and with no packs to buy nobody could pay. So this is a reminder to set it AFTER the packs are on sale, not a fault.
+    add("should", "MARKETPLACE_PROMO_ENDS_AT", "The free-listing launch offer has no end date, so it runs until one is set. That is intended for now: set the date only after credit packs are on sale (CREDIT_PACKS_ON_SALE=1 and the store products), or nobody could pay for a car advert once the offer ended.");
   }
   if (has(env, "SELLING_ALLOWED_DEVICE_IDS")) {
     add("must", "SELLING_ALLOWED_DEVICE_IDS (remove it)", "Named test phones skip every selling limit. It must be empty for real customers.");
