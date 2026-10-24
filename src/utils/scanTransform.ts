@@ -1,3 +1,5 @@
+import { pickEbayCards } from "./ebayListings";
+
 // Sent by scan-results ("Scan Again") so the Scan tab knows the user asked to scan again
 // and can resume barcode scanning, which otherwise waits for a tap after every scan.
 export const SCAN_AGAIN_EVENT = "flippilot:scan-again";
@@ -31,9 +33,11 @@ export const pickMarket = (market: any) => ({
   aiPriceMin: market?.aiPriceMin ?? null,
   aiPriceMax: market?.aiPriceMax ?? null,
   aiPriceConfidence: market?.aiPriceConfidence ?? null,
-  // eBay's own asking-price range, shown as its own "Trending on eBay" card — informational only,
-  // not blended into the prices above. Dropped here until 2026-09-30, so that card never rendered
-  // for anyone: the backend has always sent it, this whitelist just never forwarded it.
+  // eBay's own asking-price range, shown in the "On eBay right now" block — informational only,
+  // not blended into the prices above. Dropped here until 2026-09-30, so that block (then called
+  // "Trending on eBay") never rendered for anyone: the backend has always sent it, this whitelist
+  // just never forwarded it. Only these three numbers: the listings themselves are NOT kept here
+  // (see applyPrices).
   ebay:
     market?.ebay?.lowest != null || market?.ebay?.highest != null
       ? {
@@ -108,7 +112,7 @@ export const transformIdentity = (
 });
 
 // Step 2 ("what is it worth?"): fold the price lookup into the result already on screen.
-export const applyPrices = (data: any, res: any): Record<string, any> => ({
+export const applyPrices = (data: any, res: any, now: number = Date.now()): Record<string, any> => ({
   ...data,
   base_price: res?.pricing?.recommendedBuyPrice ?? null,
   ai: {
@@ -132,4 +136,9 @@ export const applyPrices = (data: any, res: any): Record<string, any> => ({
   aiPriceMin: res?.aiPriceMin ?? null,
   aiPriceMax: res?.aiPriceMax ?? null,
   aiPriceConfidence: res?.aiPriceConfidence ?? null,
+  // The eBay listings behind eBay's range, for the "On eBay right now" block, and when they were checked. Kept
+  // beside `market`, never inside it: `market` is what a saved flip stores, while eBay's licence wants listing
+  // details kept fresh and gone when the listing is, so these live only on the screen (see ebayListings.ts).
+  ebayCards: pickEbayCards(res?.market),
+  ebayCheckedAt: now,
 });

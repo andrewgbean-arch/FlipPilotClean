@@ -58,5 +58,29 @@ eq("googleCount absent: null, not undefined", pickMarket({}).googleCount, null);
 eq("googleSearched false is forwarded as false", pickMarket({ googleSearched: false }).googleSearched, false);
 eq("googleSearched absent: null", pickMarket({}).googleSearched, null);
 
+// The "On eBay right now" block shows eBay's listings as cards. They ride on the result beside `market` and are
+// never part of it: `market` is what Save puts into History, and eBay's licence wants listing details kept fresh
+// and removed when the listing is, so no listing may reach what is saved.
+const reply = {
+  pricing: { recommendedBuyPrice: 4, recommendedSellPrice: 8 },
+  market: {
+    ebay: { lowest: 10, highest: 30, soldCount: 3, items: [{ link: "https://www.ebay.co.uk/itm/9", title: "Kettle" }] },
+    ebayItems: [
+      { title: "Kettle", price: "£12.00", extracted_price: 12, thumbnail: "https://i.ebayimg.com/a.jpg", link: "https://www.ebay.co.uk/itm/9?hash=a", condition: "Used" },
+      { title: "Kettle 2", price: "£20.00", extracted_price: 20, thumbnail: "https://i.ebayimg.com/b.jpg", link: "https://www.ebay.co.uk/itm/10?hash=b", condition: "Used" },
+    ],
+  },
+};
+const withCards = applyPrices(identity, reply, 1_700_000_000_000);
+eq("applyPrices: the cards ride beside market", withCards.ebayCards.length, 2);
+eq("applyPrices: the time they were checked is the one given", withCards.ebayCheckedAt, 1_700_000_000_000);
+eq("applyPrices: market holds no listing (no ebayItems)", "ebayItems" in withCards.market, false);
+eq("applyPrices: market holds no card list", "ebayCards" in withCards.market, false);
+eq("applyPrices: market.ebay keeps only the three numbers", Object.keys(withCards.market.ebay ?? {}).join(","), "lowest,highest,soldCount");
+eq("applyPrices: no eBay link anywhere in what Save would keep", JSON.stringify(withCards.market).includes("ebay.co.uk"), false);
+eq("applyPrices: no listing picture anywhere in what Save would keep", JSON.stringify(withCards.market).includes("ebayimg"), false);
+eq("applyPrices: a reply with no eBay listings gives no cards", applyPrices(identity, { market: {} }, 5).ebayCards.length, 0);
+eq("applyPrices: and is still stamped", applyPrices(identity, { market: {} }, 5).ebayCheckedAt, 5);
+
 console.log(fail === 0 ? "ALL PASS" : `${fail} FAILED`);
 process.exit(fail ? 1 : 0);

@@ -17,6 +17,15 @@ export const RANGE_TOLERANCE = 0.1;
 
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
+/**
+ * Whether a low-to-high range has the price inside it (give or take RANGE_TOLERANCE). With no price to compare
+ * against nothing contradicts the range, so it holds. The eBay block under the prices asks the same question
+ * (see ebayListings.ts), so it never prints the figures this file refuses to draw as a track.
+ */
+export function rangeHoldsPrice(low: number, high: number, fair: number | null): boolean {
+  return fair == null || (fair >= low * (1 - RANGE_TOLERANCE) && fair <= high * (1 + RANGE_TOLERANCE));
+}
+
 export function pickPriceRange(input: {
   low?: unknown;
   high?: unknown;
@@ -32,7 +41,5 @@ export function pickPriceRange(input: {
   ] as const) {
     if (l != null && h != null && h > l) candidates.push({ low: l, high: h });
   }
-  const holds = (r: PriceRange) =>
-    fair == null || (fair >= r.low * (1 - RANGE_TOLERANCE) && fair <= r.high * (1 + RANGE_TOLERANCE));
-  return candidates.find(holds) ?? null;
+  return candidates.find((r) => rangeHoldsPrice(r.low, r.high, fair)) ?? null;
 }

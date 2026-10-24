@@ -36,9 +36,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { useTheme } from "@/styles/ThemeContext";
 import { ApiError, fetchPrices, reportPrice, type ItemAge, type ItemGrade } from "@/utils/api";
+import EbayListings from "@/components/scan/EbayListings";
 import SellerDescriptionCard from "@/components/scan/SellerDescriptionCard";
 import { dropPending, getPending } from "@/utils/pendingScan";
 import { applyPrices, SCAN_AGAIN_EVENT } from "@/utils/scanTransform";
+import { ebayRangeToShow } from "@/utils/ebayListings";
 import { evidenceDepth, limitConfidence } from "@/utils/evidenceDepth";
 import { pickPriceRange } from "@/utils/priceRange";
 import { profitFraming } from "@/utils/profitFraming";
@@ -676,6 +678,9 @@ export default function ScanResultsScreen() {
     aiHigh: data.aiPriceMax,
     fair: fairPrice,
   });
+  // eBay's own range for the "On eBay right now" block below: shown only when it holds the Fair market price,
+  // the same test the track above had to pass, so the block never prints figures the track was refused for.
+  const ebayRange = ebayRangeToShow(data.market?.ebay, fairPrice);
   const priceConfidence = typeof data.aiPriceConfidence === "number" ? data.aiPriceConfidence : null;
   // How many real listings the price rests on: very few means a rough guide, said plainly.
   const depth = evidenceDepth(data.market?.googleCount, data.market?.soldCount);
@@ -1052,27 +1057,17 @@ export default function ScanResultsScreen() {
           </View>
         ) : null}
 
-        {/* TRENDING ON EBAY: informational only — eBay's own asking-price range, shown
-            alongside the Google-driven Retail/Trending prices above, not blended into them. */}
-        {priceState === "ready" && data.market?.ebay?.lowest != null && data.market?.ebay?.highest != null ? (
-          <>
-            <Text style={[styles.sectionTitle, { color: theme.text }]} accessibilityRole="header">
-              Trending on eBay
-            </Text>
-            <View style={[styles.group, card]}>
-              <FactRow label="From" value={`£${Number(data.market.ebay.lowest).toFixed(2)}`} />
-              <FactRow
-                label="To"
-                value={`£${Number(data.market.ebay.highest).toFixed(2)}`}
-                divider
-              />
-            </View>
-            {data.market?.ebay?.soldCount ? (
-              <Text style={[styles.ebayHint, { color: theme.muted }]}>
-                From {data.market.ebay.soldCount} live eBay listing{data.market.ebay.soldCount === 1 ? "" : "s"} — asking prices, not confirmed sales.
-              </Text>
-            ) : null}
-          </>
+        {/* ON EBAY RIGHT NOW: informational only. Everything from eBay in one block of its own, apart from
+            the blended and Google prices above (eBay's licence wants its content visually separate from
+            other information). Its listings are not part of `market`, so a saved flip never keeps them. */}
+        {priceState === "ready" && ebayRange ? (
+          <EbayListings
+            low={ebayRange.low}
+            high={ebayRange.high}
+            listingCount={data.market?.ebay?.soldCount ?? null}
+            cards={data.ebayCards ?? []}
+            checkedAt={data.ebayCheckedAt ?? null}
+          />
         ) : null}
 
         {/* REPORT A WRONG PRICE */}
@@ -1647,7 +1642,6 @@ const styles = StyleSheet.create({
   },
   sourceChipText: { fontSize: 13, fontWeight: "600" },
   sourceHint: { fontSize: 12, lineHeight: 17, marginTop: 10 },
-  ebayHint: { fontSize: 12, lineHeight: 17, marginTop: 8 },
   reportRow: { marginTop: 16, alignItems: "center", paddingVertical: 6 },
   reportRowText: { fontSize: 13, textDecorationLine: "underline" },
   // Condition/Age chips wrap onto more than one line rather than being squeezed

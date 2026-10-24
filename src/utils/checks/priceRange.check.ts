@@ -3,7 +3,7 @@
 // Mountain Bike" showed Fair market price £510 over a track labelled £40.50 to £165.00 (eBay had caught brake
 // sets, a seat post, tyres and a catalogue), with the marker pinned off the end; another result showed £1.30 under
 // a £2.40 to £8.70 track. The track must hold the price it sits under, or not be drawn.
-import { pickPriceRange } from "../priceRange";
+import { pickPriceRange, rangeHoldsPrice } from "../priceRange";
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -40,6 +40,15 @@ eq("reversed range: ignored", pickPriceRange({ low: 20, high: 10, fair: 15 }), n
 eq("strings and NaN: ignored", pickPriceRange({ low: "5", high: NaN, aiLow: undefined, aiHigh: null, fair: 7 }), null);
 eq("nothing at all", pickPriceRange({}), null);
 eq("a price in a string is not trusted as a price (no price: range kept)", pickPriceRange({ low: 5, high: 9, fair: "£7" }), { low: 5, high: 9 });
+
+// rangeHoldsPrice is the one test both the track and the eBay block (ebayListings.ts) go by.
+eq("rangeHoldsPrice: inside", rangeHoldsPrice(10, 20, 15), true);
+eq("rangeHoldsPrice: at the low end", rangeHoldsPrice(10, 20, 10), true);
+eq("rangeHoldsPrice: 10% under the low end is still inside", rangeHoldsPrice(10, 20, 9), true);
+eq("rangeHoldsPrice: under the 10% tolerance is outside", rangeHoldsPrice(10, 20, 8.9), false);
+eq("rangeHoldsPrice: 10% over the high end is still inside", rangeHoldsPrice(10, 20, 22), true);
+eq("rangeHoldsPrice: over the 10% tolerance is outside", rangeHoldsPrice(10, 20, 22.1), false);
+eq("rangeHoldsPrice: no price to compare, so it holds", rangeHoldsPrice(10, 20, null), true);
 
 console.log(fail ? `${fail} FAILED` : "ALL PASS");
 process.exit(fail ? 1 : 0);
