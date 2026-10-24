@@ -57,7 +57,8 @@ const IMPERSONATED: {
   { word: "lloydsbank", realDomains: ["lloydsbank.com"], distinctive: true },
   { word: "monzo", realDomains: ["monzo.com"], distinctive: true },
   { word: "revolut", realDomains: ["revolut.com"], distinctive: true },
-  { word: "flippilot", realDomains: ["flippilot.co.uk", "flippilot.com"], distinctive: true },
+  // Our own address is flippilot.co.uk. flippilot.com belongs to someone else (a US property-flipping business), so mail from it is not ours.
+  { word: "flippilot", realDomains: ["flippilot.co.uk"], distinctive: true },
   // Ordinary words and place names: only ever judged with a service word beside
   // them, never on the domain alone.
   { word: "ebay", realDomains: ["ebay.com", "ebay.co.uk"], distinctive: false },
