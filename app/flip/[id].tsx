@@ -35,6 +35,7 @@ import type { FlipRecord } from "@/features/vehicles/models/FlipRecord";
 import { boughtPatch, boughtState, notBoughtPatch } from "@/features/vehicles/utils/boughtStatus";
 import { useTheme } from "@/styles/ThemeContext";
 import { shareFlip } from "@/utils/share/shareFlip";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 // Scrims that sit over a photo; the theme has no translucent black.
 const SCRIM = "rgba(0, 0, 0, 0.6)";
@@ -105,7 +106,7 @@ function DataRow({
       accessibilityLabel={`${label}: ${value}`}
       style={[styles.dataRow, divider && { borderTopWidth: 1, borderTopColor: theme.hairline }]}
     >
-      <Text style={[styles.dataLabel, { color: theme.muted }]}>{label}</Text>
+      <Text style={[styles.dataLabel, { color: theme.muted }, stableWeight]}>{label}</Text>
       <Text
         style={[
           styles.dataValue,
@@ -232,7 +233,7 @@ export default function FlipDetails() {
       return (
         <View style={[styles.container, styles.center, { backgroundColor: theme.background }]}>
           <ActivityIndicator size="large" color={theme.muted} />
-          <Text style={[styles.stateBody, { color: theme.muted }]}>Loading your saved flip</Text>
+          <Text style={[styles.stateBody, { color: theme.muted }, stableWeight]}>Loading your saved flip</Text>
         </View>
       );
     }
@@ -251,7 +252,7 @@ export default function FlipDetails() {
         <Text style={[styles.stateTitle, { color: theme.text }]} accessibilityRole="header">
           {loadError ? "Couldn't load your flips" : "Flip not found"}
         </Text>
-        <Text style={[styles.stateBody, { color: theme.muted }]}>
+        <Text style={[styles.stateBody, { color: theme.muted }, stableWeight]}>
           {loadError ?? "It may have been deleted from your history."}
         </Text>
         <Pressable
@@ -555,7 +556,7 @@ export default function FlipDetails() {
               }
               style={styles.summaryRoi}
             >
-              <Text style={[styles.smallLabel, { color: theme.muted }]}>ROI</Text>
+              <Text style={[styles.smallLabel, { color: theme.muted }, stableWeight]}>ROI</Text>
               <Text style={[styles.roiFigure, { color: roiColor }]}>{roiText}</Text>
             </View>
           </View>
@@ -610,7 +611,7 @@ export default function FlipDetails() {
                     <Text style={[styles.scoreNumber, { color: theme.text }]}>
                       {String(flipScore)}
                     </Text>
-                    <Text style={[styles.scoreMax, { color: theme.muted }]}>/ 100</Text>
+                    <Text style={[styles.scoreMax, { color: theme.muted }, stableWeight]}>/ 100</Text>
                   </View>
                   <View style={[styles.scoreTrack, { backgroundColor: theme.background }]}>
                     <View
@@ -691,19 +692,19 @@ export default function FlipDetails() {
               <RangeBar position={averagePosition} />
               <View style={styles.rangeLabels}>
                 <View style={styles.rangeColStart}>
-                  <Text style={[styles.rangeLabel, { color: theme.muted }]}>Lowest</Text>
+                  <Text style={[styles.rangeLabel, { color: theme.muted }, stableWeight]}>Lowest</Text>
                   <Text style={[styles.rangeValue, { color: theme.text }]}>
                     {formatMoney(lowest)}
                   </Text>
                 </View>
                 <View style={styles.rangeColMid}>
-                  <Text style={[styles.rangeLabel, { color: theme.muted }]}>Average</Text>
+                  <Text style={[styles.rangeLabel, { color: theme.muted }, stableWeight]}>Average</Text>
                   <Text style={[styles.rangeValue, { color: theme.text }]}>
                     {formatMoney(average)}
                   </Text>
                 </View>
                 <View style={styles.rangeColEnd}>
-                  <Text style={[styles.rangeLabel, { color: theme.muted }]}>Highest</Text>
+                  <Text style={[styles.rangeLabel, { color: theme.muted }, stableWeight]}>Highest</Text>
                   <Text style={[styles.rangeValue, { color: theme.text }]}>
                     {formatMoney(highest)}
                   </Text>
@@ -751,9 +752,9 @@ export default function FlipDetails() {
 
           <Text style={[styles.shareTitle, { color: theme.text }]}>{title}</Text>
           <Text style={[styles.shareProfit, { color: profitColor }]}>{formatSigned(profit)}</Text>
-          <Text style={[styles.shareMeta, { color: theme.muted }]}>Profit · ROI {roiText}</Text>
+          <Text style={[styles.shareMeta, { color: theme.muted }, stableWeight]}>Profit · ROI {roiText}</Text>
           {origin ? (
-            <Text style={[styles.shareMeta, { color: theme.muted }]}>Origin: {origin}</Text>
+            <Text style={[styles.shareMeta, { color: theme.muted }, stableWeight]}>Origin: {origin}</Text>
           ) : null}
           <Text style={[styles.shareLogo, { color: theme.gold }]}>FlipPilot</Text>
         </View>

@@ -21,6 +21,7 @@ import {
   motExpiryOf,
 } from "@/features/vehicles/utils/motDates";
 import { isVehicleRecord } from "@/features/vehicles/utils/vehicleStats";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 type AppTheme = ReturnType<typeof useTheme>;
 
@@ -109,7 +110,7 @@ function MotAlertsContent({
       return (
         <View style={[styles.container, styles.center, { backgroundColor: theme.background }]}>
           <ActivityIndicator size="large" color={theme.muted} />
-          <Text style={[styles.stateBody, { color: theme.muted }]}>Checking your MOT dates</Text>
+          <Text style={[styles.stateBody, { color: theme.muted }, stableWeight]}>Checking your MOT dates</Text>
         </View>
       );
     }
@@ -134,7 +135,7 @@ function MotAlertsContent({
             ? "No vehicles to check"
             : "No MOT alerts"}
         </Text>
-        <Text style={[styles.stateBody, { color: theme.muted }]}>
+        <Text style={[styles.stateBody, { color: theme.muted }, stableWeight]}>
           {loadError && noVehicles
             ? loadError
             : noVehicles
@@ -245,7 +246,7 @@ function SectionTitle({
         {title}
       </Text>
       {count > 0 ? (
-        <Text style={[styles.sectionMeta, { color: theme.muted }]}>
+        <Text style={[styles.sectionMeta, { color: theme.muted }, stableWeight]}>
           {count} {count === 1 ? "vehicle" : "vehicles"}
         </Text>
       ) : null}
@@ -282,7 +283,7 @@ function EmptyCard({
       ]}
     >
       {Icon ? <Icon size={20} color={iconColor ?? theme.muted} /> : null}
-      <Text style={[styles.emptyText, { color: theme.muted }]}>{text}</Text>
+      <Text style={[styles.emptyText, { color: theme.muted }, stableWeight]}>{text}</Text>
     </View>
   );
 }

@@ -34,6 +34,7 @@ import { mileageHistoryFromTests } from "@/features/vehicles/utils/motTests";
 import { keepPhoto } from "@/utils/keptPhotos";
 import { formatDate } from "@/features/vehicles/utils/motDates";
 import { formatMiles, formatMoney } from "@/features/vehicles/utils/vehicleStats";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 // "1,800" or "£1,800" -> 1800. Blank -> null; anything that is not a plain number -> undefined.
 function parseAmount(text: string): number | null | undefined {
@@ -228,7 +229,7 @@ function FactRow({ label, value, divider }: { label: string; value: string; divi
       accessibilityLabel={`${label}, ${value}`}
       style={[styles.factRow, divider && { borderTopWidth: 1, borderTopColor: theme.hairline }]}
     >
-      <Text style={[styles.factLabel, { color: theme.muted }]}>{label}</Text>
+      <Text style={[styles.factLabel, { color: theme.muted }, stableWeight]}>{label}</Text>
       <Text style={[styles.factValue, { color: theme.text }]}>{value}</Text>
     </View>
   );
@@ -623,7 +624,7 @@ export default function NewVehicleScreen() {
         {motData ? (
           <Section title="MOT summary">
             <View style={styles.statusRow}>
-              <Text style={[styles.factLabel, { color: theme.muted }]}>Status</Text>
+              <Text style={[styles.factLabel, { color: theme.muted }, stableWeight]}>Status</Text>
               <View style={[styles.statusPill, { backgroundColor: theme.background }]}>
                 <Text style={[styles.statusText, { color: motColor }]}>
                   {motStatusLabel(motData.expiry)}

@@ -23,6 +23,7 @@ import { categoryLabel, fieldsFor } from "@/constants/marketplaceCategories";
 import { BUYER_SAFETY_TIPS } from "@/utils/scamSafety";
 import SafetyCard from "@/components/marketplace/SafetyCard";
 import CarCheckCard from "@/components/marketplace/CarCheckCard";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -178,7 +179,7 @@ export default function ListingDetails() {
               <Text style={styles.sectionTitle}>Details</Text>
               {answered.map(({ label, value }) => (
                 <View key={label} style={styles.detailRow}>
-                  <Text style={styles.detailLabel}>{label}</Text>
+                  <Text style={[styles.detailLabel, stableWeight]}>{label}</Text>
                   <Text style={styles.detailValue}>{value}</Text>
                 </View>
               ))}

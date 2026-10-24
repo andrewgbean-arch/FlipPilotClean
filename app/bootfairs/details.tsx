@@ -50,6 +50,7 @@ import { useSubscription } from "@/context/SubscriptionContext";
 
 import { Fair, getAllFairs, isFeatured, updateUserFair } from "../../src/lib/fairs";
 import { deleteMyFair } from "../../src/utils/myData";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 // 30 days is a simple, predictable promotion window - independent of whether
 // the organiser keeps nextDate fresh for a recurring fair.
@@ -94,7 +95,7 @@ function DataRow({
       accessibilityLabel={`${label}: ${value}`}
       style={[styles.dataRow, divider && { borderTopWidth: 1, borderTopColor: theme.hairline }]}
     >
-      <Text style={[styles.dataLabel, { color: theme.muted }]}>{label}</Text>
+      <Text style={[styles.dataLabel, { color: theme.muted }, stableWeight]}>{label}</Text>
       <Text style={[styles.dataValue, { color: theme.text }]}>{value}</Text>
     </View>
   );
@@ -291,7 +292,7 @@ export default function BootfairDetails() {
     return (
       <View style={[styles.container, styles.center, { backgroundColor: theme.background }]}>
         <ActivityIndicator size="large" color={theme.muted} />
-        <Text style={[styles.stateBody, { color: theme.muted }]}>Loading boot fair</Text>
+        <Text style={[styles.stateBody, { color: theme.muted }, stableWeight]}>Loading boot fair</Text>
       </View>
     );
   }
@@ -307,7 +308,7 @@ export default function BootfairDetails() {
         <Text style={[styles.stateTitle, { color: theme.text }]} accessibilityRole="header">
           Boot fair not found
         </Text>
-        <Text style={[styles.stateBody, { color: theme.muted }]}>
+        <Text style={[styles.stateBody, { color: theme.muted }, stableWeight]}>
           We could not find that boot fair. It may have been removed from your list.
         </Text>
         <Pressable

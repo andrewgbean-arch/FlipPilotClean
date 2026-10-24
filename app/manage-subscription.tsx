@@ -5,6 +5,7 @@ import { CreditCard } from "phosphor-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/styles/ThemeContext";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 export default function ManageSubscription() {
   const theme = useTheme();
@@ -30,7 +31,7 @@ export default function ManageSubscription() {
         <Text style={[styles.title, { color: theme.text }]} accessibilityRole="header">
           Your Pro plan
         </Text>
-        <Text style={[styles.note, { color: theme.muted, marginTop: 8, textAlign: "center" }]}>
+        <Text style={[styles.note, { color: theme.muted, marginTop: 8, textAlign: "center" }, stableWeight]}>
           {"Pro is billed by Google Play or the App Store. Change or cancel it there: you keep Pro until the end of the period you've paid for."}
         </Text>
       </View>

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { GUIDES, guideBySlug } from "@/content/guides";
 import { useTheme } from "@/styles/ThemeContext";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 // One of the flipping guides from the Explore tab (src/content/guides.ts).
 export default function GuideScreen() {
@@ -16,7 +17,7 @@ export default function GuideScreen() {
   if (!guide) {
     return (
       <View style={[styles.missing, { backgroundColor: theme.background }]}>
-        <Text style={[styles.body, { color: theme.text, textAlign: "center" }]}>{"That guide isn't here any more."}</Text>
+        <Text style={[styles.body, { color: theme.text, textAlign: "center" }, stableWeight]}>{"That guide isn't here any more."}</Text>
         <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.backLink}>
           <Text style={[styles.body, { color: theme.gold, fontWeight: "700" }]}>Back to Explore</Text>
         </Pressable>

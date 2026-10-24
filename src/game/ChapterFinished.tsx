@@ -7,6 +7,7 @@ import { CheckCircle, DownloadSimple, Lock, LockOpen, Play, Trash } from "phosph
 import { CHAPTERS, GAME_PAGES, type Chapter } from "./nightglass";
 import { DOWNLOADS_AVAILABLE, useChapterDownloads } from "./nightglassDownloads";
 import { confirmUnlock, isUnlocked, useSeasonProgress, whenUnlocks } from "./nightglassUnlocks";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 const INK = "#05080d";
 const CARD = "#0d131b";
@@ -107,7 +108,7 @@ export default function ChapterFinished({ ch, onStay }: { ch: Chapter; onStay: (
         </Pressable>
         {choice !== "removed" && (
           <Pressable accessibilityRole="button" onPress={onStay} style={({ pressed }) => [styles.linkBtn, pressed && styles.pressed]}>
-            <Text style={styles.linkMuted}>Stay on the title screen</Text>
+            <Text style={[styles.linkMuted, stableWeight]}>Stay on the title screen</Text>
           </Pressable>
         )}
       </ScrollView>

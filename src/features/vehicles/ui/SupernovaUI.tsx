@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { daysUntilDate } from "@/features/vehicles/utils/motDates";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 /* ============================================================
    ⭐ AUTO FORMAT REG (AB12 CDE)
@@ -200,7 +201,7 @@ export function SuperButton({
         alignItems: "center",
       }}
     >
-      <Text style={{ color: theme.black, fontSize: 15 }}>{label}</Text>
+      <Text style={[{ color: theme.black, fontSize: 15 }, stableWeight]}>{label}</Text>
     </TouchableOpacity>
   );
 }

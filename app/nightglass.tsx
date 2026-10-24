@@ -8,6 +8,7 @@ import type { Icon as PhosphorIcon } from "phosphor-react-native";
 import { CHAPTERS, GAME_PAGES, type Chapter } from "@/game/nightglass";
 import { DOWNLOADS_AVAILABLE, useChapterDownloads } from "@/game/nightglassDownloads";
 import { confirmUnlock, isUnlocked, useSeasonProgress, whenUnlocks, type SeasonProgress } from "@/game/nightglassUnlocks";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 // A fixed noir palette, like the game's own title screen: it is the same in
 // light and dark mode on purpose.
@@ -137,7 +138,7 @@ function ChapterCard({ ch, downloads, available, season, checked, onUnlock }: Ca
       {locked && (
         <View style={styles.lockedRow}>
           <Lock size={18} color={MUTED} />
-          <Text style={styles.lockedText}>Unlocks on release day</Text>
+          <Text style={[styles.lockedText, stableWeight]}>Unlocks on release day</Text>
         </View>
       )}
       {waiting && <UnlockPanel ch={ch} progress={season} checked={checked} onUnlock={onUnlock} />}
@@ -253,7 +254,7 @@ function Tip({ Icon, text }: { Icon: PhosphorIcon; text: string }) {
   return (
     <View style={styles.tip}>
       <Icon size={22} color={AMBER} />
-      <Text style={styles.tipText}>{text}</Text>
+      <Text style={[styles.tipText, stableWeight]}>{text}</Text>
     </View>
   );
 }

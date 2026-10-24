@@ -1,4 +1,5 @@
 import { ScrollView, View, Text } from "react-native";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 export default function MileageFlow({
   history,
@@ -43,12 +44,12 @@ export default function MileageFlow({
 
               {/* DATE */}
               <Text
-                style={{
+                style={[{
                   marginTop: 6,
                   fontSize: 12,
                   color: theme.text,
                   textAlign: "center",
-                }}
+                }, stableWeight]}
               >
                 {entry.date}
               </Text>

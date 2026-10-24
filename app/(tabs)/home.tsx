@@ -45,6 +45,7 @@ import GettingStartedCard from "@/components/GettingStartedCard";
 import { useMessageAlerts } from "@/context/MessageAlertsContext";
 import { TourTarget, useTourTarget } from "@/features/tour/TourTarget";
 import { registerScrollContainer, unregisterScrollContainer } from "@/features/tour/TourContext";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 const TOOLS: { key: string; label: string; Icon: PhosphorIcon; route: string; tint: string }[] = [
   { key: "scan", label: "AI Scan", Icon: Camera, route: "/scan", tint: "#FFD700" },
@@ -385,7 +386,7 @@ export default function HomeScreen() {
           ) : (
             <View style={[styles.emptyCard, card]}>
               <CameraSlash size={24} color={theme.muted} />
-              <Text style={[styles.emptyText, { color: theme.muted }]}>
+              <Text style={[styles.emptyText, { color: theme.muted }, stableWeight]}>
                 No flips yet. Start scanning to build your dashboard.
               </Text>
             </View>

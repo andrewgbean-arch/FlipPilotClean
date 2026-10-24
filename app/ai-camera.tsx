@@ -22,6 +22,7 @@ import { photoForUpload } from "@/utils/photo";
 import { normalizeConfidence, transformIdentity } from "@/utils/scanTransform";
 import ScanWaitingAd, { AD_REVEAL_DELAY_MS } from "@/components/ScanWaitingAd";
 import { refreshAdverts } from "@/lib/adverts";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 const NAVY = "#0A1128";
 const GOLD = "#FFD700";
@@ -265,7 +266,7 @@ export default function AiCameraScreen() {
 
     return (
       <View style={styles.permissionContainer}>
-        <Text style={styles.permissionText}>
+        <Text style={[styles.permissionText, stableWeight]}>
           {canAskAgain
             ? "Camera access is required"
             : "Camera access is turned off for FlipPilot. Turn it on in Settings to identify items with your camera."}
@@ -344,7 +345,7 @@ export default function AiCameraScreen() {
         {/* CAMERA COULD NOT START */}
         {cameraFailed && (
           <View style={styles.cameraFailed}>
-            <Text style={styles.permissionText}>
+            <Text style={[styles.permissionText, stableWeight]}>
               The camera couldn't start. It may be in use by another app.
             </Text>
             <Pressable style={styles.permissionButton} onPress={retryCamera}>

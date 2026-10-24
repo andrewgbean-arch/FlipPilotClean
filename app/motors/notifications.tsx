@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/styles/ThemeContext";
 import { useDealerNotifications } from "@/features/vehicles/context/DealerNotificationsContext";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 export default function DealerNotificationsScreen() {
   const theme = useTheme();
@@ -33,14 +34,14 @@ export default function DealerNotificationsScreen() {
           <Text style={[styles.emptyTitle, { color: theme.text }]} accessibilityRole="header">
             No notifications yet
           </Text>
-          <Text style={[styles.emptyBody, { color: theme.muted }]}>
+          <Text style={[styles.emptyBody, { color: theme.muted }, stableWeight]}>
             Alerts about MOT dates, sales and flip scores will appear here.
           </Text>
         </View>
       ) : (
         <>
           <View style={styles.summaryRow}>
-            <Text style={[styles.summary, { color: theme.muted }]}>
+            <Text style={[styles.summary, { color: theme.muted }, stableWeight]}>
               {unreadCount} unread · {notifications.length} total
             </Text>
 

@@ -2,6 +2,7 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import MOTMileageHistory from "@/components/motors/MOTMileageHistory";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 /**
  * What the government's own records say about a car, on its listing: the DVLA check (make, colour,
@@ -78,7 +79,7 @@ export default function CarCheckCard({ vehicleCheck, motHistory }: { vehicleChec
             .filter(([, value]) => value)
             .map(([label, value]) => (
               <View key={label} style={styles.row}>
-                <Text style={styles.label}>{label}</Text>
+                <Text style={[styles.label, stableWeight]}>{label}</Text>
                 <Text style={styles.value}>{value}</Text>
               </View>
             ))}
@@ -100,13 +101,13 @@ export default function CarCheckCard({ vehicleCheck, motHistory }: { vehicleChec
         <View style={styles.card}>
           <Text style={styles.title}>MOT record</Text>
           <View style={styles.row}>
-            <Text style={styles.label}>Last test</Text>
+            <Text style={[styles.label, stableWeight]}>Last test</Text>
             <Text style={styles.value}>
               {latest.result === "PASSED" ? "Passed" : "Failed"} on {tidyDate(latest.date)}
             </Text>
           </View>
           <View style={styles.row}>
-            <Text style={styles.label}>Tests on record</Text>
+            <Text style={[styles.label, stableWeight]}>Tests on record</Text>
             <Text style={styles.value}>
               {motHistory.testCount}
               {motHistory.failedCount ? ` (${motHistory.failedCount} failed)` : ""}

@@ -28,6 +28,7 @@ import {
   formatScore,
   realisedProfit,
 } from "@/features/vehicles/utils/vehicleStats";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 type AppTheme = ReturnType<typeof useTheme>;
 
@@ -52,7 +53,7 @@ export default function MotorsVehicleDetail() {
       return (
         <View style={[styles.container, styles.center, { backgroundColor: theme.background }]}>
           <ActivityIndicator size="large" color={theme.muted} />
-          <Text style={[styles.stateBody, { color: theme.muted }]}>Loading your vehicle</Text>
+          <Text style={[styles.stateBody, { color: theme.muted }, stableWeight]}>Loading your vehicle</Text>
         </View>
       );
     }
@@ -71,7 +72,7 @@ export default function MotorsVehicleDetail() {
         <Text style={[styles.stateTitle, { color: theme.text }]} accessibilityRole="header">
           {loadError ? "Couldn't load your vehicles" : "Vehicle not found"}
         </Text>
-        <Text style={[styles.stateBody, { color: theme.muted }]}>
+        <Text style={[styles.stateBody, { color: theme.muted }, stableWeight]}>
           {loadError ?? "This vehicle no longer exists in your history."}
         </Text>
       </View>
@@ -237,7 +238,7 @@ function DataRow({
       accessibilityLabel={`${label}: ${value}`}
       style={[styles.dataRow, divider && { borderTopWidth: 1, borderTopColor: theme.hairline }]}
     >
-      <Text style={[styles.dataLabel, { color: theme.muted }]}>{label}</Text>
+      <Text style={[styles.dataLabel, { color: theme.muted }, stableWeight]}>{label}</Text>
       <Text style={[styles.dataValue, { color: valueColor ?? theme.text }]}>{value}</Text>
     </View>
   );

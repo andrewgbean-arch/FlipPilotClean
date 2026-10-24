@@ -41,6 +41,7 @@ import { calculateFlipScore, FlipScoreInput } from "@/utils/flipScoreEngine";
 
 import { useTheme } from "@/styles/useTheme";
 import { Theme } from "@/styles/theme";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 /* -------------------------------------------------------
    HELPERS
@@ -113,7 +114,7 @@ export default function EditFlipRoute() {
       return (
         <View style={[styles.center, { backgroundColor: theme.background }]}>
           <ActivityIndicator size="large" color={theme.muted} />
-          <Text style={[styles.stateLoading, { color: theme.muted }]}>Loading your flip</Text>
+          <Text style={[styles.stateLoading, { color: theme.muted }, stableWeight]}>Loading your flip</Text>
         </View>
       );
     }
@@ -132,7 +133,7 @@ export default function EditFlipRoute() {
         <Text style={[styles.stateTitle, { color: theme.text }]} accessibilityRole="header">
           {loadError ? "Couldn't load your flips" : "Flip not found"}
         </Text>
-        <Text style={[styles.stateBody, { color: theme.muted }]}>
+        <Text style={[styles.stateBody, { color: theme.muted }, stableWeight]}>
           {loadError ?? "It may have been deleted."}
         </Text>
         <Pressable
@@ -640,7 +641,7 @@ function EditFlipForm({
               <Text style={[styles.miniEmptyTitle, { color: theme.text }]}>
                 No MOT details yet
               </Text>
-              <Text style={[styles.miniEmptyBody, { color: theme.muted }]}>
+              <Text style={[styles.miniEmptyBody, { color: theme.muted }, stableWeight]}>
                 Enter a registration above and tap Refresh MOT data to fetch the MOT and tax
                 status.
               </Text>
@@ -684,7 +685,7 @@ function EditFlipForm({
               accessibilityLabel={`Profit preview, ${signedMoney(profitPreview)}`}
               style={[styles.previewRow, { borderTopColor: theme.hairline }]}
             >
-              <Text style={[styles.previewLabel, { color: theme.muted }]}>Profit preview</Text>
+              <Text style={[styles.previewLabel, { color: theme.muted }, stableWeight]}>Profit preview</Text>
               <Text
                 style={[styles.previewValue, { color: previewColor }]}
                 numberOfLines={1}
@@ -1053,13 +1054,13 @@ function FlipScoreCard({ score, onPress }: { score: number; onPress: () => void 
     <Card style={styles.gapTop}>
       <View accessible accessibilityLabel={`FlipScore ${score} out of 100, ${band}`}>
         <View style={styles.scoreTop}>
-          <Text style={[styles.scoreLabel, { color: theme.muted }]}>FlipScore</Text>
+          <Text style={[styles.scoreLabel, { color: theme.muted }, stableWeight]}>FlipScore</Text>
           <Text style={[styles.scoreBand, { color: scoreColor }]}>{band}</Text>
         </View>
 
         <View style={styles.scoreNumberRow}>
           <Text style={[styles.scoreValue, { color: theme.text }]}>{score}</Text>
-          <Text style={[styles.scoreMax, { color: theme.muted }]}>/ 100</Text>
+          <Text style={[styles.scoreMax, { color: theme.muted }, stableWeight]}>/ 100</Text>
         </View>
 
         <View style={[styles.meterTrack, { backgroundColor: theme.background }]}>
@@ -1106,7 +1107,7 @@ function DataRow({
       accessibilityLabel={`${label}, ${value}`}
       style={[styles.dataRow, divider && { borderTopWidth: 1, borderTopColor: theme.hairline }]}
     >
-      <Text style={[styles.dataLabel, { color: theme.muted }]}>{label}</Text>
+      <Text style={[styles.dataLabel, { color: theme.muted }, stableWeight]}>{label}</Text>
       <Text style={[styles.dataValue, { color: valueColor ?? theme.text }]}>{value}</Text>
     </View>
   );

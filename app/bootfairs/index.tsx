@@ -36,6 +36,7 @@ import { advertAction, openAdvertAction } from "@/lib/advertAction";
 import { reportAdvertEvent, useAdverts, type BootfairAdverts } from "@/lib/adverts";
 import type { BusinessAdvert } from "../../src/lib/businessAdverts";
 import { Fair, getAllFairs, isFeatured } from "../../src/lib/fairs";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 const RADIUS_OPTIONS = [5, 10, 20];
 
@@ -530,14 +531,14 @@ export default function BootFairFinderScreen() {
                 <Text style={[styles.emptyTitle, { color: theme.text }]}>
                   No boot fairs listed yet
                 </Text>
-                <Text style={[styles.emptyBody, { color: theme.muted }]}>
+                <Text style={[styles.emptyBody, { color: theme.muted }, stableWeight]}>
                   Boot fairs you list show up here. Use the button below to add one.
                 </Text>
               </View>
             ) : (
               <View style={styles.loadingBox}>
                 <ActivityIndicator color={theme.muted} />
-                <Text style={[styles.loadingText, { color: theme.muted }]}>
+                <Text style={[styles.loadingText, { color: theme.muted }, stableWeight]}>
                   Loading boot fairs
                 </Text>
               </View>

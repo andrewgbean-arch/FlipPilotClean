@@ -40,6 +40,7 @@ import {
   matchCategory,
   missingRequiredFields,
 } from "../../../src/constants/marketplaceCategories";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 export default function CreateNewListing() {
   const theme = useTheme();
@@ -499,7 +500,7 @@ export default function CreateNewListing() {
         {analyzing && (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16 }}>
             <ActivityIndicator color={theme.goldDeep} />
-            <Text style={{ color: theme.muted }}>Reading your photo…</Text>
+            <Text style={[{ color: theme.muted }, stableWeight]}>Reading your photo…</Text>
           </View>
         )}
 
@@ -520,7 +521,7 @@ export default function CreateNewListing() {
             borderColor: chosen || !triedToPost ? theme.goldDeep : theme.danger,
           }}
         >
-          <Text style={{ color: chosen ? theme.white : theme.muted, fontSize: 15 }}>
+          <Text style={[{ color: chosen ? theme.white : theme.muted, fontSize: 15 }, stableWeight]}>
             {chosen ? `${chosen.emoji}  ${chosen.label}` : "Choose a category"}
           </Text>
           <Text style={{ color: theme.goldDeep, fontWeight: "700" }}>

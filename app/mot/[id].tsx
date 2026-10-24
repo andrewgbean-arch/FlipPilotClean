@@ -14,6 +14,7 @@ import {
 } from "@/features/vehicles/utils/motDates";
 import { formatMiles } from "@/features/vehicles/utils/vehicleStats";
 import { parseMotTests, type MotTestEntry } from "@/features/vehicles/utils/motTests";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 export default function MotTimelineScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -51,7 +52,7 @@ export default function MotTimelineScreen() {
       return (
         <View style={[styles.container, styles.center, { backgroundColor: theme.background }]}>
           <ActivityIndicator size="large" color={theme.muted} />
-          <Text style={[styles.stateBody, { color: theme.muted }]}>Loading the MOT history</Text>
+          <Text style={[styles.stateBody, { color: theme.muted }, stableWeight]}>Loading the MOT history</Text>
         </View>
       );
     }
@@ -70,7 +71,7 @@ export default function MotTimelineScreen() {
         <Text style={[styles.stateTitle, { color: theme.text }]} accessibilityRole="header">
           {loadError ? "Couldn't load your vehicles" : "MOT data not found"}
         </Text>
-        <Text style={[styles.stateBody, { color: theme.muted }]}>
+        <Text style={[styles.stateBody, { color: theme.muted }, stableWeight]}>
           {loadError ?? "There is no MOT record saved for this vehicle."}
         </Text>
       </View>
@@ -244,7 +245,7 @@ export default function MotTimelineScreen() {
           ]}
         >
           <ClockCounterClockwise size={20} color={theme.muted} />
-          <Text style={[styles.emptyText, { color: theme.muted }]}>
+          <Text style={[styles.emptyText, { color: theme.muted }, stableWeight]}>
             No MOT mileage history available.
           </Text>
         </View>
@@ -322,7 +323,7 @@ export default function MotTimelineScreen() {
                         </Text>
 
                         {hasMileage && (
-                          <Text style={[styles.entryMiles, { color: theme.muted }]}>
+                          <Text style={[styles.entryMiles, { color: theme.muted }, stableWeight]}>
                             {entry.mileage.toLocaleString()} miles
                           </Text>
                         )}

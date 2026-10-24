@@ -15,6 +15,7 @@ import {
   Wind,
 } from "phosphor-react-native";
 import type { Icon as PhosphorIcon } from "phosphor-react-native";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 // ------------------------------------------------------
 // TYPES
@@ -171,7 +172,7 @@ export default function WeatherCard({ theme, style }: WeatherCardProps) {
     return (
       <View style={[card, styles.loadingRow]}>
         <ActivityIndicator color={theme.gold} />
-        <Text style={[styles.secondary, { color: theme.muted }]}>Checking the weather…</Text>
+        <Text style={[styles.secondary, { color: theme.muted }, stableWeight]}>Checking the weather…</Text>
       </View>
     );
   }
@@ -227,7 +228,7 @@ export default function WeatherCard({ theme, style }: WeatherCardProps) {
           <Text style={[styles.label, { color: theme.text }]}>{label}</Text>
           <View style={styles.windRow}>
             <Wind size={14} color={theme.muted} />
-            <Text style={[styles.secondary, { color: theme.muted }]}>{wind} km/h</Text>
+            <Text style={[styles.secondary, { color: theme.muted }, stableWeight]}>{wind} km/h</Text>
           </View>
         </View>
       </View>

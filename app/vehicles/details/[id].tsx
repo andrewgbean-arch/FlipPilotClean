@@ -54,6 +54,7 @@ import { buildVehicleTimeline } from "@/features/vehicles/utils/vehicleUtils";
 import { estimateVehiclePrice, type VehicleCondition, type VehiclePriceResult } from "@/utils/vehiclePrice";
 import { useTheme } from "@/styles/ThemeContext";
 import type { Theme } from "@/styles/theme";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 const CONDITION_OPTIONS: { key: VehicleCondition; label: string }[] = [
   { key: "excellent", label: "Excellent" },
@@ -203,7 +204,7 @@ function MeterBlock({
       style={[styles.meterBlock, divider && { borderTopWidth: 1, borderTopColor: theme.hairline }]}
     >
       <View style={styles.meterHeader}>
-        <Text style={[styles.dataLabel, { color: theme.muted }]}>{label}</Text>
+        <Text style={[styles.dataLabel, { color: theme.muted }, stableWeight]}>{label}</Text>
         <Text style={[styles.meterValue, { color: theme.text }]}>{value}</Text>
       </View>
       <View style={[styles.meterTrack, { backgroundColor: theme.background }]}>
@@ -311,7 +312,7 @@ function StateView({
           {title}
         </Text>
       ) : null}
-      <Text style={[styles.stateBody, { color: theme.muted }]}>{body}</Text>
+      <Text style={[styles.stateBody, { color: theme.muted }, stableWeight]}>{body}</Text>
     </View>
   );
 }
@@ -561,7 +562,7 @@ export default function VehicleDetails() {
               }
               style={styles.summaryRoi}
             >
-              <Text style={[styles.smallLabel, { color: theme.muted }]}>ROI</Text>
+              <Text style={[styles.smallLabel, { color: theme.muted }, stableWeight]}>ROI</Text>
               <Text style={[styles.roiFigure, { color: roiColor }]}>{roiText}</Text>
             </View>
           </View>
@@ -705,7 +706,7 @@ export default function VehicleDetails() {
               >
                 <View style={styles.scoreHeader}>
                   <Text style={[styles.scoreNumber, { color: theme.text }]}>{String(flipScore)}</Text>
-                  <Text style={[styles.scoreMax, { color: theme.muted }]}>/ 100</Text>
+                  <Text style={[styles.scoreMax, { color: theme.muted }, stableWeight]}>/ 100</Text>
                 </View>
                 <View style={[styles.meterTrack, { backgroundColor: theme.background }]}>
                   <View

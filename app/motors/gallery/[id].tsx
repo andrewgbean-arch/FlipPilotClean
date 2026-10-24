@@ -4,6 +4,7 @@ import { useLocalSearchParams } from "expo-router";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { useTheme } from "@/styles/ThemeContext";
 import VehicleGalleryScreen from "@/features/vehicles/ui/VehicleGalleryScreen";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 export default function MotorsGalleryRoute() {
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
@@ -16,7 +17,7 @@ export default function MotorsGalleryRoute() {
   if (!vehicle) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme.background }}>
-        <Text style={{ color: theme.white }}>Vehicle not found</Text>
+        <Text style={[{ color: theme.white }, stableWeight]}>Vehicle not found</Text>
       </View>
     );
   }

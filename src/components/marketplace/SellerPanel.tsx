@@ -6,6 +6,7 @@ import { BASE_URL } from "@/utils/api";
 import { getReviewStatus } from "@/utils/reviewStatus";
 import StarRating from "@/components/marketplace/StarRating";
 import ReviewSheet from "@/components/marketplace/ReviewSheet";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 type Review = {
   id: string;
@@ -168,7 +169,7 @@ export default function SellerPanel({
                 }}
               >
                 <StarRating stars={review.stars} size={14} />
-                <Text style={{ color: theme.muted, fontSize: 12 }}>
+                <Text style={[{ color: theme.muted, fontSize: 12 }, stableWeight]}>
                   {reviewDate(review.createdAt)}
                 </Text>
               </View>

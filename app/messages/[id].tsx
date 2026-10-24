@@ -27,6 +27,7 @@ import ReportSheet from "@/components/marketplace/ReportSheet";
 import ReviewSheet from "@/components/marketplace/ReviewSheet";
 import { useMessageAlerts } from "@/context/MessageAlertsContext";
 import { getReviewStatus, type ReviewStatus } from "@/utils/reviewStatus";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 type ChatMessage = {
   from: "me" | "them";
@@ -305,7 +306,7 @@ export default function MessagesScreen() {
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
           {threads.length === 0 && loadError && (
             <View style={{ marginTop: 20, gap: 10, alignItems: "center" }}>
-              <Text style={{ color: theme.text, textAlign: "center" }}>
+              <Text style={[{ color: theme.text, textAlign: "center" }, stableWeight]}>
                 Couldn't load your messages. Check your connection and try again.
               </Text>
               <TouchableOpacity
@@ -343,7 +344,7 @@ export default function MessagesScreen() {
                 <Text style={{ color: theme.goldDeep, fontWeight: "700" }}>
                   Buyer #{t.threadId.slice(-4)}
                 </Text>
-                <Text style={{ color: theme.muted, fontSize: 11 }}>
+                <Text style={[{ color: theme.muted, fontSize: 11 }, stableWeight]}>
                   {new Date(t.lastAt).toLocaleDateString()}
                 </Text>
               </View>
@@ -365,7 +366,7 @@ export default function MessagesScreen() {
 
           {messages.length === 0 && loadError && (
             <View style={{ marginTop: 20, gap: 10, alignItems: "center" }}>
-              <Text style={{ color: theme.text, textAlign: "center" }}>
+              <Text style={[{ color: theme.text, textAlign: "center" }, stableWeight]}>
                 Couldn't load this conversation. Check your connection and try again.
               </Text>
               <TouchableOpacity

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { View, StyleSheet, Text } from "react-native";
 
 import { layout } from "../../styles/layout";
+import { stableWeight } from "@/styles/boldTextSafe";
 const { spacing: Spacing, radius: Radius } = layout;
 
 const textVariants = {
@@ -19,7 +20,7 @@ export function HintRow({
 }: HintRowProps) {
   return (
     <View style={styles.stepRow}>
-      <Text style={textVariants.small}>{title}</Text>
+      <Text style={[textVariants.small, stableWeight]}>{title}</Text>
 
       <View style={styles.codeSnippet}>
         <Text style={textVariants.small}>{hint}</Text>

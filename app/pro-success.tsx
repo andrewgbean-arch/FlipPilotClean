@@ -5,6 +5,7 @@ import { Animated, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "@/styles/ThemeContext";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 export default function ProSuccess() {
   const theme = useTheme();
@@ -44,7 +45,7 @@ export default function ProSuccess() {
       <Text style={[styles.title, { color: theme.text }]} accessibilityRole="header">
         You're Pro
       </Text>
-      <Text style={[styles.message, { color: theme.muted }]} accessibilityLiveRegion="polite">
+      <Text style={[styles.message, { color: theme.muted }, stableWeight]} accessibilityLiveRegion="polite">
         Everything in Pro is now unlocked.
       </Text>
     </View>

@@ -9,6 +9,7 @@ import { useAccount } from "@/lib/account";
 import { claimCredits, fetchScanAllowance, type ScanAllowance } from "@/lib/credits";
 import { PRO_PRICE, dateInWords } from "@/lib/scanAllowance";
 import { useTheme } from "@/styles/useTheme";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 /**
  * Your scans: the free scans left this month, whether you are on Pro, and any scan credits held from before the packs were
@@ -120,7 +121,7 @@ export default function CreditsScreen() {
             <Text style={[styles.label, { color: theme.muted }]}>FlipPilot Pro</Text>
             <Text style={[styles.big, { color: theme.gold }]}>Pro</Text>
             <Text style={[styles.body, { color: theme.text }]}>Unlimited scans (up to {allowance.proDailyLimit} a day)</Text>
-            <Text style={[styles.small, { color: theme.muted, textAlign: "center" }]}>
+            <Text style={[styles.small, { color: theme.muted, textAlign: "center" }, stableWeight]}>
               {renews ? `Renews on ${renews}. ` : ""}Your free scans are used first. A scan that finds nothing costs nothing.
             </Text>
           </>
@@ -129,7 +130,7 @@ export default function CreditsScreen() {
             <Text style={[styles.label, { color: theme.muted }]}>Free scans</Text>
             <Text style={[styles.big, { color: theme.gold }]}>–</Text>
             <Text style={[styles.body, { color: theme.text }]}>Sign in to start scanning</Text>
-            <Text style={[styles.small, { color: theme.muted, textAlign: "center" }]}>
+            <Text style={[styles.small, { color: theme.muted, textAlign: "center" }, stableWeight]}>
               {`It's free: we email you a six-digit code (no password), and you get ${allowance.signedInFreeLimit} free scans a month.`}
             </Text>
           </>
@@ -140,7 +141,7 @@ export default function CreditsScreen() {
               {allowance.freeLeft}
             </Text>
             <Text style={[styles.body, { color: theme.text }]}>of {allowance.freeLimit} left</Text>
-            <Text style={[styles.small, { color: theme.muted, textAlign: "center" }]}>
+            <Text style={[styles.small, { color: theme.muted, textAlign: "center" }, stableWeight]}>
               {resets ? `They start again on ${resets}. ` : ""}A scan that finds nothing costs nothing.
             </Text>
           </>

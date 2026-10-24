@@ -24,6 +24,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/styles/ThemeContext";
 
 import { Fair, getAllFairs } from "../../src/lib/fairs";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 const API_URL = "https://api.postcodes.io/postcodes/";
 
@@ -208,7 +209,7 @@ export default function BootfairSearchResults() {
     return (
       <View style={[styles.center, { backgroundColor: theme.background }]}>
         <ActivityIndicator size="large" color={theme.muted} />
-        <Text style={[styles.stateBody, { color: theme.muted }]}>
+        <Text style={[styles.stateBody, { color: theme.muted }, stableWeight]}>
           {postcode ? `Searching for boot fairs near ${postcode}` : "Searching for boot fairs"}
         </Text>
       </View>
@@ -228,7 +229,7 @@ export default function BootfairSearchResults() {
         <Text style={[styles.stateTitle, { color: theme.text }]} accessibilityRole="header">
           {copy.title}
         </Text>
-        <Text style={[styles.stateBody, { color: theme.muted }]}>{copy.body}</Text>
+        <Text style={[styles.stateBody, { color: theme.muted }, stableWeight]}>{copy.body}</Text>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Go back"
@@ -281,7 +282,7 @@ export default function BootfairSearchResults() {
             <Text style={[styles.stateTitle, { color: theme.text }]}>
               No boot fairs in this area
             </Text>
-            <Text style={[styles.stateBody, { color: theme.muted }]}>
+            <Text style={[styles.stateBody, { color: theme.muted }, stableWeight]}>
               Nothing is listed within {radius} miles of {postcode}. Go back and try a wider
               search.
             </Text>

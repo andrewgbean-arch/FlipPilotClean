@@ -3,6 +3,7 @@ import { WarningCircle } from "phosphor-react-native";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { freeTheme as theme } from "@/styles/theme";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 // Static palette on purpose: this renders in place of the whole app, so the
 // providers the normal screens rely on (theme context etc.) may not exist.
@@ -19,12 +20,12 @@ export function RouteErrorScreen({ error, retry }: ErrorBoundaryProps) {
       </View>
 
       <Text style={styles.title}>Something went wrong</Text>
-      <Text style={styles.body}>
+      <Text style={[styles.body, stableWeight]}>
         FlipPilot hit an unexpected problem on this screen. Try again, or head back to the home tab.
       </Text>
 
       {__DEV__ ? (
-        <Text style={styles.devError} numberOfLines={5}>
+        <Text style={[styles.devError, stableWeight]} numberOfLines={5}>
           {error.message}
         </Text>
       ) : null}

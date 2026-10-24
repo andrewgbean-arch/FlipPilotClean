@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { requestCode, verifyCode } from "@/lib/account";
 import { useTheme } from "@/styles/useTheme";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 /**
  * Sign in (or make an account) with an email address and a one-time code. No password to forget.
@@ -152,7 +153,7 @@ export default function SignInScreen() {
       ) : null}
 
       <Pressable onPress={leave} accessibilityRole="button" hitSlop={8} style={styles.link}>
-        <Text style={{ color: theme.muted }}>Not now</Text>
+        <Text style={[{ color: theme.muted }, stableWeight]}>Not now</Text>
       </Pressable>
     </KeyboardAwareScrollView>
   );

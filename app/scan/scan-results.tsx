@@ -46,6 +46,7 @@ import { pickPriceRange } from "@/utils/priceRange";
 import { profitFraming } from "@/utils/profitFraming";
 import { keepPhoto } from "@/utils/keptPhotos";
 import { markHasScanned } from "@/utils/onboarding";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 // Keys of the price keypad, in reading order (three to a row).
 const CALC_KEYS = ["7", "8", "9", "4", "5", "6", "1", "2", "3", "0", ".", "DEL"];
@@ -130,7 +131,7 @@ function PriceTile({
       ]}
     >
       <View style={styles.tileTop}>
-        <Text style={[styles.tileLabel, { color: theme.muted }]}>{label}</Text>
+        <Text style={[styles.tileLabel, { color: theme.muted }, stableWeight]}>{label}</Text>
         {locked ? null : <PencilSimple size={16} color={theme.muted} />}
       </View>
       <Text
@@ -191,8 +192,8 @@ function PriceRangeBar({ low, high, mid }: { low: number; high: number; mid: num
         ) : null}
       </View>
       <View style={styles.rangeLabels}>
-        <Text style={[styles.rangeLabel, { color: theme.muted }]}>£{low.toFixed(2)}</Text>
-        <Text style={[styles.rangeLabel, { color: theme.muted }]}>£{high.toFixed(2)}</Text>
+        <Text style={[styles.rangeLabel, { color: theme.muted }, stableWeight]}>£{low.toFixed(2)}</Text>
+        <Text style={[styles.rangeLabel, { color: theme.muted }, stableWeight]}>£{high.toFixed(2)}</Text>
       </View>
     </View>
   );
@@ -607,7 +608,7 @@ export default function ScanResultsScreen() {
     return (
       <View style={[styles.center, { backgroundColor: theme.background }]}>
         <ActivityIndicator size="large" color={theme.gold} />
-        <Text style={[styles.stateLoading, { color: theme.muted }]}>
+        <Text style={[styles.stateLoading, { color: theme.muted }, stableWeight]}>
           Loading your scan result
         </Text>
       </View>
@@ -625,7 +626,7 @@ export default function ScanResultsScreen() {
         <Text style={[styles.stateTitle, { color: theme.text }]} accessibilityRole="header">
           Couldn't load this result
         </Text>
-        <Text style={[styles.stateBody, { color: theme.muted }]}>
+        <Text style={[styles.stateBody, { color: theme.muted }, stableWeight]}>
           This scan isn't available any more. Go back and scan the item again.
         </Text>
         <Pressable
@@ -819,7 +820,7 @@ export default function ScanResultsScreen() {
               ) : (
                 <Camera size={14} color={theme.muted} />
               )}
-              <Text style={[styles.meta, { color: theme.muted }]} numberOfLines={1} selectable>
+              <Text style={[styles.meta, { color: theme.muted }, stableWeight]} numberOfLines={1} selectable>
                 {barcode ?? "Identified from photo"}
               </Text>
             </View>
@@ -859,7 +860,7 @@ export default function ScanResultsScreen() {
           {priceState === "loading" ? (
             <View style={styles.checkingRow} accessibilityLiveRegion="polite">
               <ActivityIndicator size="small" color={theme.muted} />
-              <Text style={[styles.heroHint, styles.checkingText, { color: theme.muted }]}>
+              <Text style={[styles.heroHint, styles.checkingText, { color: theme.muted }, stableWeight]}>
                 Checking prices…
               </Text>
             </View>
@@ -1079,7 +1080,7 @@ export default function ScanResultsScreen() {
             onPress={reportThisPrice}
             style={({ pressed }) => [styles.reportRow, pressed && styles.pressed]}
           >
-            <Text style={[styles.reportRowText, { color: theme.muted }]}>
+            <Text style={[styles.reportRowText, { color: theme.muted }, stableWeight]}>
               {reportingPrice ? "Sending…" : "Doesn't look right? Report this"}
             </Text>
           </Pressable>
@@ -1093,13 +1094,13 @@ export default function ScanResultsScreen() {
           style={[styles.scoreCard, card]}
         >
           <View style={styles.scoreTop}>
-            <Text style={[styles.heroLabel, { color: theme.muted }]}>FlipScore</Text>
+            <Text style={[styles.heroLabel, { color: theme.muted }, stableWeight]}>FlipScore</Text>
             <Text style={[styles.scoreBand, { color: scoreColor }]}>{scoreBand}</Text>
           </View>
 
           <View style={styles.scoreNumberRow}>
             <Text style={[styles.scoreValue, { color: theme.text }]}>{flipScore}</Text>
-            <Text style={[styles.scoreMax, { color: theme.muted }]}>/ 100</Text>
+            <Text style={[styles.scoreMax, { color: theme.muted }, stableWeight]}>/ 100</Text>
           </View>
 
           <View style={[styles.meterTrack, { backgroundColor: theme.background }]}>
@@ -1163,7 +1164,7 @@ export default function ScanResultsScreen() {
         {saved ? (
           <View style={styles.savedRow} accessibilityLiveRegion="polite">
             <CheckCircle size={16} weight="fill" color={theme.success} />
-            <Text style={[styles.savedText, { color: theme.muted }]}>
+            <Text style={[styles.savedText, { color: theme.muted }, stableWeight]}>
               This flip is now in your History and Home dashboard
             </Text>
             {savedId ? (

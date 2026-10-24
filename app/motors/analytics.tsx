@@ -35,6 +35,7 @@ import {
   isVehicleRecord,
   realisedProfit,
 } from "@/features/vehicles/utils/vehicleStats";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 type AppTheme = ReturnType<typeof useTheme>;
 
@@ -150,7 +151,7 @@ export default function MotorsAnalytics() {
     return (
       <View style={[styles.container, styles.center, { backgroundColor: theme.background }]}>
         <ActivityIndicator size="large" color={theme.muted} />
-        <Text style={[styles.stateBody, { color: theme.muted }]}>Loading your figures</Text>
+        <Text style={[styles.stateBody, { color: theme.muted }, stableWeight]}>Loading your figures</Text>
       </View>
     );
   }
@@ -170,7 +171,7 @@ export default function MotorsAnalytics() {
         <Text style={[styles.emptyTitle, { color: theme.text }]} accessibilityRole="header">
           {loadError ? "Couldn't load your vehicles" : "No figures yet"}
         </Text>
-        <Text style={[styles.stateBody, { color: theme.muted }]}>
+        <Text style={[styles.stateBody, { color: theme.muted }, stableWeight]}>
           {loadError ??
             "Add a vehicle and its profit, stock and MOT figures will appear here."}
         </Text>
@@ -268,7 +269,7 @@ export default function MotorsAnalytics() {
         {months.length === 0 ? (
           <View style={styles.chartEmpty}>
             <ChartLineUp size={20} color={theme.muted} />
-            <Text style={[styles.chartEmptyText, { color: theme.muted }]}>
+            <Text style={[styles.chartEmptyText, { color: theme.muted }, stableWeight]}>
               No sales recorded yet. Sold vehicles will show up here.
             </Text>
           </View>
@@ -297,7 +298,7 @@ export default function MotorsAnalytics() {
                     style={[styles.barFill, { height: barHeight, backgroundColor: theme.muted }]}
                   />
                 </View>
-                <Text style={[styles.barLabel, { color: theme.muted }]}>{SCORE_RANGES[i]}</Text>
+                <Text style={[styles.barLabel, { color: theme.muted }, stableWeight]}>{SCORE_RANGES[i]}</Text>
               </View>
             );
           })}
@@ -411,9 +412,9 @@ function ProfitLineChart({
       </View>
 
       <View style={styles.chartLabels}>
-        <Text style={[styles.chartLabel, { color: theme.muted }]}>{monthLabel(months[0])}</Text>
+        <Text style={[styles.chartLabel, { color: theme.muted }, stableWeight]}>{monthLabel(months[0])}</Text>
         {months.length > 1 ? (
-          <Text style={[styles.chartLabel, { color: theme.muted }]}>
+          <Text style={[styles.chartLabel, { color: theme.muted }, stableWeight]}>
             {monthLabel(months[months.length - 1])}
           </Text>
         ) : null}

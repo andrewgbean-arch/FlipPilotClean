@@ -61,6 +61,7 @@ import {
   timeBonus,
   windAt,
 } from "@/game/dayRounds";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 const BEST_KEY = "flippilot.dash.best";
 const BEST_DAY_KEY = "flippilot.dash.bestDay";
@@ -875,7 +876,7 @@ export default function BootFairDash() {
             <>
               <Text style={styles.kicker}>FLIPPILOT PRESENTS</Text>
               <Text style={styles.title}>LAMPY'S{"\n"}BOOT FAIR DASH</Text>
-              <Text style={styles.blurb}>
+              <Text style={[styles.blurb, stableWeight]}>
                 Slide your thumb to move Lampy. Catch the shiny bargains and leave the grubby tat alone.
               </Text>
               <Pressable style={styles.btn} onPress={() => openDay(0, true)} accessibilityRole="button">
@@ -912,7 +913,7 @@ export default function BootFairDash() {
                 ROUND {roundIdx + 1} OF {ROUNDS.length} · {round.clock.toUpperCase()}
               </Text>
               <Text style={[styles.title, { fontSize: 34 }]}>{round.title}</Text>
-              <Text style={styles.blurb}>{round.howTo}</Text>
+              <Text style={[styles.blurb, stableWeight]}>{round.howTo}</Text>
               <RoundPreview round={round} />
               <Pressable style={styles.btn} onPress={startRound} accessibilityRole="button">
                 <Text style={styles.btnText}>{roundIdx === 0 && !lastResult ? "Open the gates" : "Go!"}</Text>

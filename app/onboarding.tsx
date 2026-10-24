@@ -8,6 +8,7 @@ import { useTheme } from "@/styles/ThemeContext";
 import GoldFoil from "@/components/ui/GoldFoil";
 import { isNarrationMuted, setNarrationMuted } from "@/utils/onboarding";
 import { startTour } from "@/features/tour/TourContext";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 /**
  * Shown once, right after the age/terms screen: a brief branded moment before handing off into
@@ -58,11 +59,11 @@ export default function OnboardingScreen() {
           <Text style={[styles.logoText, { color: theme.gold }]}>FP</Text>
         </View>
         <Text style={[styles.title, { color: theme.text }]}>Let's show you around</Text>
-        <Text style={[styles.body, { color: theme.muted }]}>
+        <Text style={[styles.body, { color: theme.muted }, stableWeight]}>
           A quick guided tour of the real screens — scanning, your flips, the Marketplace and
           checking a car. Skippable any time, and you can watch it again later from Settings.
         </Text>
-        <Text style={[styles.body, styles.cameraNote, { color: theme.muted }]}>
+        <Text style={[styles.body, styles.cameraNote, { color: theme.muted }, stableWeight]}>
           We'll ask for camera access first, so scanning is ready when we get to it.
         </Text>
       </View>

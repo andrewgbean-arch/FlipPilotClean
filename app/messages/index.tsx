@@ -14,6 +14,7 @@ import { reportAdvertEvent, useAdverts, type FeedAdverts } from "@/lib/adverts";
 import { HOUSE_ADVERTS } from "@/lib/houseAdverts";
 import SponsoredCard from "@/components/marketplace/SponsoredCard";
 import { removeSponsor, useSavedSponsors } from "@/lib/savedSponsors";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 type Conversation = {
   listingId: number | string;
@@ -97,7 +98,7 @@ const Row = React.memo(function Row({ item, theme }: { item: Conversation; theme
               {item.title}
             </Text>
           </View>
-          <Text style={{ color: theme.muted, fontSize: 11 }}>{when(item.lastAt)}</Text>
+          <Text style={[{ color: theme.muted, fontSize: 11 }, stableWeight]}>{when(item.lastAt)}</Text>
         </View>
 
         <Text style={{ color: theme.muted, fontSize: 12, marginTop: 1 }}>

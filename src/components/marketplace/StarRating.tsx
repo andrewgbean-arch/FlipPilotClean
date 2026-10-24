@@ -3,6 +3,7 @@ import { View, Text, Pressable } from "react-native";
 import { Star } from "phosphor-react-native";
 
 import { useTheme } from "@/styles/ThemeContext";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 /**
  * Stars for a rating that exists. A seller with no reviews gets words, not a
@@ -63,7 +64,7 @@ export default function StarRating({
       </View>
 
       {stars != null && (
-        <Text style={{ color: theme.text, fontSize: 14 }}>
+        <Text style={[{ color: theme.text, fontSize: 14 }, stableWeight]}>
           {stars.toFixed(1)}
           {count != null ? ` · ${count} ${count === 1 ? "review" : "reviews"}` : ""}
         </Text>

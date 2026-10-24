@@ -18,6 +18,7 @@ import GoldParticles from "@/components/ui/GoldParticles";
 import { markMarketplaceVisited } from "@/utils/onboarding";
 import { useTourTarget } from "@/features/tour/TourTarget";
 import { isTourActive } from "@/features/tour/TourContext";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 export default function MarketplaceHub() {
   const theme = useTheme();
@@ -80,7 +81,7 @@ export default function MarketplaceHub() {
       >
       {/* HERO */}
       <View style={{ padding: 20, alignItems: "center" }}>
-        <Text style={{ color: theme.text, fontSize: 14 }}>
+        <Text style={[{ color: theme.text, fontSize: 14 }, stableWeight]}>
           Buy and sell with people nearby
         </Text>
       </View>

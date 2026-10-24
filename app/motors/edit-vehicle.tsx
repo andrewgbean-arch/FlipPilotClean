@@ -19,6 +19,7 @@ import { useTheme } from "@/styles/ThemeContext";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
 import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
 import { daysUntilDate } from "@/features/vehicles/utils/motDates";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 type AppTheme = ReturnType<typeof useTheme>;
 
@@ -52,7 +53,7 @@ export default function EditVehicle() {
       return (
         <View style={[styles.flex, styles.center, { backgroundColor: theme.background }]}>
           <ActivityIndicator size="large" color={theme.muted} />
-          <Text style={[styles.stateBody, { color: theme.muted }]}>Loading your vehicle</Text>
+          <Text style={[styles.stateBody, { color: theme.muted }, stableWeight]}>Loading your vehicle</Text>
         </View>
       );
     }
@@ -71,7 +72,7 @@ export default function EditVehicle() {
         <Text style={[styles.stateTitle, { color: theme.text }]} accessibilityRole="header">
           {loadError ? "Couldn't load your vehicles" : "Vehicle not found"}
         </Text>
-        <Text style={[styles.stateBody, { color: theme.muted }]}>
+        <Text style={[styles.stateBody, { color: theme.muted }, stableWeight]}>
           {loadError ?? "This vehicle no longer exists in your history."}
         </Text>
       </View>

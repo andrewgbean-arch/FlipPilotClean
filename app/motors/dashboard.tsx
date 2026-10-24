@@ -37,6 +37,7 @@ import {
   realisedProfit,
   summariseVehicles,
 } from "@/features/vehicles/utils/vehicleStats";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 function StatTile({
   Icon,
@@ -258,7 +259,7 @@ export default function MotorsDashboard() {
         {motAttention.length === 0 ? (
           <View style={[styles.emptyCard, styles.emptyRow, card]}>
             <CheckCircle size={20} color={theme.success} />
-            <Text style={[styles.emptyText, { color: theme.muted }]}>No MOT issues.</Text>
+            <Text style={[styles.emptyText, { color: theme.muted }, stableWeight]}>No MOT issues.</Text>
           </View>
         ) : (
           <View style={[styles.group, card]}>
@@ -305,14 +306,14 @@ export default function MotorsDashboard() {
         {monthly.length === 0 ? (
           <View style={[styles.emptyCard, styles.emptyRow, card]}>
             <ChartLineUp size={20} color={theme.muted} />
-            <Text style={[styles.emptyText, { color: theme.muted }]}>No sales recorded yet.</Text>
+            <Text style={[styles.emptyText, { color: theme.muted }, stableWeight]}>No sales recorded yet.</Text>
           </View>
         ) : (
           <View style={[styles.emptyCard, card]}>
             {monthly.map(({ key, label, profit }, i) => (
               <View key={key} style={i > 0 && styles.monthGap}>
                 <View style={styles.monthHeader}>
-                  <Text style={[styles.monthLabel, { color: theme.muted }]}>{label}</Text>
+                  <Text style={[styles.monthLabel, { color: theme.muted }, stableWeight]}>{label}</Text>
                   <Text
                     style={[
                       styles.monthValue,

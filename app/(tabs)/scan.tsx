@@ -31,6 +31,7 @@ import ScanWaitingAd, { AD_REVEAL_DELAY_MS } from "@/components/ScanWaitingAd";
 import { refreshAdverts } from "@/lib/adverts";
 import { useTourTarget } from "@/features/tour/TourTarget";
 import { isTourActive } from "@/features/tour/TourContext";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 // Laser + AI Tips
 const LASER_COLOR = "#FF3B3B";
@@ -466,7 +467,7 @@ export default function ScanScreen() {
         <Text style={{ color: theme.text, fontSize: 22, fontWeight: "700", textAlign: "center" }}>
           Camera access needed
         </Text>
-        <Text style={{ color: theme.muted, fontSize: 14, textAlign: "center", marginTop: 8 }}>
+        <Text style={[{ color: theme.muted, fontSize: 14, textAlign: "center", marginTop: 8 }, stableWeight]}>
           {canAskAgain
             ? "FlipPilot uses your camera to scan barcodes and identify items for flipping."
             : "Camera access is turned off for FlipPilot. Turn it on in Settings to scan barcodes and identify items for flipping."}
@@ -623,7 +624,7 @@ export default function ScanScreen() {
             <Text style={{ color: theme.text, fontSize: 18, fontWeight: "700", textAlign: "center" }}>
               The camera couldn't start
             </Text>
-            <Text style={{ color: theme.muted, fontSize: 14, textAlign: "center", marginTop: 8 }}>
+            <Text style={[{ color: theme.muted, fontSize: 14, textAlign: "center", marginTop: 8 }, stableWeight]}>
               It may be in use by another app. Close other apps that use the camera, then try again.
             </Text>
             <Pressable

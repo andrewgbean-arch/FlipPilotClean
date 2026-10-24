@@ -45,6 +45,7 @@ import {
   realisedProfit,
   summariseVehicles,
 } from "@/features/vehicles/utils/vehicleStats";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 type AppTheme = ReturnType<typeof useTheme>;
 
@@ -103,7 +104,7 @@ export default function MotorsHub() {
     return (
       <View style={[styles.container, styles.center, { backgroundColor: theme.background }]}>
         <ActivityIndicator size="large" color={theme.muted} />
-        <Text style={[styles.stateBody, { color: theme.muted }]}>Loading your vehicles</Text>
+        <Text style={[styles.stateBody, { color: theme.muted }, stableWeight]}>Loading your vehicles</Text>
       </View>
     );
   }
@@ -184,7 +185,7 @@ export default function MotorsHub() {
           <Text style={[styles.emptyTitle, { color: theme.text }]}>
             {loadError ? "Couldn't load your vehicles" : "No vehicles yet"}
           </Text>
-          <Text style={[styles.emptyBody, { color: theme.muted }]}>
+          <Text style={[styles.emptyBody, { color: theme.muted }, stableWeight]}>
             {loadError ?? "Add your first vehicle to track its MOT, profit and flip score."}
           </Text>
         </View>
@@ -241,7 +242,7 @@ export default function MotorsHub() {
                   style={i > 0 && styles.monthGap}
                 >
                   <View style={styles.monthHeader}>
-                    <Text style={[styles.monthLabel, { color: theme.muted }]}>{label}</Text>
+                    <Text style={[styles.monthLabel, { color: theme.muted }, stableWeight]}>{label}</Text>
                     <Text
                       style={[
                         styles.monthValue,
@@ -404,7 +405,7 @@ function SectionTitle({ children, meta }: { children: string; meta?: string }) {
       <Text style={[styles.sectionTitle, { color: theme.text }]} accessibilityRole="header">
         {children}
       </Text>
-      {meta ? <Text style={[styles.sectionMeta, { color: theme.muted }]}>{meta}</Text> : null}
+      {meta ? <Text style={[styles.sectionMeta, { color: theme.muted }, stableWeight]}>{meta}</Text> : null}
     </View>
   );
 }
@@ -441,7 +442,7 @@ function EmptyCard({
       ]}
     >
       {Icon ? <Icon size={20} color={iconColor ?? theme.muted} /> : null}
-      <Text style={[styles.emptyText, { color: theme.muted }]}>{text}</Text>
+      <Text style={[styles.emptyText, { color: theme.muted }, stableWeight]}>{text}</Text>
     </View>
   );
 }
@@ -531,7 +532,7 @@ function ProfitFigure({ value }: { value: number | null }) {
       <Text style={[styles.figureValue, { color: profitColor(theme, value) }]}>
         {signedMoney(value)}
       </Text>
-      <Text style={[styles.figureLabel, { color: theme.muted }]}>Profit</Text>
+      <Text style={[styles.figureLabel, { color: theme.muted }, stableWeight]}>Profit</Text>
     </View>
   );
 }

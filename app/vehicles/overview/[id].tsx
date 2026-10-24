@@ -37,6 +37,7 @@ import {
 import { useTheme } from "@/styles/ThemeContext";
 import type { Theme } from "@/styles/theme";
 import { motStatusFromExpiry } from "@/features/vehicles/utils/motTests";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 /* HELPERS */
 
@@ -218,7 +219,7 @@ function StateView({
           {title}
         </Text>
       ) : null}
-      <Text style={[styles.stateBody, { color: theme.muted }]}>{body}</Text>
+      <Text style={[styles.stateBody, { color: theme.muted }, stableWeight]}>{body}</Text>
     </View>
   );
 }
@@ -457,7 +458,7 @@ export default function VehicleOverviewScreen() {
               }
               style={styles.summaryRoi}
             >
-              <Text style={[styles.smallLabel, { color: theme.muted }]}>ROI</Text>
+              <Text style={[styles.smallLabel, { color: theme.muted }, stableWeight]}>ROI</Text>
               <Text style={[styles.roiFigure, { color: roiColor }]}>{roiText}</Text>
             </View>
           </View>

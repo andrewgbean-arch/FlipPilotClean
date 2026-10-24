@@ -1,7 +1,8 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { FlipRecord } from "@/features/vehicles/models/FlipRecord"; // ⭐ FIXED
+import { FlipRecord } from "@/features/vehicles/models/FlipRecord";
+import { stableWeight } from "@/styles/boldTextSafe"; // ⭐ FIXED
 
 
 
@@ -17,22 +18,22 @@ export default function MOTInsightsPanel({ mot }: { mot?: FlipRecord["mot"] }) {
 
       <View style={styles.row}>
         <MaterialCommunityIcons name="file-check-outline" size={20} color={GOLD} />
-        <Text style={styles.meta}>Status: {mot.motStatus ?? "Unknown"}</Text>
+        <Text style={[styles.meta, stableWeight]}>Status: {mot.motStatus ?? "Unknown"}</Text>
       </View>
 
       <View style={styles.row}>
         <MaterialCommunityIcons name="calendar" size={20} color={GOLD} />
-        <Text style={styles.meta}>Expiry: {mot.motExpiry ?? "Unknown"}</Text>
+        <Text style={[styles.meta, stableWeight]}>Expiry: {mot.motExpiry ?? "Unknown"}</Text>
       </View>
 
       <View style={styles.row}>
         <MaterialCommunityIcons name="car" size={20} color={GOLD} />
-        <Text style={styles.meta}>Mileage: {mot.mileage?.toLocaleString() ?? "Unknown"}</Text>
+        <Text style={[styles.meta, stableWeight]}>Mileage: {mot.mileage?.toLocaleString() ?? "Unknown"}</Text>
       </View>
 
       <View style={styles.row}>
         <MaterialCommunityIcons name="account" size={20} color={GOLD} />
-        <Text style={styles.meta}>Keepers: {mot.keepers ?? "Unknown"}</Text>
+        <Text style={[styles.meta, stableWeight]}>Keepers: {mot.keepers ?? "Unknown"}</Text>
       </View>
     </View>
   );

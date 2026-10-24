@@ -44,6 +44,7 @@ import {
 } from "@/features/vehicles/utils/vehicleStats";
 import { useTheme } from "@/styles/ThemeContext";
 import type { Theme } from "@/styles/theme";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 function describeExpiry(days: number) {
   if (days === 0) return "expires today";
@@ -259,7 +260,7 @@ function StateBlock({
       >
         {title}
       </Text>
-      {body ? <Text style={[styles.stateBody, { color: theme.muted }]}>{body}</Text> : null}
+      {body ? <Text style={[styles.stateBody, { color: theme.muted }, stableWeight]}>{body}</Text> : null}
     </View>
   );
 }
@@ -332,7 +333,7 @@ function FlipRow({
             {reg ? (
               <View style={styles.regRow}>
                 <Car size={14} color={theme.muted} />
-                <Text style={[styles.reg, { color: theme.muted }]} numberOfLines={1}>
+                <Text style={[styles.reg, { color: theme.muted }, stableWeight]} numberOfLines={1}>
                   {reg}
                 </Text>
               </View>

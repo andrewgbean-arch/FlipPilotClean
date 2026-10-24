@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 export default function AICard({ title, data }: { title: string; data: any }) {
   return (
@@ -7,7 +8,7 @@ export default function AICard({ title, data }: { title: string; data: any }) {
       <Text style={styles.title}>{title}</Text>
       {Object.entries(data).map(([key, value]) => (
         <View key={key} style={styles.row}>
-          <Text style={styles.key}>{key}</Text>
+          <Text style={[styles.key, stableWeight]}>{key}</Text>
           <Text style={styles.value}>{String(value)}</Text>
         </View>
       ))}

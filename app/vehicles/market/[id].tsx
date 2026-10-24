@@ -19,6 +19,7 @@ import { formatMoney } from "@/features/vehicles/utils/vehicleStats";
 import { useTheme } from "@/styles/ThemeContext";
 import type { Theme } from "@/styles/theme";
 import { estimateVehiclePrice } from "@/utils/vehiclePrice";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 type MarketResult = {
   priceRange: { low: number; mid: number; high: number };
@@ -109,7 +110,7 @@ function RangeCol({
 
   return (
     <View style={{ alignItems: align }}>
-      <Text style={[styles.rangeLabel, { color: theme.muted }]}>{label}</Text>
+      <Text style={[styles.rangeLabel, { color: theme.muted }, stableWeight]}>{label}</Text>
       <Text style={[styles.rangeValue, { color: theme.text }]} numberOfLines={1} adjustsFontSizeToFit>
         {value}
       </Text>
@@ -205,7 +206,7 @@ function StateBlock({
       >
         {title}
       </Text>
-      {body ? <Text style={[styles.stateBody, { color: theme.muted }]}>{body}</Text> : null}
+      {body ? <Text style={[styles.stateBody, { color: theme.muted }, stableWeight]}>{body}</Text> : null}
     </View>
   );
 }

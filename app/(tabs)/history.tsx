@@ -27,6 +27,7 @@ import FlipCard, { getBuyPrice, getProfit, getSellPrice } from "@/components/Fli
 import { bestBoughtFlip, boughtState, profitSummary } from "@/features/vehicles/utils/boughtStatus";
 import { formatMoney, formatSignedMoney } from "@/features/vehicles/utils/vehicleStats";
 import { TourTarget } from "@/features/tour/TourTarget";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 // Ids are uuids, so recency has to come from the timestamp.
 const savedAt = (f: FlipRecord) => Date.parse(f.timestamp) || 0;
@@ -491,6 +492,7 @@ export default function HistoryScreen() {
                 style={[
                   textVariants.body,
                   { color: theme.muted, textAlign: "center", marginTop: 6 },
+                  stableWeight,
                 ]}
               >
                 {emptyBody}

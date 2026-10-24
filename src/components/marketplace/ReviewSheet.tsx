@@ -5,6 +5,7 @@ import { useTheme } from "@/styles/ThemeContext";
 import { BASE_URL } from "@/utils/api";
 import { getDeviceId } from "@/utils/deviceId";
 import StarRating from "@/components/marketplace/StarRating";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 type Props = {
   visible: boolean;
@@ -113,7 +114,7 @@ export default function ReviewSheet({ visible, onClose, onDone, sellerId, listin
                 alignItems: "center",
               }}
             >
-              <Text style={{ color: theme.text }}>Not now</Text>
+              <Text style={[{ color: theme.text }, stableWeight]}>Not now</Text>
             </Pressable>
 
             <Pressable

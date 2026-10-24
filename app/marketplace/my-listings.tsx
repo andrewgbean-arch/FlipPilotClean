@@ -24,6 +24,7 @@ import { deleteMyListing } from "@/utils/myData";
 import { BoostError, boostListing, fetchBoostTerms, relistListing, setReserved } from "@/utils/listingActions";
 import { fetchScanAllowance } from "@/lib/credits";
 import StatusBadge from "@/components/marketplace/StatusBadge";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 type SoldThread = { threadId: string; lastMessage: string };
 
@@ -599,7 +600,7 @@ function EmptyState({ title, body, action, onAction }: { title: string; body: st
         <Storefront size={28} color={theme.gold} />
       </View>
       <Text style={{ color: theme.text, fontSize: 18, fontWeight: "700", textAlign: "center" }}>{title}</Text>
-      <Text style={{ color: theme.muted, fontSize: 14, lineHeight: 20, textAlign: "center", marginTop: 6 }}>{body}</Text>
+      <Text style={[{ color: theme.muted, fontSize: 14, lineHeight: 20, textAlign: "center", marginTop: 6 }, stableWeight]}>{body}</Text>
       <TouchableOpacity
         accessibilityRole="button"
         onPress={onAction}

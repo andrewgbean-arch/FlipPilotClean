@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 const GOLD = "#FFD700";
 const SILVER = "#AAB4C3";
@@ -15,7 +16,7 @@ export default function MOTExpiryCountdown({ expiry }: { expiry?: string | null 
   return (
     <View style={styles.row}>
       <MaterialCommunityIcons name="calendar" size={16} color={GOLD} />
-      <Text style={styles.text}>
+      <Text style={[styles.text, stableWeight]}>
         {diff > 0 ? `${diff} days until expiry` : "Expired"}
       </Text>
     </View>

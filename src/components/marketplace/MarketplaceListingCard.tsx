@@ -1,4 +1,5 @@
 import { Pressable, Image, View, Text } from "react-native";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 export default function MarketplaceListingCard({
   id,
@@ -54,7 +55,7 @@ export default function MarketplaceListingCard({
               alignItems: "center",
             }}
           >
-            <Text style={{ color: theme.text }}>No Image</Text>
+            <Text style={[{ color: theme.text }, stableWeight]}>No Image</Text>
           </View>
         )}
 

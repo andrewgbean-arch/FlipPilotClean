@@ -23,6 +23,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/styles/ThemeContext";
 import { useVehicleHistory } from "@/features/vehicles/context/VehicleHistoryContext";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 export default function EditLookupScreen() {
   const [query, setQuery] = useState("");
@@ -197,7 +198,7 @@ export default function EditLookupScreen() {
               <Text style={[styles.emptyTitle, { color: theme.text }]}>
                 No matching vehicles found
               </Text>
-              <Text style={[styles.emptyBody, { color: theme.muted }]}>
+              <Text style={[styles.emptyBody, { color: theme.muted }, stableWeight]}>
                 Check the registration, or try a make, model or year.
               </Text>
             </View>
@@ -216,12 +217,12 @@ export default function EditLookupScreen() {
                 <emptyState.Icon size={30} color={emptyState.color} />
               </View>
               <Text style={[styles.emptyTitle, { color: theme.text }]}>{emptyState.title}</Text>
-              <Text style={[styles.emptyBody, { color: theme.muted }]}>{emptyState.body}</Text>
+              <Text style={[styles.emptyBody, { color: theme.muted }, stableWeight]}>{emptyState.body}</Text>
             </>
           ) : (
             <>
               <ActivityIndicator size="large" color={theme.muted} />
-              <Text style={[styles.emptyBody, { color: theme.muted, marginTop: 16 }]}>
+              <Text style={[styles.emptyBody, { color: theme.muted, marginTop: 16 }, stableWeight]}>
                 Loading your flips
               </Text>
             </>

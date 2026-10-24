@@ -4,6 +4,7 @@ import { Compass } from "phosphor-react-native";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useTheme } from "@/styles/useTheme";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 export default function NotFoundScreen() {
   const theme = useTheme();
@@ -17,7 +18,7 @@ export default function NotFoundScreen() {
         </View>
 
         <Text style={[styles.title, { color: theme.text }]}>Page not found</Text>
-        <Text style={[styles.body, { color: theme.muted }]}>
+        <Text style={[styles.body, { color: theme.muted }, stableWeight]}>
           That screen doesn't exist or has moved.
         </Text>
 

@@ -37,6 +37,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GUIDES } from "@/content/guides";
 import { useTheme } from "@/styles/ThemeContext";
 import { openPartnerLink, type PartnerLinkKind } from "@/utils/partnerLinks";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 // Everything on this tab opens something real: a screen in the app, a guide worth reading, or
 // (for businesses) the page they need. Nothing here is a description of a feature instead of it.
@@ -358,7 +359,7 @@ export default function ExploreScreen() {
             <MagnifyingGlass size={28} color={theme.muted} />
           </View>
           <Text style={[styles.emptyTitle, { color: theme.text }]}>No matches</Text>
-          <Text style={[styles.emptyBody, { color: theme.muted }]}>
+          <Text style={[styles.emptyBody, { color: theme.muted }, stableWeight]}>
             {`Nothing matched "${search.trim()}". Try a shorter word, or clear the search to browse everything.`}
           </Text>
         </View>

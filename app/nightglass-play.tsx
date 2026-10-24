@@ -8,6 +8,7 @@ import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import ChapterFinished from "@/game/ChapterFinished";
 import { CHAPTERS, GAME_PAGES } from "@/game/nightglass";
 import { chapterFile, chapterUrl, isDownloaded } from "@/game/nightglassDownloads";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 const INK = "#03060a";
 const AMBER = "#f0b35b";
@@ -85,7 +86,7 @@ export default function NightglassPlayer() {
   if (failed) {
     return (
       <View style={styles.center}>
-        <Text style={styles.text}>
+        <Text style={[styles.text, stableWeight]}>
           {GAME_PAGES[ch.id] ? "The game could not be opened. Please try again." : `Chapter ${ch.number} isn't on this phone yet. Download it from the chapter list first.`}
         </Text>
       </View>
@@ -96,7 +97,7 @@ export default function NightglassPlayer() {
       <View style={styles.center}>
         <StatusBar hidden />
         <ActivityIndicator color={AMBER} size="large" />
-        <Text style={styles.text}>Loading {place}…</Text>
+        <Text style={[styles.text, stableWeight]}>Loading {place}…</Text>
       </View>
     );
   }
@@ -143,7 +144,7 @@ export default function NightglassPlayer() {
         renderLoading={() => (
           <View style={[styles.center, StyleSheet.absoluteFill]}>
             <ActivityIndicator color={AMBER} size="large" />
-            <Text style={styles.text}>Loading {place}…</Text>
+            <Text style={[styles.text, stableWeight]}>Loading {place}…</Text>
           </View>
         )}
       />

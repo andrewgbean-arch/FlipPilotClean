@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/styles/useTheme";
 import { describeApiError, sendFeedback } from "@/utils/api";
 import * as Haptics from "expo-haptics";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 
 // A word for each rating, shown under the stars once one is chosen.
@@ -275,7 +276,7 @@ export default function RateScreen() {
 
             <Text style={[styles.thanksTitle, { color: theme.text }]}>Thank you</Text>
 
-            <Text style={[styles.thanksBody, { color: theme.muted }]}>
+            <Text style={[styles.thanksBody, { color: theme.muted }, stableWeight]}>
               Your rating helps us improve FlipPilot.
             </Text>
           </Animated.View>

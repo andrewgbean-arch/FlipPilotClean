@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSubscription } from "../src/context/SubscriptionContext";
 import { FREE_SCANS_A_MONTH, PRO_DAILY_SCANS, PRO_PRICE } from "@/lib/scanAllowance";
 import { useTheme } from "@/styles/ThemeContext";
+import { stableWeight } from "@/styles/boldTextSafe";
 
 type TierId = "free" | "pro";
 
@@ -273,7 +274,7 @@ export default function UpgradeScreen() {
         {notReadyToBuy ? (
           <View style={styles.noticeRow} accessibilityLiveRegion="polite">
             <Info size={16} color={theme.muted} />
-            <Text style={[styles.noticeText, { color: theme.muted }]}>
+            <Text style={[styles.noticeText, { color: theme.muted }, stableWeight]}>
               {"Store prices aren't available yet. You can subscribe once they've loaded."}
             </Text>
           </View>
