@@ -61,6 +61,7 @@ a:hover { text-decoration-thickness: 2px; }
   background: linear-gradient(180deg, var(--gold-light), var(--gold));
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
+.brand sup { margin-left: 3px; font-size: 0.5em; letter-spacing: 0.12em; vertical-align: 0.9em; line-height: 0; }
 .top nav { display: flex; flex-wrap: wrap; gap: 4px 18px; }
 .top nav a { color: #dfe5f5; font-size: 15px; text-decoration: none; padding: 4px 0; border-bottom: 2px solid transparent; }
 .top nav a:hover, .top nav a[aria-current="page"] { color: #fff; border-bottom-color: var(--gold); }

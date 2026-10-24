@@ -4,7 +4,7 @@ const DEV = process.env.APP_VARIANT === "development";
 
 export default {
   expo: {
-    name: DEV ? "FlipPilot Dev" : "FlipPilot",
+    name: DEV ? "FlipPilot Dev" : "FlipPilot UK",
     slug: "flippilot-new",
     version: "1.0.0",
     orientation: "portrait",
