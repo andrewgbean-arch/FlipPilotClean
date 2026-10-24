@@ -14,13 +14,13 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://flippilot-backend.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://api.flippilot.co.uk"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://flippilot-backend.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://api.flippilot.co.uk"
       }
     }
   },

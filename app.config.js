@@ -26,7 +26,21 @@ export default {
         monochromeImage: "./assets/images/android-icon-monochrome.png"
       },
       predictiveBackGestureEnabled: false,
-      package: DEV ? "com.flippilot.app.dev" : "com.flippilot.app"
+      package: DEV ? "com.flippilot.app.dev" : "com.flippilot.app",
+      // Permissions the app's libraries or the Expo template add by default but FlipPilot never uses. Leaving them in makes
+      // the Play listing ask for things it should not, and the foreground-service ones force a separate Play declaration.
+      // Not in the development build, whose tooling needs the overlay. `npm run check:android` guards this list.
+      blockedPermissions: DEV
+        ? []
+        : [
+            "android.permission.SYSTEM_ALERT_WINDOW", // the template adds it for the debug overlay
+            "android.permission.ACCESS_FINE_LOCATION", // the weather card asks for low accuracy only, so approximate location is enough
+            "android.permission.USE_BIOMETRIC", // pulled in by the secure-store library; nothing here asks for a fingerprint or face
+            "android.permission.USE_FINGERPRINT",
+            "android.permission.FOREGROUND_SERVICE", // background audio is switched off below
+            "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+            "android.permission.RECORD_AUDIO"
+          ]
     },
     web: {
       output: "single",
@@ -45,8 +59,18 @@ export default {
       "expo-sharing",
       "expo-router",
       "expo-image",
-      "expo-video",
-      "expo-audio",
+      // Sounds, voices and the start-up video play while the app is open. No background playback, no recording, no
+      // microphone: by default the audio plugin would add the microphone and a media foreground service.
+      ["expo-video", { supportsBackgroundPlayback: false, supportsPictureInPicture: false }],
+      [
+        "expo-audio",
+        {
+          microphonePermission: false,
+          recordAudioAndroid: false,
+          enableBackgroundPlayback: false,
+          enableBackgroundRecording: false
+        }
+      ],
       [
         "expo-camera",
         {

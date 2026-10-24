@@ -19,9 +19,10 @@ export const LEGAL = {
   // so "For dealers" and "Advertise your business" open an email to us from day one.
   supportEmail: process.env.EXPO_PUBLIC_SUPPORT_EMAIL?.trim() || "support@flippilot.co.uk",
   businessName: process.env.EXPO_PUBLIC_BUSINESS_NAME?.trim() ?? "",
-  // Where "For dealers" and "Advertise your business" go. Until a page exists
-  // they open an email enquiry to the support address instead (partnerLinks.ts).
-  dealersUrl: process.env.EXPO_PUBLIC_DEALERS_URL?.trim() ?? "",
+  // Where "For dealers" and "Advertise your business" go. "For dealers" opens the main website, which explains
+  // Dealer OS and links to the sign-up. With no page set (empty string in a build) both fall back to an email
+  // enquiry to the support address instead (partnerLinks.ts).
+  dealersUrl: (process.env.EXPO_PUBLIC_DEALERS_URL ?? "https://flippilot.co.uk/").trim(),
   advertiseUrl: process.env.EXPO_PUBLIC_ADVERTISE_URL?.trim() ?? "",
 } as const;
 
