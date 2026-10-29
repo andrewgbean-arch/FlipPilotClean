@@ -59,6 +59,9 @@ export default {
       "expo-sharing",
       "expo-router",
       "expo-image",
+      // Android only: the app ignores the phone's "Bold text" setting so no text is cut off (reason in the plugin file).
+      // `npm run check:boldoverride` guards it.
+      "./plugins/withIgnoreBoldText",
       // Sounds, voices and the start-up video play while the app is open. No background playback, no recording, no
       // microphone: by default the audio plugin would add the microphone and a media foreground service.
       ["expo-video", { supportsBackgroundPlayback: false, supportsPictureInPicture: false }],

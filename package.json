@@ -9,7 +9,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "check:android": "node scripts/check-android-config.mjs",
-    "check:boldtext": "node scripts/check-bold-text.mjs"
+    "check:boldtext": "node scripts/check-bold-text.mjs && node scripts/check-bold-override.mjs",
+    "check:boldoverride": "node scripts/check-bold-override.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
