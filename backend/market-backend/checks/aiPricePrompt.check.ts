@@ -19,6 +19,9 @@ ok("says gadgets, clothes and furniture lose value fast", /lose value fast/.test
 ok("asks for what it sells for, not hopeful asking prices", /sold prices, not hopeful asking prices/.test(p));
 ok("still asks for the four fields as JSON", ["newPrice", "usedMin", "usedMax", "confidence"].every((k) => p.includes(`"${k}"`)) && p.includes("Return ONLY valid JSON"));
 ok("keeps the rule about specific models", /Never substitute a cheaper, better-known model/.test(p));
+// Added 8 Nov 2026: a brand the AI does not know (a Duotts C29 e-bike) used to come back as a confident £30-60.
+ok("asks whether it actually knows the make and model", p.includes('"recognised"') && /true if you genuinely know this specific make and model/.test(p));
+ok("tells it not to invent a price from how the words sound", /do not invent a price from how the words sound/.test(p));
 
 const pack = aiPricePrompt("Walkers Crisps 6 pack", 6);
 ok("states the pack size when there is one", pack.includes("Pack size: 6 in the pack") && pack.includes("(this pack size)"));

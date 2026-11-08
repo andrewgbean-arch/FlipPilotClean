@@ -1,4 +1,4 @@
-import { pickEbayCards } from "./ebayListings";
+import { ebayNewRange, pickEbayCards } from "./ebayListings";
 
 // Sent by scan-results ("Scan Again") so the Scan tab knows the user asked to scan again
 // and can resume barcode scanning, which otherwise waits for a tap after every scan.
@@ -33,6 +33,9 @@ export const pickMarket = (market: any) => ({
   aiPriceMin: market?.aiPriceMin ?? null,
   aiPriceMax: market?.aiPriceMax ?? null,
   aiPriceConfidence: market?.aiPriceConfidence ?? null,
+  // True when the server gave no price because the AI does not know this make and nothing real was found to price it from; the
+  // result then says so (see isUnrecognised in the backend). null on a reply, or a saved result, that predates it.
+  unrecognised: market?.unrecognised ?? null,
   // eBay's own asking-price range, shown in the "On eBay right now" block — informational only,
   // not blended into the prices above. Dropped here until 2026-09-30, so that block (then called
   // "Trending on eBay") never rendered for anyone: the backend has always sent it, this whitelist
@@ -113,6 +116,16 @@ export const transformIdentity = (
   scanToken: input?.scanToken ?? null,
 });
 
+// The listings for the "On eBay right now" block: eBay's used ones. When it has no used one but has new ones, those instead, with their
+// own range (`ebayNew`, set only then), because the block says they are new; they never feed a price (see newListingsToShow in the backend).
+const ebayBlock = (market: any) => {
+  const used = pickEbayCards(market);
+  if (used.length > 0) return { ebayCards: used, ebayNew: null };
+  const range = ebayNewRange(market);
+  const cards = range ? pickEbayCards(market, undefined, "new") : [];
+  return { ebayCards: cards, ebayNew: cards.length > 0 ? range : null };
+};
+
 // Step 2 ("what is it worth?"): fold the price lookup into the result already on screen.
 export const applyPrices = (data: any, res: any, now: number = Date.now()): Record<string, any> => ({
   ...data,
@@ -141,6 +154,6 @@ export const applyPrices = (data: any, res: any, now: number = Date.now()): Reco
   // The eBay listings behind eBay's range, for the "On eBay right now" block, and when they were checked. Kept
   // beside `market`, never inside it: `market` is what a saved flip stores, while eBay's licence wants listing
   // details kept fresh and gone when the listing is, so these live only on the screen (see ebayListings.ts).
-  ebayCards: pickEbayCards(res?.market),
+  ...ebayBlock(res?.market),
   ebayCheckedAt: now,
 });

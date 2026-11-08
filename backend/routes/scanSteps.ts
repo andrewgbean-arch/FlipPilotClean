@@ -251,6 +251,13 @@ export function priceAs(input: { barcode: unknown; condition: unknown; grade: un
   };
 }
 
+/**
+ * Whether a price request asks for "no price" on a make the AI does not know (see isUnrecognised). `retitled` says whether the person has just changed the
+ * name, to say what the thing is: then they get the AI's rough guess instead. Only a build that sends it (false on the first lookup) can show the note that
+ * explains "no price", so a build that sends nothing keeps the old answer.
+ */
+export const wantsUnknownMakeWithheld = (retitled: unknown): boolean => retitled === false;
+
 // The price step needs the token the identify step handed out, so it can't be used on its own as a
 // free price service. The token is LOOKED AT first (requireScanToken, which counts nothing), then the
 // server's daily lookup budget, then the token use is COUNTED (spendScanToken). That order matters both ways:
@@ -262,7 +269,7 @@ export function priceAs(input: { barcode: unknown; condition: unknown; grade: un
 //     near the cap burned 2-3 of someone's rechecks on nothing).
 router.post("/price", rateLimit(30), requireScanToken, paidLookupBudget, spendScanToken, async (req, res) => {
   try {
-    const { title, packCount, condition, barcode, imageBase64, grade, age } = req.body ?? {};
+    const { title, packCount, condition, barcode, imageBase64, grade, age, retitled } = req.body ?? {};
     if (!title || typeof title !== "string") return res.json({ error: "Missing title" });
 
     const startedAt = Date.now();
@@ -285,6 +292,7 @@ router.post("/price", rateLimit(30), requireScanToken, paidLookupBudget, spendSc
         grade: chosenGrade,
         age: chosenAge ?? "within-6-months",
         googleAllowed: () => googleAccessFor(callerDevice(req)),
+        withholdUnknownMake: wantsUnknownMakeWithheld(retitled),
       }),
     ]);
 

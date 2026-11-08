@@ -6,7 +6,7 @@
 // listings are older than five hours (eBay allows six). Before this, the old "Trending on eBay" card printed the
 // same £40.52 to £165.00 that the price track had already been refused for (an electric mountain bike priced at
 // £510 whose eBay search had caught brake sets and tyres).
-import { clockTime, ebayRangeToShow, isEbayCheckFresh, pickEbayCards, safeEbayLink, safeImageUrl, EBAY_FRESH_MS } from "../ebayListings";
+import { clockTime, ebayNewRange, ebayRangeToShow, isEbayCheckFresh, pickEbayCards, safeEbayLink, safeImageUrl, EBAY_FRESH_MS } from "../ebayListings";
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -171,6 +171,29 @@ eq("no eBay data: no block", ebayRangeToShow(null, 5), null);
 // ---- clockTime ----
 eq("a morning time is padded", clockTime(new Date(2026, 9, 24, 9, 5).getTime()), "09:05");
 eq("an afternoon time", clockTime(new Date(2026, 9, 24, 14, 32).getTime()), "14:32");
+
+// ---- eBay's NEW listings, shown only when no used one was found (a Duotts C29 e-bike: three new listings on eBay UK, none used) ----
+// The server sends them as `ebayNew` (range) and `ebayNewItems`, beside the used `ebay` and `ebayItems`, and only in that case.
+{
+  const newItem = (title: string, price: number) => listing(title, price, { condition: "New" });
+  const newMarket: Record<string, any> = {
+    ebay: { lowest: null, highest: null, soldCount: 0 },
+    ebayItems: [],
+    ebayNew: { lowest: 290, highest: 867, soldCount: 3 },
+    ebayNewItems: [newItem("Duotts C29 E Mountain Bike", 290), newItem("Duotts C29 double battery", 867), newItem("Duotts C29 battery", 300)],
+  };
+  eq("no used cards when there is no used listing", pickEbayCards(newMarket), []);
+  const cards = pickEbayCards(newMarket, 5, "new");
+  eq("the new listings become cards, cheapest first", pricesOf(cards), [290, 300, 867]);
+  eq("and each says it is new", cards.map((c) => c.condition), ["New", "New", "New"]);
+  eq("the new range, with its count", ebayNewRange(newMarket), { low: 290, high: 867, count: 3 });
+  eq("new cards stay inside the new range", pricesOf(pickEbayCards({ ...newMarket, ebayNewItems: [...newMarket.ebayNewItems, newItem("Spare part", 5)] }, 5, "new")), [290, 300, 867]);
+  eq("a used market has no new cards", pickEbayCards(market([20, 30, 40]), 5, "new"), []);
+  eq("and no new range", ebayNewRange(market([20, 30, 40])), null);
+  eq("a reply with no new range: none", ebayNewRange({ ebayNew: { lowest: null, highest: null } }), null);
+  eq("a reversed new range: none", ebayNewRange({ ebayNew: { lowest: 50, highest: 20 } }), null);
+  eq("no market at all: none", ebayNewRange(null), null);
+}
 
 console.log(fail ? `${fail} FAILED` : "ALL PASS");
 process.exit(fail ? 1 : 0);

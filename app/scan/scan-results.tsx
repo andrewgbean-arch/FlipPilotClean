@@ -299,7 +299,8 @@ export default function ScanResultsScreen() {
     }
 
     const controller = new AbortController();
-    fetchPrices(request, controller.signal)
+    // `retitled: false` tells the server this build can show "we don't recognise this make" when it has no price to give (see the unrecognised note).
+    fetchPrices({ ...request, retitled: false }, controller.signal)
       .then((res) => {
         if (controller.signal.aborted) return;
         const next = applyPrices(data, res);
@@ -369,6 +370,8 @@ export default function ScanResultsScreen() {
           grade: nextGrade,
           age: nextAge,
           scanToken: data?.scanToken ?? null,
+          // A changed name means they have said more about what it is, so a make the AI does not know gets its rough guess, not "no price".
+          retitled: overrides.title !== undefined,
         },
         controller.signal
       );
@@ -910,7 +913,12 @@ export default function ScanResultsScreen() {
               No shop prices found for this one, so the figures lean on eBay and the AI.
             </Text>
           ) : null}
-          {priceState === "ready" && depth.note ? (
+          {priceState === "ready" && data.market?.unrecognised ? (
+            <Text style={[styles.heroHint, { color: theme.warning, marginTop: 8 }]} accessibilityLiveRegion="polite">
+              We don't recognise this make, and found nothing on eBay to price it from, so there is no price yet. Tap the pencil
+              next to the name and add what it is (for example "electric bike") for a rough guess, or type your own prices.
+            </Text>
+          ) : priceState === "ready" && depth.note ? (
             <Text style={[styles.heroHint, { color: theme.warning, marginTop: 8 }]} accessibilityLiveRegion="polite">
               {depth.note}
             </Text>
@@ -1069,6 +1077,16 @@ export default function ScanResultsScreen() {
             listingCount={data.market?.ebay?.soldCount ?? null}
             cards={data.ebayCards ?? []}
             checkedAt={data.ebayCheckedAt ?? null}
+          />
+        ) : priceState === "ready" && data.ebayNew ? (
+          // No used listing was found, but eBay has new ones: shown on their own, marked as new, and not part of any price.
+          <EbayListings
+            low={data.ebayNew.low}
+            high={data.ebayNew.high}
+            listingCount={data.ebayNew.count}
+            cards={data.ebayCards ?? []}
+            checkedAt={data.ebayCheckedAt ?? null}
+            newOnly
           />
         ) : null}
 

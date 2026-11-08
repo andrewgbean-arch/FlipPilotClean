@@ -317,6 +317,8 @@ export async function fetchPrices(
     grade?: ItemGrade | null;
     age?: ItemAge | null;
     scanToken?: string | null;
+    /** True when the person has just changed the name (to say what a make the AI does not know is): they then get the AI's rough guess, not "no price". */
+    retitled?: boolean;
   },
   signal?: AbortSignal
 ) {

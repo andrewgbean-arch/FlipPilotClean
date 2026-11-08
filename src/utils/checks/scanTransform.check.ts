@@ -82,6 +82,51 @@ eq("applyPrices: no listing picture anywhere in what Save would keep", JSON.stri
 eq("applyPrices: a reply with no eBay listings gives no cards", applyPrices(identity, { market: {} }, 5).ebayCards.length, 0);
 eq("applyPrices: and is still stamped", applyPrices(identity, { market: {} }, 5).ebayCheckedAt, 5);
 
+// A make the AI does not know, with nothing found on eBay or in the shops to price it from (a typed "Duotts C29", an e-bike worth about
+// £1,000 that the AI priced at £55): the server then gives NO price and says so (`unrecognised`), and eBay's NEW listings, which it
+// found, come beside it as their own block. Nothing of that may leak into a price, and an ordinary reply must be unchanged.
+{
+  const newItem = (title: string, price: number) => ({
+    title,
+    price: `£${price.toFixed(2)}`,
+    extracted_price: price,
+    thumbnail: "https://i.ebayimg.com/images/g/x/s-l225.jpg",
+    link: `https://www.ebay.co.uk/itm/${price}`,
+    condition: "New",
+  });
+  const noPrice = {
+    pricing: { recommendedBuyPrice: null, recommendedSellPrice: null },
+    market: {
+      average: null,
+      smartPrice: null,
+      unrecognised: true,
+      ebay: { lowest: null, highest: null, soldCount: 0, items: [] },
+      ebayItems: [],
+      ebayNew: { lowest: 290, highest: 867, soldCount: 3 },
+      ebayNewItems: [newItem("Duotts C29 E Mountain Bike", 290), newItem("Duotts C29 double battery", 867), newItem("Duotts C29 battery", 300)],
+    },
+    flipScore: 15,
+  };
+  const r = applyPrices(identity, noPrice, 7);
+  eq("unrecognised: no fair price", r.ai.fair_price, null);
+  eq("unrecognised: no sell price", r.ai.suggested_sell, null);
+  eq("unrecognised: no buy price", r.ai.suggested_buy, null);
+  eq("unrecognised: the screen is told", r.market.unrecognised, true);
+  eq("unrecognised: the new listings are the cards", JSON.stringify(r.ebayCards.map((c: any) => c.price)), JSON.stringify([290, 300, 867]));
+  eq("unrecognised: and the block is told they are new, with their range", JSON.stringify(r.ebayNew), JSON.stringify({ low: 290, high: 867, count: 3 }));
+  eq("unrecognised: new listings and their range never enter `market`", "ebayNewItems" in r.market || "ebayNew" in r.market, false);
+  eq("unrecognised: no eBay link anywhere in what Save would keep", JSON.stringify(r.market).includes("ebay.co.uk"), false);
+
+  // Used listings found: those are the cards, and the new ones (if the server sent any) are not.
+  const used = applyPrices(identity, { ...reply, market: { ...reply.market, ebayNew: { lowest: 290, highest: 867, soldCount: 3 }, ebayNewItems: noPrice.market.ebayNewItems } }, 7);
+  eq("used listings found: the used cards", used.ebayCards.length, 2);
+  eq("used listings found: no new range", used.ebayNew, null);
+  eq("an ordinary reply is not marked unrecognised", used.market.unrecognised, null);
+  const bare = applyPrices(identity, { market: {} }, 7);
+  eq("no eBay listings at all: no cards", bare.ebayCards.length, 0);
+  eq("no eBay listings at all: no new range", bare.ebayNew, null);
+}
+
 // A make and model typed into the Scan screen's box is marked, so the result screen says "Typed in" where a photo scan
 // says "Identified from photo". Nothing else is marked: a barcode's `source` is where the barcode was found, not how it
 // was entered, and must not be mistaken for it.

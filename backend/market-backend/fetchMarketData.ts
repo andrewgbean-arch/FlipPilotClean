@@ -47,9 +47,16 @@ export interface UnifiedMarketResult {
   aiPriceMin: number | null;
   aiPriceMax: number | null;
   aiPriceConfidence: number | null;
+  /** Whether the AI said it actually knows this make and model (false = it was guessing from the name; null = it did not say, or gave no answer). */
+  aiRecognised?: boolean | null;
+  /** True when no price is given: the AI does not know this make and nothing real was found to price it from (see isUnrecognised). */
+  unrecognised?: boolean;
 
   // Raw sources
   ebay: EbayMarketResult | null;
+  /** For an item priced as used with no used listing found: eBay's NEW ones (range and listings), shown in a block of their own and never part of the price (see newListingsToShow). */
+  ebayNew?: { lowest: number; highest: number; soldCount: number } | null;
+  ebayNewItems?: any[];
 
   // Items (for UI)
   ebayItems: any[];
@@ -219,6 +226,11 @@ do know of the brand and line it belongs to. Never substitute a cheaper, better-
 from the same brand just because you are less sure about this exact one — say what you
 genuinely think this specific thing costs, and lower "confidence" instead of lowering the price.
 
+Be honest about whether you actually know the item. If the make or model is one you do not
+recognise (an unfamiliar brand, or a name you cannot place; many small online-only brands are
+unfamiliar), do not invent a price from how the words sound: give your best rough range, set
+"recognised" to false and keep "confidence" low.
+
 Think about the UK SECOND-HAND market as it is today, not launch prices. Things lose value fast:
 - Phones, consoles, headphones, cameras, laptops and other gadgets that are 2+ years old usually sell used for about 15-40% of their original price, and older models have fallen a long way since launch.
 - Clothes, shoes, bags, furniture, books, DVDs, CDs, toys and household items usually sell used for about 5-30% of the new price (flat-pack furniture and high-street fashion at the low end; premium or collectable makers hold more).
@@ -230,9 +242,30 @@ Return ONLY valid JSON (prices in pounds sterling):
   "newPrice": typical price of ONE brand-new unit${packCount ? " (this pack size)" : ""} in a UK shop today,
   "usedMin": low end of what a used one realistically sells for,
   "usedMax": high end of the same range,
-  "confidence": 0-100 how sure you are
+  "confidence": 0-100 how sure you are,
+  "recognised": true if you genuinely know this specific make and model, false if you are only guessing from the name
 }
   `.trim();
+}
+
+/**
+ * Reads the AI's answer to aiPricePrompt. Throws when it is not JSON (the caller treats that as no answer). Exported so a check can pin down what is kept.
+ * gpt-4o-mini often wraps its JSON in ```json fences despite being asked for raw JSON, so they are stripped before parsing.
+ */
+export function parseAiPriceReply(content: unknown) {
+  const raw = String(content ?? "{}")
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .trim();
+  const parsed = JSON.parse(raw);
+  return {
+    newPrice: safeNumber(Number(parsed.newPrice)),
+    min: safeNumber(Number(parsed.usedMin)),
+    max: safeNumber(Number(parsed.usedMax)),
+    confidence: safeNumber(Number(parsed.confidence)),
+    // Only an explicit true or false counts: an answer that leaves it out (or an older cached one) says nothing either way.
+    recognised: typeof parsed.recognised === "boolean" ? parsed.recognised : null,
+  };
 }
 
 async function fetchAiPriceEstimate(title: string, packCount?: number | null) {
@@ -259,19 +292,7 @@ async function fetchAiPriceEstimate(title: string, packCount?: number | null) {
     );
     recordCost("openai", "price-estimate", openAiUsage(res.data));
 
-    // gpt-4o-mini often wraps its JSON in ```json fences despite being asked
-    // for raw JSON — strip them before parsing.
-    const raw = (res.data.choices?.[0]?.message?.content ?? "{}")
-      .replace(/```json/gi, "")
-      .replace(/```/g, "")
-      .trim();
-    const parsed = JSON.parse(raw);
-    return {
-      newPrice: safeNumber(Number(parsed.newPrice)),
-      min: safeNumber(Number(parsed.usedMin)),
-      max: safeNumber(Number(parsed.usedMax)),
-      confidence: safeNumber(Number(parsed.confidence)),
-    };
+    return parseAiPriceReply(res.data.choices?.[0]?.message?.content);
   } catch (err: any) {
     console.log("AI PRICE ERROR:", err?.message || err);
     recordCost("openai", "price-estimate", { failed: true });
@@ -353,9 +374,62 @@ export function evidenceCacheSet(key: string, value: MarketEvidence, googleStill
 }
 
 /** Sell and buy for the CURRENT grade/age, from evidence that may have been fetched for a different one. */
-export function priceEvidence(evidence: MarketEvidence, usedMode: boolean, grade: Grade, age: AgeBand): UnifiedMarketResult {
+export function priceEvidence(
+  evidence: MarketEvidence,
+  usedMode: boolean,
+  grade: Grade,
+  age: AgeBand,
+  /** `withholdUnknown`: give no price for a make the AI does not know and nothing real backs (see isUnrecognised). Off by default: only the price step asks for it. */
+  options: { withholdUnknown?: boolean } = {}
+): UnifiedMarketResult {
+  const unrecognised =
+    options.withholdUnknown === true &&
+    isUnrecognised({ aiRecognised: evidence.aiRecognised, ebayListings: evidence.soldCount, googleCount: evidence.googleCount ?? 0 });
+  if (unrecognised) {
+    // No price rather than a made-up one (see isUnrecognised): everything that is only the AI's guess goes with it.
+    return {
+      ...evidence,
+      unrecognised: true,
+      average: null,
+      smartPrice: null,
+      lowest: null,
+      highest: null,
+      usedPrice: null,
+      retailPrice: null,
+      aiPriceMin: null,
+      aiPriceMax: null,
+      aiPriceConfidence: null,
+    };
+  }
   const decision = decidePrices({ used: usedMode, grade, age, ...evidence.priceInputs });
-  return { ...evidence, average: decision.sell, smartPrice: decision.buy };
+  return { ...evidence, unrecognised: false, average: decision.sell, smartPrice: decision.buy };
+}
+
+/**
+ * Whether this is an item nobody can price: the AI says it does not actually know the make and model (it is working from the words alone), and nothing
+ * real was found to price it from (no used eBay listing, no shop price). The AI's number would be a guess dressed up as a price, so none is given and the
+ * screen says why (found 8 Nov 2026 on a Duotts C29 e-bike, worth about £1,000, that the AI priced at £30 to £60). Anything real found counts, whatever the
+ * AI says: a name it cannot place that has twenty listings is still priced from them.
+ */
+export function isUnrecognised(input: { aiRecognised: boolean | null | undefined; ebayListings: number; googleCount: number }): boolean {
+  return input.aiRecognised === false && input.ebayListings <= 0 && input.googleCount <= 0;
+}
+
+/**
+ * eBay's NEW listings to show beside the price of an item priced as used, when no used listing was found: a make eBay lists only new (a recent online-only
+ * brand, say) still shows what is out there. They are never part of the price (see decidePrices): the screen gives them a block of their own.
+ */
+export function newListingsToShow(
+  usedMode: boolean,
+  ebay: EbayMarketResult | null,
+  ebayNew: EbayMarketResult | null
+): { items: any[]; summary: { lowest: number; highest: number; soldCount: number } } | null {
+  if (!usedMode || (ebay?.soldCount ?? 0) > 0) return null;
+  const items = ebayNew?.ebayData?.items ?? ebayNew?.items ?? [];
+  const lowest = safeNumber(ebayNew?.lowest ?? null);
+  const highest = safeNumber(ebayNew?.highest ?? null);
+  if (!items.length || lowest == null || highest == null) return null;
+  return { items, summary: { lowest, highest, soldCount: ebayNew?.soldCount ?? items.length } };
 }
 
 /* --------------------------------------------------
@@ -487,6 +561,11 @@ export default async function fetchMarketData(
     age?: AgeBand | null;
     /** In "pro" mode: may this caller have a Google search (are they a subscriber)? Only asked when the item is worth one. */
     googleAllowed?: () => Promise<boolean> | boolean;
+    /**
+     * Give no price for a make the AI does not know when nothing real backs it (see isUnrecognised). Only the price step asks for it, and not
+     * when the person has just changed the name to say what the thing is: then the AI's rough guess is shown, as it always was.
+     */
+    withholdUnknownMake?: boolean;
   } = {}
 ): Promise<UnifiedMarketResult> {
   const wantedCount = options.packCount ?? extractPackCount(query);
@@ -497,7 +576,7 @@ export default async function fetchMarketData(
   // No Condition or Age in this key — see MarketEvidence above.
   const evidenceCacheKey = `${query.trim().toLowerCase()}|${wantedCount ?? ""}|${condition ?? ""}`;
   const cachedEvidence = query ? evidenceCacheGet(evidenceCacheKey) : null;
-  if (cachedEvidence) return priceEvidence(cachedEvidence, usedMode, grade, age);
+  if (cachedEvidence) return priceEvidence(cachedEvidence, usedMode, grade, age, { withholdUnknown: options.withholdUnknownMake });
 
   if (!query) {
     return {
@@ -682,6 +761,8 @@ const image =
     const ebayItems = ebay?.ebayData?.items ?? ebay?.items ?? [];
     const googleItems = google?.items ?? [];
 
+    const newOnly = newListingsToShow(usedMode, ebay, ebayNew);
+
     const evidence: MarketEvidence = {
       usedPrice,
       retailPrice,
@@ -698,7 +779,10 @@ const image =
       aiPriceMin,
       aiPriceMax,
       aiPriceConfidence,
+      aiRecognised: aiEstimate?.recognised ?? null,
       ebay,
+      ebayNew: newOnly?.summary ?? null,
+      ebayNewItems: newOnly?.items ?? [],
       ebayItems,
       googleItems,
       image,
@@ -708,7 +792,7 @@ const image =
     // An answer priced without Google only because this caller is not a subscriber is not kept in the 10-minute memory: a subscriber
     // scanning the same item a minute later is owed their Google check. (The eBay and AI lookups are kept on their own, so asking again is cheap.)
     evidenceCacheSet(evidenceCacheKey, evidence, googleStillMissing(googleSkipped, google) || googleWithheldFromPlan);
-    return priceEvidence(evidence, usedMode, grade, age);
+    return priceEvidence(evidence, usedMode, grade, age, { withholdUnknown: options.withholdUnknownMake });
   } catch (err: any) {
     console.error("Unified Market Engine Error:", err?.message || err);
 

@@ -59,11 +59,15 @@ const middleOf = (sorted: number[]): number => {
  * that states a different pack size to the pack that was scanned, and a card must show what the listing really
  * costs, so those are left out. Listings the range itself threw out as outliers are left out too, so no card is
  * cheaper or dearer than the From and To above it.
+ *
+ * `kind` "new" picks from eBay's NEW listings instead, which the server sends only when it found no used one for an
+ * item priced as used (see newListingsToShow in the backend): they get a block of their own and are never part of a price.
  */
-export function pickEbayCards(market: any, max: number = MAX_EBAY_CARDS): EbayCard[] {
-  const low = num(market?.ebay?.lowest);
-  const high = num(market?.ebay?.highest);
-  const items: unknown = market?.ebayItems ?? market?.ebay?.items;
+export function pickEbayCards(market: any, max: number = MAX_EBAY_CARDS, kind: "used" | "new" = "used"): EbayCard[] {
+  const range = kind === "new" ? market?.ebayNew : market?.ebay;
+  const low = num(range?.lowest);
+  const high = num(range?.highest);
+  const items: unknown = kind === "new" ? market?.ebayNewItems : market?.ebayItems ?? market?.ebay?.items;
   if (low == null || high == null || !Array.isArray(items)) return [];
 
   const seen = new Set<string>();
@@ -107,6 +111,17 @@ export function ebayRangeToShow(ebay: any, fair: unknown): { low: number; high: 
   const high = num(ebay?.highest);
   if (low == null || high == null || low <= 0 || high < low) return null;
   return rangeHoldsPrice(low, high, num(fair)) ? { low, high } : null;
+}
+
+/**
+ * eBay's NEW range, for the block shown when no used listing was found, or null when there is none to show. Not held against the
+ * Fair market price like the used range is: these are new listings, shown apart from the price and not used to work it out.
+ */
+export function ebayNewRange(market: any): { low: number; high: number; count: number | null } | null {
+  const low = num(market?.ebayNew?.lowest);
+  const high = num(market?.ebayNew?.highest);
+  if (low == null || high == null || low <= 0 || high < low) return null;
+  return { low, high, count: num(market?.ebayNew?.soldCount) };
 }
 
 /** Whether eBay's content, checked at `checkedAt` (milliseconds), is still recent enough to show at `now`. */

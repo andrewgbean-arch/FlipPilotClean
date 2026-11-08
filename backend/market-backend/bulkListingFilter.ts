@@ -302,6 +302,32 @@ const APPLIANCE_PARTS_EXTRA = /\b(water container|drawer|pump|micro switch|switc
 // held against a listing, so this can't wrongly exclude a genuine match in that category.
 const BUNDLE_WORDING = /\b(turntable|subwoofer|amplifier|receiver|soundbar|projector|bundle|combo|package deal)\b/gi;
 
+// An electric bike's own title names its battery and motor ("DUOTTS C29 Bike, 48V 15Ah Battery, 750 Motor E Mountain Bike"): they are what it IS, not a
+// spare part. Found 8 Nov 2026: every Duotts C29 on eBay UK was thrown out for saying "Battery" and "Motor", so the bike looked as if it had no listings at all.
+// For a title that is plainly a whole electric bike those words are not held against it; a title that says it is only a part ("battery for", "charger",
+// "only batt", a kit, a rack or a seat) is still one.
+const EBIKE_OWN_PARTS = new Set(["battery", "batteries", "motor", "charger", "charging"]);
+const BIKE_NOUN = /\b(e-?bike|ebike|electric\s+(?:\w+\s+){0,2}?(?:bike|bicycle|scooter)|e-?scooter|mountain\s+bike|folding\s+bike|bicycle|bike)\b/i;
+const WHOLE_BIKE_WORD = /\b(mountain|road|city|folding|fat\s?(?:tyre|tire)|commuter|hybrid|adults?|shimano|\d+\s?speed|suspension|\d{2}(?:\.5)?\s?(?:inch|in|"|”|″))/i;
+const PART_ONLY_WORD = /\b(for|fits?|fitting|compatible|replacement|spares?|only|kit|conversion|pack|charger|adapter|adaptor|rack|seat|pedals?)\b/i;
+function isWholeElectricBike(title: string): boolean {
+  return BIKE_NOUN.test(title) && WHOLE_BIKE_WORD.test(title) && !PART_ONLY_WORD.test(title);
+}
+
+// "Rear Child Seat For DUOTTS C29 Electric Bike", "Brake Pads to fit Trek Marlin 7": a title that says it is FOR the thing searched for is something that goes
+// with it, however the part is named. Only when the make or model comes straight after "for" (or "fits", "to fit", "compatible with"), so "New for 2024 Sony
+// WH-1000XM4" is left alone. A bare "fit" is not one of them: "Straight Fit Jeans" is a Levi's 501 listing.
+const MADE_FOR = /\b(?:for|fits|to\s+fit|compatible\s+with)\s+(?:(?:the|your|a|an|all)\s+)?([a-z0-9][a-z0-9-]*)/gi;
+function isMadeForQuery(title: string, query: string): boolean {
+  const wanted = identifyingWords(query);
+  if (wanted.length === 0) return false;
+  for (const m of title.matchAll(MADE_FOR)) {
+    const next = words(m[1]);
+    if (next.some((n) => wanted.some((w) => sameWord(n, w)))) return true;
+  }
+  return false;
+}
+
 /**
  * True when a listing looks like an accessory, spare part or faulty unit rather than the item
  * searched for. A word the search itself contains does not count (searching "phone charger" must
@@ -316,6 +342,7 @@ export function isNotTheItem(
   seatingGoods?: boolean
 ): boolean {
   if (!title) return false;
+  if (isMadeForQuery(title, query)) return true;
   const wanted = query.toLowerCase();
   // A capacity-rated item that's actually luggage doesn't get the appliance-only parts words (see
   // LUGGAGE_GOODS above); seating that's actually a sofa doesn't get the chair-only ones.
@@ -329,7 +356,8 @@ export function isNotTheItem(
     ...(chairOnly ? title.match(CHAIR_ONLY_PARTS_EXTRA) ?? [] : []),
   ];
   if (!found.length) return false;
-  return found.some((word) => !wanted.includes(word.toLowerCase()));
+  const wholeBike = isWholeElectricBike(title);
+  return found.some((word) => !wanted.includes(word.toLowerCase()) && !(wholeBike && EBIKE_OWN_PARTS.has(word.toLowerCase())));
 }
 
 /**

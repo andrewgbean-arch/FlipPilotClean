@@ -15,6 +15,8 @@ type Props = {
   cards: EbayCard[];
   /** When the listings were looked up, in milliseconds. Without it nothing is shown. */
   checkedAt: number | null;
+  /** The listings are NEW ones, shown because eBay had no used one: the block says so, and they are not part of any price. */
+  newOnly?: boolean;
 };
 
 // True until the listings are too old to show. A timer does not run while the phone is asleep, so the age is
@@ -118,16 +120,17 @@ function ListingCard({ card }: { card: EbayCard }) {
  * row of the listings behind them that open on eBay when tapped. Asking prices, said plainly, with the time
  * they were looked up; hidden altogether once they are five hours old. Never saved with a flip.
  */
-export default function EbayListings({ low, high, listingCount, cards, checkedAt }: Props) {
+export default function EbayListings({ low, high, listingCount, cards, checkedAt, newOnly }: Props) {
   const theme = useTheme();
   const fresh = useStillFresh(checkedAt);
   if (!fresh || checkedAt == null) return null;
 
   const same = high - low < 0.005;
+  const kind = newOnly ? "new " : "";
   const count =
     listingCount != null && listingCount > 0
-      ? `${listingCount} live listing${listingCount === 1 ? "" : "s"}`
-      : "Live listings";
+      ? `${listingCount} live ${kind}listing${listingCount === 1 ? "" : "s"}`
+      : `Live ${kind}listings`;
 
   return (
     <>
@@ -136,11 +139,11 @@ export default function EbayListings({ low, high, listingCount, cards, checkedAt
       </Text>
       <View style={[styles.group, { backgroundColor: theme.card, borderColor: theme.hairline }]}>
         {same ? (
-          <Row label="Asking price" value={`£${low.toFixed(2)}`} />
+          <Row label={newOnly ? "New, asking price" : "Asking price"} value={`£${low.toFixed(2)}`} />
         ) : (
           <>
-            <Row label="From" value={`£${low.toFixed(2)}`} />
-            <Row label="To" value={`£${high.toFixed(2)}`} divider />
+            <Row label={newOnly ? "New, from" : "From"} value={`£${low.toFixed(2)}`} />
+            <Row label={newOnly ? "New, to" : "To"} value={`£${high.toFixed(2)}`} divider />
           </>
         )}
         {cards.length > 0 ? (
@@ -159,6 +162,7 @@ export default function EbayListings({ low, high, listingCount, cards, checkedAt
         ) : null}
       </View>
       <Text style={[styles.hint, { color: theme.muted }]}>
+        {newOnly ? "No used ones found on eBay, so these are new ones, which are not used to work out a price. " : ""}
         {count} on eBay, checked at {clockTime(checkedAt)}. Asking prices, not confirmed sales.
         {cards.length > 0 ? " Tap a listing to open it on eBay." : ""}
       </Text>
