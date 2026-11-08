@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { describeApiError, sendFeedback as postFeedback } from "@/utils/api";
+import { askForTypedFocus } from "@/utils/typedLookup";
 import {
   Barcode,
   Camera,
@@ -30,6 +31,7 @@ import {
   Tent,
   GameController,
   Detective,
+  Keyboard,
 } from "phosphor-react-native";
 import type { Icon as PhosphorIcon } from "phosphor-react-native";
 import { useTheme } from "@/styles/useTheme";
@@ -50,6 +52,8 @@ import { stableWeight } from "@/styles/boldTextSafe";
 const TOOLS: { key: string; label: string; Icon: PhosphorIcon; route: string; tint: string }[] = [
   { key: "scan", label: "AI Scan", Icon: Camera, route: "/scan", tint: "#FFD700" },
   { key: "barcode", label: "Barcode Lookup", Icon: Barcode, route: "/scan", tint: "#4FA3FF" },
+  // Opens the Scan tab with the cursor already in the make and model box (see askForTypedFocus).
+  { key: "typed", label: "Make & Model", Icon: Keyboard, route: "/scan", tint: "#7ED6FF" },
   { key: "flips", label: "Your Flips", Icon: Stack, route: "/history", tint: "#4CAF50" },
   { key: "market", label: "Marketplace", Icon: Storefront, route: "/marketplace", tint: "#FF9F43" },
   { key: "vehicles", label: "Vehicles Hub", Icon: Car, route: "/vehicles", tint: "#B78CFF" },
@@ -400,13 +404,19 @@ export default function HomeScreen() {
           </Text>
 
           <View style={styles.toolsRow}>
-            {TOOLS.map(({ key, label, Icon, route, tint }) => {
+            {TOOLS.map(({ key, label, Icon, route, tint }, index) => {
+              // With an odd number of tiles the last one would sit alone at half width, so it takes the whole row.
+              const alone = TOOLS.length % 2 === 1 && index === TOOLS.length - 1;
               const tile = (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={label}
                   style={({ pressed }) => [styles.toolCard, card, pressed && styles.pressed]}
-                  onPress={() => router.push(route as any)}
+                  onPress={() => {
+                    // The Scan tab puts the cursor in its make and model box as it opens.
+                    if (key === "typed") askForTypedFocus();
+                    router.push(route as any);
+                  }}
                 >
                   <View style={[styles.iconBadge, { backgroundColor: tint + "22" }]}>
                     <Icon size={24} color={tint} />
@@ -422,7 +432,7 @@ export default function HomeScreen() {
                   {tile}
                 </TourTarget>
               ) : (
-                <View key={key} style={styles.toolCardWrapper}>
+                <View key={key} style={[styles.toolCardWrapper, alone && styles.toolCardWrapperAlone]}>
                   {tile}
                 </View>
               );
@@ -589,6 +599,7 @@ const styles = StyleSheet.create({
   // flex child of toolsRow — a width on THIS style alone was being read as 48% of that wrapper
   // instead of 48% of the row, collapsing it to a sliver and wrapping "AI Scan" one letter per line.
   toolCardWrapper: { width: "48%" },
+  toolCardWrapperAlone: { width: "100%" },
   toolCard: {
     borderRadius: 16,
     borderWidth: 1,

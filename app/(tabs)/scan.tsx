@@ -6,6 +6,8 @@ import {
   Animated,
   AppState,
   DeviceEventEmitter,
+  Keyboard,
+  KeyboardAvoidingView,
   Linking,
   Pressable,
   StyleSheet,
@@ -19,14 +21,16 @@ import type { BarcodeSettings } from "expo-camera";
 import * as Haptics from "expo-haptics";
 import { router, useFocusEffect, useIsFocused } from "expo-router";
 import ScanAllowancePill from "@/components/ScanAllowancePill";
+import TypedLookupBox from "@/components/scan/TypedLookupBox";
 import { Barcode, Camera, CameraRotate, Check, Flashlight, MagnifyingGlassPlus } from "phosphor-react-native";
 
 import { useTheme } from "@/styles/ThemeContext";
-import { ApiError, describeApiError, identifyBarcode, identifyPhoto } from "@/utils/api";
+import { ApiError, describeApiError, identifyBarcode, identifyPhoto, identifyText } from "@/utils/api";
 import { showQuotaAlert } from "@/utils/quotaAlert";
 import { putPending } from "@/utils/pendingScan";
 import { photoForUpload } from "@/utils/photo";
 import { SCAN_AGAIN_EVENT, transformIdentity } from "@/utils/scanTransform";
+import { takeTypedFocusRequest, tidyTyped, typedBarcode, typedReady } from "@/utils/typedLookup";
 import ScanWaitingAd, { AD_REVEAL_DELAY_MS } from "@/components/ScanWaitingAd";
 import { refreshAdverts } from "@/lib/adverts";
 import { useTourTarget } from "@/features/tour/TourTarget";
@@ -52,6 +56,9 @@ const CAMERA_SETTLE_MS = 300;
 // The photo is shrunk before it is sent (see photoForUpload), so capture at a good quality.
 const PHOTO_QUALITY = 0.7;
 const TOAST_MS = 4000;
+// On a screen shorter than this (the part above the tab bar) the AI tip, which can run to two lines, would sit on top of
+// the make and model box, so it is left out.
+const COMPACT_SCREEN_HEIGHT = 780;
 
 // One object for the life of the app: a new object on every render (the tip text
 // changes every 3 seconds) makes the camera reconfigure its scanner each time.
@@ -115,6 +122,18 @@ export default function ScanScreen() {
   const [toastMessage, setToastMessage] = useState("");
   const [toastVisible, setToastVisible] = useState(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Make and model box
+  const [typed, setTyped] = useState("");
+  // The on-screen keyboard is up for this box (not for a screen the person came from): the two big buttons give way to
+  // the box, and a barcode that drifts into view must not start a lookup under the person's typing.
+  const [keyboardUp, setKeyboardUp] = useState(false);
+  const [boxFocused, setBoxFocused] = useState(false);
+  const typing = keyboardUp && boxFocused;
+  // Changes each time the cursor should be put in the box (see Home's "Make & Model" tile).
+  const [typeFocus, setTypeFocus] = useState(0);
+  const [areaHeight, setAreaHeight] = useState(0);
+  const compact = areaHeight > 0 && areaHeight < COMPACT_SCREEN_HEIGHT;
 
   // ============================
   // Modernized Helpers
@@ -234,6 +253,22 @@ export default function ScanScreen() {
     return () => sub.remove();
   }, []);
 
+  // Arriving from Home's "Make & Model" tile puts the cursor in the box.
+  useFocusEffect(
+    useCallback(() => {
+      if (takeTypedFocusRequest()) setTypeFocus((n) => n + 1);
+    }, [])
+  );
+
+  useEffect(() => {
+    const show = Keyboard.addListener("keyboardDidShow", () => setKeyboardUp(true));
+    const hide = Keyboard.addListener("keyboardDidHide", () => setKeyboardUp(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+
   useEffect(() => {
     if (!cameraOn) return;
 
@@ -350,7 +385,7 @@ export default function ScanScreen() {
   // ============================
 
   const handleBarcode = async ({ data }: { data: string }) => {
-    if (busyRef.current || !barcodeArmed) return;
+    if (busyRef.current || !barcodeArmed || typing) return;
     // The guided tour shows this screen with the camera live. A barcode that happens to be in view must
     // not start a real scan (which uses up a free scan or a credit and opens a result under the tour).
     if (isTourActive()) return;
@@ -442,6 +477,84 @@ export default function ScanScreen() {
   };
 
   // ============================
+  // Typed make and model
+  // ============================
+
+  const submitTyped = async () => {
+    if (busyRef.current) return;
+    const text = tidyTyped(typed);
+    if (!typedReady(text)) return;
+
+    const controller = beginScan();
+
+    try {
+      // A number typed in (8 to 14 digits) is a barcode, and gets the far better answer a barcode scan gets.
+      const code = typedBarcode(text);
+      const id = code
+        ? await identifyBarcode(code, controller.signal)
+        : await identifyText(text, controller.signal);
+      if (controller.signal.aborted) return;
+
+      const barcode = code ? id.barcode ?? code : null;
+      const pendingId = putPending({
+        title: id.title,
+        barcode,
+        packCount: id.packCount ?? null,
+        scanToken: id.scanToken ?? null,
+      });
+      // Kept after a failed lookup, so a slip in the name can be put right; cleared once it has been used.
+      setTyped("");
+      openResults(transformIdentity({ ...id, barcode }, { pendingId }));
+    } catch (err) {
+      failScan(err, controller, "Typed lookup error:");
+    } finally {
+      endScan(controller);
+    }
+  };
+
+  // ============================
+  // Overlays (the loading one is shared by the camera screen and the permission screen)
+  // ============================
+
+  const loadingOverlay = loading ? (
+    <View style={[styles.loadingOverlay, { backgroundColor: theme.background }]}>
+      <View style={styles.loadingHeader}>
+        <ActivityIndicator size="large" color={theme.gold} />
+        <Text style={{ marginTop: 14, color: theme.text, fontSize: 16, fontWeight: "600" }}>
+          Analysing…
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Cancel scan"
+          style={[styles.cancelButton, { borderColor: theme.hairline }]}
+          onPress={cancelScan}
+        >
+          <Text style={{ color: theme.text, fontWeight: "600", fontSize: 14 }}>
+            Cancel
+          </Text>
+        </Pressable>
+      </View>
+
+      {showWaitingAd ? (
+        <View style={styles.loadingAdZone}>
+          <ScanWaitingAd />
+        </View>
+      ) : null}
+    </View>
+  ) : null;
+
+  const toast = toastVisible ? (
+    <Animated.View
+      pointerEvents="none"
+      style={[styles.toast, { borderColor: theme.hairline }]}
+    >
+      <Text style={{ color: theme.text, fontWeight: "600", textAlign: "center" }}>
+        {toastMessage}
+      </Text>
+    </Animated.View>
+  ) : null;
+
+  // ============================
   // Permission Screens
   // ============================
 
@@ -460,7 +573,10 @@ export default function ScanScreen() {
     const canAskAgain = permission.canAskAgain;
 
     return (
-      <View style={[styles.center, { backgroundColor: theme.background, paddingHorizontal: 32 }]}>
+      <KeyboardAvoidingView
+        behavior="padding"
+        style={[styles.center, { backgroundColor: theme.background, paddingHorizontal: 32 }]}
+      >
         <View style={[styles.permissionIconBadge, { backgroundColor: theme.card, borderColor: theme.goldSoftGlow }]}>
           <Camera size={30} color={theme.gold} />
         </View>
@@ -483,7 +599,30 @@ export default function ScanScreen() {
             {canAskAgain ? "Enable camera" : "Open Settings"}
           </Text>
         </Pressable>
-      </View>
+
+        <Text style={[{ color: theme.muted, fontSize: 14, marginTop: 28, marginBottom: 12 }, stableWeight]}>
+          or type it in
+        </Text>
+        <TypedLookupBox
+          style={{ alignSelf: "stretch" }}
+          value={typed}
+          onChangeText={setTyped}
+          onSubmit={submitTyped}
+          disabled={loading}
+          focusSignal={typeFocus}
+          onFocus={() => setBoxFocused(true)}
+          onBlur={() => setBoxFocused(false)}
+        />
+
+        {/* Under the box rather than the floating toast, which is placed for the camera screen and would sit on the box here. */}
+        {toastVisible ? (
+          <Text style={[{ color: theme.text, fontSize: 14, textAlign: "center", marginTop: 12 }, stableWeight]}>
+            {toastMessage}
+          </Text>
+        ) : null}
+
+        {loadingOverlay}
+      </KeyboardAvoidingView>
     );
   }
 
@@ -493,7 +632,7 @@ export default function ScanScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1 }} onLayout={(e) => setAreaHeight(e.nativeEvent.layout.height)}>
         {cameraOn && !cameraFailed && (
           <CameraView
             key={cameraKey}
@@ -591,13 +730,15 @@ export default function ScanScreen() {
         </View>
 
         {/* AI TIP */}
-        <Animated.View style={[styles.holoTip, { opacity: tipOpacity }]}>
-          <Text style={styles.holoText}>
-            {barcodeArmed
-              ? currentTip
-              : "Scanning is paused. Tap Scan barcode to start again."}
-          </Text>
-        </Animated.View>
+        {compact || typing || toastVisible ? null : (
+          <Animated.View style={[styles.holoTip, { opacity: tipOpacity }]}>
+            <Text style={styles.holoText}>
+              {barcodeArmed
+                ? currentTip
+                : "Scanning is paused. Tap Scan barcode to start again."}
+            </Text>
+          </Animated.View>
+        )}
 
         {/* SUCCESS CHECKMARK */}
         {showSuccess && (
@@ -641,34 +782,50 @@ export default function ScanScreen() {
         )}
 
         {/* BUTTONS */}
-        <View style={styles.bottomButtons}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ disabled: barcodeArmed }}
-            style={[
-              styles.scanButton,
-              { backgroundColor: theme.gold, overflow: "hidden" },
-              barcodeArmed && styles.scanButtonActive,
-            ]}
-            onPress={() => setBarcodeArmed(true)}
-            disabled={barcodeArmed}
-          >
-            <GoldFoil />
-            <Barcode size={22} color={theme.black} />
-            <Text style={[styles.scanButtonLabel, { color: theme.black }]}>
-              {barcodeArmed ? "Scanning for barcode…" : "Scan barcode"}
-            </Text>
-          </Pressable>
+        <KeyboardAvoidingView behavior="padding" style={styles.bottomAvoider}>
+          <View style={[styles.bottomButtons, typing && styles.bottomButtonsTyping]}>
+            <TypedLookupBox
+              value={typed}
+              onChangeText={setTyped}
+              onSubmit={submitTyped}
+              disabled={loading}
+              focusSignal={typeFocus}
+              onFocus={() => setBoxFocused(true)}
+              onBlur={() => setBoxFocused(false)}
+            />
 
-          <Pressable
-            accessibilityRole="button"
-            style={[styles.scanButton, styles.scanButtonSecondary]}
-            onPress={takePhoto}
-          >
-            <Camera size={22} color={theme.text} />
-            <Text style={[styles.scanButtonLabel, { color: theme.text }]}>Scan photo</Text>
-          </Pressable>
-        </View>
+            {typing ? null : (
+              <>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: barcodeArmed }}
+                  style={[
+                    styles.scanButton,
+                    { backgroundColor: theme.gold, overflow: "hidden" },
+                    barcodeArmed && styles.scanButtonActive,
+                  ]}
+                  onPress={() => setBarcodeArmed(true)}
+                  disabled={barcodeArmed}
+                >
+                  <GoldFoil />
+                  <Barcode size={22} color={theme.black} />
+                  <Text style={[styles.scanButtonLabel, { color: theme.black }]}>
+                    {barcodeArmed ? "Scanning for barcode…" : "Scan barcode"}
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  accessibilityRole="button"
+                  style={[styles.scanButton, styles.scanButtonSecondary]}
+                  onPress={takePhoto}
+                >
+                  <Camera size={22} color={theme.text} />
+                  <Text style={[styles.scanButtonLabel, { color: theme.text }]}>Scan photo</Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        </KeyboardAvoidingView>
 
         {/* FLASH */}
         {flashVisible && (
@@ -681,45 +838,8 @@ export default function ScanScreen() {
         )}
       </View>
 
-      {/* LOADING */}
-      {loading && (
-        <View style={[styles.loadingOverlay, { backgroundColor: theme.background }]}>
-          <View style={styles.loadingHeader}>
-            <ActivityIndicator size="large" color={theme.gold} />
-            <Text style={{ marginTop: 14, color: theme.text, fontSize: 16, fontWeight: "600" }}>
-              Analysing…
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Cancel scan"
-              style={[styles.cancelButton, { borderColor: theme.hairline }]}
-              onPress={cancelScan}
-            >
-              <Text style={{ color: theme.text, fontWeight: "600", fontSize: 14 }}>
-                Cancel
-              </Text>
-            </Pressable>
-          </View>
-
-          {showWaitingAd ? (
-            <View style={styles.loadingAdZone}>
-              <ScanWaitingAd />
-            </View>
-          ) : null}
-        </View>
-      )}
-
-      {/* TOAST */}
-      {toastVisible && (
-        <Animated.View
-          pointerEvents="none"
-          style={[styles.toast, { borderColor: theme.hairline }]}
-        >
-          <Text style={{ color: theme.text, fontWeight: "600", textAlign: "center" }}>
-            {toastMessage}
-          </Text>
-        </Animated.View>
-      )}
+      {loadingOverlay}
+      {toast}
     </View>
   );
 }
@@ -826,12 +946,24 @@ successCheck: {
   borderColor: "rgba(76,175,80,0.6)",
 },
 
+// Fills the camera area so the box and the two buttons can be lifted clear of the keyboard: Android draws the app edge
+// to edge and does not shrink the screen for it. Touches pass through to the camera.
+bottomAvoider: {
+  ...StyleSheet.absoluteFill,
+  justifyContent: "flex-end",
+  pointerEvents: "box-none",
+},
+
 bottomButtons: {
-  position: "absolute",
-  bottom: 60,
+  marginBottom: 60,
   width: "100%",
   paddingHorizontal: 40,
   gap: 14,
+},
+
+// With the keyboard up only the box is left, so it sits just above the keyboard.
+bottomButtonsTyping: {
+  marginBottom: 16,
 },
 
 scanButton: {
@@ -908,7 +1040,8 @@ cancelButton: {
 
 toast: {
   position: "absolute",
-  bottom: 120,
+  // Clear of the make and model box and the two buttons under it.
+  bottom: 262,
   alignSelf: "center",
   maxWidth: "88%",
   backgroundColor: "rgba(10,17,40,0.95)",

@@ -13,6 +13,7 @@ import {
   CheckCircle,
   Heart,
   ImageBroken,
+  Keyboard,
   PencilSimple,
   WarningCircle,
   X,
@@ -818,10 +819,10 @@ export default function ScanResultsScreen() {
               {barcode ? (
                 <Barcode size={14} color={theme.muted} />
               ) : (
-                <Camera size={14} color={theme.muted} />
+                data.source === "typed" ? <Keyboard size={14} color={theme.muted} /> : <Camera size={14} color={theme.muted} />
               )}
               <Text style={[styles.meta, { color: theme.muted }, stableWeight]} numberOfLines={1} selectable>
-                {barcode ?? "Identified from photo"}
+                {barcode ?? (data.source === "typed" ? "Typed in" : "Identified from photo")}
               </Text>
             </View>
           </View>

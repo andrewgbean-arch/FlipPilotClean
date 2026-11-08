@@ -263,6 +263,13 @@ export async function identifyBarcode(barcode: string, signal?: AbortSignal) {
   );
 }
 
+// The make and model number typed into the box on the Scan screen. Same first step as a barcode or a photo: it counts as
+// one scan and hands back the scan token the price step needs, with the cleaned title to price.
+export async function identifyText(text: string, signal?: AbortSignal) {
+  const deviceId = await getDeviceId();
+  return request("/identify-text", { method: "POST", body: { text, deviceId }, signal, timeoutMs: 12_000 });
+}
+
 // What someone tells us in the Feedback box or the star rating. Throws (with words to show) if it can't be sent.
 export async function sendFeedback(input: { kind: "feedback" | "rating"; rating?: number; text?: string }) {
   const deviceId = await getDeviceId();

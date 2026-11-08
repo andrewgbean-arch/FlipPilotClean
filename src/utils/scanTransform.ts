@@ -106,6 +106,8 @@ export const transformIdentity = (
   aiPriceMax: null,
   aiPriceConfidence: null,
   image: options.imageUri ?? input?.image ?? null,
+  // Only a typed make and model is marked; the result screen then says "Typed in" where a photo scan says "Identified from photo".
+  source: input?.source === "typed" ? "typed" : null,
   pendingId: options.pendingId ?? null,
   // Sent back with every price lookup for this scan.
   scanToken: input?.scanToken ?? null,

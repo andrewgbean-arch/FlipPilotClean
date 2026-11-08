@@ -23,7 +23,7 @@ const KEEP_DAYS = 90;
 const FLUSH_MS = 5000;
 
 export type CostService = "openai" | "serpapi" | "ebay";
-export type ScanKind = "barcode" | "photo";
+export type ScanKind = "barcode" | "photo" | "text";
 
 type DayRow = {
   /** calls[service][purpose] = how many times */
@@ -53,7 +53,7 @@ let dirty = false;
 let timer: NodeJS.Timeout | null = null;
 
 const today = () => new Date().toISOString().slice(0, 10);
-const emptyDay = (): DayRow => ({ calls: {}, inputTokens: 0, outputTokens: 0, failed: 0, scans: { barcode: 0, photo: 0 } });
+const emptyDay = (): DayRow => ({ calls: {}, inputTokens: 0, outputTokens: 0, failed: 0, scans: { barcode: 0, photo: 0, text: 0 } });
 
 function load(): Store {
   if (store) return store;
@@ -112,7 +112,9 @@ export function recordCost(service: CostService, purpose: string, extra: { input
 
 /** Counts a lookup that ended with a result for the person, so cost per scan can be worked out. */
 export function recordScan(kind: ScanKind) {
-  touch().scans[kind] += 1;
+  const scans = touch().scans;
+  // A day written before a kind existed has no count for it yet.
+  scans[kind] = (scans[kind] ?? 0) + 1;
 }
 
 const sum = (o: Record<string, number> | undefined) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
@@ -134,7 +136,7 @@ export function costReport(days = 7) {
   const rows = keys.map((day) => {
     const row = s.days[day];
     const cost = costOf(row);
-    const scans = row.scans.barcode + row.scans.photo;
+    const scans = (row.scans.barcode ?? 0) + (row.scans.photo ?? 0) + (row.scans.text ?? 0);
     return {
       day,
       scans,

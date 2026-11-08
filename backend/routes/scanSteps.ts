@@ -15,6 +15,7 @@ import { askVision, DESCRIBE_PROMPT, IDENTIFY_PROMPT, identifiedTitle, NOT_RECOG
 import { buildAiBlock, fetchOpenFoodFacts } from "./search";
 import { recordCost, recordScan } from "../utils/costLog";
 import { googleAccessFor } from "../utils/googleAccess";
+import { cleanTypedTitle } from "../market-backend/typedTitle";
 
 /* --------------------------------------------------
    The scan in two steps, so the phone has something to show quickly.
@@ -176,6 +177,32 @@ router.post("/identify-image", rateLimit(6), scanMeter, paidLookupBudget, async 
     });
   } catch (err: any) {
     console.log("IDENTIFY IMAGE ERROR:", err?.message || err);
+    return res.json({ error: "Lookup failed" });
+  }
+});
+
+/* ---------------- typed make and model -> product ---------------- */
+
+// Someone who knows what it is can type the make and model number instead of scanning: a typed model number prices
+// better than a photo guess, and it works for a phone whose camera is off. It is the same first step as a barcode or a
+// photo: it counts as one scan and hands back the scan token the price step needs, with the cleaned title to price.
+// Nothing is looked up here, so it answers at once.
+router.post("/identify-text", rateLimit(30), scanMeter, paidLookupBudget, async (req, res) => {
+  try {
+    const typed = cleanTypedTitle(req.body?.text);
+    // An error reply, so the scan the meter has just taken is handed straight back (see scanMeter.ts).
+    if (!typed.ok) return res.json({ error: "bad-text", message: typed.message });
+
+    recordScan("text");
+    return res.json({
+      ok: true,
+      scanToken: issueScanToken(callerDevice(req) ?? ""),
+      title: typed.title,
+      packCount: extractPackCount(typed.title),
+      source: "typed",
+    });
+  } catch (err: any) {
+    console.log("IDENTIFY TEXT ERROR:", err?.message || err);
     return res.json({ error: "Lookup failed" });
   }
 });

@@ -30,6 +30,7 @@ const SECTIONS: Section[] = [
     title: "Scan an item",
     steps: [
       "Open the Scan tab and point your camera at a barcode, or tap \"Scan photo\" to identify anything without one.",
+      "Know what it is? Type the make and model number into the box above the buttons (for example Sony WH-1000XM4) and tap Go. It counts as one scan.",
       "The result opens in about a second with what FlipPilot thinks it is, while it checks prices in the background.",
       "\"Checking prices…\" turns into a full price guide — what it's worth new, and what to pay and charge for a used one.",
     ],

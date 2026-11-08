@@ -82,5 +82,15 @@ eq("applyPrices: no listing picture anywhere in what Save would keep", JSON.stri
 eq("applyPrices: a reply with no eBay listings gives no cards", applyPrices(identity, { market: {} }, 5).ebayCards.length, 0);
 eq("applyPrices: and is still stamped", applyPrices(identity, { market: {} }, 5).ebayCheckedAt, 5);
 
+// A make and model typed into the Scan screen's box is marked, so the result screen says "Typed in" where a photo scan
+// says "Identified from photo". Nothing else is marked: a barcode's `source` is where the barcode was found, not how it
+// was entered, and must not be mistaken for it.
+const typedIdentity = transformIdentity({ title: "Sony WH-1000XM4", source: "typed" });
+eq("typed: marked as typed", typedIdentity.source, "typed");
+eq("typed: no barcode", typedIdentity.barcode, null);
+eq("typed: the mark survives the price step", applyPrices(typedIdentity, { market: {} }).source, "typed");
+eq("barcode: not marked as typed", transformIdentity({ title: "Kettle", barcode: "5012345678900", source: "off" }).source, null);
+eq("photo: not marked as typed", transformIdentity({ title: "Kettle" }).source, null);
+
 console.log(fail === 0 ? "ALL PASS" : `${fail} FAILED`);
 process.exit(fail ? 1 : 0);
