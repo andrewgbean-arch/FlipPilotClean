@@ -293,6 +293,21 @@ const NOT_THE_ITEM_PLURALS = /\b(skins|covers|decals|stickers)\b/gi;
 const singularOf = (word: string) =>
   word.endsWith("ies") ? word.slice(0, -3) + "y" : /(?:ches|shes|sses|xes|zes)$/.test(word) ? word.slice(0, -2) : word.endsWith("s") && !word.endsWith("ss") ? word.slice(0, -1) : word;
 
+// ONE of a pair of earbuds or headphones ("Apple Airpods 2nd Generation Right Side Only A2032", "Genuine Apple Airpods Left Earbud Only", "Airpods White With Only Left
+// Headphone"): a single earbud, or one cup, is a part and not the pair. Found 10 Nov 2026 on an "Apple AirPods Pro 2nd generation" scan: of the six shop listings that survived
+// filtering, five were a lone left or right earbud at £25 to £59, so the "typical" price was £56 for a pair that sells used for about £100.
+// Only a title that names an earbud or headphone AND exactly one side is caught: a car's wing mirror, a Joy-Con, a hearing aid or a golf club are sold one at a time and are the item
+// ("Joy-Con Left only"), "Left & Right Earbuds" is a pair, "2 left" is stock, and a search that names a side is looking for one.
+const EARBUD_WORD = /\b(?:air\s?pods?|ear\s?buds?|buds|earphones?|headphones?|earpieces?)\b/i;
+const ONE_SIDE =
+  /\b(?:left|right)\s+(?:side|ear|earbuds?|air\s?pods?|buds?|headphones?|earphones?|earpiece|only)\b|\bonly\s+(?:the\s+)?(?:left|right)\b/i;
+export function isOneOfAPair(title: string | null | undefined, query: string | null | undefined): boolean {
+  if (!title) return false;
+  if (!EARBUD_WORD.test(title) || !ONE_SIDE.test(title)) return false;
+  if (/\bleft\b/i.test(title) && /\bright\b/i.test(title)) return false; // both sides named: a pair
+  return !/\b(?:left|right|single|one)\b/i.test(query ?? "");
+}
+
 // More appliance-specific spares — deliberately kept OUT of the list above and only checked when
 // capacityRatedGoods says this really is a tumble dryer/fridge/etc: a "switch", "handle",
 // "container" or "timer" is a completely ordinary, positive thing to mention on countless
@@ -371,6 +386,7 @@ export function isNotTheItem(
     return !wanted.includes(w) && !wanted.includes(singularOf(w));
   });
   if (plurals.length) return true;
+  if (isOneOfAPair(title, wanted)) return true;
   if (!found.length) return false;
   const wholeBike = isWholeElectricBike(title);
   return found.some((word) => !wanted.includes(word.toLowerCase()) && !(wholeBike && EBIKE_OWN_PARTS.has(word.toLowerCase())));

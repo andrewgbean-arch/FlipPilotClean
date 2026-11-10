@@ -103,6 +103,50 @@ const XM4_SHOP = [
   { title: "Sony WH-1000XM4 Headphones Skins Cosmic Morpheus Gloss", extracted_price: 25 },
 ];
 
+// The real 40 Google Shopping results for "Apple AirPods Pro 2nd generation" on 10 Nov 2026 (title and price only): of the six that survived the old filtering, five were a lone left or right earbud.
+const AIRPODS_SHOP = [
+  { title: "Apple Airpods 2nd Gen A2032 Right Earbud Only Genuine Apple", extracted_price: 16.38 },
+  { title: "Genuine Apple Airpods 2nd Generation Right Side Only A2032", extracted_price: 56.49 },
+  { title: "Genuine Apple Airpods 2nd Gen A2032 Right Side Earbud Only,", extracted_price: 18.79 },
+  { title: "Apple Airpod 2nd Generation 100% Genuine Left Side Only With Charging", extracted_price: 44.99 },
+  { title: "Apple Airpods 2nd Generation 100% Genuine Bluetooth - Left Side Only", extracted_price: 31.66 },
+  { title: "Apple Airpods 2nd Generation Right Airpod Only - Model: A3202", extracted_price: 29.3 },
+  { title: "Apple Airpods Right Side 2nd Generation Replacement Bluetooth Earphone", extracted_price: 29.99 },
+  { title: "Apple AirPods Pro 2nd Generation replacement charging case", extracted_price: 59.99 },
+  { title: "Apple Airpods 2nd Generation White With Only Left Headphone Original", extracted_price: 25.41 },
+  { title: "Apple Airpods 2nd Gen - Right Earbud And Charging Case Only - No Left", extracted_price: 30 },
+  { title: "Apple AirPods Max 2", extracted_price: 499 },
+  { title: "Apple AirPods Max 2", extracted_price: 499 },
+  { title: "Apple AirPods Max 2", extracted_price: 499 },
+  { title: "Apple AirPods Pro 2nd Generation with MagSafe Charging Case", extracted_price: 200.39 },
+  { title: "Apple AirPods Pro 3", extracted_price: 130.7 },
+  { title: "Apple AirPods with Charging Case", extracted_price: 95 },
+  { title: "Apple AirPods Pro with MagSafe Charging Case", extracted_price: 167.09 },
+  { title: "Apple AirPods Pro 3", extracted_price: 133 },
+  { title: "For Apple Airpods Pro 2nd Gen Right Earbud A2698 -only For Lightning", extracted_price: 43.99 },
+  { title: "For AirPods Pro 2nd Wireless Earbuds, ANC,Bluetooth Headphones, Active Noise Cancellation with Charging Case-Not Apple Brand Headphones", extracted_price: 18.99 },
+  { title: "Apple AirPods 2 with Wireless Charging Case White", extracted_price: 78.7 },
+  { title: "Apple Airpods Pro 2nd Generation Left Side A3048 Year 2023 Single", extracted_price: 59.99 },
+  { title: "Apple AirPods Pro With Charging Case", extracted_price: 4 },
+  { title: "Apple Airpods Pro 2nd Gen Left Side Replacement A2698 Year 2022", extracted_price: 49.99 },
+  { title: "Apple AirPod Pro", extracted_price: 115.1 },
+  { title: "Airpods Pro", extracted_price: 73.5 },
+  { title: "Brand New Apple AirPods Pro – Still Sealed in Box", extracted_price: 39.99 },
+  { title: "Apple Airpods 2nd Generation", extracted_price: 187.89 },
+  { title: "Apple Airpods Pro", extracted_price: 40.18 },
+  { title: "Apple Airpods 2nd Generation Brand In The Box Everything Included", extracted_price: 130.7 },
+  { title: "Genuine Apple Airpods Pro 2nd Gen Replacement Right Only A2698", extracted_price: 36.99 },
+  { title: "Airpods Pro", extracted_price: 26.7 },
+  { title: "Apple Airpods Pro 2nd Gen Left Side Replacement A2698 Year 2022", extracted_price: 49.99 },
+  { title: "Apple Airpods White", extracted_price: 69 },
+  { title: "Apple AirPods Pro - Brand New, Sealed Box", extracted_price: 50 },
+  { title: "Apple Airpods Pro 2nd Generation Replacement Left Only Lightning A2699", extracted_price: 40.99 },
+  { title: "Apple Airpods Pro In-Ear Headphones (With Wireless Charging Case) A2083+A2084 White", extracted_price: 79.99 },
+  { title: "Apple AirPods Pro with Wireless Charging Case - White", extracted_price: 59 },
+  { title: "Apple Airpods 2nd Generation White", extracted_price: 52.7 },
+  { title: "Apple Airpods 2nd Generation White", extracted_price: 115.1 },
+];
+
 (async () => {
   for (const k of ["EBAY_CLIENT_ID", "EBAY_CLIENT_SECRET", "CLIENT_ID", "CLIENT_SECRET", "API_KEY"]) delete process.env[k];
   process.env.OPENAI_API_KEY = "test-key";
@@ -112,6 +156,7 @@ const XM4_SHOP = [
   (axios as any).get = async (url: string) => {
     if (String(url).includes("Duotts")) return { data: { shopping_results: DUOTTS_SHOP } };
     if (String(url).includes("WH-1000XM4")) return { data: { shopping_results: XM4_SHOP } };
+    if (String(url).includes("AirPods%20Pro")) return { data: { shopping_results: AIRPODS_SHOP } };
     // A second, ordinary product: three shops, one product, no variants.
     if (String(url).includes("Quux%209000")) {
       const shop = (p: number) => ({ title: "Acme Quux 9000 Gizmo", extracted_price: p, price: `£${p}.00` });
@@ -151,6 +196,12 @@ const XM4_SHOP = [
   eq("xm4: the cheapest is no longer a skin at £24.99", xm4.googlePriceMin, 46.69);
   eq("xm4: the dearest is the real headphones at £130.70", xm4.googlePriceMax, 130.7);
   eq("xm4: the typical price is £95.71, not £25", xm4.googleShelfPrice, 95.71);
+
+  // A lone earbud is a part, not the pair: of the 40 results the single left or right earbuds go, and the pairs stay.
+  const airpods = await fetchMarketData("Apple AirPods Pro 2nd generation", { condition: "used" });
+  eq("airpods: four listings survive, not six (two of the old six were a pair)", airpods.googleCount, 4);
+  eq("airpods: the cheapest is no longer a £25 single earbud", airpods.googlePriceMin, 52.7);
+  eq("airpods: the typical price is £187.89, not £56.49", airpods.googleShelfPrice, 187.89);
 
   // Few listings, one product: the typical price is the dearest, as the row always showed (nothing changes for an ordinary scan).
   const ordinary = await fetchMarketData("Acme Quux 9000 Gizmo", { condition: "used" });
