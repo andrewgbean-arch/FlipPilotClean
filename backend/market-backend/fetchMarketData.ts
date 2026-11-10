@@ -255,20 +255,52 @@ Return ONLY valid JSON (prices in pounds sterling):
 }
 
 /**
+ * Makes the AI's JSON readable when it writes a price the way a person would: with a thousands comma ("newPrice": 1,200) or a currency sign (£1200). Neither is valid
+ * JSON, so the whole answer used to be thrown away and the item priced without the AI. Found 10 Nov 2026: asked ten times, a Brompton M6L came back unreadable 3 times,
+ * a Brompton P Line 8 times (one answer in four across Brompton, MacBook, Fold, Cannondale and Garmin), always for this reason and always for a price of £1,000 or more
+ * (the same Brompton lost its AI answer in both of that day's recordings, so its price changed from one scan to the next). Only a value straight after a colon is touched,
+ * so the commas that separate the fields, and anything inside a quoted string, are left alone.
+ */
+function mendPrices(json: string): string {
+  return json
+    .replace(/(:\s*)[£$€]\s*(?=\d)/g, "$1")
+    .replace(/(:\s*)(\d{1,3}(?:,\d{3})+(?:\.\d+)?)(?=\s*[,}\r\n]|$)/g, (_all, colon: string, number: string) => colon + number.replace(/,/g, ""));
+}
+
+/** A price as the AI gives it: a number, or text such as "£1,200". Anything else (including a bare null, which used to read as 0) is no price. */
+function aiPrice(value: unknown): number | null {
+  if (typeof value === "number") return safeNumber(value);
+  if (typeof value === "string" && value.trim() !== "") return safeNumber(Number(value.replace(/[£$€,\s]/g, "")));
+  return null;
+}
+
+/**
  * Reads the AI's answer to aiPricePrompt. Throws when it is not JSON (the caller treats that as no answer). Exported so a check can pin down what is kept.
- * gpt-4o-mini often wraps its JSON in ```json fences despite being asked for raw JSON, so they are stripped before parsing.
+ * gpt-4o-mini often wraps its JSON in ```json fences despite being asked for raw JSON, so they are stripped before parsing; it also writes prices with a
+ * thousands comma (see mendPrices), and may put words around the JSON, in which case what is between the first { and the last } is read.
  */
 export function parseAiPriceReply(content: unknown) {
-  const raw = String(content ?? "{}")
-    .replace(/```json/gi, "")
-    .replace(/```/g, "")
-    .trim();
-  const parsed = JSON.parse(raw);
+  const raw = mendPrices(
+    String(content ?? "{}")
+      .replace(/```json/gi, "")
+      .replace(/```/g, "")
+      .trim()
+  );
+  let parsed: any;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start < 0 || end <= start) throw err;
+    parsed = JSON.parse(raw.slice(start, end + 1));
+  }
+  if (!parsed || typeof parsed !== "object") throw new Error("the AI's answer is not an object");
   return {
-    newPrice: safeNumber(Number(parsed.newPrice)),
-    min: safeNumber(Number(parsed.usedMin)),
-    max: safeNumber(Number(parsed.usedMax)),
-    confidence: safeNumber(Number(parsed.confidence)),
+    newPrice: aiPrice(parsed.newPrice),
+    min: aiPrice(parsed.usedMin),
+    max: aiPrice(parsed.usedMax),
+    confidence: aiPrice(parsed.confidence),
     // Only an explicit true or false counts: an answer that leaves it out (or an older cached one) says nothing either way.
     recognised: typeof parsed.recognised === "boolean" ? parsed.recognised : null,
   };
