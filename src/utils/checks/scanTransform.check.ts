@@ -58,6 +58,11 @@ eq("googleCount absent: null, not undefined", pickMarket({}).googleCount, null);
 eq("googleSearched false is forwarded as false", pickMarket({ googleSearched: false }).googleSearched, false);
 eq("googleSearched absent: null", pickMarket({}).googleSearched, null);
 
+// Whether the AI said it knows the make and model: the result screen calls the price a rough guide when it said no (see guessedFromTheName).
+eq("aiRecognised false is forwarded as false", pickMarket({ aiRecognised: false }).aiRecognised, false);
+eq("aiRecognised true is forwarded", pickMarket({ aiRecognised: true }).aiRecognised, true);
+eq("aiRecognised absent: null, not undefined", pickMarket({}).aiRecognised, null);
+
 // The "On eBay right now" block shows eBay's listings as cards. They ride on the result beside `market` and are
 // never part of it: `market` is what Save puts into History, and eBay's licence wants listing details kept fresh
 // and removed when the listing is, so no listing may reach what is saved.

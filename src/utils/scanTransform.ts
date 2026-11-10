@@ -36,6 +36,9 @@ export const pickMarket = (market: any) => ({
   // True when the server gave no price because the AI does not know this make and nothing real was found to price it from; the
   // result then says so (see isUnrecognised in the backend). null on a reply, or a saved result, that predates it.
   unrecognised: market?.unrecognised ?? null,
+  // Whether the AI said it actually knows this make and model: false for a photo that only shows what kind of thing it is, or an unfamiliar brand
+  // (see guessedFromTheName). null when it did not say, or on a reply that predates it.
+  aiRecognised: market?.aiRecognised ?? null,
   // eBay's own asking-price range, shown in the "On eBay right now" block — informational only,
   // not blended into the prices above. Dropped here until 2026-09-30, so that block (then called
   // "Trending on eBay") never rendered for anyone: the backend has always sent it, this whitelist

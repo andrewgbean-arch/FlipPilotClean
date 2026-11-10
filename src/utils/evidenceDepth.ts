@@ -47,7 +47,27 @@ export function evidenceDepth(googleCount: unknown, ebayCount: unknown): Evidenc
   return { level: "ok", total, note: null, maxConfidence: null };
 }
 
-/** The confidence to show: the AI's own figure, never higher than the evidence allows. */
-export function limitConfidence(confidence: number, depth: EvidenceDepth): number {
-  return depth.maxConfidence == null ? confidence : Math.min(confidence, depth.maxConfidence);
+/** From this many listings a price stands on real evidence, whatever the AI says about the name. */
+export const STRONG_LISTINGS = 10;
+
+/**
+ * The AI said it does not actually know this make and model (a photo that only shows what KIND of thing it is, like "Electric Mountain Bike", or a brand it has not
+ * heard of) and fewer than STRONG_LISTINGS real listings stand behind the price. The shop and eBay figures may then be for other products (a plain "Electric
+ * Mountain Bike" matched £3,199 to £8,999 carbon bikes, and was shown with "High confidence", 10 Nov 2026), so the screen calls the price a rough guide.
+ * Never true for a result that predates the listing count, or when the AI said nothing.
+ */
+export function guessedFromTheName(aiRecognised: unknown, depth: EvidenceDepth): boolean {
+  return aiRecognised === false && depth.level !== "unknown" && depth.total < STRONG_LISTINGS;
+}
+
+/** The FlipScore is "Strong" from 70: a price that is only a guess from the name may not be called that, whatever the score worked out. */
+export const GUESSED_FLIP_SCORE_MAX = 55;
+export function limitFlipScore(score: number, guessed: boolean): number {
+  return guessed ? Math.min(score, GUESSED_FLIP_SCORE_MAX) : score;
+}
+
+/** The confidence to show: the AI's own figure, never higher than the evidence allows (and at most Low when the price is a guess from the name). */
+export function limitConfidence(confidence: number, depth: EvidenceDepth, guessed: boolean = false): number {
+  const cap = guessed ? Math.min(depth.maxConfidence ?? NONE_MAX_CONFIDENCE, NONE_MAX_CONFIDENCE) : depth.maxConfidence;
+  return cap == null ? confidence : Math.min(confidence, cap);
 }

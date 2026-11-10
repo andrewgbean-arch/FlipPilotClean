@@ -42,7 +42,7 @@ import SellerDescriptionCard from "@/components/scan/SellerDescriptionCard";
 import { dropPending, getPending } from "@/utils/pendingScan";
 import { applyPrices, SCAN_AGAIN_EVENT } from "@/utils/scanTransform";
 import { ebayRangeToShow } from "@/utils/ebayListings";
-import { evidenceDepth, limitConfidence } from "@/utils/evidenceDepth";
+import { evidenceDepth, guessedFromTheName, limitConfidence, limitFlipScore } from "@/utils/evidenceDepth";
 import { pickPriceRange } from "@/utils/priceRange";
 import { profitFraming } from "@/utils/profitFraming";
 import { keepPhoto } from "@/utils/keptPhotos";
@@ -662,7 +662,12 @@ export default function ScanResultsScreen() {
   // buying?" boxes. It used to appear only when Google returned a price, so whenever Google had
   // nothing (an item it doesn't list, or the search allowance used up) the boxes vanished with it —
   // leaving no way to change condition even though a Sell price from eBay or the AI was on screen.
-  const hasGuideRows = data.market?.googlePriceMax != null || data.market?.googlePriceMin != null;
+  // How many real listings the price rests on: very few means a rough guide, said plainly.
+  const depth = evidenceDepth(data.market?.googleCount, data.market?.soldCount);
+  // The AI does not know this make and model (the photo only showed what KIND of thing it is, or the brand is unfamiliar) and little real evidence backs the
+  // price: the shop figures may be for other products, so they are not shown, the chip is capped at Low, and the price is called a rough guide.
+  const guessed = !data.market?.unrecognised && guessedFromTheName(data.market?.aiRecognised, depth);
+  const hasGuideRows = !guessed && (data.market?.googlePriceMax != null || data.market?.googlePriceMin != null);
   const hasPickers = !saved && (!barcode || sellPrice != null);
 
   // Profit and ROI share one colour: green for a gain, red for a loss, plain for break-even.
@@ -687,8 +692,6 @@ export default function ScanResultsScreen() {
   // the same test the track above had to pass, so the block never prints figures the track was refused for.
   const ebayRange = ebayRangeToShow(data.market?.ebay, fairPrice);
   const priceConfidence = typeof data.aiPriceConfidence === "number" ? data.aiPriceConfidence : null;
-  // How many real listings the price rests on: very few means a rough guide, said plainly.
-  const depth = evidenceDepth(data.market?.googleCount, data.market?.soldCount);
 
   // "Doesn't look right? Report this" — a snapshot of exactly what was on screen, so a wrong
   // price can be traced back to the real search that produced it, not just a general complaint.
@@ -713,10 +716,12 @@ export default function ScanResultsScreen() {
     }
   };
 
+  // A price that is only a guess from the name may not be called "Strong" (see limitFlipScore).
+  const shownScore = limitFlipScore(flipScore, guessed);
   const scoreColor =
-    flipScore >= 70 ? theme.success : flipScore >= 40 ? theme.warning : theme.danger;
-  const scoreBand = flipScore >= 70 ? "Strong" : flipScore >= 40 ? "Fair" : "Weak";
-  const scorePercent = Math.max(0, Math.min(100, Number(flipScore) || 0));
+    shownScore >= 70 ? theme.success : shownScore >= 40 ? theme.warning : theme.danger;
+  const scoreBand = shownScore >= 70 ? "Strong" : shownScore >= 40 ? "Fair" : "Weak";
+  const scorePercent = Math.max(0, Math.min(100, Number(shownScore) || 0));
 
   const facts: { label: string; value: string }[] = [];
   if (data.ai?.condition) facts.push({ label: "Condition", value: String(data.ai.condition) });
@@ -905,7 +910,7 @@ export default function ScanResultsScreen() {
           {priceRange ? <PriceRangeBar low={priceRange.low} high={priceRange.high} mid={fairPrice ?? null} /> : null}
           {priceConfidence != null ? (
             <View style={{ marginTop: priceRange ? 0 : 12 }}>
-              <ConfidenceChip confidence={limitConfidence(priceConfidence, depth)} />
+              <ConfidenceChip confidence={limitConfidence(priceConfidence, depth, guessed)} />
             </View>
           ) : null}
           {priceState === "ready" && data.market?.googleSearched === true && data.market?.googleCount === 0 && (depth.level === "thin" || depth.level === "ok") ? (
@@ -917,6 +922,10 @@ export default function ScanResultsScreen() {
             <Text style={[styles.heroHint, { color: theme.warning, marginTop: 8 }]} accessibilityLiveRegion="polite">
               We don't recognise this make, and found nothing on eBay to price it from, so there is no price yet. Tap the pencil
               next to the name and add what it is (for example "electric bike") for a rough guess, or type your own prices.
+            </Text>
+          ) : priceState === "ready" && guessed ? (
+            <Text style={[styles.heroHint, { color: theme.warning, marginTop: 8 }]} accessibilityLiveRegion="polite">
+              We couldn't tell the exact make and model, so treat this as a rough guide. Tap the pencil next to the name and add them for a proper price.
             </Text>
           ) : priceState === "ready" && depth.note ? (
             <Text style={[styles.heroHint, { color: theme.warning, marginTop: 8 }]} accessibilityLiveRegion="polite">
@@ -934,13 +943,13 @@ export default function ScanResultsScreen() {
         {/* PRICE GUIDE: retail vs trending (Google's own high/low), and where you're buying */}
         {priceState !== "loading" && (hasGuideRows || hasPickers) ? (
           <View style={[styles.group, styles.guideCard, card]}>
-            {data.market?.googlePriceMax != null ? (
+            {hasGuideRows && data.market?.googlePriceMax != null ? (
               <FactRow
                 label="Retail price"
                 value={`£${Number(data.market.googlePriceMax).toFixed(2)}`}
               />
             ) : null}
-            {data.market?.googlePriceMin != null ? (
+            {hasGuideRows && data.market?.googlePriceMin != null ? (
               <FactRow
                 label="Trends around"
                 value={`£${Number(data.market.googlePriceMin).toFixed(2)}`}
@@ -1109,7 +1118,7 @@ export default function ScanResultsScreen() {
         {priceState === "ready" ? (
         <View
           accessible
-          accessibilityLabel={`FlipScore ${flipScore} out of 100, ${scoreBand}`}
+          accessibilityLabel={`FlipScore ${shownScore} out of 100, ${scoreBand}`}
           style={[styles.scoreCard, card]}
         >
           <View style={styles.scoreTop}>
@@ -1118,7 +1127,7 @@ export default function ScanResultsScreen() {
           </View>
 
           <View style={styles.scoreNumberRow}>
-            <Text style={[styles.scoreValue, { color: theme.text }]}>{flipScore}</Text>
+            <Text style={[styles.scoreValue, { color: theme.text }]}>{shownScore}</Text>
             <Text style={[styles.scoreMax, { color: theme.muted }, stableWeight]}>/ 100</Text>
           </View>
 
