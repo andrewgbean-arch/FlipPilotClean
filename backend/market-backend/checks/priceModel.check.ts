@@ -362,5 +362,68 @@ eq("a case for the speaker", isNotTheItem("JBL Charge 4 Travel Case", "JBL Charg
   eq("an item the AI knows is unchanged", decidePrices({ ...xbox, aiRecognised: true, namedModel: true, googleListings: 33 }).sell, decidePrices(xbox).sell);
 }
 
+// The condition ceiling (about half the new price) stands aside for goods that hold their value: when 10+ used listings AND the AI's own used range both put a used one above it,
+// it is scaled up to the lower of the two (the same factor for every Condition and Age box). Found 10 Nov 2026 with real figures from a Brompton, a Rolex, an Xbox and a PS5 Pro.
+{
+  const rolex = { ...none, used: true, ebay: 7666.52, ebayListings: 38, aiNew: 8000, aiUsedMin: 6000, aiUsedMax: 9000 };
+  eq("rolex: priced from the evidence (was 4,080: the ceiling set it)", decidePrices(rolex).sell, 7500);
+  const brompton = { ...none, used: true, ebay: 877.21, ebayListings: 29, aiNew: 1200, aiUsedMin: 600, aiUsedMax: 900 };
+  eq("brompton M6L: 750 (was 612)", decidePrices(brompton).sell, 750);
+  const xbox = { ...none, used: true, ebay: 281.43, ebayListings: 27, aiNew: 249.99, aiUsedMin: 150, aiUsedMax: 200 };
+  eq("xbox series s: 175 (was 128; a used one sells for about 170)", decidePrices(xbox).sell, 175);
+  const ps5pro = { ...none, used: true, ebay: 854.91, ebayListings: 28, aiNew: 499.99, aiUsedMin: 350, aiUsedMax: 450 };
+  eq("ps5 pro: 400, the lower of eBay's 855 and the AI's 400 (was 255)", decidePrices(ps5pro).sell, 400);
+
+  // The boxes keep working, and keep their order, for an item that holds its value.
+  const grades = ["perfect", "good", "poor"] as const;
+  const ages = ["like-new", "within-6-months", "over-1-year"] as const;
+  for (const [name, item] of [["rolex", rolex], ["brompton", brompton], ["xbox", xbox], ["ps5 pro", ps5pro]] as const) {
+    for (const age of ages) {
+      const prices = grades.map((grade) => decidePrices({ ...item, grade, age }).sell as number);
+      eq(`${name}, ${age}: Perfect is not below Good, Good is not below Poor`, prices[0] >= prices[1] && prices[1] >= prices[2], true);
+    }
+    for (const grade of grades) {
+      const prices = ages.map((age) => decidePrices({ ...item, grade, age }).sell as number);
+      eq(`${name}, ${grade}: Like new is not below Within 6 months, which is not below Older`, prices[0] >= prices[1] && prices[1] >= prices[2], true);
+    }
+    eq(`${name}: Poor is clearly below Good`, (decidePrices({ ...item, grade: "poor" }).sell as number) < (decidePrices({ ...item, grade: "good" }).sell as number), true);
+    eq(`${name}: Older than 1 year is clearly below Within 6 months`, (decidePrices({ ...item, age: "over-1-year" }).sell as number) < (decidePrices({ ...item, age: "within-6-months" }).sell as number), true);
+  }
+  eq("rolex, Poor and Older than 1 year", decidePrices({ ...rolex, grade: "poor", age: "over-1-year" }).sell, 3442);
+
+  // It needs BOTH: used listings (10 or more) and the AI's used range above the ceiling.
+  eq("9 listings: the ceiling stays (a Brompton P Line, eBay 1,800, AI 1,000-1,200)", decidePrices({ ...none, used: true, ebay: 1800, ebayListings: 9, aiNew: 1600, aiUsedMin: 1000, aiUsedMax: 1200 }).sell, 816);
+  eq("10 listings: it stands aside", decidePrices({ ...none, used: true, ebay: 1800, ebayListings: 10, aiNew: 1600, aiUsedMin: 1000, aiUsedMax: 1200 }).sell, 1100);
+  eq("no listing count: the ceiling stays", decidePrices({ ...none, used: true, ebay: 877.21, aiNew: 1200, aiUsedMin: 600, aiUsedMax: 900 }).sell, 612);
+  eq("the AI's used range is below the ceiling: it stays (a pine chest of drawers, eBay 42 listings at £312, AI 50-100)",
+    decidePrices({ ...none, used: true, ebay: 280.8, ebayListings: 42, aiNew: 250, aiUsedMin: 50, aiUsedMax: 100 }).sell, 107);
+  eq("eBay is below the ceiling: it stays (510, the same as with too few listings to count)",
+    decidePrices({ ...none, used: true, ebay: 500, ebayListings: 20, aiNew: 1200, aiUsedMin: 800, aiUsedMax: 1000 }).sell, 510);
+  eq("...and is not different from the answer with 9 listings",
+    decidePrices({ ...none, used: true, ebay: 500, ebayListings: 20, aiNew: 1200, aiUsedMin: 800, aiUsedMax: 1000 }).sell,
+    decidePrices({ ...none, used: true, ebay: 500, ebayListings: 9, aiNew: 1200, aiUsedMin: 800, aiUsedMax: 1000 }).sell);
+  eq("no AI used range at all: the ceiling stays", decidePrices({ ...none, used: true, ebay: 877.21, ebayListings: 29, aiNew: 1200 }).sell, 612);
+  eq("only the AI's used maximum (900): counts as its used range", decidePrices({ ...none, used: true, ebay: 877.21, ebayListings: 29, aiNew: 1200, aiUsedMax: 900 }).sell, 878);
+
+  // Not for an item priced for spares or repair, and not for a sealed one.
+  eq("not working: untouched", decidePrices({ ...rolex, grade: "not-working" }).sell, decidePrices({ ...rolex, ebayListings: 9, grade: "not-working" }).sell);
+  eq("sold as new: untouched", decidePrices({ ...rolex, used: false }).sell, decidePrices({ ...rolex, used: false, ebayListings: 9 }).sell);
+
+  // Never above the lower of the two sources at the usual boxes (or what the usual ceiling already allowed), over a grid of items.
+  let over = 0;
+  let checked = 0;
+  for (const ebay of [60, 150, 400, 900, 2500]) {
+    for (const aiMid of [40, 120, 350, 800, 3000]) {
+      for (const aiNew of [80, 250, 700, 2000, 8000]) {
+        const d = decidePrices({ ...none, used: true, ebay, ebayListings: 15, aiNew, aiUsedMin: aiMid * 0.9, aiUsedMax: aiMid * 1.1 });
+        const bound = Math.ceil(Math.max(Math.min(ebay, aiMid), aiNew * 0.51) + 1);
+        checked++;
+        if ((d.sell as number) > bound) { over++; console.log("over the bound:", { ebay, aiMid, aiNew, sell: d.sell, bound }); }
+      }
+    }
+  }
+  eq(`${checked} combinations: never above the lower of eBay and the AI's used range, or the usual ceiling`, over, 0);
+}
+
 console.log(fail === 0 ? "ALL PASS" : `${fail} FAILED`);
 process.exit(fail ? 1 : 0);

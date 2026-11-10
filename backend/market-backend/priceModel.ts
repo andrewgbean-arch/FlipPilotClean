@@ -104,6 +104,23 @@ export const AGE_FACTOR: Record<AgeBand, number> = {
   "over-1-year": 0.65,
 };
 
+/**
+ * What the share table says a used item is worth when the owner has not changed the Condition or Age boxes: a "good" one bought within the last 6 months. The usual ceiling
+ * (USED_PRICE_UPLIFT_ALLOWED times this share of the new price, about 51%) is the figure the evidence is measured against below.
+ *
+ * That ceiling is a rule of thumb (a used one sells for about half its new price, so never more than that plus 20%), and it is wrong for goods that hold their value. Found
+ * 10 Nov 2026, once the AI's answer for a Brompton stopped being lost to a thousands comma: a Brompton M6L (29 used listings with a middle asking price around £877, the AI's
+ * own used range £600-£900) came out at £612, a P Line (£1,800 on eBay) at £816, a Rolex Submariner (£7,667 on eBay across 38 listings, the AI says £6,000-£9,000) at £4,080, an
+ * Xbox Series S at £128 (eBay £281, the AI £150-£200, a used one sells for about £170): in each the ceiling, not the evidence, set the price.
+ *
+ * So when at least LISTINGS_THAT_ANCHOR used listings AND the AI's own used range BOTH put a used one above the usual ceiling, the ceiling is multiplied by how far the lower of
+ * the two is above it: the same factor for every Condition and Age box, so the boxes keep working and keep their order (Poor below Good below Perfect, Older below Newer). At
+ * the usual boxes the ceiling becomes the lower of the two sources, never more. Why both: the lesson of 18 Oct 2026 was that eBay alone can be polluted high (a pine chest of
+ * drawers: 42 listings at £312, the AI says £50-£100, so the ceiling of £127 and the price of £107 stay put), and the AI's used range alone runs high for older gadgets. Replayed
+ * over 123 typed items (eBay and the AI alone) 13 prices moved and 110 did not; every move was toward the two sources and none went above the lower of them.
+ */
+export const USUAL_USED_SHARE = CONDITION_SHARE.good * AGE_FACTOR["within-6-months"];
+
 export interface PriceEvidence {
   /** The scanned item is second-hand (true) or sealed / new (false). */
   used: boolean;
@@ -286,8 +303,17 @@ export function decidePrices(e: PriceEvidence): PriceDecision {
       }
     }
     // A ceiling that scales with the condition (and age) actually chosen, not one flat number for
-    // every grade — see USED_PRICE_UPLIFT_ALLOWED above.
-    if (sell !== null && newPrice) sell = Math.min(sell, newPrice * conditionShare * ageFactor * USED_PRICE_UPLIFT_ALLOWED);
+    // every grade — see USED_PRICE_UPLIFT_ALLOWED above. Scaled up, by the same factor for every condition and age, when the evidence says this item holds its value:
+    // see USUAL_USED_SHARE.
+    if (sell !== null && newPrice) {
+      let ceiling = newPrice * conditionShare * ageFactor * USED_PRICE_UPLIFT_ALLOWED;
+      if (grade !== "not-working" && valid(e.ebay) && (e.ebayListings ?? 0) >= LISTINGS_THAT_ANCHOR && valid(aiUsedMid)) {
+        const usualCeiling = newPrice * USUAL_USED_SHARE * USED_PRICE_UPLIFT_ALLOWED;
+        const evidence = Math.min(e.ebay, aiUsedMid);
+        if (evidence > usualCeiling) ceiling *= evidence / usualCeiling;
+      }
+      sell = Math.min(sell, ceiling);
+    }
   } else {
     if (valid(e.ebay) && !(newPrice && e.ebay > newPrice * 1.5)) {
       sell = e.ebay;
