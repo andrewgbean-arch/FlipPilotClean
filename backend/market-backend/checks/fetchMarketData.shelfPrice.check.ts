@@ -59,6 +59,50 @@ const DUOTTS_SHOP = [
   { title: "Motul Specific Dexos 2 5W30 C3 Fully Synthetic Engine Oil | Multigrade", extracted_price: 1014.54 },
 ];
 
+// The real 40 Google Shopping results for "Sony WH-1000XM4" on 10 Nov 2026 (title and price only): thirteen of them are skins and covers, eleven of those an identical £25.
+const XM4_SHOP = [
+  { title: "Sony WF-1000XM4 Wireless Noise Cancelling Headphones", extracted_price: 67.36 },
+  { title: "Sony Wf-1000xm4 True Wireless Bluetooth In-ear Earbuds Built-in Mic", extracted_price: 46.69 },
+  { title: "Sony WF-1000XM4 Wireless Noise Cancelling Headphones", extracted_price: 92.22 },
+  { title: "Sony WF-1000XM4 Wireless Noise Cancelling Headphones", extracted_price: 95.71 },
+  { title: "The American Pie Swim Dress", extracted_price: 129.99 },
+  { title: "Sony WH-1000XM5 Noise Cancelling Wireless Headphones", extracted_price: 106.45 },
+  { title: "Sony WH-1000XM4 Wireless Premium Noise Canceling Overhead Headphones", extracted_price: 130.7 },
+  { title: "Sony WH-1000XM6 Wireless Noise-Cancelling Headphones", extracted_price: 339 },
+  { title: "Sony WH-1000XM6 Wireless Noise-Cancelling Headphones", extracted_price: 397.09 },
+  { title: "Sony WH-1000XM4 Wireless Noise-Canceling Headphones (Silver)", extracted_price: 204.59 },
+  { title: "Sony WH-1000XM3 Wireless Noise Cancelling Headphones", extracted_price: 262 },
+  { title: "Sony WH-1000XM4 Battery 1000mAh from CELLONIC", extracted_price: 16.1 },
+  { title: "CentralSound Replacement Headband Cushion Pad, Compatible With Sony WH-1000XM4 WH1000XM4 XM4 Headphones, Black, Protein Leather And Memory Foam", extracted_price: 16 },
+  { title: "Sony WH-1000XM4 Comfort Suspension Strap Blue", extracted_price: 17 },
+  { title: "Sony WH1000XM4 Skins, Wraps & Covers » Capes Full Body / Carbon Fibre Black", extracted_price: 12.66 },
+  { title: "Sony Wh-1000xm4 Empty Box, Box Only", extracted_price: 14.99 },
+  { title: "Sony Wh-1000xm4 Genuine Carry Case / Pouch", extracted_price: 24.99 },
+  { title: "Sony Wh-1000xm4 Speaker Driver", extracted_price: 24.99 },
+  { title: "RIYADAone Hard Case Compatible Sony WH-1000XM4 / XM5 / XM6 / XM3 Headphones | EVA Nylon hard case, splash-proof, dust-proof, easy to carry, traveling,", extracted_price: 16.99 },
+  { title: "Sony WH-1000XM4 Comfort Suspension Strap White", extracted_price: 17 },
+  { title: "Sony WH-1000XM4 Comfort Suspension Strap Black", extracted_price: 16 },
+  { title: "Sony WH-1000XM4 Headphones Skins Matrix Black", extracted_price: 25 },
+  { title: "Sony WH1000XM4 Skins, Wraps & Covers » Capes Full Body / Tornado", extracted_price: 12.66 },
+  { title: "WC SweatZ XM4 Patented Protective Earpad Sweat Covers for Sony WH1000XM4 by WC", extracted_price: 21.95 },
+  { title: "Sony WH-1000XM4 Headphones Skins Black Carbon Fibre", extracted_price: 25 },
+  { title: "A94 Sony Wf-1000xm4 Kingdom Hearts 20th Anniversary Model", extracted_price: 218.11 },
+  { title: "Sony WH-1000XM4 Comfort Suspension Strap Gray", extracted_price: 17 },
+  { title: "Sony WH-1000XM4 Headphones Skins Dark-oak", extracted_price: 25 },
+  { title: "Sony WH1000XM4 Skins, Wraps & Covers » Capes Full Body / Lava", extracted_price: 12.66 },
+  { title: "Sony WH-1000XM4 Battery", extracted_price: 16.59 },
+  { title: "Sony WH-1000XM4 Comfort Suspension Strap Tan", extracted_price: 16 },
+  { title: "Sony WH-1000XM4 Headphones Skins White-carbon-fibre", extracted_price: 25 },
+  { title: "Sony WH-1000XM4 Headphones Skins Iced-blue", extracted_price: 25 },
+  { title: "Sony WH-1000XM4 Headphones Skins Navy Blue 3D Honeycomb", extracted_price: 25 },
+  { title: "Sony WH-1000XM4 Headphones Skins Iced Red", extracted_price: 25 },
+  { title: "Sony WH-1000XM4 Headphones Skins Iced-green", extracted_price: 25 },
+  { title: "Sony WH-1000XM4 Headband Replacement Service", extracted_price: 50 },
+  { title: "Ear Pads Replacement for WH-1000XM4 Headphones Soft Memory Foam Pads Ear8672. SODIAL", extracted_price: 7.48 },
+  { title: "Sony WH-1000XM4 Headphones Skins Forged Carbon Fibre", extracted_price: 25 },
+  { title: "Sony WH-1000XM4 Headphones Skins Cosmic Morpheus Gloss", extracted_price: 25 },
+];
+
 (async () => {
   for (const k of ["EBAY_CLIENT_ID", "EBAY_CLIENT_SECRET", "CLIENT_ID", "CLIENT_SECRET", "API_KEY"]) delete process.env[k];
   process.env.OPENAI_API_KEY = "test-key";
@@ -67,6 +111,7 @@ const DUOTTS_SHOP = [
 
   (axios as any).get = async (url: string) => {
     if (String(url).includes("Duotts")) return { data: { shopping_results: DUOTTS_SHOP } };
+    if (String(url).includes("WH-1000XM4")) return { data: { shopping_results: XM4_SHOP } };
     // A second, ordinary product: three shops, one product, no variants.
     if (String(url).includes("Quux%209000")) {
       const shop = (p: number) => ({ title: "Acme Quux 9000 Gizmo", extracted_price: p, price: `£${p}.00` });
@@ -89,6 +134,23 @@ const DUOTTS_SHOP = [
   eq("duotts: the typical shop price is 899, not 1264", duotts.googleShelfPrice, 899);
   eq("duotts: it is the same figure the price is worked from", duotts.googleShelfPrice, (duotts as any).priceInputs?.googleNew);
   eq("duotts: it lies between the cheapest and the dearest", (duotts.googleShelfPrice ?? 0) >= (duotts.googlePriceMin ?? 1e9) && (duotts.googleShelfPrice ?? 1e9) <= (duotts.googlePriceMax ?? 0), true);
+
+  // With the AI that does not know the brand set aside (11 shop listings, a model named), a used one is worked from the shop price, not from the AI's £50.
+  eq("duotts: the price is about £383, not £213", duotts.average, 383);
+  eq("duotts: buy is half", duotts.smartPrice, 191.5);
+
+  eq("duotts: the title names a model", (duotts as any).priceInputs?.namedModel, true);
+  eq("duotts: the AI said it does not know it", (duotts as any).priceInputs?.aiRecognised, false);
+  eq("duotts: 11 shop listings stand behind the price", (duotts as any).priceInputs?.googleListings, 11);
+  const generic = await fetchMarketData("Oak coffee table", { condition: "used" });
+  eq("a generic title names no model", (generic as any).priceInputs?.namedModel, false);
+
+  // The skins no longer outvote the headphones: 40 results, the skins and covers dropped, the real and near ones left.
+  const xm4 = await fetchMarketData("Sony WH-1000XM4", { condition: "used" });
+  eq("xm4: five listings survive, not the eleven skins", xm4.googleCount, 5);
+  eq("xm4: the cheapest is no longer a skin at £24.99", xm4.googlePriceMin, 46.69);
+  eq("xm4: the dearest is the real headphones at £130.70", xm4.googlePriceMax, 130.7);
+  eq("xm4: the typical price is £95.71, not £25", xm4.googleShelfPrice, 95.71);
 
   // Few listings, one product: the typical price is the dearest, as the row always showed (nothing changes for an ordinary scan).
   const ordinary = await fetchMarketData("Acme Quux 9000 Gizmo", { condition: "used" });

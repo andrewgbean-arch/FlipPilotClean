@@ -2,7 +2,7 @@ import axios from "axios";
 import type { EbayMarketResult } from "./ebayMarket";
 import fetchEbayBrowseMarket from "./ebayBrowseApi";
 import { noteSerpApiFailure, noteSerpApiSuccess } from "../utils/serpApiBalance";
-import { extractPackCount, extractVolume, filterOutliers, isCapacityRatedGoods, isNotTheItem, isSeatingGoods, matchesQuery, priceForPack, sharesNumericIdentity } from "./bulkListingFilter";
+import { extractPackCount, extractVolume, filterOutliers, isCapacityRatedGoods, isNotTheItem, isSeatingGoods, matchesQuery, namesAModel, priceForPack, sharesNumericIdentity } from "./bulkListingFilter";
 import { decidePrices, type AgeBand, type Grade } from "./priceModel";
 import { SourceCache } from "../utils/sourceCache";
 import { openAiUsage, recordCost } from "../utils/costLog";
@@ -348,6 +348,10 @@ export type MarketEvidence = Omit<UnifiedMarketResult, "average" | "smartPrice">
     aiUsedMin: number | null;
     aiUsedMax: number | null;
     marketFloor: number | null;
+    /** Whether the AI said it knows this make and model, whether the title names a model at all, and how many shop listings stand behind googleNew: together they decide whether the AI's numbers count (see priceModel.ts). */
+    aiRecognised?: boolean | null;
+    namedModel?: boolean | null;
+    googleListings?: number | null;
   };
 };
 
@@ -722,6 +726,9 @@ export default async function fetchMarketData(
       aiUsedMin: aiPriceMin,
       aiUsedMax: aiPriceMax,
       marketFloor: safeNumber(google?.min),
+      aiRecognised: aiEstimate?.recognised ?? null,
+      namedModel: namesAModel(query),
+      googleListings: google?.count ?? 0,
     };
     // Only newPrice is needed here (it never varies with grade/age — see priceModel.ts); this
     // request's own sell/buy are worked out below, from priceEvidence(), the same way a cache hit's

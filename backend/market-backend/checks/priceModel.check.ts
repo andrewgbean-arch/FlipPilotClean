@@ -1,5 +1,5 @@
 // Run with: npx tsx market-backend/checks/priceModel.check.ts (from the backend folder).
-import { decidePrices, NOT_WORKING_SHARE } from "../priceModel";
+import { decidePrices, LISTINGS_THAT_OUTWEIGH_AI_GUESS, NOT_WORKING_SHARE } from "../priceModel";
 import { identifyingWords, isNotTheItem, matchesQuery } from "../bulkListingFilter";
 
 let fail = 0;
@@ -311,6 +311,55 @@ eq("a case for the speaker", isNotTheItem("JBL Charge 4 Travel Case", "JBL Charg
   // A broken item is priced for spares or repair; the listings (working ones) are not its ceiling.
   const d = decidePrices({ ...none, used: true, grade: "not-working", ebay: 20, ebayListings: 40, aiNew: 400 });
   eq("a not-working item ignores the ceiling", d.sell, 48);
+}
+
+// An AI that says it does not know the item is not heard when the title names a model and real listings are plentiful.
+// A typed "Duotts C29" (an e-bike of about £800 new): 11 matching shop listings (typical £899, cheapest £499.99), none on eBay used, and an AI that did not know the
+// brand and said £50 new, £15-25 used. It came out at £213 (the AI pulled the blend to £212, then the cheapest shop listing lifted it back to £499.99 as "new").
+{
+  const duotts = { ...none, used: true, ebayListings: 0, googleNew: 899, aiNew: 50, aiUsedMin: 15, aiUsedMax: 25, marketFloor: 499.99 };
+  const before = decidePrices(duotts);
+  eq("duotts, nothing said about the AI: as before", before.sell, 213);
+  const d = decidePrices({ ...duotts, aiRecognised: false, namedModel: true, googleListings: 11 });
+  eq("duotts: the AI that does not know it is set aside, the shop price stands", d.newPrice, 899);
+  eq("duotts: a used one is worked from it", d.sell, 383);
+  eq("duotts: buy is half", d.buy, 191.5);
+
+  // Only an AI that SAID it does not know, and only with a model named.
+  eq("the AI knows it: as before", decidePrices({ ...duotts, aiRecognised: true, namedModel: true, googleListings: 11 }).sell, 213);
+  eq("the AI did not say: as before", decidePrices({ ...duotts, aiRecognised: null, namedModel: true, googleListings: 11 }).sell, 213);
+  eq("no model named in the title: as before", decidePrices({ ...duotts, aiRecognised: false, namedModel: false, googleListings: 11 }).sell, 213);
+  eq("model naming not reported: as before", decidePrices({ ...duotts, aiRecognised: false, googleListings: 11 }).sell, 213);
+  eq("sold as new, not used: as before", decidePrices({ ...duotts, used: false, aiRecognised: false, namedModel: true, googleListings: 11 }).sell,
+    decidePrices({ ...duotts, used: false }).sell);
+
+  // How many listings: 10 is where it starts (the same figure as the app's STRONG_LISTINGS), shop and eBay counted together.
+  eq("9 listings: the AI still takes part", decidePrices({ ...duotts, aiRecognised: false, namedModel: true, googleListings: 9 }).sell, 213);
+  eq("10 listings: it does not", decidePrices({ ...duotts, aiRecognised: false, namedModel: true, googleListings: 10 }).sell, 383);
+  eq("4 used + 6 shop listings count together", decidePrices({ ...duotts, aiRecognised: false, namedModel: true, ebayListings: 4, googleListings: 6 }).sell, 383);
+  eq("4 used + 5 shop listings do not", decidePrices({ ...duotts, aiRecognised: false, namedModel: true, ebayListings: 4, googleListings: 5 }).sell, 213);
+  eq("the threshold is 10", LISTINGS_THAT_OUTWEIGH_AI_GUESS, 10);
+
+  // The AI's USED range goes with its new price: with a used listing price present, the AI's £20 midpoint would be the middle of three opinions (100, 383, 20) and
+  // win; set aside, the two left disagree and the one worked from the shop price stands.
+  const withUsed = { ...duotts, ebay: 100, aiRecognised: false, namedModel: true, googleListings: 11 };
+  eq("the AI's used range is set aside too", decidePrices(withUsed).sell, 383);
+  eq("without that, the AI's used range outvotes the shop price", decidePrices({ ...withUsed, aiRecognised: true }).sell, 100);
+  eq("a used maximum on its own does not bring it back", decidePrices({ ...withUsed, aiUsedMin: null }).sell, 383);
+}
+{
+  // "Pine chest of drawers": no model named. The AI says it does not know it only because there is no make and model to know; 42 used eBay listings have a middle
+  // asking price of about £312 (large and antique chests, asks that include delivery), the AI says £50-100 used. Tried without the model-name gate this moved
+  // from £107 to £281: the lesson of 18 Oct 2026 (a floor from eBay alone makes things worse) again.
+  const pine = { ...none, used: true, ebay: 280.8, ebayListings: 42, aiNew: 250, aiUsedMin: 50, aiUsedMax: 100 };
+  eq("pine chest, as before", decidePrices(pine).sell, 107);
+  eq("pine chest: no model named, the AI is still heard", decidePrices({ ...pine, aiRecognised: false, namedModel: false, googleListings: 0 }).sell, 107);
+  eq("pine chest: the gate is what keeps it there", decidePrices({ ...pine, aiRecognised: false, namedModel: true, googleListings: 0 }).sell !== 107, true);
+}
+{
+  // An item the AI knows is left alone whatever the listings say (an Xbox Series S: eBay asks £277 for used ones, shops £390 new, it really sells for about £170).
+  const xbox = { ...none, used: true, ebay: 276.75, ebayListings: 28, googleNew: 389.99, aiNew: 249.99, aiUsedMin: 150, aiUsedMax: 200, marketFloor: 259.99 };
+  eq("an item the AI knows is unchanged", decidePrices({ ...xbox, aiRecognised: true, namedModel: true, googleListings: 33 }).sell, decidePrices(xbox).sell);
 }
 
 console.log(fail === 0 ? "ALL PASS" : `${fail} FAILED`);

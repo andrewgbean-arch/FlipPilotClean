@@ -77,6 +77,23 @@ export const LISTINGS_THAT_ANCHOR = 10;
 export const LISTINGS_CEILING = 1.5;
 
 /**
+ * An AI that says it does not know the item (aiRecognised false) is guessing from the name. When the title names a specific model (namedModel: "Duotts C29", not
+ * "Pine chest of drawers") and at least this many real listings stand behind the price (used eBay ones plus shop ones), its numbers are set aside and the price is
+ * worked from the listings alone. The same figure as STRONG_LISTINGS in the app (evidenceDepth.ts), where fewer listings than this already show the price as a
+ * rough guide.
+ *
+ * Found 10 Nov 2026: a typed "Duotts C29" (an e-bike of about £800 new, 11 matching shop listings) was priced at £213 because the AI, which did not know the
+ * brand, put a new one at £50 and pulled the blend down, and the shop price was then lifted only as far as the cheapest listing.
+ *
+ * Why a model must be named: tried without that gate on 78 typed items, the rule also moved a "Pine chest of drawers" from £107 to £281 (42 eBay listings with a
+ * middle asking price of £312: large and antique chests and delivery-inclusive asks) and an "Oak coffee table", a "Russell Hobbs toaster" and a "Hot Wheels track set"
+ * by small amounts. The AI says it does not know those too, but only because the title names no make and model; its guess about that KIND of thing is a sound prior
+ * and the listings are a mixed bag (the lesson of 18 Oct 2026 again: a floor from eBay alone made the 100-item test worse). Only used items. With fewer listings
+ * the AI still takes part (the screen calls that a rough guide), and with none at all the price is withheld (see isUnrecognised in fetchMarketData.ts).
+ */
+export const LISTINGS_THAT_OUTWEIGH_AI_GUESS = 10;
+
+/**
  * Extra discount for age, on top of condition — multiplied together. A recently
  * bought item holds more of its value even in the same physical condition.
  */
@@ -116,6 +133,15 @@ export interface PriceEvidence {
    * an actual listing that was found for it.
    */
   marketFloor?: number | null;
+  /**
+   * Whether the AI said it actually knows this make and model. false = it priced the item from how the name sounds, so its numbers are a guess and not
+   * evidence (see LISTINGS_THAT_OUTWEIGH_AI_GUESS). Absent or null = it did not say, which changes nothing.
+   */
+  aiRecognised?: boolean | null;
+  /** Whether the title names a specific model, not just a kind of thing (see namesAModel in bulkListingFilter.ts). */
+  namedModel?: boolean | null;
+  /** How many shop listings stand behind googleNew (after the filtering). */
+  googleListings?: number | null;
 }
 
 export interface PriceDecision {
@@ -156,6 +182,16 @@ function median(values: number[]) {
 const agree = (a: number, b: number) => Math.max(a, b) / Math.min(a, b) <= 2;
 
 export function decidePrices(e: PriceEvidence): PriceDecision {
+  // See LISTINGS_THAT_OUTWEIGH_AI_GUESS: an AI that is only guessing at a named model is not heard when real listings are plentiful.
+  const aiGuessing =
+    e.used &&
+    e.aiRecognised === false &&
+    e.namedModel === true &&
+    (e.ebayListings ?? 0) + (e.googleListings ?? 0) >= LISTINGS_THAT_OUTWEIGH_AI_GUESS;
+  const aiNew = aiGuessing ? null : e.aiNew;
+  const aiUsedMin = aiGuessing ? null : e.aiUsedMin;
+  const aiUsedMax = aiGuessing ? null : e.aiUsedMax;
+
   /* ---- NEW ---- */
   // What real shops charge, from Google — the source built for exactly this question. eBay's own
   // "new condition" search (e.ebayNew) deliberately plays NO part here any more: it was the
@@ -170,11 +206,11 @@ export function decidePrices(e: PriceEvidence): PriceDecision {
   const shelf = shelfList.length ? [shelfList[0]] : [];
   let newPrice: number | null = null;
 
-  if (valid(e.aiNew) && shelf.length) {
+  if (valid(aiNew) && shelf.length) {
     const dataLow = shelf[0];
-    if (agree(e.aiNew, dataLow)) {
-      newPrice = (e.aiNew + dataLow) / 2;
-    } else if (dataLow > e.aiNew) {
+    if (agree(aiNew, dataLow)) {
+      newPrice = (aiNew + dataLow) / 2;
+    } else if (dataLow > aiNew) {
       // Far ABOVE the AI. For a cheap item this is almost always multipacks and premium
       // sellers pushing the price up — real listings already go through pack-size scaling
       // and bulk-listing filtering upstream (bulkListingFilter.ts), but that filter can't
@@ -185,14 +221,14 @@ export function decidePrices(e: PriceEvidence): PriceDecision {
       // leftover multipack contamination, so land between the two instead of dismissing
       // real listings entirely (found live: a De'Longhi Rivelia espresso machine, real
       // listings around £350-535, priced at £150 because the AI alone was trusted).
-      newPrice = e.aiNew < CHEAP_ITEM_THRESHOLD ? e.aiNew : Math.sqrt(e.aiNew * dataLow);
+      newPrice = aiNew < CHEAP_ITEM_THRESHOLD ? aiNew : Math.sqrt(aiNew * dataLow);
     } else {
       // Far BELOW the AI: a listing can't easily be cheaper than the shelf
       // price by accident, but a bulk discount can make it look so. Land between.
-      newPrice = Math.sqrt(e.aiNew * dataLow);
+      newPrice = Math.sqrt(aiNew * dataLow);
     }
-  } else if (valid(e.aiNew)) {
-    newPrice = e.aiNew;
+  } else if (valid(aiNew)) {
+    newPrice = aiNew;
   } else if (shelf.length) {
     newPrice = Math.min(...shelf);
   }
@@ -207,10 +243,10 @@ export function decidePrices(e: PriceEvidence): PriceDecision {
   /* ---- SELL ---- */
   let sell: number | null = null;
   const aiUsedMid =
-    valid(e.aiUsedMin) && valid(e.aiUsedMax)
-      ? (e.aiUsedMin + e.aiUsedMax) / 2
-      : valid(e.aiUsedMax)
-      ? e.aiUsedMax
+    valid(aiUsedMin) && valid(aiUsedMax)
+      ? (aiUsedMin + aiUsedMax) / 2
+      : valid(aiUsedMax)
+      ? aiUsedMax
       : null;
 
   if (e.used) {

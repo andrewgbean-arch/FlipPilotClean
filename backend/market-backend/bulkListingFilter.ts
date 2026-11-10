@@ -283,6 +283,16 @@ export function extractVolume(text: string | null | undefined): number | null {
 const NOT_THE_ITEM =
   /\b(case|cover|pouch|sleeve|skin|strap|lanyard|stand|mount|holder|bracket|cable|charger|charging|adapter|adaptor|battery|batteries|replacement|spare|spares|parts|repair|faulty|broken|damaged|untested|manual|sticker|decal|box only|empty box|not working|no power|dead|clip|hook|chuck|bits|brushes|gasket|nozzle|tank|filter|filters|descaler|descaling|valve|seal|seals|pipe|hose|jug|carafe|portafilter|group\s?head|3d model|3d render|digital model|cad model|stl file|render pack|motor|control board|circuit board|pcb|module|drum bearing|bearing|heater element|heating element|condenser unit|condenser box|drive belt|thermostat|capacitor|carbon brush|hinge|door|interlock|control panel)\b/gi;
 
+// The PLURAL of the accessory words "skin" and "cover" above, and "decal", "sticker" ("Sony WH-1000XM4 Headphones Skins Matrix Black", "Skins, Wraps & Covers", "Trek Marlin 7 2025 Decals"). The
+// list above only has the singular, so every one of these got through: found 10 Nov 2026 on a "Sony WH-1000XM4" scan with the shop search on, where eleven identical £25 "Headphones Skins"
+// listings were the biggest cluster, outvoted the real £130 and £205 headphones and made the price £44.50 against 38 eBay listings averaging £92. Kept apart from the list above so that a
+// word the search itself contains in the singular ("phone skin") still lets the plural through, which the list above does not do (see isNotTheItem).
+// Only these four on purpose. Replayed over 1,795 real shop titles (46 items), the plural of "cable", "charger", "adapter", "stand", "mount", "holder", "clip" or "hook" would also have
+// dropped genuine consoles sold "with cables" (two Xbox Series S listings), because a whole item often lists what comes with it in the plural; skins, covers and decals are never that.
+const NOT_THE_ITEM_PLURALS = /\b(skins|covers|decals|stickers)\b/gi;
+const singularOf = (word: string) =>
+  word.endsWith("ies") ? word.slice(0, -3) + "y" : /(?:ches|shes|sses|xes|zes)$/.test(word) ? word.slice(0, -2) : word.endsWith("s") && !word.endsWith("ss") ? word.slice(0, -1) : word;
+
 // More appliance-specific spares — deliberately kept OUT of the list above and only checked when
 // capacityRatedGoods says this really is a tumble dryer/fridge/etc: a "switch", "handle",
 // "container" or "timer" is a completely ordinary, positive thing to mention on countless
@@ -355,6 +365,12 @@ export function isNotTheItem(
     ...(seatingGoods ? title.match(SEATING_PARTS_EXTRA) ?? [] : []),
     ...(chairOnly ? title.match(CHAIR_ONLY_PARTS_EXTRA) ?? [] : []),
   ];
+  // A plural accessory word is held against the listing unless the search has it, in the singular or the plural.
+  const plurals = (title.match(NOT_THE_ITEM_PLURALS) ?? []).filter((word) => {
+    const w = word.toLowerCase();
+    return !wanted.includes(w) && !wanted.includes(singularOf(w));
+  });
+  if (plurals.length) return true;
   if (!found.length) return false;
   const wholeBike = isWholeElectricBike(title);
   return found.some((word) => !wanted.includes(word.toLowerCase()) && !(wholeBike && EBIKE_OWN_PARTS.has(word.toLowerCase())));
@@ -492,6 +508,30 @@ export function matchesQuery(title: string | null | undefined, query: string): b
   const have = words(title);
   const found = wanted.filter((w) => have.some((h) => sameWord(h, w))).length;
   return found >= Math.ceil(wanted.length * 0.8);
+}
+
+// A unit stuck to a number is a size or a rating ("750W", "24cm", "64GB", "3rd"), and "4K", "5G", "3D" name a feature: none of them is the name of a model.
+const SPEC_TOKEN =
+  /^(?:\d+(?:\.\d+)?(?:cm|mm|m|km|kg|g|mg|l|ml|cl|w|kw|v|a|ah|mah|wh|gb|tb|mb|hz|khz|mhz|ghz|inch|in|ft|pack|pcs|pc|x|st|nd|rd|th)|[2-8]k|[2-5]g|3d|[2-5]in1)$/;
+
+/**
+ * True when a title names a specific MODEL: a word that mixes letters and digits ("C29", "XM4", "F20", "S21", "250D") or a plain number of three or more digits
+ * ("501", "1460", "75257"), not counting sizes and ratings ("750W", "24cm", "64GB"), 4-digit years, or a bare one- or two-digit number ("Giant Escape 3").
+ * A generic description ("Pine chest of drawers", "Oak coffee table", "Russell Hobbs toaster", "Electric Mountain Bike") names none: what comes back for it is a
+ * mixed bag of listings, so nothing a search finds can stand in for what the AI says about that kind of thing (see decidePrices in priceModel.ts).
+ */
+export function namesAModel(title: string | null | undefined): boolean {
+  if (!title) return false;
+  return title
+    .toLowerCase()
+    .split(/[^a-z0-9.]+/)
+    .some((raw) => {
+      const t = raw.replace(/^\.+|\.+$/g, "");
+      if (!t || SPEC_TOKEN.test(t)) return false;
+      if (/^(?:19|20)\d\d$/.test(t)) return false; // a year
+      if (/^\d{3,}$/.test(t)) return true;
+      return /[a-z]/.test(t) && /\d/.test(t);
+    });
 }
 
 /** The items that match the search, or all of them when too few do (so a odd title still gets an answer). */
