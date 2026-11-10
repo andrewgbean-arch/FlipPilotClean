@@ -18,6 +18,9 @@ export const pickMarket = (market: any) => ({
   demandScore: market?.demandScore ?? null,
   googlePriceMin: market?.googlePriceMin ?? null,
   googlePriceMax: market?.googlePriceMax ?? null,
+  // The typical shop price (not the single dearest listing, which can be another model): what the "Retail price" row shows. null on a reply, or a
+  // saved result, that predates it; the row then falls back to googlePriceMax (see retailPriceToShow).
+  googleShelfPrice: market?.googleShelfPrice ?? null,
   // How many shop listings stand behind those two figures after filtering; null on a reply (or a
   // saved result) that predates it. See evidenceDepth.ts.
   googleCount: market?.googleCount ?? null,
@@ -53,6 +56,16 @@ export const pickMarket = (market: any) => ({
         }
       : null,
 });
+
+// The figure for the result screen's "Retail price" row: the typical shop price when the server sent one, otherwise the dearest shop listing (an older reply, or a
+// result saved before the typical price was kept). The dearest listing alone can be another model of the same make: a Duotts C29 showed "Retail price £1,264", the
+// price of the C29-K, when the C29 itself is £660 to £999 in the shops (found 10 Nov 2026), so it is only the fallback.
+export const retailPriceToShow = (market: any): number | null => {
+  const typical = market?.googleShelfPrice;
+  if (typeof typical === "number" && Number.isFinite(typical) && typical > 0) return typical;
+  const dearest = market?.googlePriceMax;
+  return typeof dearest === "number" && Number.isFinite(dearest) ? dearest : null;
+};
 
 // `/search` and `/search-image` return { ai, market, pricing, flipScore, image, title, barcode, ... }.
 // scan-results.tsx expects { title, barcode, ai: { fair_price, suggested_buy, suggested_sell, flip_score }, image }.

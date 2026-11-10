@@ -40,7 +40,7 @@ import { ApiError, fetchPrices, reportPrice, type ItemAge, type ItemGrade } from
 import EbayListings from "@/components/scan/EbayListings";
 import SellerDescriptionCard from "@/components/scan/SellerDescriptionCard";
 import { dropPending, getPending } from "@/utils/pendingScan";
-import { applyPrices, SCAN_AGAIN_EVENT } from "@/utils/scanTransform";
+import { applyPrices, retailPriceToShow, SCAN_AGAIN_EVENT } from "@/utils/scanTransform";
 import { ebayRangeToShow } from "@/utils/ebayListings";
 import { evidenceDepth, guessedFromTheName, limitConfidence, limitFlipScore } from "@/utils/evidenceDepth";
 import { pickPriceRange } from "@/utils/priceRange";
@@ -668,6 +668,8 @@ export default function ScanResultsScreen() {
   // price: the shop figures may be for other products, so they are not shown, the chip is capped at Low, and the price is called a rough guide.
   const guessed = !data.market?.unrecognised && guessedFromTheName(data.market?.aiRecognised, depth);
   const hasGuideRows = !guessed && (data.market?.googlePriceMax != null || data.market?.googlePriceMin != null);
+  // The typical shop price, not the single dearest listing (which can be another model of the same make): see retailPriceToShow.
+  const retailShown = retailPriceToShow(data.market);
   const hasPickers = !saved && (!barcode || sellPrice != null);
 
   // Profit and ROI share one colour: green for a gain, red for a loss, plain for break-even.
@@ -702,7 +704,7 @@ export default function ScanResultsScreen() {
     try {
       await reportPrice({
         title,
-        retailPrice: typeof data.market?.googlePriceMax === "number" ? data.market.googlePriceMax : null,
+        retailPrice: retailShown,
         trendingPrice: typeof data.market?.googlePriceMin === "number" ? data.market.googlePriceMin : null,
         buyPrice,
         sellPrice,
@@ -943,17 +945,17 @@ export default function ScanResultsScreen() {
         {/* PRICE GUIDE: retail vs trending (Google's own high/low), and where you're buying */}
         {priceState !== "loading" && (hasGuideRows || hasPickers) ? (
           <View style={[styles.group, styles.guideCard, card]}>
-            {hasGuideRows && data.market?.googlePriceMax != null ? (
+            {hasGuideRows && retailShown != null ? (
               <FactRow
                 label="Retail price"
-                value={`£${Number(data.market.googlePriceMax).toFixed(2)}`}
+                value={`£${Number(retailShown).toFixed(2)}`}
               />
             ) : null}
             {hasGuideRows && data.market?.googlePriceMin != null ? (
               <FactRow
                 label="Trends around"
                 value={`£${Number(data.market.googlePriceMin).toFixed(2)}`}
-                divider={data.market?.googlePriceMax != null}
+                divider={retailShown != null}
               />
             ) : null}
 

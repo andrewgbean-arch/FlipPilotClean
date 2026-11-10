@@ -8,7 +8,7 @@
 // Separately, transformIdentity never copied the backend's own `packCount` field onto `ai.packCount`,
 // so SellerDescriptionCard (app/scan/scan-results.tsx) always got packCount=null, even for a barcode
 // scan the backend itself had correctly identified as, say, an 80-lozenge multipack.
-import { applyPrices, pickMarket, transformIdentity } from "../scanTransform";
+import { applyPrices, pickMarket, retailPriceToShow, transformIdentity } from "../scanTransform";
 
 let fail = 0;
 const eq = (label: string, got: unknown, want: unknown) => {
@@ -141,6 +141,19 @@ eq("typed: no barcode", typedIdentity.barcode, null);
 eq("typed: the mark survives the price step", applyPrices(typedIdentity, { market: {} }).source, "typed");
 eq("barcode: not marked as typed", transformIdentity({ title: "Kettle", barcode: "5012345678900", source: "off" }).source, null);
 eq("photo: not marked as typed", transformIdentity({ title: "Kettle" }).source, null);
+
+// The "Retail price" row shows the typical shop price, not the single dearest listing. Found 10 Nov 2026 on a typed "Duotts C29": the dearest of 11 matching shop
+// listings was "DUOTTS C29-K Electric Bike" at £1,264, another model, and the screen printed "Retail price £1264.00" beside £660 to £999 for the C29 itself.
+eq("shelfPrice is forwarded", pickMarket({ googleShelfPrice: 899 }).googleShelfPrice, 899);
+eq("shelfPrice absent: null, not undefined", pickMarket({}).googleShelfPrice, null);
+eq("retail row: the typical price wins over the dearest listing", retailPriceToShow({ googleShelfPrice: 899, googlePriceMax: 1264, googlePriceMin: 499.99 }), 899);
+eq("retail row: an older reply (no typical price) falls back to the dearest", retailPriceToShow({ googlePriceMax: 1264 }), 1264);
+eq("retail row: a typical price of null falls back to the dearest", retailPriceToShow({ googleShelfPrice: null, googlePriceMax: 30 }), 30);
+eq("retail row: nothing from the shops, nothing shown", retailPriceToShow({ googleShelfPrice: null, googlePriceMax: null, googlePriceMin: null }), null);
+eq("retail row: no market at all, nothing shown", retailPriceToShow(null), null);
+eq("retail row: a typical price of 0 is no price", retailPriceToShow({ googleShelfPrice: 0, googlePriceMax: 12 }), 12);
+eq("retail row: junk (a string) is no price", retailPriceToShow({ googleShelfPrice: "899", googlePriceMax: "1264" }), null);
+eq("retail row: survives the price step (what Save keeps)", retailPriceToShow(applyPrices(identity, { market: { googleShelfPrice: 899, googlePriceMax: 1264 } }).market), 899);
 
 console.log(fail === 0 ? "ALL PASS" : `${fail} FAILED`);
 process.exit(fail ? 1 : 0);

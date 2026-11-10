@@ -26,6 +26,12 @@ export interface UnifiedMarketResult {
   // Google-style range
   googlePriceMin: number | null;
   googlePriceMax: number | null;
+  /**
+   * The typical shop price: the dearer quartile of the shop listings that survived filtering (null when Google was not searched or found nothing). The screen's
+   * "Retail price" shows this rather than googlePriceMax, which is the single dearest listing and can be a different model of the same make (found 10 Nov 2026: a
+   * Duotts C29 showed "Retail price £1,264", the price of the C29-K, when the C29 itself is £660 to £999 in the shops).
+   */
+  googleShelfPrice?: number | null;
   /** How many listings stand behind Google's figures once everything has been filtered (not asked at all = 0; undefined = unknown). */
   googleCount?: number;
   /** Whether Google was actually searched. False when eBay alone was judged enough (a deliberate saving). */
@@ -768,6 +774,7 @@ const image =
       retailPrice,
       googlePriceMin,
       googlePriceMax,
+      googleShelfPrice: safeNumber(google?.avg ?? null),
       googleCount: google?.count ?? 0,
       googleSearched: !googleSkipped,
       lowest,
