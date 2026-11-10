@@ -199,7 +199,10 @@ const AIRPODS_SHOP = [
 
   // A lone earbud is a part, not the pair: of the 40 results the single left or right earbuds go, and the pairs stay.
   const airpods = await fetchMarketData("Apple AirPods Pro 2nd generation", { condition: "used" });
-  eq("airpods: four listings survive, not six (two of the old six were a pair)", airpods.googleCount, 4);
+  // Five survive: the genuine Pro 2 sold "with MagSafe Charging Case" at £200.39 (the accessory words used to drop a pair like that) and four plain AirPods 2nd generation ("Pro" is a generic word to the
+  // title match). The five single earbuds that used to make up the old six are gone.
+  eq("airpods: five listings survive, the lone earbuds gone and the pair with its case kept", airpods.googleCount, 5);
+  eq("airpods: the dearest is the Pro 2 pair with its MagSafe case at £200.39", airpods.googlePriceMax, 200.39);
   eq("airpods: the cheapest is no longer a £25 single earbud", airpods.googlePriceMin, 52.7);
   eq("airpods: the typical price is £187.89, not £56.49", airpods.googleShelfPrice, 187.89);
 

@@ -308,6 +308,18 @@ export function isOneOfAPair(title: string | null | undefined, query: string | n
   return !/\b(?:left|right|single|one)\b/i.test(query ?? "");
 }
 
+// Earbuds and headphones are SOLD WITH a case: "Apple AirPods Pro 2nd Generation with MagSafe Wireless Charging Case" is the pair, not a case, but the accessory words above ("case", "charging")
+// dropped it. Found 10 Nov 2026 on live eBay used listings: of 41 matching AirPods 2nd generation listings only 4 were kept, of 43 AirPods 3rd generation 9, of 50 Sony WF-1000XM4 12 (17 of the
+// dropped ones mention only a case, charging or a cable), so the price rested on a handful of odd listings and moved from scan to scan. A pair is recognised by saying it comes WITH a case
+// ("with", "w", "w/", "&", "+", "incl" before "case", up to three words apart; a "+" stuck to a name, as in "Beats Studio Buds+", is part of the name and not a connector) and by not being a case on its own ("only", "cradle", "empty"; a "replacement", a "spare" or something made "for" the earbuds is held against a listing by the rules above); a case listed with no such word
+// ("AirPods Pro 2nd Generation A2968 Charging Case - USB C", £33) stays out. Only for a title that names earbuds or headphones, and only the words "case" and "charging" are forgiven.
+const WITH_CASE = /(?:\b(?:with|incl\.?|including)\b|(?<=\s)[&+]|\bw\/|\bw\b)\s*(?:[a-z0-9-]+\s+){0,3}?case\b/i;
+const CASE_ONLY = /\b(?:only|cradle|empty)\b/i;
+const AUDIO_OWN_PARTS = new Set(["case", "charging"]);
+export function isAudioSetWithCase(title: string | null | undefined): boolean {
+  return !!title && EARBUD_WORD.test(title) && WITH_CASE.test(title) && !CASE_ONLY.test(title);
+}
+
 // More appliance-specific spares — deliberately kept OUT of the list above and only checked when
 // capacityRatedGoods says this really is a tumble dryer/fridge/etc: a "switch", "handle",
 // "container" or "timer" is a completely ordinary, positive thing to mention on countless
@@ -389,7 +401,13 @@ export function isNotTheItem(
   if (isOneOfAPair(title, wanted)) return true;
   if (!found.length) return false;
   const wholeBike = isWholeElectricBike(title);
-  return found.some((word) => !wanted.includes(word.toLowerCase()) && !(wholeBike && EBIKE_OWN_PARTS.has(word.toLowerCase())));
+  const audioSet = isAudioSetWithCase(title);
+  return found.some(
+    (word) =>
+      !wanted.includes(word.toLowerCase()) &&
+      !(wholeBike && EBIKE_OWN_PARTS.has(word.toLowerCase())) &&
+      !(audioSet && AUDIO_OWN_PARTS.has(word.toLowerCase()))
+  );
 }
 
 /**
