@@ -44,6 +44,7 @@ import vehiclePhotoAnalysisRoute from "./routes/vehiclePhotoAnalysis";
 import vehiclePriceRoute from "./routes/vehiclePrice";
 import { rateLimit } from "./middleware/rateLimit";
 import { runAdvertReminders } from "./utils/advertReminders";
+import { buildInfo } from "./utils/buildInfo";
 
 
 
@@ -218,11 +219,14 @@ async function lookupMot(reg: string): Promise<Lookup> {
 /* -------------------------------------------------------
    HEALTH CHECK
 ------------------------------------------------------- */
+// Also says when this process started and which commit it was built from, so a deploy can be checked from outside (see utils/buildInfo.ts).
+const BUILD = buildInfo(process.env, new Date().toISOString());
 app.get("/", (_req, res) => {
   res.status(200).json({
     ok: true,
     message: "FlipPilot backend running",
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    ...BUILD
   });
 });
 
